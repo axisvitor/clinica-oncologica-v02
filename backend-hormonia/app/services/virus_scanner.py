@@ -21,7 +21,7 @@ import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ScanResult:
     """Virus scan result"""
+
     clean: bool
     threat_found: Optional[str] = None
     scan_time_ms: float = 0.0
@@ -53,7 +54,7 @@ class VirusScannerService:
         host: str = "localhost",
         port: int = 3310,
         timeout: int = 30,
-        fallback_cli: bool = True
+        fallback_cli: bool = True,
     ):
         """
         Initialize virus scanner
@@ -79,23 +80,28 @@ class VirusScannerService:
     def _should_enable(self) -> bool:
         """Determine if scanning should be enabled"""
         env = os.getenv("ENVIRONMENT", "development")
-        enabled_env = os.getenv("CLAMAV_ENABLED", "true" if env == "production" else "false")
+        enabled_env = os.getenv(
+            "CLAMAV_ENABLED", "true" if env == "production" else "false"
+        )
         return enabled_env.lower() in ("true", "1", "yes")
 
     def _check_clamd_connection(self) -> bool:
         """Check if ClamAV daemon is available"""
         try:
             import socket
+
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(2)
             result = sock.connect_ex((self.host, self.port))
             sock.close()
-            self._clamd_available = (result == 0)
+            self._clamd_available = result == 0
 
             if self._clamd_available:
                 logger.info(f"ClamAV daemon available at {self.host}:{self.port}")
             else:
-                logger.warning(f"ClamAV daemon not available at {self.host}:{self.port}")
+                logger.warning(
+                    f"ClamAV daemon not available at {self.host}:{self.port}"
+                )
 
             return self._clamd_available
         except Exception as e:
@@ -118,18 +124,12 @@ class VirusScannerService:
         # Check if scanning is enabled
         if not self.enabled:
             logger.debug(f"Virus scanning disabled, skipping: {file_path}")
-            return ScanResult(
-                clean=True,
-                scanner_used="disabled",
-                scan_time_ms=0.0
-            )
+            return ScanResult(clean=True, scanner_used="disabled", scan_time_ms=0.0)
 
         # Check file exists
         if not file_path.exists():
             return ScanResult(
-                clean=False,
-                error=f"File not found: {file_path}",
-                scanner_used="none"
+                clean=False, error=f"File not found: {file_path}", scanner_used="none"
             )
 
         # Try daemon first
@@ -148,26 +148,29 @@ class VirusScannerService:
         return ScanResult(
             clean=True,  # Fail open for availability
             error="No scanner available",
-            scanner_used="none"
+            scanner_used="none",
         )
 
     async def _scan_with_daemon(self, file_path: Path) -> ScanResult:
         """Scan using ClamAV daemon (pyclamd)"""
         import time
+
         start = time.time()
 
         try:
             import pyclamd
 
             # Connect to daemon
-            cd = pyclamd.ClamdNetworkSocket(host=self.host, port=self.port, timeout=self.timeout)
+            cd = pyclamd.ClamdNetworkSocket(
+                host=self.host, port=self.port, timeout=self.timeout
+            )
 
             # Ping to verify connection
             if not cd.ping():
                 return ScanResult(
                     clean=False,
                     error="ClamAV daemon not responding to ping",
-                    scanner_used="clamd"
+                    scanner_used="clamd",
                 )
 
             # Scan file
@@ -177,38 +180,35 @@ class VirusScannerService:
             if result is None:
                 # Clean file
                 return ScanResult(
-                    clean=True,
-                    scanner_used="clamd",
-                    scan_time_ms=scan_time
+                    clean=True, scanner_used="clamd", scan_time_ms=scan_time
                 )
             else:
                 # Threat found
-                threat = result[str(file_path)][1] if str(file_path) in result else "Unknown threat"
+                threat = (
+                    result[str(file_path)][1]
+                    if str(file_path) in result
+                    else "Unknown threat"
+                )
                 return ScanResult(
                     clean=False,
                     threat_found=threat,
                     scanner_used="clamd",
-                    scan_time_ms=scan_time
+                    scan_time_ms=scan_time,
                 )
 
         except ImportError:
             logger.warning("pyclamd not installed, cannot use daemon")
             return ScanResult(
-                clean=False,
-                error="pyclamd not installed",
-                scanner_used="clamd"
+                clean=False, error="pyclamd not installed", scanner_used="clamd"
             )
         except Exception as e:
             logger.error(f"Daemon scan error: {e}", exc_info=True)
-            return ScanResult(
-                clean=False,
-                error=str(e),
-                scanner_used="clamd"
-            )
+            return ScanResult(clean=False, error=str(e), scanner_used="clamd")
 
     async def _scan_with_cli(self, file_path: Path) -> ScanResult:
         """Scan using clamdscan command-line tool"""
         import time
+
         start = time.time()
 
         try:
@@ -217,7 +217,7 @@ class VirusScannerService:
                 ["clamdscan", "--no-summary", str(file_path)],
                 capture_output=True,
                 text=True,
-                timeout=self.timeout
+                timeout=self.timeout,
             )
 
             scan_time = (time.time() - start) * 1000
@@ -225,30 +225,30 @@ class VirusScannerService:
             # Exit code 0 = clean, 1 = infected, 2+ = error
             if result.returncode == 0:
                 return ScanResult(
-                    clean=True,
-                    scanner_used="clamdscan",
-                    scan_time_ms=scan_time
+                    clean=True, scanner_used="clamdscan", scan_time_ms=scan_time
                 )
             elif result.returncode == 1:
                 # Parse threat name from output
                 threat = "Unknown threat"
                 for line in result.stdout.split("\n"):
                     if "FOUND" in line:
-                        threat = line.rsplit(":", 1)[-1].strip().replace("FOUND", "").strip()
+                        threat = (
+                            line.rsplit(":", 1)[-1].strip().replace("FOUND", "").strip()
+                        )
                         break
 
                 return ScanResult(
                     clean=False,
                     threat_found=threat,
                     scanner_used="clamdscan",
-                    scan_time_ms=scan_time
+                    scan_time_ms=scan_time,
                 )
             else:
                 # Error
                 return ScanResult(
                     clean=False,
                     error=f"clamdscan error: {result.stderr}",
-                    scanner_used="clamdscan"
+                    scanner_used="clamdscan",
                 )
 
         except FileNotFoundError:
@@ -256,21 +256,17 @@ class VirusScannerService:
             return ScanResult(
                 clean=False,
                 error="clamdscan command not found",
-                scanner_used="clamdscan"
+                scanner_used="clamdscan",
             )
         except subprocess.TimeoutExpired:
             return ScanResult(
                 clean=False,
                 error=f"Scan timeout after {self.timeout}s",
-                scanner_used="clamdscan"
+                scanner_used="clamdscan",
             )
         except Exception as e:
             logger.error(f"CLI scan error: {e}", exc_info=True)
-            return ScanResult(
-                clean=False,
-                error=str(e),
-                scanner_used="clamdscan"
-            )
+            return ScanResult(clean=False, error=str(e), scanner_used="clamdscan")
 
     async def health_check(self) -> Tuple[bool, str]:
         """
@@ -289,7 +285,9 @@ class VirusScannerService:
         # Check CLI
         if self.fallback_cli:
             try:
-                subprocess.run(["clamdscan", "--version"], capture_output=True, timeout=5)
+                subprocess.run(
+                    ["clamdscan", "--version"], capture_output=True, timeout=5
+                )
                 return True, "ClamAV CLI available (daemon down)"
             except (subprocess.SubprocessError, FileNotFoundError, OSError):
                 pass
@@ -310,6 +308,7 @@ def get_virus_scanner() -> VirusScannerService:
             host=os.getenv("CLAMAV_HOST", "localhost"),
             port=int(os.getenv("CLAMAV_PORT", "3310")),
             timeout=int(os.getenv("CLAMAV_TIMEOUT", "30")),
-            fallback_cli=os.getenv("CLAMAV_FALLBACK_CLI", "true").lower() in ("true", "1", "yes")
+            fallback_cli=os.getenv("CLAMAV_FALLBACK_CLI", "true").lower()
+            in ("true", "1", "yes"),
         )
     return _scanner

@@ -4,6 +4,7 @@ Base classes and helpers for flow tasks.
 This module provides the base FlowTaskBase class for all flow-related Celery tasks,
 as well as helper functions like send_critical_alert_sync.
 """
+
 import asyncio
 import logging
 from typing import Any
@@ -28,7 +29,12 @@ def send_critical_alert_sync(task_name: str, error: str, context: dict = None):
         compatibility with Celery's synchronous task environment.
     """
     try:
-        from app.services.alerts import get_alert_manager, AlertRuleType, AlertSeverity, Alert
+        from app.services.alerts import (
+            get_alert_manager,
+            AlertRuleType,
+            AlertSeverity,
+            Alert,
+        )
 
         # Create alert object
         alert = Alert(
@@ -36,7 +42,7 @@ def send_critical_alert_sync(task_name: str, error: str, context: dict = None):
             rule_type=AlertRuleType.CUSTOM,
             message=f"Critical failure in task {task_name}: {error}",
             context=context or {},
-            timestamp=datetime.utcnow()
+            timestamp=datetime.utcnow(),
         )
 
         # Get manager and process
@@ -57,6 +63,7 @@ def send_critical_alert_sync(task_name: str, error: str, context: dict = None):
             # This happens if the task is async but called synchronously?
             # For safety in Celery, we usually want a fresh loop if possible or use thread pool
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(
                     lambda: asyncio.run(manager.process_alert(alert))
@@ -104,7 +111,9 @@ class FlowTaskBase(Task):
         """
         logger.error(f"Flow task {task_id} failed: {exc}")
         # Store failure in Redis for monitoring
-        self._store_task_result(task_id, "failure", {"error": str(exc), "traceback": str(einfo)})
+        self._store_task_result(
+            task_id, "failure", {"error": str(exc), "traceback": str(einfo)}
+        )
 
     def on_retry(self, exc, task_id, args, kwargs, einfo):
         """
@@ -119,7 +128,9 @@ class FlowTaskBase(Task):
         """
         logger.warning(f"Flow task {task_id} retrying: {exc}")
         # Store retry in Redis for monitoring
-        self._store_task_result(task_id, "retry", {"error": str(exc), "attempt": self.request.retries + 1})
+        self._store_task_result(
+            task_id, "retry", {"error": str(exc), "attempt": self.request.retries + 1}
+        )
 
     def _store_task_result(self, task_id: str, status: str, data: Any):
         """
@@ -140,13 +151,17 @@ class FlowTaskBase(Task):
             from app.config import settings
 
             # Use synchronous Redis client for Celery task context
-            from app.config.settings.tasks import REDIS_SOCKET_TIMEOUT, REDIS_SOCKET_CONNECT_TIMEOUT
+            from app.config.settings.tasks import (
+                REDIS_SOCKET_TIMEOUT,
+                REDIS_SOCKET_CONNECT_TIMEOUT,
+            )
+
             redis_client = redis.from_url(
                 settings.REDIS_URL,
                 decode_responses=True,
                 socket_connect_timeout=REDIS_SOCKET_CONNECT_TIMEOUT,
                 socket_timeout=REDIS_SOCKET_TIMEOUT,
-                retry_on_timeout=True
+                retry_on_timeout=True,
             )
 
             # Store task result with expiration
@@ -154,15 +169,16 @@ class FlowTaskBase(Task):
                 "task_id": task_id,
                 "status": status,
                 "timestamp": datetime.utcnow().isoformat(),
-                "data": data
+                "data": data,
             }
 
             # Use synchronous Redis operations
             from app.config.settings.tasks import REDIS_TASK_RESULT_EXPIRY
+
             redis_client.setex(
                 f"task_result:{task_id}",
                 REDIS_TASK_RESULT_EXPIRY,
-                json.dumps(result_data)
+                json.dumps(result_data),
             )
 
             redis_client.close()

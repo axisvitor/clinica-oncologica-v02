@@ -4,20 +4,18 @@ Security Monitor Service for WhatsApp Access Control.
 Comprehensive security monitoring, logging, and alerting system for
 unauthorized access attempts, phone blocking, and security analytics.
 """
+
 import logging
-import asyncio
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
-from sqlalchemy import text, func, and_, or_
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import text
 import redis.asyncio as redis
 import json
 import hashlib
 
 from app.core.redis_unified import get_async_redis
 from app.core.security_config import get_security_config
-from app.models.base import Base
 from app.utils.db_retry import with_db_retry
 
 logger = logging.getLogger(__name__)
@@ -60,7 +58,7 @@ class SecurityMonitor:
         self,
         phone: str,
         message_content: str = "",
-        source_metadata: Optional[Dict[str, Any]] = None
+        source_metadata: Optional[Dict[str, Any]] = None,
     ) -> UUID:
         """
         Log unauthorized access attempt with full context.
@@ -82,9 +80,11 @@ class SecurityMonitor:
                 "message_content": message_content[:500],  # Limit content length
                 "source_metadata": source_metadata or {},
                 "timestamp": datetime.utcnow(),
-                "risk_score": self._calculate_risk_score(phone, message_content, source_metadata),
+                "risk_score": self._calculate_risk_score(
+                    phone, message_content, source_metadata
+                ),
                 "geolocation": self._extract_geolocation(source_metadata),
-                "device_info": self._extract_device_info(source_metadata)
+                "device_info": self._extract_device_info(source_metadata),
             }
 
             # Insert audit record
@@ -101,22 +101,27 @@ class SecurityMonitor:
                 )
             """)
 
-            self.db.execute(insert_stmt, {
-                "id": str(audit_id),
-                "event_type": "unauthorized_whatsapp_access",
-                "phone_number": phone,
-                "message_content": audit_data["message_content"],
-                "source_metadata": json.dumps(audit_data["source_metadata"]),
-                "risk_score": audit_data["risk_score"],
-                "ip_address": audit_data.get("geolocation", {}).get("ip"),
-                "user_agent": audit_data.get("device_info", {}).get("user_agent"),
-                "session_id": self._generate_session_id(phone),
-                "created_at": audit_data["timestamp"],
-                "additional_data": json.dumps({
-                    "geolocation": audit_data["geolocation"],
-                    "device_info": audit_data["device_info"]
-                })
-            })
+            self.db.execute(
+                insert_stmt,
+                {
+                    "id": str(audit_id),
+                    "event_type": "unauthorized_whatsapp_access",
+                    "phone_number": phone,
+                    "message_content": audit_data["message_content"],
+                    "source_metadata": json.dumps(audit_data["source_metadata"]),
+                    "risk_score": audit_data["risk_score"],
+                    "ip_address": audit_data.get("geolocation", {}).get("ip"),
+                    "user_agent": audit_data.get("device_info", {}).get("user_agent"),
+                    "session_id": self._generate_session_id(phone),
+                    "created_at": audit_data["timestamp"],
+                    "additional_data": json.dumps(
+                        {
+                            "geolocation": audit_data["geolocation"],
+                            "device_info": audit_data["device_info"],
+                        }
+                    ),
+                },
+            )
 
             self.db.commit()
 
@@ -134,7 +139,9 @@ class SecurityMonitor:
             return audit_id
 
         except Exception as e:
-            logger.error(f"Failed to log unauthorized access for {phone}: {e}", exc_info=True)
+            logger.error(
+                f"Failed to log unauthorized access for {phone}: {e}", exc_info=True
+            )
             self.db.rollback()
             # Return a fallback UUID to prevent breaking caller logic
             return uuid4()
@@ -144,7 +151,7 @@ class SecurityMonitor:
         self,
         phone: str,
         patient_id: UUID,
-        source_metadata: Optional[Dict[str, Any]] = None
+        source_metadata: Optional[Dict[str, Any]] = None,
     ) -> UUID:
         """
         Log successful authorized access for audit trail.
@@ -172,28 +179,35 @@ class SecurityMonitor:
                 )
             """)
 
-            self.db.execute(insert_stmt, {
-                "id": str(audit_id),
-                "event_type": "authorized_whatsapp_access",
-                "phone_number": phone,
-                "patient_id": str(patient_id),
-                "source_metadata": json.dumps(source_metadata or {}),
-                "risk_score": 0,  # Authorized access has 0 risk
-                "created_at": datetime.utcnow(),
-                "additional_data": json.dumps({"access_granted": True})
-            })
+            self.db.execute(
+                insert_stmt,
+                {
+                    "id": str(audit_id),
+                    "event_type": "authorized_whatsapp_access",
+                    "phone_number": phone,
+                    "patient_id": str(patient_id),
+                    "source_metadata": json.dumps(source_metadata or {}),
+                    "risk_score": 0,  # Authorized access has 0 risk
+                    "created_at": datetime.utcnow(),
+                    "additional_data": json.dumps({"access_granted": True}),
+                },
+            )
 
             self.db.commit()
 
             # Reset Redis counters for successful access
             await self._reset_redis_counters(phone)
 
-            logger.debug(f"Logged authorized access: {audit_id} (phone={phone}, patient_id={patient_id})")
+            logger.debug(
+                f"Logged authorized access: {audit_id} (phone={phone}, patient_id={patient_id})"
+            )
 
             return audit_id
 
         except Exception as e:
-            logger.error(f"Failed to log authorized access for {phone}: {e}", exc_info=True)
+            logger.error(
+                f"Failed to log authorized access for {phone}: {e}", exc_info=True
+            )
             self.db.rollback()
             return uuid4()
 
@@ -229,10 +243,9 @@ class SecurityMonitor:
                   AND created_at > :since_time
             """)
 
-            result = self.db.execute(count_stmt, {
-                "phone": phone,
-                "since_time": since_time
-            }).scalar()
+            result = self.db.execute(
+                count_stmt, {"phone": phone, "since_time": since_time}
+            ).scalar()
 
             count = result or 0
 
@@ -261,8 +274,8 @@ class SecurityMonitor:
             daily_attempts = await self.get_attempt_count(phone, 24)
 
             should_block = (
-                hourly_attempts >= self.max_attempts_per_hour or
-                daily_attempts >= self.max_attempts_per_day
+                hourly_attempts >= self.max_attempts_per_hour
+                or daily_attempts >= self.max_attempts_per_day
             )
 
             if should_block:
@@ -313,7 +326,7 @@ class SecurityMonitor:
         phone: str,
         reason: str,
         duration_hours: int = 24,
-        additional_metadata: Optional[Dict[str, Any]] = None
+        additional_metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
         Block phone number for specified duration.
@@ -336,9 +349,11 @@ class SecurityMonitor:
                 "phone": phone,
                 "reason": reason,
                 "blocked_at": datetime.utcnow().isoformat(),
-                "expires_at": (datetime.utcnow() + timedelta(hours=duration_hours)).isoformat(),
+                "expires_at": (
+                    datetime.utcnow() + timedelta(hours=duration_hours)
+                ).isoformat(),
                 "duration_hours": str(duration_hours),
-                "metadata": json.dumps(additional_metadata or {})
+                "metadata": json.dumps(additional_metadata or {}),
             }
 
             # Set block with expiration
@@ -346,7 +361,9 @@ class SecurityMonitor:
             await redis_client.expire(block_key, duration_hours * 3600)
 
             # Log blocking event to database
-            await self._log_block_event(phone, reason, duration_hours, additional_metadata)
+            await self._log_block_event(
+                phone, reason, duration_hours, additional_metadata
+            )
 
             # Send security alert
             await self._send_security_alert(
@@ -354,8 +371,8 @@ class SecurityMonitor:
                 details={
                     "phone": phone,
                     "reason": reason,
-                    "duration_hours": duration_hours
-                }
+                    "duration_hours": duration_hours,
+                },
             )
 
             logger.warning(
@@ -388,7 +405,9 @@ class SecurityMonitor:
 
             if block_existed:
                 # Log unblock event
-                await self._log_block_event(phone, f"unblocked: {reason}", 0, {"action": "unblock"})
+                await self._log_block_event(
+                    phone, f"unblocked: {reason}", 0, {"action": "unblock"}
+                )
 
                 logger.info(f"Phone {phone} unblocked. Reason: {reason}")
                 return True
@@ -437,8 +456,8 @@ class SecurityMonitor:
                     "unauthorized_attempts": 0,
                     "authorized_accesses": 0,
                     "unique_phones": set(),
-                    "high_risk_events": 0
-                }
+                    "high_risk_events": 0,
+                },
             }
 
             for row in results:
@@ -447,7 +466,7 @@ class SecurityMonitor:
                     "count": row[1],
                     "avg_risk_score": float(row[2]) if row[2] else 0,
                     "max_risk_score": float(row[3]) if row[3] else 0,
-                    "unique_phones": row[4]
+                    "unique_phones": row[4],
                 }
 
                 # Update summary
@@ -466,12 +485,14 @@ class SecurityMonitor:
             async for key in redis_client.scan_iter(match="blocked_phone:*"):
                 phone = key.decode().split(":")[-1]
                 block_info = await redis_client.hgetall(key)
-                blocked_phones.append({
-                    "phone": phone,
-                    "blocked_at": block_info.get(b"blocked_at", b"").decode(),
-                    "reason": block_info.get(b"reason", b"").decode(),
-                    "expires_at": block_info.get(b"expires_at", b"").decode()
-                })
+                blocked_phones.append(
+                    {
+                        "phone": phone,
+                        "blocked_at": block_info.get(b"blocked_at", b"").decode(),
+                        "reason": block_info.get(b"reason", b"").decode(),
+                        "expires_at": block_info.get(b"expires_at", b"").decode(),
+                    }
+                )
 
             stats["currently_blocked"] = blocked_phones
 
@@ -487,7 +508,7 @@ class SecurityMonitor:
         self,
         phone: str,
         message_content: str,
-        source_metadata: Optional[Dict[str, Any]]
+        source_metadata: Optional[Dict[str, Any]],
     ) -> int:
         """Calculate risk score (0-10) for unauthorized access attempt."""
         risk_score = 1  # Base risk for unauthorized access
@@ -495,8 +516,16 @@ class SecurityMonitor:
         # Content-based risk factors
         if message_content:
             suspicious_patterns = [
-                "teste", "test", "hack", "admin", "senha", "password",
-                "suporte", "support", "ajuda", "help"
+                "teste",
+                "test",
+                "hack",
+                "admin",
+                "senha",
+                "password",
+                "suporte",
+                "support",
+                "ajuda",
+                "help",
             ]
 
             content_lower = message_content.lower()
@@ -523,22 +552,25 @@ class SecurityMonitor:
             # Very recent timestamps might indicate rapid-fire attempts
             timestamp = source_metadata.get("timestamp")
             if timestamp and isinstance(timestamp, (int, float)):
-                msg_time = datetime.fromtimestamp(timestamp / 1000)  # WhatsApp uses milliseconds
+                msg_time = datetime.fromtimestamp(
+                    timestamp / 1000
+                )  # WhatsApp uses milliseconds
                 time_diff = datetime.utcnow() - msg_time
                 if time_diff.total_seconds() < 5:  # Very recent
                     risk_score += 1
 
         return min(risk_score, 10)  # Cap at 10
 
-    def _extract_geolocation(self, source_metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def _extract_geolocation(
+        self, source_metadata: Optional[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Extract geolocation information from metadata."""
         # WhatsApp doesn't provide IP directly, but we can extract what's available
-        return {
-            "source": "whatsapp",
-            "metadata_available": bool(source_metadata)
-        }
+        return {"source": "whatsapp", "metadata_available": bool(source_metadata)}
 
-    def _extract_device_info(self, source_metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def _extract_device_info(
+        self, source_metadata: Optional[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Extract device information from metadata."""
         if not source_metadata:
             return {}
@@ -546,7 +578,7 @@ class SecurityMonitor:
         return {
             "push_name": source_metadata.get("pushName"),
             "from_me": source_metadata.get("from_me", False),
-            "has_timestamp": "timestamp" in source_metadata
+            "has_timestamp": "timestamp" in source_metadata,
         }
 
     def _generate_session_id(self, phone: str) -> str:
@@ -600,8 +632,8 @@ class SecurityMonitor:
                         "phone": phone,
                         "attempt_count": attempt_count,
                         "risk_score": risk_score,
-                        "time_window": "1 hour"
-                    }
+                        "time_window": "1 hour",
+                    },
                 )
 
         except Exception as e:
@@ -612,7 +644,7 @@ class SecurityMonitor:
         phone: str,
         reason: str,
         duration_hours: int,
-        metadata: Optional[Dict[str, Any]]
+        metadata: Optional[Dict[str, Any]],
     ) -> None:
         """Log phone blocking/unblocking event to database."""
         try:
@@ -627,17 +659,24 @@ class SecurityMonitor:
                 )
             """)
 
-            self.db.execute(insert_stmt, {
-                "id": str(audit_id),
-                "event_type": "phone_blocked" if duration_hours > 0 else "phone_unblocked",
-                "phone_number": phone,
-                "created_at": datetime.utcnow(),
-                "additional_data": json.dumps({
-                    "reason": reason,
-                    "duration_hours": duration_hours,
-                    "metadata": metadata or {}
-                })
-            })
+            self.db.execute(
+                insert_stmt,
+                {
+                    "id": str(audit_id),
+                    "event_type": "phone_blocked"
+                    if duration_hours > 0
+                    else "phone_unblocked",
+                    "phone_number": phone,
+                    "created_at": datetime.utcnow(),
+                    "additional_data": json.dumps(
+                        {
+                            "reason": reason,
+                            "duration_hours": duration_hours,
+                            "metadata": metadata or {},
+                        }
+                    ),
+                },
+            )
 
             self.db.commit()
 
@@ -645,14 +684,16 @@ class SecurityMonitor:
             logger.error(f"Failed to log block event for {phone}: {e}")
             self.db.rollback()
 
-    async def _send_security_alert(self, alert_type: str, details: Dict[str, Any]) -> None:
+    async def _send_security_alert(
+        self, alert_type: str, details: Dict[str, Any]
+    ) -> None:
         """Send security alert to monitoring systems."""
         try:
             alert_data = {
                 "type": alert_type,
                 "timestamp": datetime.utcnow().isoformat(),
                 "details": details,
-                "severity": self._determine_alert_severity(alert_type, details)
+                "severity": self._determine_alert_severity(alert_type, details),
             }
 
             # Log alert
@@ -670,7 +711,9 @@ class SecurityMonitor:
         except Exception as e:
             logger.error(f"Failed to send security alert: {e}")
 
-    def _determine_alert_severity(self, alert_type: str, details: Dict[str, Any]) -> str:
+    def _determine_alert_severity(
+        self, alert_type: str, details: Dict[str, Any]
+    ) -> str:
         """Determine alert severity based on type and details."""
         if alert_type == "phone_blocked":
             return "high"

@@ -29,7 +29,7 @@ class WebhookEvent(Base):
         String(255),
         primary_key=True,
         nullable=False,
-        comment="Unique event ID from webhook provider"
+        comment="Unique event ID from webhook provider",
     )
 
     # Event metadata
@@ -37,14 +37,14 @@ class WebhookEvent(Base):
         String(50),
         nullable=False,
         index=True,
-        comment="Webhook provider (e.g., 'whatsapp', 'twilio')"
+        comment="Webhook provider (e.g., 'whatsapp', 'twilio')",
     )
 
     event_type = Column(
         String(100),
         nullable=False,
         index=True,
-        comment="Type of webhook event (e.g., 'message.received')"
+        comment="Type of webhook event (e.g., 'message.received')",
     )
 
     # Timestamps
@@ -52,20 +52,20 @@ class WebhookEvent(Base):
         DateTime(timezone=True),
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP"),
-        comment="When webhook was first received"
+        comment="When webhook was first received",
     )
 
     processed_at = Column(
         DateTime(timezone=True),
         nullable=True,
-        comment="When webhook processing completed"
+        comment="When webhook processing completed",
     )
 
     expires_at = Column(
         DateTime(timezone=True),
         nullable=False,
         index=True,
-        comment="When idempotency record expires (24h from received_at)"
+        comment="When idempotency record expires (24h from received_at)",
     )
 
     # Processing metadata
@@ -73,36 +73,32 @@ class WebhookEvent(Base):
         String(20),
         nullable=False,
         default="processing",
-        comment="Processing status: processing, completed, failed"
+        comment="Processing status: processing, completed, failed",
     )
 
     retry_count = Column(
         Integer,
         nullable=False,
         default=0,
-        comment="Number of duplicate webhook attempts detected"
+        comment="Number of duplicate webhook attempts detected",
     )
 
     # Store original webhook payload for debugging
     payload = Column(
-        JSONB,
-        nullable=True,
-        comment="Original webhook payload (for debugging)"
+        JSONB, nullable=True, comment="Original webhook payload (for debugging)"
     )
 
     # Response data
     response_data = Column(
-        JSONB,
-        nullable=True,
-        comment="Processing result or error details"
+        JSONB, nullable=True, comment="Processing result or error details"
     )
 
     # Indexes for efficient queries
     __table_args__ = (
-        Index('idx_webhook_idempotency_provider_type', 'provider', 'event_type'),
-        Index('idx_webhook_idempotency_expires_at', 'expires_at'),
-        Index('idx_webhook_idempotency_received_at', 'received_at'),
-        Index('idx_webhook_idempotency_status', 'status'),
+        Index("idx_webhook_idempotency_provider_type", "provider", "event_type"),
+        Index("idx_webhook_idempotency_expires_at", "expires_at"),
+        Index("idx_webhook_idempotency_received_at", "received_at"),
+        Index("idx_webhook_idempotency_status", "status"),
     )
 
     @classmethod
@@ -112,7 +108,7 @@ class WebhookEvent(Base):
         provider: str,
         event_type: str,
         payload: dict | None = None,
-        ttl_hours: int = 24
+        ttl_hours: int = 24,
     ) -> "WebhookEvent":
         """
         Create a new webhook event record.
@@ -138,7 +134,7 @@ class WebhookEvent(Base):
             received_at=now,
             expires_at=expires_at,
             status="processing",
-            retry_count=0
+            retry_count=0,
         )
 
     def mark_completed(self, response_data: dict | None = None) -> None:

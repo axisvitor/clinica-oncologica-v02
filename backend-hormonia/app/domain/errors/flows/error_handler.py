@@ -2,6 +2,7 @@
 Main error handler orchestrator for flow operations.
 Coordinates error classification, recovery strategies, retry management, and audit logging.
 """
+
 import logging
 import traceback
 from datetime import datetime
@@ -20,14 +21,9 @@ from .classifier import (
     RecoveryStrategy,
     ErrorHandlerConfig,
     ErrorClassifier,
-    RecoveryStrategySelector
+    RecoveryStrategySelector,
 )
-from .retry_manager import (
-    ErrorContext,
-    ErrorRecord,
-    RecoveryResult,
-    RetryManager
-)
+from .retry_manager import ErrorContext, ErrorRecord, RecoveryResult, RetryManager
 from .recovery_strategy import RecoveryActionFactory
 from .audit_logger import ErrorAuditLogger
 
@@ -37,11 +33,13 @@ logger = logging.getLogger(__name__)
 class FlowErrorHandler:
     """Comprehensive error handler for flow operations."""
 
-    def __init__(self,
-                 db: Session,
-                 config: Optional[ErrorHandlerConfig] = None,
-                 classifier: Optional[ErrorClassifier] = None,
-                 strategy_selector: Optional[RecoveryStrategySelector] = None):
+    def __init__(
+        self,
+        db: Session,
+        config: Optional[ErrorHandlerConfig] = None,
+        classifier: Optional[ErrorClassifier] = None,
+        strategy_selector: Optional[RecoveryStrategySelector] = None,
+    ):
         """
         Initialize flow error handler.
 
@@ -64,8 +62,7 @@ class FlowErrorHandler:
 
         # Initialize managers
         self.retry_manager = RetryManager(
-            redis_client=self.memory.redis,
-            retry_delays=self.config.retry_delays
+            redis_client=self.memory.redis, retry_delays=self.config.retry_delays
         )
         self.audit_logger = ErrorAuditLogger(redis_client=self.memory.redis)
 
@@ -91,7 +88,9 @@ class FlowErrorHandler:
         if not context.operation or not context.operation.strip():
             raise ValueError("operation cannot be empty")
 
-        if context.flow_state_id is not None and not isinstance(context.flow_state_id, UUID):
+        if context.flow_state_id is not None and not isinstance(
+            context.flow_state_id, UUID
+        ):
             raise ValueError("flow_state_id must be a valid UUID or None")
 
         if context.message_id is not None and not isinstance(context.message_id, UUID):
@@ -111,10 +110,12 @@ class FlowErrorHandler:
         operation_hash = hash(context.operation) % 10000  # Keep it short
         return f"{str(context.patient_id)[:8]}_{operation_hash}_{timestamp}"
 
-    async def handle_error(self,
-                          error: Exception,
-                          context: ErrorContext,
-                          recovery_strategy: Optional[RecoveryStrategy] = None) -> RecoveryResult:
+    async def handle_error(
+        self,
+        error: Exception,
+        context: ErrorContext,
+        recovery_strategy: Optional[RecoveryStrategy] = None,
+    ) -> RecoveryResult:
         """
         Handle flow operation error with appropriate recovery strategy.
 
@@ -152,7 +153,10 @@ class FlowErrorHandler:
                 context=context,
                 stack_trace=traceback.format_exc()[:5000],  # Limit stack trace length
                 max_recovery_attempts=self.config.max_retry_attempts.get(category, 3),
-                recovery_strategy=recovery_strategy or self.strategy_selector.determine_recovery_strategy(category, severity)
+                recovery_strategy=recovery_strategy
+                or self.strategy_selector.determine_recovery_strategy(
+                    category, severity
+                ),
             )
 
             # Store error record
@@ -160,7 +164,9 @@ class FlowErrorHandler:
             await self.audit_logger.store_error(error_record)
 
             # Log error
-            logger.error(f"Flow error occurred: {error_record.error_type} - {error_record.message}")
+            logger.error(
+                f"Flow error occurred: {error_record.error_type} - {error_record.message}"
+            )
             logger.error(f"Context: {context}")
 
             # Attempt recovery
@@ -183,7 +189,7 @@ class FlowErrorHandler:
                 strategy_used=RecoveryStrategy.ESCALATE_MANUAL,
                 attempts_made=0,
                 error_resolved=False,
-                message="Error handler failed"
+                message="Error handler failed",
             )
 
     async def _attempt_recovery(self, error_record: ErrorRecord) -> RecoveryResult:
@@ -207,12 +213,12 @@ class FlowErrorHandler:
                 strategy_used=error_record.recovery_strategy,
                 attempts_made=error_record.recovery_attempts,
                 error_resolved=False,
-                message=f"Recovery failed: {str(e)}"
+                message=f"Recovery failed: {str(e)}",
             )
 
-    async def get_error_statistics(self,
-                                   timeframe_hours: int = 24,
-                                   use_cache: bool = True) -> dict:
+    async def get_error_statistics(
+        self, timeframe_hours: int = 24, use_cache: bool = True
+    ) -> dict:
         """
         Get error statistics for monitoring.
 
@@ -237,9 +243,9 @@ class FlowErrorHandler:
         """
         return await self.audit_logger.cleanup_old_errors(self.error_records, days_old)
 
-    def register_recovery_callback(self,
-                                   category: ErrorCategory,
-                                   callback: Callable) -> None:
+    def register_recovery_callback(
+        self, category: ErrorCategory, callback: Callable
+    ) -> None:
         """
         Register callback for error category.
 
@@ -294,7 +300,7 @@ class FlowErrorHandlerFactory:
         db: Session,
         config: ErrorHandlerConfig,
         classifier: Optional[ErrorClassifier] = None,
-        strategy_selector: Optional[RecoveryStrategySelector] = None
+        strategy_selector: Optional[RecoveryStrategySelector] = None,
     ) -> FlowErrorHandler:
         """
         Create FlowErrorHandler with custom configuration.
@@ -312,14 +318,12 @@ class FlowErrorHandlerFactory:
             db=db,
             config=config,
             classifier=classifier,
-            strategy_selector=strategy_selector
+            strategy_selector=strategy_selector,
         )
 
     @staticmethod
     def create_for_testing(
-        db: Session,
-        mock_memory=None,
-        mock_repos=None
+        db: Session, mock_memory=None, mock_repos=None
     ) -> FlowErrorHandler:
         """
         Create FlowErrorHandler for testing with mocked dependencies.
@@ -338,12 +342,12 @@ class FlowErrorHandlerFactory:
             handler.memory = mock_memory
 
         if mock_repos:
-            if 'flow_repo' in mock_repos:
-                handler.flow_repo = mock_repos['flow_repo']
-            if 'message_repo' in mock_repos:
-                handler.message_repo = mock_repos['message_repo']
-            if 'patient_repo' in mock_repos:
-                handler.patient_repo = mock_repos['patient_repo']
+            if "flow_repo" in mock_repos:
+                handler.flow_repo = mock_repos["flow_repo"]
+            if "message_repo" in mock_repos:
+                handler.message_repo = mock_repos["message_repo"]
+            if "patient_repo" in mock_repos:
+                handler.patient_repo = mock_repos["patient_repo"]
 
         return handler
 

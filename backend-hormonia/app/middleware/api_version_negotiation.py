@@ -31,9 +31,7 @@ class APIVersionNegotiation:
     """
 
     # Regex pattern for Accept header: application/vnd.clinica.v2+json
-    ACCEPT_PATTERN = re.compile(
-        r'application/vnd\.clinica\.(v\d+)\+json'
-    )
+    ACCEPT_PATTERN = re.compile(r"application/vnd\.clinica\.(v\d+)\+json")
 
     def __init__(self, default_version: str = "v2"):
         """
@@ -100,12 +98,12 @@ class APIVersionNegotiation:
         Returns:
             Version string or None
         """
-        parts = path.split('/')
+        parts = path.split("/")
 
         # Expected format: /api/v{X}/...
-        if len(parts) >= 3 and parts[1] == 'api':
+        if len(parts) >= 3 and parts[1] == "api":
             version_part = parts[2]
-            if version_part.startswith('v') and version_part[1:].isdigit():
+            if version_part.startswith("v") and version_part[1:].isdigit():
                 return version_part
 
         return None
@@ -124,7 +122,7 @@ class APIVersionNegotiation:
         Returns:
             Version string or None
         """
-        accept_header = request.headers.get('Accept', '')
+        accept_header = request.headers.get("Accept", "")
 
         match = self.ACCEPT_PATTERN.search(accept_header)
         if match:
@@ -146,13 +144,13 @@ class APIVersionNegotiation:
         Returns:
             Version string or None
         """
-        custom_version = request.headers.get('X-API-Version')
+        custom_version = request.headers.get("X-API-Version")
 
         if custom_version:
             # Normalize: "2" -> "v2", "v2" -> "v2"
             if custom_version.isdigit():
                 return f"v{custom_version}"
-            elif custom_version.startswith('v') and custom_version[1:].isdigit():
+            elif custom_version.startswith("v") and custom_version[1:].isdigit():
                 return custom_version
 
         return None
@@ -178,9 +176,9 @@ class APIVersionNegotiation:
                         "code": "UNSUPPORTED_API_VERSION",
                         "message": f"API version '{version}' is not supported",
                         "supported_versions": sorted(self.supported_versions),
-                        "default_version": self.default_version
+                        "default_version": self.default_version,
                     }
-                }
+                },
             )
 
         return version

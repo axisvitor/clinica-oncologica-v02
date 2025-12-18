@@ -3,7 +3,7 @@ Decision Engine - Makes intelligent flow decisions based on analysis.
 """
 
 import logging
-from typing import Dict, List, Any, Optional, Callable
+from typing import Dict, List, Any, Callable
 
 from .models import FlowDecision, FlowContext
 
@@ -18,7 +18,7 @@ class DecisionEngine:
         consensus_threshold: float = 0.7,
         intervention_threshold: float = 0.8,
         adaptation_threshold: float = 0.6,
-        transition_day_45: int = 45
+        transition_day_45: int = 45,
     ):
         self.agent_id = agent_id
         self.logger = logger
@@ -35,7 +35,7 @@ class DecisionEngine:
             "engagement_score": 0.0,
             "risk_level": "low",
             "patterns": [],
-            "recommendations": []
+            "recommendations": [],
         }
 
         # Determine current phase
@@ -56,7 +56,9 @@ class DecisionEngine:
         progress_factors.append(max(0, mood_trend) * 0.25)
 
         # Engagement score
-        engagement = len(context.recent_interactions) / 7.0  # Expected daily interaction
+        engagement = (
+            len(context.recent_interactions) / 7.0
+        )  # Expected daily interaction
         engagement = min(1.0, engagement)
         progress_factors.append(engagement * 0.2)
         analysis["engagement_score"] = engagement
@@ -82,7 +84,9 @@ class DecisionEngine:
             analysis["patterns"] = context.knowledge_context.get("patterns", [])
 
         # Generate recommendations
-        analysis["recommendations"] = await self._generate_recommendations(context, analysis)
+        analysis["recommendations"] = await self._generate_recommendations(
+            context, analysis
+        )
 
         return analysis
 
@@ -91,7 +95,7 @@ class DecisionEngine:
         context: FlowContext,
         analysis: Dict[str, Any],
         requires_consensus_fn: Callable,
-        seek_consensus_fn: Callable
+        seek_consensus_fn: Callable,
     ) -> FlowDecision:
         """Make intelligent flow decision based on context and analysis."""
         progress_score = analysis["progress_score"]
@@ -108,8 +112,8 @@ class DecisionEngine:
                     {
                         "patient_id": str(context.patient_id),
                         "risk_factors": context.risk_factors,
-                        "analysis": analysis
-                    }
+                        "analysis": analysis,
+                    },
                 )
 
                 if consensus_result["consensus_reached"]:
@@ -130,8 +134,8 @@ class DecisionEngine:
                         "patient_id": str(context.patient_id),
                         "from_phase": "daily",
                         "to_phase": "monthly",
-                        "progress_score": progress_score
-                    }
+                        "progress_score": progress_score,
+                    },
                 )
 
                 if consensus_result["consensus_reached"]:
@@ -150,7 +154,9 @@ class DecisionEngine:
         # Continue current flow if everything is going well
         return FlowDecision.CONTINUE_CURRENT
 
-    async def _generate_recommendations(self, context: FlowContext, analysis: Dict[str, Any]) -> List[str]:
+    async def _generate_recommendations(
+        self, context: FlowContext, analysis: Dict[str, Any]
+    ) -> List[str]:
         """Generate recommendations based on analysis."""
         recommendations = []
 
@@ -168,12 +174,10 @@ class DecisionEngine:
 
         return recommendations
 
-    def requires_consensus_decision(self, decision_type: str, context: FlowContext) -> bool:
+    def requires_consensus_decision(
+        self, decision_type: str, context: FlowContext
+    ) -> bool:
         """Check if decision requires consensus from other agents."""
-        critical_decisions = [
-            "escalate_intervention",
-            "advance_phase",
-            "pause_flow"
-        ]
+        critical_decisions = ["escalate_intervention", "advance_phase", "pause_flow"]
 
         return decision_type in critical_decisions

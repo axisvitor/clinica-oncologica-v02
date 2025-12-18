@@ -6,9 +6,10 @@ Implements a configurable time window to ignore duplicate responses within the d
 
 HIGH-005 Fix: Prevents multiple rapid messages being processed as different answers.
 """
+
 import logging
 from typing import Optional, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime
 from uuid import UUID
 
 from app.core.redis_unified import get_async_redis
@@ -38,13 +39,15 @@ class QuizResponseDebouncer:
             debounce_window_seconds: Time window in seconds to debounce responses (default: 3)
         """
         self.debounce_window = debounce_window_seconds
-        logger.info(f"QuizResponseDebouncer initialized with {self.debounce_window}s window")
+        logger.info(
+            f"QuizResponseDebouncer initialized with {self.debounce_window}s window"
+        )
 
     async def should_process_response(
         self,
         session_id: UUID,
         question_id: str,
-        message_metadata: Optional[Dict[str, Any]] = None
+        message_metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
         Check if a quiz response should be processed based on debounce state.
@@ -69,13 +72,13 @@ class QuizResponseDebouncer:
             if exists:
                 # Response is within debounce window - ignore
                 logger.info(
-                    f"Quiz response debounced - ignoring duplicate",
+                    "Quiz response debounced - ignoring duplicate",
                     extra={
                         "session_id": str(session_id),
                         "question_id": question_id,
                         "debounce_window": self.debounce_window,
-                        "message_metadata": message_metadata
-                    }
+                        "message_metadata": message_metadata,
+                    },
                 )
 
                 # Track debounce metrics
@@ -88,16 +91,16 @@ class QuizResponseDebouncer:
             await redis_client.setex(
                 debounce_key,
                 self.debounce_window,
-                self._serialize_debounce_data(message_metadata)
+                self._serialize_debounce_data(message_metadata),
             )
 
             logger.debug(
-                f"Quiz response allowed - setting debounce window",
+                "Quiz response allowed - setting debounce window",
                 extra={
                     "session_id": str(session_id),
                     "question_id": question_id,
-                    "debounce_window": self.debounce_window
-                }
+                    "debounce_window": self.debounce_window,
+                },
             )
 
             return True
@@ -105,19 +108,14 @@ class QuizResponseDebouncer:
         except Exception as e:
             logger.error(
                 f"Error checking debounce state - allowing response by default: {e}",
-                extra={
-                    "session_id": str(session_id),
-                    "question_id": question_id
-                },
-                exc_info=True
+                extra={"session_id": str(session_id), "question_id": question_id},
+                exc_info=True,
             )
             # On error, allow the response (fail open to prevent blocking legitimate responses)
             return True
 
     async def clear_debounce(
-        self,
-        session_id: UUID,
-        question_id: Optional[str] = None
+        self, session_id: UUID, question_id: Optional[str] = None
     ) -> bool:
         """
         Manually clear debounce state for a session/question.
@@ -143,12 +141,12 @@ class QuizResponseDebouncer:
                 deleted = await redis_client.delete(debounce_key)
 
                 logger.info(
-                    f"Cleared debounce state for specific question",
+                    "Cleared debounce state for specific question",
                     extra={
                         "session_id": str(session_id),
                         "question_id": question_id,
-                        "deleted": bool(deleted)
-                    }
+                        "deleted": bool(deleted),
+                    },
                 )
 
                 return bool(deleted)
@@ -160,9 +158,7 @@ class QuizResponseDebouncer:
 
                 while True:
                     cursor, keys = await redis_client.scan(
-                        cursor=cursor,
-                        match=pattern,
-                        count=100
+                        cursor=cursor, match=pattern, count=100
                     )
 
                     if keys:
@@ -173,11 +169,11 @@ class QuizResponseDebouncer:
                         break
 
                 logger.info(
-                    f"Cleared all debounce state for session",
+                    "Cleared all debounce state for session",
                     extra={
                         "session_id": str(session_id),
-                        "deleted_keys": deleted_count
-                    }
+                        "deleted_keys": deleted_count,
+                    },
                 )
 
                 return deleted_count > 0
@@ -186,7 +182,7 @@ class QuizResponseDebouncer:
             logger.error(
                 f"Error clearing debounce state: {e}",
                 extra={"session_id": str(session_id), "question_id": question_id},
-                exc_info=True
+                exc_info=True,
             )
             return False
 
@@ -215,9 +211,7 @@ class QuizResponseDebouncer:
 
             while True:
                 cursor, keys = await redis_client.scan(
-                    cursor=cursor,
-                    match=pattern,
-                    count=100
+                    cursor=cursor, match=pattern, count=100
                 )
 
                 for key in keys:
@@ -226,10 +220,7 @@ class QuizResponseDebouncer:
                         continue
 
                     ttl = await redis_client.ttl(key)
-                    active_debounces.append({
-                        "key": key.decode(),
-                        "ttl_seconds": ttl
-                    })
+                    active_debounces.append({"key": key.decode(), "ttl_seconds": ttl})
 
                 if cursor == 0:
                     break
@@ -239,19 +230,16 @@ class QuizResponseDebouncer:
                 "total_debounced": debounced_count,
                 "active_debounces": len(active_debounces),
                 "debounce_window": self.debounce_window,
-                "active_keys": active_debounces
+                "active_keys": active_debounces,
             }
 
         except Exception as e:
             logger.error(
                 f"Error getting debounce stats: {e}",
                 extra={"session_id": str(session_id)},
-                exc_info=True
+                exc_info=True,
             )
-            return {
-                "session_id": str(session_id),
-                "error": str(e)
-            }
+            return {"session_id": str(session_id), "error": str(e)}
 
     def _build_debounce_key(self, session_id: UUID, question_id: str) -> str:
         """
@@ -268,7 +256,9 @@ class QuizResponseDebouncer:
         """
         return f"{self.DEBOUNCE_KEY_PREFIX}:{session_id}:{question_id}"
 
-    def _serialize_debounce_data(self, message_metadata: Optional[Dict[str, Any]]) -> str:
+    def _serialize_debounce_data(
+        self, message_metadata: Optional[Dict[str, Any]]
+    ) -> str:
         """
         Serialize debounce data for storage.
 
@@ -282,12 +272,14 @@ class QuizResponseDebouncer:
 
         data = {
             "timestamp": datetime.utcnow().isoformat(),
-            "metadata": message_metadata or {}
+            "metadata": message_metadata or {},
         }
 
         return json.dumps(data)
 
-    async def _increment_debounce_counter(self, session_id: UUID, question_id: str) -> None:
+    async def _increment_debounce_counter(
+        self, session_id: UUID, question_id: str
+    ) -> None:
         """
         Increment debounce counter for metrics.
 

@@ -3,10 +3,7 @@ Base schemas and enums for enhanced monitoring.
 Common fields, enums, and base classes.
 """
 
-from datetime import datetime
 from enum import Enum
-
-from pydantic import BaseModel, Field, ConfigDict
 
 
 # ============================================================================

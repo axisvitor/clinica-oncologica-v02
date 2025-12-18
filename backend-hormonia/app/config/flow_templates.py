@@ -83,7 +83,9 @@ class FlowTemplateLoader:
             with self.config_path.open("r", encoding="utf-8") as fh:
                 raw = yaml.safe_load(fh) or {}
                 if not isinstance(raw, dict):
-                    raise ValueError("flow_templates.yaml must define a mapping at the root")
+                    raise ValueError(
+                        "flow_templates.yaml must define a mapping at the root"
+                    )
 
                 self._config = raw
                 logger.debug("FlowTemplateLoader loaded %s", self.config_path)
@@ -91,7 +93,9 @@ class FlowTemplateLoader:
             logger.error("flow_templates.yaml not found at %s", self.config_path)
             self._config = {}
         except Exception as exc:
-            logger.error("Error loading flow templates from %s: %s", self.config_path, exc)
+            logger.error(
+                "Error loading flow templates from %s: %s", self.config_path, exc
+            )
             self._config = {}
 
 

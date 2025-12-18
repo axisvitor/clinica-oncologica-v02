@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 class ErrorSeverity(str, Enum):
     """Error severity levels."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -25,6 +26,7 @@ class ErrorSeverity(str, Enum):
 @dataclass
 class FlowError:
     """Flow error representation."""
+
     error_type: str
     message: str
     severity: ErrorSeverity
@@ -55,10 +57,7 @@ class FlowErrorHandler:
         logger.info("FlowErrorHandler initialized")
 
     async def handle_error(
-        self,
-        error: Exception,
-        context: Dict[str, Any],
-        operation: str
+        self, error: Exception, context: Dict[str, Any], operation: str
     ) -> FlowError:
         """
         Handle an error that occurred during flow operation.
@@ -85,10 +84,7 @@ class FlowErrorHandler:
         return flow_error
 
     def _classify_error(
-        self,
-        error: Exception,
-        context: Dict[str, Any],
-        operation: str
+        self, error: Exception, context: Dict[str, Any], operation: str
     ) -> FlowError:
         """
         Classify error and determine severity.
@@ -122,17 +118,14 @@ class FlowErrorHandler:
             error_type=error_type,
             message=error_message,
             severity=severity,
-            patient_id=context.get('patient_id'),
-            flow_type=context.get('flow_type'),
+            patient_id=context.get("patient_id"),
+            flow_type=context.get("flow_type"),
             operation=operation,
             metadata={
-                'context': context,
-                'error_details': {
-                    'type': error_type,
-                    'args': error.args
-                }
+                "context": context,
+                "error_details": {"type": error_type, "args": error.args},
             },
-            recoverable=recoverable
+            recoverable=recoverable,
         )
 
     def _log_error(self, flow_error: FlowError):
@@ -148,13 +141,13 @@ class FlowErrorHandler:
         )
 
         if flow_error.severity == ErrorSeverity.CRITICAL:
-            logger.critical(log_message, extra={'flow_error': flow_error})
+            logger.critical(log_message, extra={"flow_error": flow_error})
         elif flow_error.severity == ErrorSeverity.HIGH:
-            logger.error(log_message, extra={'flow_error': flow_error})
+            logger.error(log_message, extra={"flow_error": flow_error})
         elif flow_error.severity == ErrorSeverity.MEDIUM:
-            logger.warning(log_message, extra={'flow_error': flow_error})
+            logger.warning(log_message, extra={"flow_error": flow_error})
         else:
-            logger.info(log_message, extra={'flow_error': flow_error})
+            logger.info(log_message, extra={"flow_error": flow_error})
 
     def _track_error(self, flow_error: FlowError):
         """
@@ -199,9 +192,9 @@ class FlowErrorHandler:
             Error statistics dictionary
         """
         return {
-            'total_errors': sum(self.error_counts.values()),
-            'error_counts_by_type': self.error_counts.copy(),
-            'unique_error_types': len(self.error_counts)
+            "total_errors": sum(self.error_counts.values()),
+            "error_counts_by_type": self.error_counts.copy(),
+            "unique_error_types": len(self.error_counts),
         }
 
     def clear_error_stats(self):

@@ -19,14 +19,13 @@ Integration:
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from datetime import datetime, timedelta
 from uuid import UUID
 
 from redis.asyncio import Redis
 
 from app.core.redis_unified import get_async_redis
-from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +76,7 @@ class WebhookDLQ:
         event_data: Dict[str, Any],
         error: str,
         retry_count: int = 0,
-        original_timestamp: Optional[datetime] = None
+        original_timestamp: Optional[datetime] = None,
     ) -> bool:
         """
         Send failed webhook event to DLQ.
@@ -106,7 +105,7 @@ class WebhookDLQ:
                 "max_retries": self.MAX_RETRIES,
                 "timestamp": (original_timestamp or datetime.utcnow()).isoformat(),
                 "added_to_dlq_at": datetime.utcnow().isoformat(),
-                "next_retry_at": self._calculate_next_retry(retry_count).isoformat()
+                "next_retry_at": self._calculate_next_retry(retry_count).isoformat(),
             }
 
             # Add to DLQ (Redis LIST - FIFO)
@@ -125,8 +124,8 @@ class WebhookDLQ:
                     "event_id": str(event_id),
                     "event_type": event_type,
                     "retry_count": retry_count,
-                    "error": error[:100]  # Truncate error
-                }
+                    "error": error[:100],  # Truncate error
+                },
             )
 
             # Check for DLQ overflow and alert if needed
@@ -138,7 +137,9 @@ class WebhookDLQ:
             self.logger.error(f"Failed to add event to DLQ: {e}", exc_info=True)
             return False
 
-    async def process_dlq(self, batch_size: int = 50, event_type: Optional[str] = None) -> int:
+    async def process_dlq(
+        self, batch_size: int = 50, event_type: Optional[str] = None
+    ) -> int:
         """
         Process DLQ events with exponential backoff.
 
@@ -188,8 +189,12 @@ class WebhookDLQ:
 
                         if success:
                             processed_count += 1
-                            await self._update_dlq_metadata(event["event_type"], "processed")
-                            self.logger.info(f"Successfully processed DLQ event: {event['event_id']}")
+                            await self._update_dlq_metadata(
+                                event["event_type"], "processed"
+                            )
+                            self.logger.info(
+                                f"Successfully processed DLQ event: {event['event_id']}"
+                            )
                         else:
                             # Retry failed - check if should re-queue
                             retry_count = event["retry_count"] + 1
@@ -197,7 +202,9 @@ class WebhookDLQ:
                             if retry_count >= event["max_retries"]:
                                 # Max retries exceeded - move to dead letter
                                 await self._move_to_dead_letter(event)
-                                await self._update_dlq_metadata(event["event_type"], "dead_letter")
+                                await self._update_dlq_metadata(
+                                    event["event_type"], "dead_letter"
+                                )
                                 self.logger.warning(
                                     f"Event exceeded max retries: {event['event_id']} "
                                     f"({retry_count}/{event['max_retries']})"
@@ -205,9 +212,13 @@ class WebhookDLQ:
                             else:
                                 # Re-queue with updated retry count
                                 event["retry_count"] = retry_count
-                                event["next_retry_at"] = self._calculate_next_retry(retry_count).isoformat()
+                                event["next_retry_at"] = self._calculate_next_retry(
+                                    retry_count
+                                ).isoformat()
                                 await redis_client.rpush(dlq_key, json.dumps(event))
-                                await self._update_dlq_metadata(event["event_type"], "requeued")
+                                await self._update_dlq_metadata(
+                                    event["event_type"], "requeued"
+                                )
                                 self.logger.info(
                                     f"Re-queued event for retry: {event['event_id']} "
                                     f"(attempt {retry_count}/{event['max_retries']})"
@@ -217,11 +228,15 @@ class WebhookDLQ:
                         self.logger.error(f"Invalid JSON in DLQ: {e}")
                         continue
                     except Exception as e:
-                        self.logger.error(f"Error processing DLQ event: {e}", exc_info=True)
+                        self.logger.error(
+                            f"Error processing DLQ event: {e}", exc_info=True
+                        )
                         # Put back in queue to avoid losing event
                         await redis_client.rpush(dlq_key, event_json)
 
-            self.logger.info(f"DLQ processing complete: {processed_count} events processed")
+            self.logger.info(
+                f"DLQ processing complete: {processed_count} events processed"
+            )
             return processed_count
 
         except Exception as e:
@@ -246,6 +261,7 @@ class WebhookDLQ:
 
             # Import webhook processor
             from app.services.webhook_processor import WebhookProcessor
+
             processor = WebhookProcessor(self.db)
 
             # Route to appropriate handler
@@ -290,7 +306,9 @@ class WebhookDLQ:
             )
 
         except Exception as e:
-            self.logger.error(f"Failed to move event to dead letter: {e}", exc_info=True)
+            self.logger.error(
+                f"Failed to move event to dead letter: {e}", exc_info=True
+            )
 
     def _calculate_next_retry(self, retry_count: int) -> datetime:
         """
@@ -311,7 +329,7 @@ class WebhookDLQ:
         Returns:
             Next retry timestamp
         """
-        delay_seconds = self.BASE_RETRY_DELAY * (2 ** retry_count)
+        delay_seconds = self.BASE_RETRY_DELAY * (2**retry_count)
         # Cap at 30 minutes
         delay_seconds = min(delay_seconds, 1800)
         return datetime.utcnow() + timedelta(seconds=delay_seconds)
@@ -330,7 +348,9 @@ class WebhookDLQ:
 
             # Increment counter for action
             await redis_client.hincrby(metadata_key, f"total_{action}", 1)
-            await redis_client.hset(metadata_key, "last_updated", datetime.utcnow().isoformat())
+            await redis_client.hset(
+                metadata_key, "last_updated", datetime.utcnow().isoformat()
+            )
 
             # Set TTL
             await redis_client.expire(metadata_key, 7 * 86400)
@@ -360,8 +380,8 @@ class WebhookDLQ:
                         "event_type": event_type,
                         "queue_size": queue_size,
                         "threshold": self.MAX_DLQ_SIZE,
-                        "alert_type": "dlq_overflow"
-                    }
+                        "alert_type": "dlq_overflow",
+                    },
                 )
 
                 # TODO: Send alert to monitoring system (Sentry, email, etc.)
@@ -411,14 +431,14 @@ class WebhookDLQ:
                     "total_processed": int(metadata.get(b"total_processed", 0)),
                     "total_requeued": int(metadata.get(b"total_requeued", 0)),
                     "total_dead_letter": int(metadata.get(b"total_dead_letter", 0)),
-                    "last_updated": metadata.get(b"last_updated", b"").decode()
+                    "last_updated": metadata.get(b"last_updated", b"").decode(),
                 }
 
             stats = {
                 "total_pending": total_pending,
                 "by_event_type": by_event_type,
                 "max_dlq_size": self.MAX_DLQ_SIZE,
-                "overflow_alert": total_pending > self.MAX_DLQ_SIZE
+                "overflow_alert": total_pending > self.MAX_DLQ_SIZE,
             }
 
             return stats

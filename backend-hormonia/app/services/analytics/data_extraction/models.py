@@ -2,6 +2,7 @@
 Data models for data extraction service.
 Contains enums and data classes for structured extraction.
 """
+
 from typing import Any, List, Dict
 from datetime import datetime
 from enum import Enum
@@ -12,6 +13,7 @@ from app.services.ai import ConcernLevel
 
 class ResponseCategory(str, Enum):
     """Categories of patient responses."""
+
     SYMPTOM_REPORT = "symptom_report"
     MEDICATION_INQUIRY = "medication_inquiry"
     SIDE_EFFECT_REPORT = "side_effect_report"
@@ -26,6 +28,7 @@ class ResponseCategory(str, Enum):
 
 class ExtractionConfidence(str, Enum):
     """Confidence levels for data extraction."""
+
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"
@@ -34,6 +37,7 @@ class ExtractionConfidence(str, Enum):
 
 class MedicalConcernType(str, Enum):
     """Types of medical concerns."""
+
     PAIN = "pain"
     SIDE_EFFECT = "side_effect"
     SYMPTOM_WORSENING = "symptom_worsening"
@@ -47,12 +51,14 @@ class MedicalConcernType(str, Enum):
 class ExtractedEntity:
     """Extracted entity from patient response."""
 
-    def __init__(self,
-                 entity_type: str,
-                 value: Any,
-                 confidence: float,
-                 context: str,
-                 source_text: str):
+    def __init__(
+        self,
+        entity_type: str,
+        value: Any,
+        confidence: float,
+        context: str,
+        source_text: str,
+    ):
         self.entity_type = entity_type
         self.value = value
         self.confidence = confidence
@@ -64,13 +70,15 @@ class ExtractedEntity:
 class MedicalConcern:
     """Medical concern extracted from patient response."""
 
-    def __init__(self,
-                 concern_type: MedicalConcernType,
-                 description: str,
-                 severity: ConcernLevel,
-                 keywords: List[str],
-                 confidence: float,
-                 requires_immediate_attention: bool = False):
+    def __init__(
+        self,
+        concern_type: MedicalConcernType,
+        description: str,
+        severity: ConcernLevel,
+        keywords: List[str],
+        confidence: float,
+        requires_immediate_attention: bool = False,
+    ):
         self.concern_type = concern_type
         self.description = description
         self.severity = severity
@@ -83,11 +91,9 @@ class MedicalConcern:
 class PatientPreference:
     """Patient preference extracted from response."""
 
-    def __init__(self,
-                 preference_type: str,
-                 value: Any,
-                 confidence: float,
-                 context: str):
+    def __init__(
+        self, preference_type: str, value: Any, confidence: float, context: str
+    ):
         self.preference_type = preference_type
         self.value = value
         self.confidence = confidence
@@ -98,16 +104,18 @@ class PatientPreference:
 class StructuredExtractionResult:
     """Complete structured extraction result."""
 
-    def __init__(self,
-                 patient_id: UUID,
-                 original_message: str,
-                 response_category: ResponseCategory,
-                 extracted_entities: List[ExtractedEntity],
-                 medical_concerns: List[MedicalConcern],
-                 patient_preferences: List[PatientPreference],
-                 sentiment_analysis: Dict[str, Any],
-                 confidence_score: float,
-                 processing_notes: List[str]):
+    def __init__(
+        self,
+        patient_id: UUID,
+        original_message: str,
+        response_category: ResponseCategory,
+        extracted_entities: List[ExtractedEntity],
+        medical_concerns: List[MedicalConcern],
+        patient_preferences: List[PatientPreference],
+        sentiment_analysis: Dict[str, Any],
+        confidence_score: float,
+        processing_notes: List[str],
+    ):
         self.patient_id = patient_id
         self.original_message = original_message
         self.response_category = response_category

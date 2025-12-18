@@ -9,6 +9,7 @@ Modules:
 - utils: Phone normalization and message extraction utilities
 - persistence: Webhook event storage and retry logic
 """
+
 from app.services.webhook.handlers import (
     MessageWebhookHandler,
     StatusWebhookHandler,

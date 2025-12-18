@@ -2,20 +2,21 @@
 Retry Logic with Exponential Backoff
 Implements retry patterns for resilient service calls.
 """
+
 import asyncio
 import logging
 from functools import wraps
 from typing import Callable, TypeVar, Optional, Any, Tuple, Type
-from datetime import datetime
 import random
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class RetryConfig:
     """Configuration for retry behavior"""
+
     DEFAULT_MAX_RETRIES = 3
     DEFAULT_BASE_DELAY = 1.0
     DEFAULT_MAX_DELAY = 60.0
@@ -25,6 +26,7 @@ class RetryConfig:
 
 class RetryExhaustedError(Exception):
     """Raised when all retry attempts have been exhausted"""
+
     pass
 
 
@@ -35,7 +37,7 @@ async def retry_with_backoff(
     exponential_base: float = RetryConfig.DEFAULT_EXPONENTIAL_BASE,
     jitter: bool = RetryConfig.DEFAULT_JITTER,
     exceptions: Tuple[Type[Exception], ...] = (Exception,),
-    on_retry: Optional[Callable[[Exception, int], None]] = None
+    on_retry: Optional[Callable[[Exception, int], None]] = None,
 ):
     """
     Decorator for retrying async functions with exponential backoff.
@@ -54,6 +56,7 @@ async def retry_with_backoff(
         async def call_api():
             return await api.request()
     """
+
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         @wraps(func)
         async def wrapper(*args, **kwargs) -> T:
@@ -72,18 +75,15 @@ async def retry_with_backoff(
                             extra={
                                 "function": func.__name__,
                                 "attempts": attempt + 1,
-                                "error": str(e)
-                            }
+                                "error": str(e),
+                            },
                         )
                         raise RetryExhaustedError(
                             f"Failed after {max_retries} retries: {e}"
                         ) from e
 
                     # Calculate delay with exponential backoff
-                    delay = min(
-                        base_delay * (exponential_base ** attempt),
-                        max_delay
-                    )
+                    delay = min(base_delay * (exponential_base**attempt), max_delay)
 
                     # Add jitter if enabled
                     if jitter:
@@ -92,9 +92,15 @@ async def retry_with_backoff(
                     # Call retry callback if provided
                     if on_retry:
                         try:
-                            await on_retry(e, attempt + 1) if asyncio.iscoroutinefunction(on_retry) else on_retry(e, attempt + 1)
+                            await on_retry(
+                                e, attempt + 1
+                            ) if asyncio.iscoroutinefunction(on_retry) else on_retry(
+                                e, attempt + 1
+                            )
                         except Exception as callback_error:
-                            logger.warning(f"on_retry callback failed: {callback_error}")
+                            logger.warning(
+                                f"on_retry callback failed: {callback_error}"
+                            )
 
                     logger.warning(
                         f"{func.__name__} attempt {attempt + 1}/{max_retries} failed, "
@@ -104,8 +110,8 @@ async def retry_with_backoff(
                             "attempt": attempt + 1,
                             "max_retries": max_retries,
                             "delay": delay,
-                            "error": str(e)
-                        }
+                            "error": str(e),
+                        },
                     )
 
                     await asyncio.sleep(delay)
@@ -115,6 +121,7 @@ async def retry_with_backoff(
                 raise last_exception
 
         return wrapper
+
     return decorator
 
 
@@ -129,7 +136,7 @@ class RetryStrategy:
         base_delay: float = 1.0,
         max_delay: float = 60.0,
         exponential_base: float = 2.0,
-        jitter: bool = True
+        jitter: bool = True,
     ):
         """
         Initialize retry strategy.
@@ -150,7 +157,7 @@ class RetryStrategy:
             "total_attempts": 0,
             "successful_retries": 0,
             "failed_retries": 0,
-            "total_delay": 0.0
+            "total_delay": 0.0,
         }
 
     async def execute(
@@ -158,7 +165,7 @@ class RetryStrategy:
         func: Callable[..., T],
         *args,
         exceptions: Tuple[Type[Exception], ...] = (Exception,),
-        **kwargs
+        **kwargs,
     ) -> T:
         """
         Execute function with retry logic.
@@ -218,10 +225,7 @@ class RetryStrategy:
         Returns:
             Delay in seconds
         """
-        delay = min(
-            self.base_delay * (self.exponential_base ** attempt),
-            self.max_delay
-        )
+        delay = min(self.base_delay * (self.exponential_base**attempt), self.max_delay)
 
         if self.jitter:
             # Add jitter: randomize between 50% and 100% of calculated delay
@@ -240,7 +244,9 @@ class RetryStrategy:
             **self.stats,
             "average_delay": (
                 self.stats["total_delay"] / max(self.stats["successful_retries"], 1)
-            ) if self.stats["successful_retries"] > 0 else 0.0
+            )
+            if self.stats["successful_retries"] > 0
+            else 0.0,
         }
 
     def reset_stats(self):
@@ -249,7 +255,7 @@ class RetryStrategy:
             "total_attempts": 0,
             "successful_retries": 0,
             "failed_retries": 0,
-            "total_delay": 0.0
+            "total_delay": 0.0,
         }
 
 
@@ -259,38 +265,22 @@ class RetryStrategies:
 
     # Fast retry for quick operations
     FAST = RetryStrategy(
-        max_retries=3,
-        base_delay=0.5,
-        max_delay=5.0,
-        exponential_base=2.0,
-        jitter=True
+        max_retries=3, base_delay=0.5, max_delay=5.0, exponential_base=2.0, jitter=True
     )
 
     # Standard retry for most operations
     STANDARD = RetryStrategy(
-        max_retries=3,
-        base_delay=1.0,
-        max_delay=30.0,
-        exponential_base=2.0,
-        jitter=True
+        max_retries=3, base_delay=1.0, max_delay=30.0, exponential_base=2.0, jitter=True
     )
 
     # Slow retry for rate-limited APIs
     SLOW = RetryStrategy(
-        max_retries=5,
-        base_delay=2.0,
-        max_delay=60.0,
-        exponential_base=2.0,
-        jitter=True
+        max_retries=5, base_delay=2.0, max_delay=60.0, exponential_base=2.0, jitter=True
     )
 
     # Aggressive retry for critical operations
     AGGRESSIVE = RetryStrategy(
-        max_retries=7,
-        base_delay=0.5,
-        max_delay=30.0,
-        exponential_base=1.5,
-        jitter=True
+        max_retries=7, base_delay=0.5, max_delay=30.0, exponential_base=1.5, jitter=True
     )
 
     # Conservative retry for expensive operations
@@ -299,7 +289,7 @@ class RetryStrategies:
         base_delay=5.0,
         max_delay=60.0,
         exponential_base=2.0,
-        jitter=False
+        jitter=False,
     )
 
 
@@ -309,7 +299,7 @@ async def retry_async(
     base_delay: float = 1.0,
     exceptions: Tuple[Type[Exception], ...] = (Exception,),
     *args,
-    **kwargs
+    **kwargs,
 ) -> T:
     """
     Simple retry function for one-off async calls.
@@ -345,7 +335,7 @@ class CircuitBreakerRetry:
     def __init__(
         self,
         circuit_breaker: Any,  # CircuitBreaker instance
-        retry_strategy: RetryStrategy = RetryStrategies.STANDARD
+        retry_strategy: RetryStrategy = RetryStrategies.STANDARD,
     ):
         """
         Initialize circuit breaker with retry.
@@ -362,7 +352,7 @@ class CircuitBreakerRetry:
         func: Callable[..., T],
         *args,
         fallback: Optional[Callable] = None,
-        **kwargs
+        **kwargs,
     ) -> T:
         """
         Execute function with both circuit breaker and retry logic.
@@ -376,12 +366,10 @@ class CircuitBreakerRetry:
         Returns:
             Function result or fallback result
         """
+
         async def wrapped_call():
             return await self.circuit_breaker.call(
-                func,
-                *args,
-                fallback=fallback,
-                **kwargs
+                func, *args, fallback=fallback, **kwargs
             )
 
         return await self.retry_strategy.execute(wrapped_call)
@@ -389,8 +377,7 @@ class CircuitBreakerRetry:
 
 # Convenience function to combine circuit breaker and retry
 def with_retry_and_circuit_breaker(
-    circuit_breaker: Any,
-    retry_strategy: RetryStrategy = RetryStrategies.STANDARD
+    circuit_breaker: Any, retry_strategy: RetryStrategy = RetryStrategies.STANDARD
 ):
     """
     Decorator that combines circuit breaker with retry logic.
@@ -404,6 +391,7 @@ def with_retry_and_circuit_breaker(
         async def send_message(phone, message):
             return await api.send(phone, message)
     """
+
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         combined = CircuitBreakerRetry(circuit_breaker, retry_strategy)
 

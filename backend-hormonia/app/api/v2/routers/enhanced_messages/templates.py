@@ -14,10 +14,12 @@ from uuid import uuid4
 import json
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies.auth_dependencies import get_current_user_from_session, get_redis_cache
+from app.dependencies.auth_dependencies import (
+    get_current_user_from_session,
+    get_redis_cache,
+)
 from app.schemas.v2.enhanced_messages import (
     MessageTemplateV2Create,
     MessageTemplateV2Update,
@@ -41,15 +43,15 @@ logger = logging.getLogger(__name__)
     response_model=MessageTemplateV2Response,
     status_code=status.HTTP_201_CREATED,
     summary="Create message template",
-    description="Create a new message template with variables and conditionals"
+    description="Create a new message template with variables and conditionals",
 )
 @limiter.limit("30/minute")
 async def create_template(
     request: Request,
     template_data: MessageTemplateV2Create,
     current_user: dict = Depends(get_current_user_from_session),
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache)
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
 ) -> MessageTemplateV2Response:
     """
     Create a new message template.
@@ -66,7 +68,7 @@ async def create_template(
         if role not in ["admin", "administrator", "doctor"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only admins and doctors can create templates"
+                detail="Only admins and doctors can create templates",
             )
 
         # Create template record
@@ -87,12 +89,14 @@ async def create_template(
             "usage_count": 0,
             "created_by": current_user.get("id"),
             "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
+            "updated_at": datetime.utcnow(),
         }
 
         # Store in cache (30 min TTL for templates)
         cache_key = f"template:v2:{template_id}"
-        await redis_cache.set(cache_key, json.dumps(template_dict, default=str), ex=1800)
+        await redis_cache.set(
+            cache_key, json.dumps(template_dict, default=str), ex=1800
+        )
 
         # Also store in category index
         category_key = f"templates:v2:category:{template_data.category.value}"
@@ -104,22 +108,19 @@ async def create_template(
             extra={
                 "template_id": template_id,
                 "category": template_data.category.value,
-                "user_id": current_user.get("id")
-            }
+                "user_id": current_user.get("id"),
+            },
         )
 
         return MessageTemplateV2Response(**template_dict)
 
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Error creating template: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create template"
+            detail="Failed to create template",
         )
 
 
@@ -127,18 +128,20 @@ async def create_template(
     "/templates",
     response_model=MessageTemplateV2List,
     summary="List message templates",
-    description="Get paginated list of message templates with filtering"
+    description="Get paginated list of message templates with filtering",
 )
 @limiter.limit("100/minute")
 async def list_templates(
     request: Request,
-    pagination = Depends(get_pagination_params),
-    category: Optional[TemplateCategoryV2] = Query(None, description="Filter by category"),
+    pagination=Depends(get_pagination_params),
+    category: Optional[TemplateCategoryV2] = Query(
+        None, description="Filter by category"
+    ),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     search: Optional[str] = Query(None, description="Search in name and content"),
     tags: Optional[str] = Query(None, description="Filter by tags (comma-separated)"),
     current_user: dict = Depends(get_current_user_from_session),
-    redis_cache = Depends(get_redis_cache)
+    redis_cache=Depends(get_redis_cache),
 ) -> MessageTemplateV2List:
     """
     List message templates with cursor-based pagination.
@@ -155,10 +158,12 @@ async def list_templates(
         limit = pagination["limit"]
 
         # Try to get from cache first
-        cache_key = f"templates:v2:list:{category}:{is_active}:{search}:{tags}:{cursor_data}"
+        cache_key = (
+            f"templates:v2:list:{category}:{is_active}:{search}:{tags}:{cursor_data}"
+        )
         cached_result = await redis_cache.get(cache_key)
         if cached_result:
-            logger.debug(f"Cache hit for templates list")
+            logger.debug("Cache hit for templates list")
             return MessageTemplateV2List(**json.loads(cached_result))
 
         # Build filter for templates
@@ -171,7 +176,7 @@ async def list_templates(
             category_key = f"templates:v2:category:{category.value}"
             template_ids = await redis_cache.smembers(category_key) or []
 
-            for template_id in template_ids[:limit + 1]:
+            for template_id in template_ids[: limit + 1]:
                 template_key = f"template:v2:{template_id}"
                 template_data = await redis_cache.get(template_key)
                 if template_data:
@@ -184,15 +189,17 @@ async def list_templates(
         if search:
             search_lower = search.lower()
             templates = [
-                t for t in templates
-                if search_lower in t.get("name", "").lower() or
-                   search_lower in t.get("content", "").lower()
+                t
+                for t in templates
+                if search_lower in t.get("name", "").lower()
+                or search_lower in t.get("content", "").lower()
             ]
 
         if tags:
             tag_list = [t.strip() for t in tags.split(",")]
             templates = [
-                t for t in templates
+                t
+                for t in templates
                 if any(tag in t.get("tags", []) for tag in tag_list)
             ]
 
@@ -213,7 +220,7 @@ async def list_templates(
             next_cursor=next_cursor,
             has_more=has_more,
             total=len(templates),
-            total_active=total_active
+            total_active=total_active,
         )
 
         # Cache result (30 min)
@@ -221,7 +228,7 @@ async def list_templates(
 
         logger.info(
             f"Templates listed: {len(templates)}",
-            extra={"count": len(templates), "user_id": current_user.get("id")}
+            extra={"count": len(templates), "user_id": current_user.get("id")},
         )
 
         return result
@@ -230,7 +237,7 @@ async def list_templates(
         logger.error(f"Error listing templates: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to list templates"
+            detail="Failed to list templates",
         )
 
 
@@ -238,14 +245,14 @@ async def list_templates(
     "/templates/{template_id}",
     response_model=MessageTemplateV2Response,
     summary="Get template details",
-    description="Get detailed information about a message template"
+    description="Get detailed information about a message template",
 )
 @limiter.limit("100/minute")
 async def get_template(
     request: Request,
     template_id: str,
     current_user: dict = Depends(get_current_user_from_session),
-    redis_cache = Depends(get_redis_cache)
+    redis_cache=Depends(get_redis_cache),
 ) -> MessageTemplateV2Response:
     """Get template by ID with caching."""
     try:
@@ -255,15 +262,14 @@ async def get_template(
 
         if not template_data:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Template not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Template not found"
             )
 
         template_dict = json.loads(template_data)
 
         logger.info(
             f"Template retrieved: {template_id}",
-            extra={"template_id": template_id, "user_id": current_user.get("id")}
+            extra={"template_id": template_id, "user_id": current_user.get("id")},
         )
 
         return MessageTemplateV2Response(**template_dict)
@@ -274,7 +280,7 @@ async def get_template(
         logger.error(f"Error getting template: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve template"
+            detail="Failed to retrieve template",
         )
 
 
@@ -282,7 +288,7 @@ async def get_template(
     "/templates/{template_id}",
     response_model=MessageTemplateV2Response,
     summary="Update template",
-    description="Update a message template (creates new version)"
+    description="Update a message template (creates new version)",
 )
 @limiter.limit("30/minute")
 async def update_template(
@@ -290,7 +296,7 @@ async def update_template(
     template_id: str,
     template_update: MessageTemplateV2Update,
     current_user: dict = Depends(get_current_user_from_session),
-    redis_cache = Depends(get_redis_cache)
+    redis_cache=Depends(get_redis_cache),
 ) -> MessageTemplateV2Response:
     """
     Update template (with versioning).
@@ -304,8 +310,7 @@ async def update_template(
 
         if not template_data:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Template not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Template not found"
             )
 
         template_dict = json.loads(template_data)
@@ -321,7 +326,7 @@ async def update_template(
             elif field == "conditionals" and value:
                 template_dict[field] = [c.model_dump() for c in value]
             elif field == "category" and value:
-                template_dict[field] = value.value if hasattr(value, 'value') else value
+                template_dict[field] = value.value if hasattr(value, "value") else value
             else:
                 template_dict[field] = value
 
@@ -330,7 +335,9 @@ async def update_template(
         template_dict["updated_at"] = datetime.utcnow()
 
         # Update cache
-        await redis_cache.set(cache_key, json.dumps(template_dict, default=str), ex=1800)
+        await redis_cache.set(
+            cache_key, json.dumps(template_dict, default=str), ex=1800
+        )
 
         # Invalidate list cache
         await redis_cache.delete_pattern("templates:v2:list:*")
@@ -340,8 +347,8 @@ async def update_template(
             extra={
                 "template_id": template_id,
                 "version": template_dict["version"],
-                "user_id": current_user.get("id")
-            }
+                "user_id": current_user.get("id"),
+            },
         )
 
         return MessageTemplateV2Response(**template_dict)
@@ -352,5 +359,5 @@ async def update_template(
         logger.error(f"Error updating template: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update template"
+            detail="Failed to update template",
         )

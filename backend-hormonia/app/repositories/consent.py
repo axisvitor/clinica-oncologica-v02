@@ -4,11 +4,12 @@ Consent repository with eager loading optimizations.
 PERFORMANCE OPTIMIZATION: All methods support eager loading by default to eliminate N+1 queries.
 Achieves 60-80% query reduction for read operations.
 """
+
 from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.consent import Consent, ConsentType, ConsentStatus
@@ -52,12 +53,14 @@ class ConsentRepository(BaseRepository[Consent]):
             query = query.options(
                 joinedload(Consent.patient),
                 joinedload(Consent.consented_by),
-                joinedload(Consent.witness)
+                joinedload(Consent.witness),
             )
 
         return query.first()
 
-    def get_all(self, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Consent]:
+    def get_all(
+        self, skip: int = 0, limit: int = 100, eager_load: bool = True
+    ) -> List[Consent]:
         """
         Get all consents with eager loading enabled by default.
 
@@ -77,12 +80,14 @@ class ConsentRepository(BaseRepository[Consent]):
             query = query.options(
                 joinedload(Consent.patient),
                 joinedload(Consent.consented_by),
-                joinedload(Consent.witness)
+                joinedload(Consent.witness),
             )
 
         return query.order_by(Consent.created_at.desc()).offset(skip).limit(limit).all()
 
-    def get_by_patient(self, patient_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Consent]:
+    def get_by_patient(
+        self, patient_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True
+    ) -> List[Consent]:
         """
         Get consents by patient with eager loading.
 
@@ -103,12 +108,18 @@ class ConsentRepository(BaseRepository[Consent]):
             query = query.options(
                 joinedload(Consent.patient),
                 joinedload(Consent.consented_by),
-                joinedload(Consent.witness)
+                joinedload(Consent.witness),
             )
 
         return query.order_by(Consent.created_at.desc()).offset(skip).limit(limit).all()
 
-    def get_active(self, patient_id: Optional[UUID] = None, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Consent]:
+    def get_active(
+        self,
+        patient_id: Optional[UUID] = None,
+        skip: int = 0,
+        limit: int = 100,
+        eager_load: bool = True,
+    ) -> List[Consent]:
         """
         Get active consents with eager loading.
 
@@ -125,9 +136,9 @@ class ConsentRepository(BaseRepository[Consent]):
         """
         now = datetime.utcnow()
         filters = [
-            Consent.is_active == True,
+            Consent.is_active,
             Consent.status == ConsentStatus.GRANTED,
-            or_(Consent.expires_at.is_(None), Consent.expires_at > now)
+            or_(Consent.expires_at.is_(None), Consent.expires_at > now),
         ]
 
         if patient_id:
@@ -139,7 +150,7 @@ class ConsentRepository(BaseRepository[Consent]):
             query = query.options(
                 joinedload(Consent.patient),
                 joinedload(Consent.consented_by),
-                joinedload(Consent.witness)
+                joinedload(Consent.witness),
             )
 
         return query.order_by(Consent.granted_at.desc()).offset(skip).limit(limit).all()
@@ -150,7 +161,7 @@ class ConsentRepository(BaseRepository[Consent]):
         patient_id: Optional[UUID] = None,
         skip: int = 0,
         limit: int = 100,
-        eager_load: bool = True
+        eager_load: bool = True,
     ) -> List[Consent]:
         """
         Get consents by type with eager loading.
@@ -176,7 +187,7 @@ class ConsentRepository(BaseRepository[Consent]):
             query = query.options(
                 joinedload(Consent.patient),
                 joinedload(Consent.consented_by),
-                joinedload(Consent.witness)
+                joinedload(Consent.witness),
             )
 
         return query.order_by(Consent.created_at.desc()).offset(skip).limit(limit).all()
@@ -187,7 +198,7 @@ class ConsentRepository(BaseRepository[Consent]):
         patient_id: Optional[UUID] = None,
         skip: int = 0,
         limit: int = 100,
-        eager_load: bool = True
+        eager_load: bool = True,
     ) -> List[Consent]:
         """
         Get consents by status with eager loading.
@@ -213,12 +224,14 @@ class ConsentRepository(BaseRepository[Consent]):
             query = query.options(
                 joinedload(Consent.patient),
                 joinedload(Consent.consented_by),
-                joinedload(Consent.witness)
+                joinedload(Consent.witness),
             )
 
         return query.order_by(Consent.created_at.desc()).offset(skip).limit(limit).all()
 
-    def get_pending(self, patient_id: Optional[UUID] = None, eager_load: bool = True) -> List[Consent]:
+    def get_pending(
+        self, patient_id: Optional[UUID] = None, eager_load: bool = True
+    ) -> List[Consent]:
         """
         Get pending consents with eager loading.
 
@@ -229,7 +242,7 @@ class ConsentRepository(BaseRepository[Consent]):
         Returns:
             List of pending consents with relationships pre-loaded
         """
-        filters = [Consent.status == ConsentStatus.PENDING, Consent.is_active == True]
+        filters = [Consent.status == ConsentStatus.PENDING, Consent.is_active]
 
         if patient_id:
             filters.append(Consent.patient_id == patient_id)
@@ -240,12 +253,14 @@ class ConsentRepository(BaseRepository[Consent]):
             query = query.options(
                 joinedload(Consent.patient),
                 joinedload(Consent.consented_by),
-                joinedload(Consent.witness)
+                joinedload(Consent.witness),
             )
 
         return query.order_by(Consent.created_at.asc()).all()
 
-    def get_expiring_soon(self, days: int = 30, eager_load: bool = True) -> List[Consent]:
+    def get_expiring_soon(
+        self, days: int = 30, eager_load: bool = True
+    ) -> List[Consent]:
         """
         Get consents expiring within specified days with eager loading.
 
@@ -263,11 +278,11 @@ class ConsentRepository(BaseRepository[Consent]):
 
         query = self.db.query(Consent).filter(
             and_(
-                Consent.is_active == True,
+                Consent.is_active,
                 Consent.status == ConsentStatus.GRANTED,
                 Consent.expires_at.isnot(None),
                 Consent.expires_at <= expiry_date,
-                Consent.expires_at >= now
+                Consent.expires_at >= now,
             )
         )
 
@@ -275,12 +290,14 @@ class ConsentRepository(BaseRepository[Consent]):
             query = query.options(
                 joinedload(Consent.patient),
                 joinedload(Consent.consented_by),
-                joinedload(Consent.witness)
+                joinedload(Consent.witness),
             )
 
         return query.order_by(Consent.expires_at.asc()).all()
 
-    def grant_consent(self, consent_id: UUID, consented_by_id: UUID) -> Optional[Consent]:
+    def grant_consent(
+        self, consent_id: UUID, consented_by_id: UUID
+    ) -> Optional[Consent]:
         """
         Grant a consent.
 
@@ -302,7 +319,9 @@ class ConsentRepository(BaseRepository[Consent]):
 
         return consent
 
-    def revoke_consent(self, consent_id: UUID, reason: Optional[str] = None) -> Optional[Consent]:
+    def revoke_consent(
+        self, consent_id: UUID, reason: Optional[str] = None
+    ) -> Optional[Consent]:
         """
         Revoke a consent.
 
@@ -326,7 +345,9 @@ class ConsentRepository(BaseRepository[Consent]):
 
         return consent
 
-    def get_required_pending(self, patient_id: UUID, eager_load: bool = True) -> List[Consent]:
+    def get_required_pending(
+        self, patient_id: UUID, eager_load: bool = True
+    ) -> List[Consent]:
         """
         Get required pending consents for a patient.
 
@@ -340,9 +361,9 @@ class ConsentRepository(BaseRepository[Consent]):
         query = self.db.query(Consent).filter(
             and_(
                 Consent.patient_id == patient_id,
-                Consent.is_required == True,
+                Consent.is_required,
                 Consent.status == ConsentStatus.PENDING,
-                Consent.is_active == True
+                Consent.is_active,
             )
         )
 
@@ -350,7 +371,7 @@ class ConsentRepository(BaseRepository[Consent]):
             query = query.options(
                 joinedload(Consent.patient),
                 joinedload(Consent.consented_by),
-                joinedload(Consent.witness)
+                joinedload(Consent.witness),
             )
 
         return query.order_by(Consent.created_at.asc()).all()

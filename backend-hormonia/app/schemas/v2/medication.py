@@ -49,10 +49,14 @@ class MedicationV2Base(BaseModel):
     prescribed_by_id: Optional[str] = Field(None, description="Prescriber UUID")
     treatment_id: Optional[str] = Field(None, description="Treatment UUID")
     name: str = Field(..., min_length=1, max_length=200, description="Medication name")
-    active_ingredient: Optional[str] = Field(None, max_length=200, description="Active ingredient")
+    active_ingredient: Optional[str] = Field(
+        None, max_length=200, description="Active ingredient"
+    )
     dosage: str = Field(..., min_length=1, max_length=100, description="Dosage")
     frequency: str = Field(..., min_length=1, max_length=100, description="Frequency")
-    route: Optional[str] = Field(None, max_length=50, description="Route of administration")
+    route: Optional[str] = Field(
+        None, max_length=50, description="Route of administration"
+    )
     prescription_date: date = Field(..., description="Prescription date")
     start_date: date = Field(..., description="Start date")
     end_date: Optional[date] = Field(None, description="End date")
@@ -64,13 +68,16 @@ class MedicationV2Base(BaseModel):
     side_effects: Optional[str] = Field(None, description="Side effects")
     is_active: bool = Field(default=True, description="Active status")
     discontinued_date: Optional[date] = Field(None, description="Discontinuation date")
-    discontinuation_reason: Optional[str] = Field(None, description="Discontinuation reason")
+    discontinuation_reason: Optional[str] = Field(
+        None, description="Discontinuation reason"
+    )
 
 
 class MedicationV2Create(MedicationV2Base):
     """Schema for creating a medication"""
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
                 "prescribed_by_id": "123e4567-e89b-12d3-a456-426614174001",
@@ -88,9 +95,10 @@ class MedicationV2Create(MedicationV2Base):
                 "refills_remaining": 12,
                 "instructions": "Tomar 1 comprimido pela manhã, após o café",
                 "warnings": "Não usar se estiver grávida",
-                "side_effects": "Podem ocorrer ondas de calor, dor nas articulações"
+                "side_effects": "Podem ocorrer ondas de calor, dor nas articulações",
             }
-        })
+        }
+    )
 
     patient_id: str = Field(..., description="Patient UUID")
     name: str = Field(..., min_length=1, max_length=200, description="Medication name")
@@ -103,7 +111,15 @@ class MedicationV2Create(MedicationV2Base):
     @classmethod
     def validate_route(cls, v):
         if v:
-            valid_routes = ["oral", "intravenous", "topical", "subcutaneous", "intramuscular", "inhalation", "other"]
+            valid_routes = [
+                "oral",
+                "intravenous",
+                "topical",
+                "subcutaneous",
+                "intramuscular",
+                "inhalation",
+                "other",
+            ]
             if v and v not in valid_routes:
                 raise ValueError(f"route must be one of: {', '.join(valid_routes)}")
         return v
@@ -150,7 +166,15 @@ class MedicationV2Update(BaseModel):
     @classmethod
     def validate_route(cls, v):
         if v:
-            valid_routes = ["oral", "intravenous", "topical", "subcutaneous", "intramuscular", "inhalation", "other"]
+            valid_routes = [
+                "oral",
+                "intravenous",
+                "topical",
+                "subcutaneous",
+                "intramuscular",
+                "inhalation",
+                "other",
+            ]
             if v not in valid_routes:
                 raise ValueError(f"route must be one of: {', '.join(valid_routes)}")
         return v

@@ -51,7 +51,7 @@ class UnifiedWebSocketConnectionManager:
         heartbeat_interval: float = 30.0,
         heartbeat_timeout: float = 10.0,
         cleanup_interval: float = 60.0,
-        max_missed_pings: int = 3
+        max_missed_pings: int = 3,
     ):
         """
         Initialize unified WebSocket manager.
@@ -75,13 +75,13 @@ class UnifiedWebSocketConnectionManager:
         self.heartbeat_manager = WebSocketHeartbeatManager(
             heartbeat_interval=heartbeat_interval,
             heartbeat_timeout=heartbeat_timeout,
-            max_missed_pings=max_missed_pings
+            max_missed_pings=max_missed_pings,
         )
         self.heartbeat_manager.set_callbacks(
             send_ping_callback=self._send_ping_callback,
             on_connection_dead=self._handle_dead_connection,
             on_connection_warning=self._handle_connection_warning,
-            on_ping_timeout=self._handle_ping_timeout
+            on_ping_timeout=self._handle_ping_timeout,
         )
 
         # Background tasks
@@ -148,18 +148,21 @@ class UnifiedWebSocketConnectionManager:
         connection_info = ConnectionInfo(
             connection_id=connection_id,
             websocket=websocket,
-            state=ConnectionState.CONNECTED
+            state=ConnectionState.CONNECTED,
         )
 
         self.connections[connection_id] = connection_info
 
         # Send welcome message (from enhanced)
-        await self._send_raw_message(connection_info, {
-            "type": "connection",
-            "status": "connected",
-            "connection_id": connection_id,
-            "timestamp": datetime.utcnow().isoformat()
-        })
+        await self._send_raw_message(
+            connection_info,
+            {
+                "type": "connection",
+                "status": "connected",
+                "connection_id": connection_id,
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
 
         logger.info(f"Connection established: {connection_id}")
         return connection_id
@@ -178,11 +181,14 @@ class UnifiedWebSocketConnectionManager:
 
         # Send disconnect message (from enhanced)
         try:
-            await self._send_raw_message(connection_info, {
-                "type": "disconnection",
-                "reason": reason,
-                "timestamp": datetime.utcnow().isoformat()
-            })
+            await self._send_raw_message(
+                connection_info,
+                {
+                    "type": "disconnection",
+                    "reason": reason,
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
+            )
         except Exception as e:
             logger.debug(f"Failed to send disconnect message: {e}")
 
@@ -202,11 +208,7 @@ class UnifiedWebSocketConnectionManager:
     # ========================================================================
 
     async def authenticate_connection(
-        self,
-        connection_id: str,
-        token: str,
-        db: Any,
-        auth_type: str = "auto"
+        self, connection_id: str, token: str, db: Any, auth_type: str = "auto"
     ) -> User:
         """
         Authenticate connection via Firebase or JWT.
@@ -234,7 +236,9 @@ class UnifiedWebSocketConnectionManager:
             try:
                 user = await self._authenticate_with_firebase(connection_id, token, db)
                 if user:
-                    logger.info(f"Firebase authentication successful for {connection_id}")
+                    logger.info(
+                        f"Firebase authentication successful for {connection_id}"
+                    )
             except Exception as e:
                 logger.debug(f"Firebase auth failed: {e}")
                 if auth_type == "firebase":
@@ -243,7 +247,9 @@ class UnifiedWebSocketConnectionManager:
         # Try internal JWT if Firebase failed or auto/jwt
         if not user and auth_type in ("auto", "jwt"):
             try:
-                user = await self._authenticate_with_internal_jwt(connection_id, token, db)
+                user = await self._authenticate_with_internal_jwt(
+                    connection_id, token, db
+                )
                 if user:
                     logger.info(f"JWT authentication successful for {connection_id}")
             except Exception as e:
@@ -263,10 +269,7 @@ class UnifiedWebSocketConnectionManager:
         return user
 
     async def _authenticate_with_firebase(
-        self,
-        connection_id: str,
-        token: str,
-        db: Any
+        self, connection_id: str, token: str, db: Any
     ) -> Optional[User]:
         """Authenticate using Firebase (RS256)."""
         from fastapi import HTTPException, status as http_status
@@ -286,7 +289,7 @@ class UnifiedWebSocketConnectionManager:
             if not user:
                 raise HTTPException(
                     status_code=http_status.HTTP_404_NOT_FOUND,
-                    detail=f"User not found for Firebase UID: {firebase_uid}"
+                    detail=f"User not found for Firebase UID: {firebase_uid}",
                 )
 
             return user
@@ -295,30 +298,25 @@ class UnifiedWebSocketConnectionManager:
             logger.error(f"Firebase authentication error: {str(e)}")
             raise HTTPException(
                 status_code=http_status.HTTP_401_UNAUTHORIZED,
-                detail=f"Invalid Firebase token: {str(e)}"
+                detail=f"Invalid Firebase token: {str(e)}",
             )
 
     async def _authenticate_with_internal_jwt(
-        self,
-        connection_id: str,
-        token: str,
-        db: Any
+        self, connection_id: str, token: str, db: Any
     ) -> Optional[User]:
         """Authenticate using internal JWT (HS256)."""
         from fastapi import HTTPException, status as http_status
 
         try:
             payload = jwt.decode(
-                token,
-                settings.SECURITY_SECRET_KEY,
-                algorithms=["HS256"]
+                token, settings.SECURITY_SECRET_KEY, algorithms=["HS256"]
             )
 
             user_id: str = payload.get("sub")
             if user_id is None:
                 raise HTTPException(
                     status_code=http_status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid token: no subject"
+                    detail="Invalid token: no subject",
                 )
 
             user_repo = UserRepository(db)
@@ -326,8 +324,7 @@ class UnifiedWebSocketConnectionManager:
 
             if user is None:
                 raise HTTPException(
-                    status_code=http_status.HTTP_404_NOT_FOUND,
-                    detail="User not found"
+                    status_code=http_status.HTTP_404_NOT_FOUND, detail="User not found"
                 )
 
             return user
@@ -336,7 +333,7 @@ class UnifiedWebSocketConnectionManager:
             logger.error(f"JWT decode error: {str(e)}")
             raise HTTPException(
                 status_code=http_status.HTTP_401_UNAUTHORIZED,
-                detail=f"Invalid JWT token: {str(e)}"
+                detail=f"Invalid JWT token: {str(e)}",
             )
 
     def _update_connection_metadata(self, connection_id: str, user: User):
@@ -346,7 +343,9 @@ class UnifiedWebSocketConnectionManager:
             return
 
         connection_info.user_id = str(user.id)
-        connection_info.role = user.role.value if hasattr(user.role, 'value') else str(user.role)
+        connection_info.role = (
+            user.role.value if hasattr(user.role, "value") else str(user.role)
+        )
         connection_info.email = user.email
         connection_info.display_name = user.name
         connection_info.state = ConnectionState.AUTHENTICATED
@@ -441,9 +440,13 @@ class UnifiedWebSocketConnectionManager:
         """Send ping to connection via heartbeat manager."""
         await self.heartbeat_manager.send_ping(connection_id)
 
-    async def handle_pong(self, connection_id: str, ping_id: str, client_timestamp: Optional[float] = None):
+    async def handle_pong(
+        self, connection_id: str, ping_id: str, client_timestamp: Optional[float] = None
+    ):
         """Handle pong response from client."""
-        await self.heartbeat_manager.handle_pong(connection_id, ping_id, client_timestamp)
+        await self.heartbeat_manager.handle_pong(
+            connection_id, ping_id, client_timestamp
+        )
 
     # ========================================================================
     # STATISTICS (enhanced version)
@@ -452,8 +455,7 @@ class UnifiedWebSocketConnectionManager:
     def get_connection_stats(self) -> Dict[str, Any]:
         """Get comprehensive connection statistics."""
         authenticated_count = sum(
-            1 for conn in self.connections.values()
-            if conn.is_authenticated()
+            1 for conn in self.connections.values() if conn.is_authenticated()
         )
 
         total_messages = sum(
@@ -467,7 +469,9 @@ class UnifiedWebSocketConnectionManager:
             "total_users": len(self.user_connections),
             "total_patient_rooms": len(self.patient_rooms),
             "total_messages": total_messages,
-            "heartbeat_stats": self.heartbeat_manager.get_heartbeat_stats() if self.heartbeat_manager else None
+            "heartbeat_stats": self.heartbeat_manager.get_heartbeat_stats()
+            if self.heartbeat_manager
+            else None,
         }
 
     def get_connection_info(self, connection_id: str) -> Optional[Dict[str, Any]]:
@@ -483,14 +487,20 @@ class UnifiedWebSocketConnectionManager:
             "role": connection_info.role,
             "email": connection_info.email,
             "connected_at": connection_info.connected_at.isoformat(),
-            "authenticated_at": connection_info.authenticated_at.isoformat() if connection_info.authenticated_at else None,
+            "authenticated_at": connection_info.authenticated_at.isoformat()
+            if connection_info.authenticated_at
+            else None,
             "last_activity": connection_info.last_activity.isoformat(),
             "messages_sent": connection_info.messages_sent,
             "messages_received": connection_info.messages_received,
             "bytes_sent": connection_info.bytes_sent,
             "bytes_received": connection_info.bytes_received,
             "patient_rooms": list(connection_info.patient_rooms),
-            "heartbeat_info": self.heartbeat_manager.get_connection_heartbeat_info(connection_id) if self.heartbeat_manager else None
+            "heartbeat_info": self.heartbeat_manager.get_connection_heartbeat_info(
+                connection_id
+            )
+            if self.heartbeat_manager
+            else None,
         }
 
     # ========================================================================
@@ -502,7 +512,11 @@ class UnifiedWebSocketConnectionManager:
         logger.info("Heartbeat loop started")
         while self._running:
             try:
-                await asyncio.sleep(self.heartbeat_manager.heartbeat_interval if self.heartbeat_manager else 30.0)
+                await asyncio.sleep(
+                    self.heartbeat_manager.heartbeat_interval
+                    if self.heartbeat_manager
+                    else 30.0
+                )
                 # Heartbeat manager handles pings internally
             except asyncio.CancelledError:
                 break
@@ -534,16 +548,20 @@ class UnifiedWebSocketConnectionManager:
     # INTERNAL HELPERS
     # ========================================================================
 
-    async def _send_raw_message(self, connection_info: ConnectionInfo, message: Dict[str, Any]):
+    async def _send_raw_message(
+        self, connection_info: ConnectionInfo, message: Dict[str, Any]
+    ):
         """Low-level send with metrics tracking."""
         serialized = self._serialize_message(message)
-        message_bytes = len(serialized.encode('utf-8'))
+        message_bytes = len(serialized.encode("utf-8"))
 
         try:
             await connection_info.websocket.send_text(serialized)
             connection_info.record_message_sent(message_bytes)
         except Exception as e:
-            logger.error(f"Error sending message to {connection_info.connection_id}: {e}")
+            logger.error(
+                f"Error sending message to {connection_info.connection_id}: {e}"
+            )
             raise
 
     async def _cleanup_connection(self, connection_id: str):
@@ -575,6 +593,7 @@ class UnifiedWebSocketConnectionManager:
 
     def _serialize_message(self, message: Any) -> str:
         """Serialize message for JSON transmission."""
+
         def json_serial(obj):
             if isinstance(obj, (datetime,)):
                 return obj.isoformat()
@@ -588,7 +607,9 @@ class UnifiedWebSocketConnectionManager:
     # HEARTBEAT CALLBACKS (from enhanced)
     # ========================================================================
 
-    async def _send_ping_callback(self, connection_id: str, ping_message: Dict[str, Any]):
+    async def _send_ping_callback(
+        self, connection_id: str, ping_message: Dict[str, Any]
+    ):
         """Callback for heartbeat manager to send ping."""
         try:
             await self.send_message(connection_id, ping_message)
@@ -602,7 +623,9 @@ class UnifiedWebSocketConnectionManager:
 
     def _handle_connection_warning(self, connection_id: str, metrics: HeartbeatMetrics):
         """Handle connection warning state."""
-        logger.warning(f"Connection warning for {connection_id}: {metrics.consecutive_failures} missed pings")
+        logger.warning(
+            f"Connection warning for {connection_id}: {metrics.consecutive_failures} missed pings"
+        )
 
     def _handle_ping_timeout(self, connection_id: str, ping_id: str):
         """Handle ping timeout."""

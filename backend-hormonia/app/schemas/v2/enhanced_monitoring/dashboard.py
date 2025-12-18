@@ -44,8 +44,12 @@ class DashboardStatusResponse(BaseModel):
     """Dashboard status with metrics snapshot."""
 
     timestamp: datetime = Field(..., description="Status timestamp")
-    active_connections: int = Field(..., ge=0, description="Active WebSocket connections")
-    metrics_snapshot: DashboardMetricsSnapshot = Field(..., description="Metrics snapshot")
+    active_connections: int = Field(
+        ..., ge=0, description="Active WebSocket connections"
+    )
+    metrics_snapshot: DashboardMetricsSnapshot = Field(
+        ..., description="Metrics snapshot"
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -149,9 +153,7 @@ class MonitoringConfigResponse(BaseModel):
     resource_monitoring_enabled: bool = Field(
         ..., description="Resource monitoring enabled"
     )
-    business_metrics_enabled: bool = Field(
-        ..., description="Business metrics enabled"
-    )
+    business_metrics_enabled: bool = Field(..., description="Business metrics enabled")
     anomaly_detection_enabled: bool = Field(
         ..., description="Anomaly detection enabled"
     )

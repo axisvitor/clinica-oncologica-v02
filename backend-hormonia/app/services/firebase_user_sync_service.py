@@ -9,8 +9,8 @@ SECURITY:
 - Comprehensive audit logging for all operations
 - Automatic rejection of unauthorized access attempts
 """
-from typing import Optional, Dict, Any, Tuple, List
-from sqlalchemy.exc import IntegrityError
+
+from typing import Optional, Dict, Any, Tuple
 from datetime import datetime
 import logging
 
@@ -54,10 +54,7 @@ class FirebaseUserSyncService:
         self._security_config = get_firebase_security_config()
 
     async def sync_firebase_user(
-        self,
-        firebase_uid: str,
-        firebase_data: Dict[str, Any],
-        auto_create: bool = True
+        self, firebase_uid: str, firebase_data: Dict[str, Any], auto_create: bool = True
     ) -> Tuple[User, bool]:
         """
         Sync Firebase user to database with security validation.
@@ -81,14 +78,14 @@ class FirebaseUserSyncService:
             ValueError: If validation fails or user not found
             SecurityError: If domain/claims validation fails
         """
-        email = firebase_data.get('email')
+        email = firebase_data.get("email")
         if not email:
             self._log_security_event(
-                'rejected',
-                'missing_email',
+                "rejected",
+                "missing_email",
                 firebase_uid,
                 None,
-                error='Firebase user missing email'
+                error="Firebase user missing email",
             )
             raise ValueError("Firebase user missing email")
 
@@ -98,11 +95,11 @@ class FirebaseUserSyncService:
             # SECURITY VALIDATION STEP 1: Validate email domain
             if not self._validate_email_domain(email_lower):
                 self._log_security_event(
-                    'rejected',
-                    'unauthorized_domain',
+                    "rejected",
+                    "unauthorized_domain",
                     firebase_uid,
                     email_lower,
-                    error=f'Domain not in allowed list: {email_lower.split("@")[-1]}'
+                    error=f"Domain not in allowed list: {email_lower.split('@')[-1]}",
                 )
                 raise ValueError(f"Unauthorized email domain: {email_lower}")
 
@@ -115,57 +112,71 @@ class FirebaseUserSyncService:
                 # User exists with cached claims - skip Admin SDK call (8s saved!)
                 logger.debug(f"Using cached claims from database for {firebase_uid}")
                 custom_claims = user.firebase_custom_claims
-                skip_admin_sdk = True
             else:
                 # No cached claims - need to extract (may call Admin SDK for new users)
                 custom_claims = await self._extract_claims(
                     firebase_uid,
                     firebase_data,
-                    skip_admin_sdk=False  # Allow Admin SDK for new users only
+                    skip_admin_sdk=False,  # Allow Admin SDK for new users only
                 )
-                skip_admin_sdk = False
 
             # Validate claims for new user creation
             if auto_create and not self._validate_custom_claims(custom_claims):
                 self._log_security_event(
-                    'rejected',
-                    'invalid_claims',
+                    "rejected",
+                    "invalid_claims",
                     firebase_uid,
                     email_lower,
-                    error=f'Invalid or missing role in claims: {custom_claims.get("role")}'
+                    error=f"Invalid or missing role in claims: {custom_claims.get('role')}",
                 )
                 raise ValueError(f"Invalid role in custom claims: {custom_claims}")
 
             if user:
                 # PERFORMANCE: Reuse claims already extracted/cached above to avoid duplicate Firebase API call
-                await self._update_user_from_firebase(user, firebase_data, custom_claims)
-                self._log_sync(firebase_uid, user.id, 'update', 'firebase_to_pg', {}, True)
+                await self._update_user_from_firebase(
+                    user, firebase_data, custom_claims
+                )
+                self._log_sync(
+                    firebase_uid, user.id, "update", "firebase_to_pg", {}, True
+                )
                 return user, False
 
             # 2. Try to find by email (migration case)
             user = self.db.query(User).filter(User.email == email_lower).first()
             if user:
                 await self._link_firebase_to_user(user, firebase_uid, firebase_data)
-                self._log_sync(firebase_uid, user.id, 'link', 'firebase_to_pg', {}, True)
+                self._log_sync(
+                    firebase_uid, user.id, "link", "firebase_to_pg", {}, True
+                )
                 return user, False
 
             # 3. Create new user if allowed and validated
             if not auto_create:
                 raise ValueError(f"User not found: {email_lower}")
 
-            new_user = await self._create_user_from_firebase(firebase_uid, firebase_data)
-            self._log_security_event('success', 'user_created', firebase_uid, email_lower)
-            self._log_sync(firebase_uid, new_user.id, 'create', 'firebase_to_pg', {}, True)
+            new_user = await self._create_user_from_firebase(
+                firebase_uid, firebase_data
+            )
+            self._log_security_event(
+                "success", "user_created", firebase_uid, email_lower
+            )
+            self._log_sync(
+                firebase_uid, new_user.id, "create", "firebase_to_pg", {}, True
+            )
             return new_user, True
 
         except ValueError as e:
             # Security validation errors
             logger.error(f"Security validation failed for {firebase_uid}: {str(e)}")
-            self._log_sync(firebase_uid, None, 'sync', 'firebase_to_pg', {}, False, str(e))
+            self._log_sync(
+                firebase_uid, None, "sync", "firebase_to_pg", {}, False, str(e)
+            )
             raise
         except Exception as e:
             logger.error(f"Error syncing Firebase user {firebase_uid}: {str(e)}")
-            self._log_sync(firebase_uid, None, 'sync', 'firebase_to_pg', {}, False, str(e))
+            self._log_sync(
+                firebase_uid, None, "sync", "firebase_to_pg", {}, False, str(e)
+            )
             raise
 
     def _validate_email_domain(self, email: str) -> bool:
@@ -182,26 +193,34 @@ class FirebaseUserSyncService:
         Returns:
             True if domain is authorized, False otherwise
         """
-        if not email or '@' not in email:
+        if not email or "@" not in email:
             logger.warning(f"Invalid email format: {email}")
             return False
 
-        domain = email.split('@')[-1].lower()
+        domain = email.split("@")[-1].lower()
 
         # Check if public domain is blocked
-        if self._security_config['block_public_domains']:
-            if domain in self._security_config['public_domains_blocklist']:
+        if self._security_config["block_public_domains"]:
+            if domain in self._security_config["public_domains_blocklist"]:
                 logger.warning(
                     f"Rejected public domain: {domain}",
-                    extra={"email": email, "domain": domain, "reason": "public_domain_blocked"}
+                    extra={
+                        "email": email,
+                        "domain": domain,
+                        "reason": "public_domain_blocked",
+                    },
                 )
                 return False
 
         # Check if domain is in allowed list
-        if domain not in self._security_config['allowed_domains']:
+        if domain not in self._security_config["allowed_domains"]:
             logger.warning(
                 f"Rejected unauthorized domain: {domain}",
-                extra={"email": email, "domain": domain, "reason": "domain_not_authorized"}
+                extra={
+                    "email": email,
+                    "domain": domain,
+                    "reason": "domain_not_authorized",
+                },
             )
             return False
 
@@ -221,25 +240,29 @@ class FirebaseUserSyncService:
         Returns:
             True if claims are valid, False otherwise
         """
-        if not self._security_config['require_custom_claims']:
+        if not self._security_config["require_custom_claims"]:
             return True
 
-        role = custom_claims.get('role')
+        role = custom_claims.get("role")
 
         if not role:
             logger.warning(
                 "Missing role in custom claims",
-                extra={"custom_claims": custom_claims, "reason": "missing_role"}
+                extra={"custom_claims": custom_claims, "reason": "missing_role"},
             )
             return False
 
         role_lower = role.lower()
-        allowed_roles = [r.lower() for r in self._security_config['allowed_roles']]
+        allowed_roles = [r.lower() for r in self._security_config["allowed_roles"]]
 
         if role_lower not in allowed_roles:
             logger.warning(
                 f"Invalid role in custom claims: {role}",
-                extra={"role": role, "allowed_roles": allowed_roles, "reason": "invalid_role"}
+                extra={
+                    "role": role,
+                    "allowed_roles": allowed_roles,
+                    "reason": "invalid_role",
+                },
             )
             return False
 
@@ -249,7 +272,7 @@ class FirebaseUserSyncService:
         self,
         firebase_uid: str,
         firebase_data: Dict[str, Any],
-        skip_admin_sdk: bool = False
+        skip_admin_sdk: bool = False,
     ) -> Dict[str, Any]:
         """
         Extract custom claims with fallback logic and caching.
@@ -274,27 +297,29 @@ class FirebaseUserSyncService:
         claims = {}
 
         # Priority 1: Check custom_claims dict (cached tokens)
-        if 'custom_claims' in firebase_data and firebase_data['custom_claims']:
-            claims = firebase_data['custom_claims'].copy()
+        if "custom_claims" in firebase_data and firebase_data["custom_claims"]:
+            claims = firebase_data["custom_claims"].copy()
             logger.debug(f"Claims extracted from custom_claims dict: {claims}")
             return claims
 
         # Priority 2: Check top-level claims in firebase_data (decoded ID tokens)
         # Handle both 'role' (string) and 'roles' (list) claims
-        if 'role' in firebase_data:
-            claims['role'] = firebase_data['role']
+        if "role" in firebase_data:
+            claims["role"] = firebase_data["role"]
             logger.debug(f"Claims extracted from top-level 'role': {claims}")
 
-        if 'roles' in firebase_data:
+        if "roles" in firebase_data:
             # If roles is a list, use the first role or join them
-            roles_value = firebase_data['roles']
+            roles_value = firebase_data["roles"]
             if isinstance(roles_value, list) and roles_value:
-                claims['role'] = roles_value[0]  # Use first role as primary
-                claims['roles'] = roles_value
+                claims["role"] = roles_value[0]  # Use first role as primary
+                claims["roles"] = roles_value
                 logger.debug(f"Claims extracted from top-level 'roles' list: {claims}")
             elif isinstance(roles_value, str):
-                claims['role'] = roles_value
-                logger.debug(f"Claims extracted from top-level 'roles' string: {claims}")
+                claims["role"] = roles_value
+                logger.debug(
+                    f"Claims extracted from top-level 'roles' string: {claims}"
+                )
 
         # If we found claims in top-level, return them
         if claims:
@@ -304,7 +329,9 @@ class FirebaseUserSyncService:
         # ONLY call Admin SDK if explicitly allowed (not skipped)
         if not skip_admin_sdk:
             try:
-                logger.warning(f"PERFORMANCE: Fetching fresh claims for UID {firebase_uid} via Firebase Admin SDK (8s delay expected)")
+                logger.warning(
+                    f"PERFORMANCE: Fetching fresh claims for UID {firebase_uid} via Firebase Admin SDK (8s delay expected)"
+                )
                 from firebase_admin import auth
 
                 user_record = auth.get_user(firebase_uid)
@@ -313,11 +340,17 @@ class FirebaseUserSyncService:
                     logger.info(f"Fresh claims fetched from Firebase Admin: {claims}")
                     return claims
                 else:
-                    logger.warning(f"No custom claims found for user {firebase_uid} in Firebase Admin")
+                    logger.warning(
+                        f"No custom claims found for user {firebase_uid} in Firebase Admin"
+                    )
             except Exception as e:
-                logger.error(f"Failed to fetch claims from Firebase Admin for {firebase_uid}: {str(e)}")
+                logger.error(
+                    f"Failed to fetch claims from Firebase Admin for {firebase_uid}: {str(e)}"
+                )
         else:
-            logger.debug(f"Skipping Admin SDK call for {firebase_uid} (using cached claims from database)")
+            logger.debug(
+                f"Skipping Admin SDK call for {firebase_uid} (using cached claims from database)"
+            )
 
         # Return empty dict if no claims found anywhere
         if not claims:
@@ -340,18 +373,20 @@ class FirebaseUserSyncService:
             Role string (lowercase), defaults to 'doctor' if not found
         """
         # Check single role claim first
-        if 'role' in claims and claims['role']:
-            role = str(claims['role']).lower().strip()
+        if "role" in claims and claims["role"]:
+            role = str(claims["role"]).lower().strip()
             logger.debug(f"Extracted role from 'role' claim: {role}")
             return role
 
         # Check roles list claim
-        if 'roles' in claims and claims['roles']:
-            roles_value = claims['roles']
+        if "roles" in claims and claims["roles"]:
+            roles_value = claims["roles"]
             if isinstance(roles_value, list) and roles_value:
                 # Use first role in list
                 role = str(roles_value[0]).lower().strip()
-                logger.debug(f"Extracted role from 'roles' list: {role} (from {roles_value})")
+                logger.debug(
+                    f"Extracted role from 'roles' list: {role} (from {roles_value})"
+                )
                 return role
             elif isinstance(roles_value, str):
                 role = roles_value.lower().strip()
@@ -360,12 +395,10 @@ class FirebaseUserSyncService:
 
         # Default to doctor
         logger.warning("No role found in claims, defaulting to 'doctor'")
-        return 'doctor'
+        return "doctor"
 
     async def _create_user_from_firebase(
-        self,
-        firebase_uid: str,
-        firebase_data: Dict[str, Any]
+        self, firebase_uid: str, firebase_data: Dict[str, Any]
     ) -> User:
         """
         Create new user from Firebase data (after security validation).
@@ -383,13 +416,13 @@ class FirebaseUserSyncService:
         Raises:
             ValueError: If validation fails (should not happen if called correctly)
         """
-        email = firebase_data['email'].strip().lower()
+        email = firebase_data["email"].strip().lower()
 
         # Extract display name
         full_name = (
-            firebase_data.get('name') or
-            firebase_data.get('display_name') or
-            email.split('@')[0]
+            firebase_data.get("name")
+            or firebase_data.get("display_name")
+            or email.split("@")[0]
         )
 
         # Determine role (ADMIN or DOCTOR only)
@@ -398,7 +431,7 @@ class FirebaseUserSyncService:
         role_str = self._extract_role_from_claims(custom_claims)
 
         # Map to UserRole (only ADMIN and DOCTOR supported)
-        if role_str == 'admin':
+        if role_str == "admin":
             role = UserRole.ADMIN
         else:
             role = UserRole.DOCTOR  # Default to doctor for all other roles
@@ -412,13 +445,13 @@ class FirebaseUserSyncService:
             is_active=True,
             auth_provider=AuthProvider.FIREBASE,
             firebase_uid=firebase_uid,
-            firebase_email_verified=firebase_data.get('email_verified', False),
-            firebase_display_name=firebase_data.get('name'),
-            firebase_photo_url=firebase_data.get('picture'),
+            firebase_email_verified=firebase_data.get("email_verified", False),
+            firebase_display_name=firebase_data.get("name"),
+            firebase_photo_url=firebase_data.get("picture"),
             firebase_custom_claims=custom_claims,
-            firebase_created_at=self._parse_timestamp(firebase_data.get('auth_time')),
+            firebase_created_at=self._parse_timestamp(firebase_data.get("auth_time")),
             firebase_last_sign_in=datetime.now(),
-            last_firebase_sync=datetime.now()
+            last_firebase_sync=datetime.now(),
         )
 
         self.db.add(new_user)
@@ -427,7 +460,7 @@ class FirebaseUserSyncService:
 
         logger.info(
             f"Created Firebase user: {email} (UID: {firebase_uid}, Role: {role.value})",
-            extra={"email": email, "firebase_uid": firebase_uid, "role": role.value}
+            extra={"email": email, "firebase_uid": firebase_uid, "role": role.value},
         )
         return new_user
 
@@ -435,7 +468,7 @@ class FirebaseUserSyncService:
         self,
         user: User,
         firebase_data: Dict[str, Any],
-        cached_claims: Dict[str, Any] = None
+        cached_claims: Dict[str, Any] = None,
     ) -> bool:
         """
         Update existing user with Firebase data.
@@ -451,14 +484,14 @@ class FirebaseUserSyncService:
         changed = False
 
         # Update email if changed
-        new_email = firebase_data.get('email', '').strip().lower()
+        new_email = firebase_data.get("email", "").strip().lower()
         if new_email and user.email != new_email:
             user.email = new_email
             changed = True
             logger.info(f"Updated email for user {user.id}: {new_email}")
 
         # Update display name
-        new_name = firebase_data.get('name') or firebase_data.get('display_name')
+        new_name = firebase_data.get("name") or firebase_data.get("display_name")
         if new_name and user.firebase_display_name != new_name:
             user.firebase_display_name = new_name
             # Update full_name if not set
@@ -467,27 +500,31 @@ class FirebaseUserSyncService:
             changed = True
 
         # Update email verification status
-        email_verified = firebase_data.get('email_verified', False)
+        email_verified = firebase_data.get("email_verified", False)
         if user.firebase_email_verified != email_verified:
             user.firebase_email_verified = email_verified
             changed = True
 
         # Update photo URL
-        new_photo = firebase_data.get('picture')
+        new_photo = firebase_data.get("picture")
         if new_photo and user.firebase_photo_url != new_photo:
             user.firebase_photo_url = new_photo
             changed = True
 
         # Update custom claims (includes role)
         # PERFORMANCE: Use cached claims if provided, otherwise extract fresh
-        new_claims = cached_claims if cached_claims is not None else await self._extract_claims(user.firebase_uid, firebase_data)
+        new_claims = (
+            cached_claims
+            if cached_claims is not None
+            else await self._extract_claims(user.firebase_uid, firebase_data)
+        )
         if user.firebase_custom_claims != new_claims:
             user.firebase_custom_claims = new_claims
             # Update role if changed in custom claims
             role_str = self._extract_role_from_claims(new_claims)
-            if role_str == 'admin':
+            if role_str == "admin":
                 new_role = UserRole.ADMIN
-            elif role_str in ['doctor', 'medico']:
+            elif role_str in ["doctor", "medico"]:
                 new_role = UserRole.DOCTOR
             else:
                 new_role = None
@@ -506,17 +543,16 @@ class FirebaseUserSyncService:
                 self.db.commit()
                 logger.info(f"Updated Firebase user: {user.email}")
             except Exception as commit_error:
-                logger.error(f"Failed to commit user update for {user.email}: {commit_error}")
+                logger.error(
+                    f"Failed to commit user update for {user.email}: {commit_error}"
+                )
                 self.db.rollback()
                 raise
 
         return changed
 
     async def _link_firebase_to_user(
-        self,
-        user: User,
-        firebase_uid: str,
-        firebase_data: Dict[str, Any]
+        self, user: User, firebase_uid: str, firebase_data: Dict[str, Any]
     ) -> bool:
         """
         Link Firebase UID to existing local user.
@@ -541,12 +577,14 @@ class FirebaseUserSyncService:
         # Link Firebase data
         user.firebase_uid = firebase_uid
         user.auth_provider = AuthProvider.FIREBASE
-        user.firebase_email_verified = firebase_data.get('email_verified', False)
-        user.firebase_display_name = firebase_data.get('name')
-        user.firebase_photo_url = firebase_data.get('picture')
+        user.firebase_email_verified = firebase_data.get("email_verified", False)
+        user.firebase_display_name = firebase_data.get("name")
+        user.firebase_photo_url = firebase_data.get("picture")
         # Extract claims with fallback logic
-        user.firebase_custom_claims = await self._extract_claims(firebase_uid, firebase_data)
-        user.firebase_created_at = self._parse_timestamp(firebase_data.get('auth_time'))
+        user.firebase_custom_claims = await self._extract_claims(
+            firebase_uid, firebase_data
+        )
+        user.firebase_created_at = self._parse_timestamp(firebase_data.get("auth_time"))
         user.firebase_last_sign_in = datetime.now()
         user.last_firebase_sync = datetime.now()
 
@@ -577,7 +615,7 @@ class FirebaseUserSyncService:
         reason: str,
         firebase_uid: str,
         email: Optional[str] = None,
-        error: Optional[str] = None
+        error: Optional[str] = None,
     ):
         """
         Enhanced audit logging for security events.
@@ -594,37 +632,28 @@ class FirebaseUserSyncService:
             email: User email (if available)
             error: Error message (if applicable)
         """
-        if not self._security_config['enable_audit_logging']:
+        if not self._security_config["enable_audit_logging"]:
             return
 
         log_data = {
-            'event': 'firebase_user_provisioning',
-            'type': event_type,
-            'reason': reason,
-            'firebase_uid': firebase_uid,
-            'email': email,
-            'timestamp': datetime.utcnow().isoformat()
+            "event": "firebase_user_provisioning",
+            "type": event_type,
+            "reason": reason,
+            "firebase_uid": firebase_uid,
+            "email": email,
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
         if error:
-            log_data['error'] = error
+            log_data["error"] = error
 
         # Log with appropriate level
-        if event_type == 'rejected':
-            logger.warning(
-                f"User provisioning rejected: {reason}",
-                extra=log_data
-            )
-        elif event_type == 'failed':
-            logger.error(
-                f"User provisioning failed: {reason}",
-                extra=log_data
-            )
+        if event_type == "rejected":
+            logger.warning(f"User provisioning rejected: {reason}", extra=log_data)
+        elif event_type == "failed":
+            logger.error(f"User provisioning failed: {reason}", extra=log_data)
         else:
-            logger.info(
-                f"User provisioning success: {reason}",
-                extra=log_data
-            )
+            logger.info(f"User provisioning success: {reason}", extra=log_data)
 
         # Store in audit table (if exists)
         try:
@@ -651,11 +680,14 @@ class FirebaseUserSyncService:
                 )
             """)
 
-            self.db.execute(query, {
-                'event_type': 'firebase_user_provisioning',
-                'event_data': event_data,
-                'created_at': datetime.utcnow()
-            })
+            self.db.execute(
+                query,
+                {
+                    "event_type": "firebase_user_provisioning",
+                    "event_data": event_data,
+                    "created_at": datetime.utcnow(),
+                },
+            )
             self.db.commit()
 
         except Exception as e:
@@ -670,7 +702,7 @@ class FirebaseUserSyncService:
         sync_direction: str,
         changes: Dict[str, Any],
         success: bool,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ):
         """
         Log sync operation to audit table.
@@ -694,7 +726,7 @@ class FirebaseUserSyncService:
                 sync_direction=sync_direction,
                 changes=changes,
                 success=success,
-                error_message=error_message
+                error_message=error_message,
             )
 
             self.db.add(log_entry)
@@ -705,9 +737,7 @@ class FirebaseUserSyncService:
             # Don't raise - logging failure shouldn't break sync
 
     async def get_or_create_user(
-        self,
-        firebase_uid: str,
-        firebase_data: Dict[str, Any]
+        self, firebase_uid: str, firebase_data: Dict[str, Any]
     ) -> User:
         """
         Get or create user from Firebase data.
@@ -721,13 +751,13 @@ class FirebaseUserSyncService:
         Returns:
             User object
         """
-        user, created = await self.sync_firebase_user(firebase_uid, firebase_data, auto_create=True)
+        user, created = await self.sync_firebase_user(
+            firebase_uid, firebase_data, auto_create=True
+        )
         return user
 
     async def validate_firebase_user(
-        self,
-        firebase_uid: str,
-        required_role: Optional[UserRole] = None
+        self, firebase_uid: str, required_role: Optional[UserRole] = None
     ) -> Optional[User]:
         """
         Validate Firebase user exists and has required role.
@@ -749,7 +779,9 @@ class FirebaseUserSyncService:
             return None
 
         if required_role and user.role != required_role:
-            logger.warning(f"User {firebase_uid} lacks required role: {required_role.value}")
+            logger.warning(
+                f"User {firebase_uid} lacks required role: {required_role.value}"
+            )
             return None
 
         return user

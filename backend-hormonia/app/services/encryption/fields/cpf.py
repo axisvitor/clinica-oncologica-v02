@@ -87,7 +87,7 @@ class CPFEncryptor(BaseFieldEncryptor):
         """
         if not cpf:
             return cpf
-        return re.sub(r'\D', '', cpf)
+        return re.sub(r"\D", "", cpf)
 
     def validate(self, cpf: str) -> bool:
         """

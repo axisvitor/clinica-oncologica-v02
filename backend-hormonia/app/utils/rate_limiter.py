@@ -17,21 +17,23 @@ Features:
 - Environment-based configuration
 - Per-phone number tracking for webhook spam prevention
 """
+
 import os
 import time
-from typing import Callable, Any, Optional
+from typing import Callable
 from functools import wraps
 from pathlib import Path
 
 # Load .env file explicitly before any os.getenv calls
 from dotenv import load_dotenv
+
 env_file = Path(__file__).parent.parent.parent / ".env"
 if env_file.exists():
     load_dotenv(env_file)
 
 from fastapi import Request, Response, HTTPException, status
 from fastapi.responses import JSONResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
@@ -57,7 +59,9 @@ def get_redis_url() -> str:
         redis_password = os.getenv("REDIS_PASSWORD", "")
 
         if redis_password:
-            redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+            redis_url = (
+                f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+            )
         else:
             redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
 
@@ -86,9 +90,11 @@ auth_limiter = Limiter(
 )
 
 logger.info("✅ Rate limiting ENABLED with Redis backend")
-logger.info(f"   Global limit: 60 requests/minute")
-logger.info(f"   Auth limit: 10 requests/minute")
-logger.info(f"   Redis backend: {get_redis_url().split('@')[-1] if '@' in get_redis_url() else get_redis_url()}")
+logger.info("   Global limit: 60 requests/minute")
+logger.info("   Auth limit: 10 requests/minute")
+logger.info(
+    f"   Redis backend: {get_redis_url().split('@')[-1] if '@' in get_redis_url() else get_redis_url()}"
+)
 
 
 def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> Response:
@@ -103,7 +109,7 @@ def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> Response:
         JSONResponse: Error response with rate limit information
     """
     # Extract rate limit information from the exception
-    retry_after = getattr(exc, 'retry_after', 60)
+    retry_after = getattr(exc, "retry_after", 60)
 
     logger.warning(
         f"Rate limit exceeded for {get_remote_address(request)}",
@@ -112,7 +118,7 @@ def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> Response:
             "method": request.method,
             "client_ip": get_remote_address(request),
             "retry_after": retry_after,
-        }
+        },
     )
 
     return JSONResponse(
@@ -125,10 +131,10 @@ def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> Response:
         },
         headers={
             "Retry-After": str(retry_after),
-            "X-RateLimit-Limit": str(getattr(exc, 'limit', 60)),
+            "X-RateLimit-Limit": str(getattr(exc, "limit", 60)),
             "X-RateLimit-Remaining": "0",
             "X-RateLimit-Reset": str(retry_after),
-        }
+        },
     )
 
 
@@ -144,10 +150,10 @@ def get_rate_limit(limit_type: str) -> str:
     """
     limits = {
         "auth": "10/minute",  # Strict for login/auth
-        "api": "60/minute",   # Normal API endpoints
-        "admin": "100/minute", # Higher for admin operations
-        "public": "30/minute", # Conservative for public endpoints
-        "webhook": "300/minute", # High for webhooks
+        "api": "60/minute",  # Normal API endpoints
+        "admin": "100/minute",  # Higher for admin operations
+        "public": "30/minute",  # Conservative for public endpoints
+        "webhook": "300/minute",  # High for webhooks
         "webhook_global": "1000/minute",  # Global webhook limit
         "webhook_per_phone": "100/minute",  # Per-phone webhook limit
     }
@@ -159,6 +165,7 @@ def get_rate_limit(limit_type: str) -> str:
 # MULTI-LAYER RATE LIMITING (HIGH-001 FIX)
 # ============================================================================
 
+
 async def get_redis_client():
     """
     Get Redis client for manual rate limiting.
@@ -168,6 +175,7 @@ async def get_redis_client():
     """
     try:
         import redis.asyncio as redis
+
         redis_url = get_redis_url()
         client = redis.from_url(redis_url, decode_responses=True)
         return client
@@ -177,10 +185,7 @@ async def get_redis_client():
 
 
 async def check_rate_limit_redis(
-    key: str,
-    max_requests: int,
-    window_seconds: int,
-    redis_client=None
+    key: str, max_requests: int, window_seconds: int, redis_client=None
 ) -> tuple[bool, int]:
     """
     Check rate limit using Redis sliding window.
@@ -232,7 +237,7 @@ async def check_rate_limit_redis(
                     "request_count": request_count,
                     "max_requests": max_requests,
                     "window_seconds": window_seconds,
-                }
+                },
             )
             return False, retry_after
 
@@ -273,6 +278,7 @@ def multi_layer_rate_limit(
         async def webhook(request: Request):
             ...
     """
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -292,22 +298,19 @@ def multi_layer_rate_limit(
             redis_client = await get_redis_client()
 
             # Layer 1: Global rate limit (all requests)
-            global_key = f"rate_limit:webhook:global"
+            global_key = "rate_limit:webhook:global"
             allowed, retry_after = await check_rate_limit_redis(
-                global_key,
-                global_limit,
-                global_window,
-                redis_client
+                global_key, global_limit, global_window, redis_client
             )
 
             if not allowed:
                 logger.warning(
-                    f"Global webhook rate limit exceeded",
+                    "Global webhook rate limit exceeded",
                     extra={
                         "limit": global_limit,
                         "window": global_window,
                         "path": request.url.path,
-                    }
+                    },
                 )
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -323,7 +326,7 @@ def multi_layer_rate_limit(
                         "X-RateLimit-Remaining": "0",
                         "X-RateLimit-Reset": str(int(time.time()) + retry_after),
                         "X-RateLimit-Scope": "global",
-                    }
+                    },
                 )
 
             # Layer 2: Per-identifier rate limit (e.g., per phone number)
@@ -358,14 +361,16 @@ def multi_layer_rate_limit(
 
             if identifier_value:
                 # Sanitize identifier (keep only alphanumeric)
-                identifier_value = "".join(c for c in str(identifier_value) if c.isalnum())
+                identifier_value = "".join(
+                    c for c in str(identifier_value) if c.isalnum()
+                )
 
                 identifier_rate_key = f"rate_limit:webhook:phone:{identifier_value}"
                 allowed, retry_after = await check_rate_limit_redis(
                     identifier_rate_key,
                     identifier_limit,
                     identifier_window,
-                    redis_client
+                    redis_client,
                 )
 
                 if not allowed:
@@ -376,7 +381,7 @@ def multi_layer_rate_limit(
                             "limit": identifier_limit,
                             "window": identifier_window,
                             "path": request.url.path,
-                        }
+                        },
                     )
                     raise HTTPException(
                         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -392,7 +397,7 @@ def multi_layer_rate_limit(
                             "X-RateLimit-Remaining": "0",
                             "X-RateLimit-Reset": str(int(time.time()) + retry_after),
                             "X-RateLimit-Scope": "phone",
-                        }
+                        },
                     )
 
             # Close Redis connection
@@ -406,4 +411,5 @@ def multi_layer_rate_limit(
             return await func(*args, **kwargs)
 
         return wrapper
+
     return decorator

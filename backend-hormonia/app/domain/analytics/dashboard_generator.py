@@ -2,18 +2,19 @@
 Dashboard data generation and chart building.
 Handles real-time dashboard updates and visualization data.
 """
+
 import logging
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from uuid import UUID
 
 from sqlalchemy import func, and_, cast, Date
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.patient import Patient, FlowState
-from app.models.message import Message, MessageStatus, MessageDirection
-from app.models.quiz import QuizResponse, QuizTemplate
-from app.models.alert import Alert, AlertSeverity, AlertStatus
+from app.models.patient import Patient
+from app.models.message import Message, MessageDirection
+from app.models.quiz import QuizResponse
+from app.models.alert import Alert, AlertStatus
 from app.utils.db_retry import with_db_retry
 from app.services.query_performance_monitor import QueryPerformanceMonitor
 from app.schemas.report import DashboardResponse
@@ -63,32 +64,50 @@ class DashboardGenerator:
 
             # Get quick stats (consolidated query for better performance)
             with self.query_monitor.monitor_query("dashboard_quick_stats"):
-                quick_stats = self.metrics_collector.get_quick_stats_consolidated(doctor_id)
-                total_patients = quick_stats['total_patients']
-                active_patients = quick_stats['active_patients']
-                messages_today = quick_stats['messages_today']
-                alerts_pending = quick_stats['alerts_pending']
+                quick_stats = self.metrics_collector.get_quick_stats_consolidated(
+                    doctor_id
+                )
+                total_patients = quick_stats["total_patients"]
+                active_patients = quick_stats["active_patients"]
+                messages_today = quick_stats["messages_today"]
+                alerts_pending = quick_stats["alerts_pending"]
 
             # Get recent activity
             with self.query_monitor.monitor_query("dashboard_recent_activity"):
                 recent_messages = self._get_recent_messages(doctor_id, limit=10)
                 recent_alerts = self._get_recent_alerts(doctor_id, limit=10)
-                recent_quiz_completions = self._get_recent_quiz_completions(doctor_id, limit=10)
+                recent_quiz_completions = self._get_recent_quiz_completions(
+                    doctor_id, limit=10
+                )
 
             # Get charts data and compute summary metrics
             with self.query_monitor.monitor_query("dashboard_charts_data"):
                 engagement_series = self._get_engagement_chart_data(doctor_id)
                 alert_severity_chart = self._get_alert_severity_chart_data(doctor_id)
-                treatment_progress_chart = self._get_treatment_progress_chart_data(doctor_id)
+                treatment_progress_chart = self._get_treatment_progress_chart_data(
+                    doctor_id
+                )
 
             # Derive summary metrics used by frontend cards
             last7 = engagement_series.get("data", [])
-            messages_sent = sum(day.get("messages_sent", day.get("messages", 0)) for day in last7)
+            messages_sent = sum(
+                day.get("messages_sent", day.get("messages", 0)) for day in last7
+            )
             responses_received = sum(day.get("responses_received", 0) for day in last7)
-            response_rate = round((responses_received / messages_sent) * 100, 2) if messages_sent else 0.0
-            active_patients_percentage = round((active_patients / total_patients) * 100, 2) if total_patients else 0.0
+            response_rate = (
+                round((responses_received / messages_sent) * 100, 2)
+                if messages_sent
+                else 0.0
+            )
+            active_patients_percentage = (
+                round((active_patients / total_patients) * 100, 2)
+                if total_patients
+                else 0.0
+            )
             avg_response_time_min = 0.0  # Placeholder until API monitoring exists
-            completed_quizzes = self.metrics_collector.get_quizzes_completed_last_days(7, doctor_id)
+            completed_quizzes = self.metrics_collector.get_quizzes_completed_last_days(
+                7, doctor_id
+            )
 
             # Calculate trend data (percentage change from previous period)
             trend_data = self._calculate_dashboard_trends(
@@ -98,7 +117,7 @@ class DashboardGenerator:
                 alerts_pending=alerts_pending,
                 response_rate=response_rate,
                 completed_quizzes=completed_quizzes,
-                doctor_id=doctor_id
+                doctor_id=doctor_id,
             )
 
             dashboard = DashboardResponse(
@@ -122,7 +141,7 @@ class DashboardGenerator:
                 recent_quiz_completions=recent_quiz_completions,
                 engagement_chart=last7,
                 alert_severity_chart=alert_severity_chart,
-                treatment_progress_chart=treatment_progress_chart
+                treatment_progress_chart=treatment_progress_chart,
             )
 
             logger.info("Successfully generated dashboard data")
@@ -132,7 +151,9 @@ class DashboardGenerator:
             logger.error(f"Dashboard data generation failed: {e}")
             raise
 
-    def _get_recent_messages(self, doctor_id: Optional[UUID], limit: int = 10) -> List[Dict[str, Any]]:
+    def _get_recent_messages(
+        self, doctor_id: Optional[UUID], limit: int = 10
+    ) -> List[Dict[str, Any]]:
         """
         Get recent messages.
 
@@ -154,14 +175,18 @@ class DashboardGenerator:
                 "id": str(msg.id),
                 "patient_name": msg.patient.name,  # Already loaded, no extra query
                 "direction": msg.direction.value,
-                "content": msg.content[:50] + "..." if len(msg.content) > 50 else msg.content,
+                "content": msg.content[:50] + "..."
+                if len(msg.content) > 50
+                else msg.content,
                 "created_at": msg.created_at.isoformat(),
-                "status": msg.status.value
+                "status": msg.status.value,
             }
             for msg in messages
         ]
 
-    def _get_recent_alerts(self, doctor_id: Optional[UUID], limit: int = 10) -> List[Dict[str, Any]]:
+    def _get_recent_alerts(
+        self, doctor_id: Optional[UUID], limit: int = 10
+    ) -> List[Dict[str, Any]]:
         """
         Get recent alerts.
 
@@ -186,12 +211,14 @@ class DashboardGenerator:
                 "severity": alert.severity.value,
                 "message": alert.message,
                 "created_at": alert.created_at.isoformat(),
-                "status": alert.status.value
+                "status": alert.status.value,
             }
             for alert in alerts
         ]
 
-    def _get_recent_quiz_completions(self, doctor_id: Optional[UUID], limit: int = 10) -> List[Dict[str, Any]]:
+    def _get_recent_quiz_completions(
+        self, doctor_id: Optional[UUID], limit: int = 10
+    ) -> List[Dict[str, Any]]:
         """
         Get recent quiz completions.
 
@@ -207,7 +234,9 @@ class DashboardGenerator:
         if doctor_id:
             query = query.filter(Patient.doctor_id == doctor_id)
 
-        completions = query.order_by(QuizResponse.responded_at.desc()).limit(limit).all()
+        completions = (
+            query.order_by(QuizResponse.responded_at.desc()).limit(limit).all()
+        )
 
         return [
             {
@@ -215,7 +244,9 @@ class DashboardGenerator:
                 "patient_name": completion.patient.name,  # Already loaded, no extra query
                 "quiz_template_id": str(completion.quiz_template_id),
                 "responded_at": completion.responded_at.isoformat(),
-                "response_count": len(completion.responses) if completion.responses else 0
+                "response_count": len(completion.responses)
+                if completion.responses
+                else 0,
             }
             for completion in completions
         ]
@@ -232,16 +263,13 @@ class DashboardGenerator:
         start_date = end_date - timedelta(days=6)  # 7 days total
 
         # Single query with GROUP BY on date and direction
-        query = (
-            self.db.query(
-                cast(Message.created_at, Date).label('date'),
-                Message.direction,
-                func.count(Message.id).label('count')
-            )
-            .filter(
-                Message.created_at >= start_date,
-                Message.created_at <= end_date + timedelta(days=1)
-            )
+        query = self.db.query(
+            cast(Message.created_at, Date).label("date"),
+            Message.direction,
+            func.count(Message.id).label("count"),
+        ).filter(
+            Message.created_at >= start_date,
+            Message.created_at <= end_date + timedelta(days=1),
         )
 
         if doctor_id:
@@ -253,47 +281,59 @@ class DashboardGenerator:
         # Organize results by date
         date_stats = {}
         for result_date, direction, count in results:
-            date_key = result_date.isoformat() if hasattr(result_date, 'isoformat') else str(result_date)
+            date_key = (
+                result_date.isoformat()
+                if hasattr(result_date, "isoformat")
+                else str(result_date)
+            )
             if date_key not in date_stats:
-                date_stats[date_key] = {'sent': 0, 'received': 0}
+                date_stats[date_key] = {"sent": 0, "received": 0}
 
             # Handle Mock objects in tests
             try:
                 count_num = int(count) if count is not None else 0
             except (TypeError, ValueError):
-                count_num = getattr(count, 'return_value', 0) if hasattr(count, 'return_value') else 0
+                count_num = (
+                    getattr(count, "return_value", 0)
+                    if hasattr(count, "return_value")
+                    else 0
+                )
 
             if direction == MessageDirection.OUTBOUND:
-                date_stats[date_key]['sent'] = count_num
+                date_stats[date_key]["sent"] = count_num
             elif direction == MessageDirection.INBOUND:
-                date_stats[date_key]['received'] = count_num
+                date_stats[date_key]["received"] = count_num
 
         # Build daily_data with all dates (fill missing dates with zeros)
         daily_data = []
         current_date = start_date
         while current_date <= end_date:
             date_key = current_date.isoformat()
-            stats = date_stats.get(date_key, {'sent': 0, 'received': 0})
-            sent_count_num = stats['sent']
-            recv_count_num = stats['received']
+            stats = date_stats.get(date_key, {"sent": 0, "received": 0})
+            sent_count_num = stats["sent"]
+            recv_count_num = stats["received"]
 
-            daily_data.append({
-                "date": date_key,
-                "messages_sent": sent_count_num,
-                "responses_received": recv_count_num,
-                "response_rate": round((recv_count_num / sent_count_num) * 100, 2) if sent_count_num > 0 else 0.0
-            })
+            daily_data.append(
+                {
+                    "date": date_key,
+                    "messages_sent": sent_count_num,
+                    "responses_received": recv_count_num,
+                    "response_rate": round((recv_count_num / sent_count_num) * 100, 2)
+                    if sent_count_num > 0
+                    else 0.0,
+                }
+            )
             current_date += timedelta(days=1)
 
-        return {
-            "type": "line",
-            "data": daily_data,
-            "title": "Daily Message Volume"
-        }
+        return {"type": "line", "data": daily_data, "title": "Daily Message Volume"}
 
-    def _get_alert_severity_chart_data(self, doctor_id: Optional[UUID]) -> Dict[str, Any]:
+    def _get_alert_severity_chart_data(
+        self, doctor_id: Optional[UUID]
+    ) -> Dict[str, Any]:
         """Get alert severity distribution chart data."""
-        query = self.db.query(Alert.severity, func.count(Alert.id)).group_by(Alert.severity)
+        query = self.db.query(Alert.severity, func.count(Alert.id)).group_by(
+            Alert.severity
+        )
 
         if doctor_id:
             query = query.join(Patient).filter(Patient.doctor_id == doctor_id)
@@ -301,22 +341,18 @@ class DashboardGenerator:
         results = query.all()
 
         data = [
-            {
-                "severity": severity.value,
-                "count": count
-            }
-            for severity, count in results
+            {"severity": severity.value, "count": count} for severity, count in results
         ]
 
-        return {
-            "type": "pie",
-            "data": data,
-            "title": "Alert Severity Distribution"
-        }
+        return {"type": "pie", "data": data, "title": "Alert Severity Distribution"}
 
-    def _get_treatment_progress_chart_data(self, doctor_id: Optional[UUID]) -> Dict[str, Any]:
+    def _get_treatment_progress_chart_data(
+        self, doctor_id: Optional[UUID]
+    ) -> Dict[str, Any]:
         """Get treatment progress chart data."""
-        query = self.db.query(Patient.current_day, func.count(Patient.id)).group_by(Patient.current_day)
+        query = self.db.query(Patient.current_day, func.count(Patient.id)).group_by(
+            Patient.current_day
+        )
 
         if doctor_id:
             query = query.filter(Patient.doctor_id == doctor_id)
@@ -324,13 +360,7 @@ class DashboardGenerator:
         results = query.all()
 
         # Group by day ranges
-        day_ranges = {
-            "1-7": 0,
-            "8-14": 0,
-            "15-30": 0,
-            "31-60": 0,
-            "60+": 0
-        }
+        day_ranges = {"1-7": 0, "8-14": 0, "15-30": 0, "31-60": 0, "60+": 0}
 
         for day, count in results:
             if day is None:
@@ -340,12 +370,20 @@ class DashboardGenerator:
             try:
                 day_num = int(day) if day is not None else 0
             except (TypeError, ValueError):
-                day_num = getattr(day, 'return_value', 0) if hasattr(day, 'return_value') else 0
+                day_num = (
+                    getattr(day, "return_value", 0)
+                    if hasattr(day, "return_value")
+                    else 0
+                )
 
             try:
                 count_num = int(count) if count is not None else 0
             except (TypeError, ValueError):
-                count_num = getattr(count, 'return_value', 0) if hasattr(count, 'return_value') else 0
+                count_num = (
+                    getattr(count, "return_value", 0)
+                    if hasattr(count, "return_value")
+                    else 0
+                )
 
             if day_num <= 7:
                 day_ranges["1-7"] += count_num
@@ -359,18 +397,11 @@ class DashboardGenerator:
                 day_ranges["60+"] += count_num
 
         data = [
-            {
-                "range": range_name,
-                "count": count
-            }
+            {"range": range_name, "count": count}
             for range_name, count in day_ranges.items()
         ]
 
-        return {
-            "type": "bar",
-            "data": data,
-            "title": "Treatment Progress Distribution"
-        }
+        return {"type": "bar", "data": data, "title": "Treatment Progress Distribution"}
 
     def _calculate_dashboard_trends(
         self,
@@ -380,7 +411,7 @@ class DashboardGenerator:
         alerts_pending: int,
         response_rate: float,
         completed_quizzes: int,
-        doctor_id: Optional[UUID] = None
+        doctor_id: Optional[UUID] = None,
     ) -> Dict[str, float]:
         """
         Calculate percentage changes from the previous 7-day period.
@@ -407,11 +438,13 @@ class DashboardGenerator:
                 and_(
                     Message.created_at >= start_date,
                     Message.created_at <= end_date + timedelta(days=1),
-                    Message.direction == MessageDirection.OUTBOUND
+                    Message.direction == MessageDirection.OUTBOUND,
                 )
             )
             if doctor_id:
-                prev_messages_query = prev_messages_query.join(Patient).filter(Patient.doctor_id == doctor_id)
+                prev_messages_query = prev_messages_query.join(Patient).filter(
+                    Patient.doctor_id == doctor_id
+                )
             prev_messages_sent = prev_messages_query.count()
 
             # Previous period response rate
@@ -419,23 +452,28 @@ class DashboardGenerator:
                 and_(
                     Message.created_at >= start_date,
                     Message.created_at <= end_date + timedelta(days=1),
-                    Message.direction == MessageDirection.INBOUND
+                    Message.direction == MessageDirection.INBOUND,
                 )
             )
             if doctor_id:
-                prev_inbound_query = prev_inbound_query.join(Patient).filter(Patient.doctor_id == doctor_id)
+                prev_inbound_query = prev_inbound_query.join(Patient).filter(
+                    Patient.doctor_id == doctor_id
+                )
             prev_responses = prev_inbound_query.count()
-            prev_response_rate = round((prev_responses / prev_messages_sent) * 100, 2) if prev_messages_sent else 0.0
+            prev_response_rate = (
+                round((prev_responses / prev_messages_sent) * 100, 2)
+                if prev_messages_sent
+                else 0.0
+            )
 
             # Previous period alerts (from 7 days ago)
             prev_alerts_query = self.db.query(Alert).filter(
-                and_(
-                    Alert.created_at <= end_date,
-                    Alert.status != AlertStatus.RESOLVED
-                )
+                and_(Alert.created_at <= end_date, Alert.status != AlertStatus.RESOLVED)
             )
             if doctor_id:
-                prev_alerts_query = prev_alerts_query.join(Patient).filter(Patient.doctor_id == doctor_id)
+                prev_alerts_query = prev_alerts_query.join(Patient).filter(
+                    Patient.doctor_id == doctor_id
+                )
             prev_alerts_pending = prev_alerts_query.count()
 
             # Previous period quizzes completed
@@ -443,11 +481,13 @@ class DashboardGenerator:
                 and_(
                     QuizResponse.responded_at.isnot(None),
                     QuizResponse.created_at >= start_date,
-                    QuizResponse.created_at <= end_date + timedelta(days=1)
+                    QuizResponse.created_at <= end_date + timedelta(days=1),
                 )
             )
             if doctor_id:
-                prev_quizzes_query = prev_quizzes_query.join(Patient).filter(Patient.doctor_id == doctor_id)
+                prev_quizzes_query = prev_quizzes_query.join(Patient).filter(
+                    Patient.doctor_id == doctor_id
+                )
             prev_completed_quizzes = prev_quizzes_query.count()
 
             # Previous period patient counts (from 7 days ago)
@@ -464,11 +504,15 @@ class DashboardGenerator:
 
             return {
                 "patients_change": calc_change(total_patients, prev_total_patients),
-                "active_patients_change": calc_change(active_patients, prev_active_patients),
+                "active_patients_change": calc_change(
+                    active_patients, prev_active_patients
+                ),
                 "messages_change": calc_change(messages_sent, prev_messages_sent),
                 "alerts_change": calc_change(alerts_pending, prev_alerts_pending),
                 "response_rate_change": calc_change(response_rate, prev_response_rate),
-                "quizzes_change": calc_change(completed_quizzes, prev_completed_quizzes)
+                "quizzes_change": calc_change(
+                    completed_quizzes, prev_completed_quizzes
+                ),
             }
 
         except Exception as e:
@@ -480,5 +524,5 @@ class DashboardGenerator:
                 "messages_change": 0.0,
                 "alerts_change": 0.0,
                 "response_rate_change": 0.0,
-                "quizzes_change": 0.0
+                "quizzes_change": 0.0,
             }

@@ -139,13 +139,12 @@ def setup_middleware(app: FastAPI) -> None:
                 "/api/v2/quiz-extensions/monthly/public",
                 "/api/v2/monthly-quiz-public/monthly/public",
                 "/api/v2/monthly-quiz/monthly/public",
-            ]
+            ],
         )
         logger.info("✅ CSRF protection middleware added (HMAC-SHA256)")
     else:
         logger.warning(
-            "⚠️  CSRF protection DISABLED - "
-            "Set CSRF_SECRET_KEY to enable security"
+            "⚠️  CSRF protection DISABLED - Set CSRF_SECRET_KEY to enable security"
         )
 
     # Enhanced security middleware
@@ -161,7 +160,10 @@ def setup_middleware(app: FastAPI) -> None:
             RATE_LIMIT_WHITELIST_IPS,
             RATE_LIMIT_EXEMPT_PATHS,
         )
-        from app.middleware.distributed_rate_limiter import RateLimitTier, RateLimitConfig
+        from app.middleware.distributed_rate_limiter import (
+            RateLimitTier,
+            RateLimitConfig,
+        )
 
         # Get Redis client for distributed rate limiting
         redis_client = get_redis_client()
@@ -187,7 +189,9 @@ def setup_middleware(app: FastAPI) -> None:
                 exempt_paths=RATE_LIMIT_EXEMPT_PATHS,
                 whitelist_ips=RATE_LIMIT_WHITELIST_IPS,
             )
-            logger.info("✅ Rate limiting middleware ENABLED (Redis-backed, distributed)")
+            logger.info(
+                "✅ Rate limiting middleware ENABLED (Redis-backed, distributed)"
+            )
         else:
             logger.warning(
                 "⚠️  Redis unavailable - Rate limiting will use in-memory fallback "
@@ -195,10 +199,9 @@ def setup_middleware(app: FastAPI) -> None:
             )
             # Fallback to simple in-memory rate limiting
             from app.middleware.rate_limiter import RateLimitMiddleware as SimpleLimiter
+
             app.add_middleware(
-                SimpleLimiter,
-                requests_per_minute=100,
-                window_seconds=60
+                SimpleLimiter, requests_per_minute=100, window_seconds=60
             )
             logger.info("✅ Rate limiting middleware ENABLED (in-memory fallback)")
     except Exception as e:
@@ -227,25 +230,27 @@ def setup_middleware(app: FastAPI) -> None:
     # Configure CORS with security validation
     # Production: No regex, explicit HTTPS origins only (from settings)
     # Development: Localhost regex pattern allowed + default origins from configure_cors
-    
+
     # In production, we MUST provide allowed_origins from settings
     # In development, we can allow None to let configure_cors check defaults, BUT better to be explicit
-    
+
     configure_cors(
         app,
         allowed_origins=cors_origins,  # Can be empty list if not set, handled by configure_cors
-        allowed_origin_regex=None if is_production else r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+        allowed_origin_regex=None
+        if is_production
+        else r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
         allow_credentials=True,  # ✅ CRITICAL: Required for httpOnly cookies and credentials
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
         # ✅ SECURITY: Explicit header whitelist prevents credential leakage
         # Never use ["*"] with allow_credentials=True - this violates CORS security model
         allow_headers=[
-            "Content-Type",      # Standard content negotiation
-            "Authorization",     # Bearer tokens and basic auth
+            "Content-Type",  # Standard content negotiation
+            "Authorization",  # Bearer tokens and basic auth
             "X-Requested-With",  # AJAX request detection
-            "X-CSRF-Token",      # CSRF protection tokens
-            "Accept",            # Content type acceptance
-            "Origin",            # Request origin (required for CORS)
+            "X-CSRF-Token",  # CSRF protection tokens
+            "Accept",  # Content type acceptance
+            "Origin",  # Request origin (required for CORS)
         ],
     )
 

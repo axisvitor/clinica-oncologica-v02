@@ -21,11 +21,7 @@ import firebase_admin
 from firebase_admin import credentials, auth
 from fastapi import HTTPException, status
 
-from app.core.circuit_breaker_enhanced import (
-    ServiceType,
-    get_circuit_breaker_manager,
-    with_circuit_breaker
-)
+from app.core.circuit_breaker_enhanced import ServiceType, get_circuit_breaker_manager
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +61,7 @@ class FirebaseAuthServiceWithCircuitBreaker:
         """Initialize Firebase Admin SDK with service account credentials."""
         try:
             # Format private key (handle escaped newlines)
-            formatted_key = self.private_key.replace('\\n', '\n')
+            formatted_key = self.private_key.replace("\\n", "\n")
 
             # Create credentials object
             cred_dict = {
@@ -80,8 +76,12 @@ class FirebaseAuthServiceWithCircuitBreaker:
 
             # Initialize Firebase Admin SDK
             if not firebase_admin._apps:
-                FirebaseAuthServiceWithCircuitBreaker._app = firebase_admin.initialize_app(cred)
-                logger.info(f"Firebase Admin SDK initialized with circuit breaker for project: {self.project_id}")
+                FirebaseAuthServiceWithCircuitBreaker._app = (
+                    firebase_admin.initialize_app(cred)
+                )
+                logger.info(
+                    f"Firebase Admin SDK initialized with circuit breaker for project: {self.project_id}"
+                )
             else:
                 FirebaseAuthServiceWithCircuitBreaker._app = firebase_admin.get_app()
                 logger.info("Using existing Firebase Admin SDK instance")
@@ -126,7 +126,7 @@ class FirebaseAuthServiceWithCircuitBreaker:
                 "auth_time": None,
                 "exp": None,
                 "degraded_mode": True,
-                "warning": "Firebase authentication unavailable - operating in degraded mode"
+                "warning": "Firebase authentication unavailable - operating in degraded mode",
             }
 
         # Wrap Firebase API call with circuit breaker
@@ -137,13 +137,24 @@ class FirebaseAuthServiceWithCircuitBreaker:
 
                 # Extract custom claims
                 reserved_claims = {
-                    'iss', 'aud', 'auth_time', 'user_id', 'sub', 'iat', 'exp',
-                    'firebase', 'uid', 'email', 'email_verified', 'phone_number',
-                    'name', 'picture', 'identities'
+                    "iss",
+                    "aud",
+                    "auth_time",
+                    "user_id",
+                    "sub",
+                    "iat",
+                    "exp",
+                    "firebase",
+                    "uid",
+                    "email",
+                    "email_verified",
+                    "phone_number",
+                    "name",
+                    "picture",
+                    "identities",
                 }
                 custom_claims = {
-                    k: v for k, v in decoded_token.items()
-                    if k not in reserved_claims
+                    k: v for k, v in decoded_token.items() if k not in reserved_claims
                 }
 
                 # Extract user information
@@ -158,7 +169,9 @@ class FirebaseAuthServiceWithCircuitBreaker:
                     "exp": decoded_token.get("exp"),
                 }
 
-                logger.debug(f"Successfully verified token for user: {user_info['email']}")
+                logger.debug(
+                    f"Successfully verified token for user: {user_info['email']}"
+                )
                 return user_info
 
             except auth.ExpiredIdTokenError:
@@ -210,8 +223,11 @@ class FirebaseAuthServiceWithCircuitBreaker:
         Returns:
             Dict containing user information or None if user not found
         """
+
         async def fallback_get_user():
-            logger.warning("Firebase circuit is OPEN - returning cached/degraded user data")
+            logger.warning(
+                "Firebase circuit is OPEN - returning cached/degraded user data"
+            )
             return None
 
         async def _get_user():
@@ -262,6 +278,7 @@ class FirebaseAuthServiceWithCircuitBreaker:
         Returns:
             True if successful, False otherwise
         """
+
         async def fallback_set_claims():
             logger.warning("Firebase circuit is OPEN - custom claims not updated")
             return False
@@ -288,9 +305,7 @@ _firebase_service_instance: Optional[FirebaseAuthServiceWithCircuitBreaker] = No
 
 
 def get_firebase_auth_service_with_cb(
-    project_id: str,
-    private_key: str,
-    client_email: str
+    project_id: str, private_key: str, client_email: str
 ) -> FirebaseAuthServiceWithCircuitBreaker:
     """
     Get or create FirebaseAuthService with circuit breaker singleton.
@@ -307,9 +322,7 @@ def get_firebase_auth_service_with_cb(
 
     if _firebase_service_instance is None:
         _firebase_service_instance = FirebaseAuthServiceWithCircuitBreaker(
-            project_id=project_id,
-            private_key=private_key,
-            client_email=client_email
+            project_id=project_id, private_key=private_key, client_email=client_email
         )
 
     return _firebase_service_instance

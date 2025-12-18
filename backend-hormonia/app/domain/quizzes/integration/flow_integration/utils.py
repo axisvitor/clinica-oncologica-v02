@@ -1,6 +1,7 @@
 """
 Utility functions for quiz flow integration.
 """
+
 from typing import Any
 from uuid import UUID
 
@@ -45,7 +46,7 @@ async def trigger_monthly_quiz_via_link(
     quiz_template_id: UUID,
     quiz_info: dict[str, Any],
     flow_state: PatientFlowState,
-    delivery_method: DeliveryMethod | None = None
+    delivery_method: DeliveryMethod | None = None,
 ) -> dict[str, Any]:
     """
     Convenience function to trigger monthly quiz via link.
@@ -66,5 +67,5 @@ async def trigger_monthly_quiz_via_link(
         patient_id=patient_id,
         quiz_template_id=quiz_template_id,
         quiz_info=quiz_info,
-        flow_state=flow_state
+        flow_state=flow_state,
     )

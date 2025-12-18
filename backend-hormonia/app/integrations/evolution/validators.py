@@ -1,6 +1,7 @@
 """
 Phone number validation and formatting utilities.
 """
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -17,14 +18,14 @@ def format_phone_number(phone_number: str) -> str:
         Formatted phone number with country code
     """
     # Remove any non-digit characters
-    clean_number = ''.join(filter(str.isdigit, phone_number))
+    clean_number = "".join(filter(str.isdigit, phone_number))
 
     # Ensure Brazilian format (55 + area code + number)
-    if not clean_number.startswith('55'):
+    if not clean_number.startswith("55"):
         if len(clean_number) == 11:  # Area code + 9-digit mobile
-            clean_number = '55' + clean_number
+            clean_number = "55" + clean_number
         elif len(clean_number) == 10:  # Area code + 8-digit landline
-            clean_number = '55' + clean_number
+            clean_number = "55" + clean_number
 
     return clean_number
 

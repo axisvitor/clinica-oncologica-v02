@@ -125,7 +125,8 @@ def validate_key_strength(
 
     # Check character diversity
     char_types_used = sum(
-        1 for count in [
+        1
+        for count in [
             char_dist["lowercase"],
             char_dist["uppercase"],
             char_dist["digits"],
@@ -136,7 +137,9 @@ def validate_key_strength(
 
     if char_types_used < 3:
         issues.append(f"Low character diversity: only {char_types_used} types used")
-        recommendations.append("Use mix of uppercase, lowercase, digits, and special chars")
+        recommendations.append(
+            "Use mix of uppercase, lowercase, digits, and special chars"
+        )
 
     # Check for repeated patterns
     if re.search(r"(.{3,})\1{2,}", key):
@@ -227,7 +230,8 @@ def validate_all_secrets(secrets_dict: dict, environment: str = "production") ->
         Dict of {name: KeyStrengthResult}
     """
     min_entropy = (
-        MIN_ENTROPY_PRODUCTION if environment == "production"
+        MIN_ENTROPY_PRODUCTION
+        if environment == "production"
         else MIN_ENTROPY_DEVELOPMENT
     )
 
@@ -256,7 +260,9 @@ def is_production_ready(key: str) -> bool:
     return result.is_valid
 
 
-def validate_csrf_secret(csrf_secret: Optional[str], log_validation: bool = True) -> None:
+def validate_csrf_secret(
+    csrf_secret: Optional[str], log_validation: bool = True
+) -> None:
     """
     Validate CSRF secret key strength with Shannon entropy checking.
 
@@ -286,9 +292,16 @@ def validate_csrf_secret(csrf_secret: Optional[str], log_validation: bool = True
 
     # Check 3: Not a common placeholder
     placeholder_patterns = [
-        'change_this', 'your_secret', 'secret_key', 'replace_me',
-        'changeme', 'placeholder', 'example', 'test_secret',
-        'dev_secret', 'local_secret',
+        "change_this",
+        "your_secret",
+        "secret_key",
+        "replace_me",
+        "changeme",
+        "placeholder",
+        "example",
+        "test_secret",
+        "dev_secret",
+        "local_secret",
     ]
 
     csrf_lower = csrf_secret.lower()
@@ -308,7 +321,10 @@ def validate_csrf_secret(csrf_secret: Optional[str], log_validation: bool = True
         )
 
     # Check 5: Not a sequential pattern
-    if re.match(r'^(0123456789|abcdefghijklmnopqrstuvwxyz|ABCDEFGHIJKLMNOPQRSTUVWXYZ)+$', csrf_secret):
+    if re.match(
+        r"^(0123456789|abcdefghijklmnopqrstuvwxyz|ABCDEFGHIJKLMNOPQRSTUVWXYZ)+$",
+        csrf_secret,
+    ):
         raise ValueError(
             "CSRF_SECRET_KEY appears to be a sequential pattern. "
             "Generate a random secret with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
@@ -327,9 +343,13 @@ def validate_csrf_secret(csrf_secret: Optional[str], log_validation: bool = True
 
     # Check 7: Not a known weak/common secret
     weak_secrets = [
-        'changeme', 'secret', 'password', 'admin', 'root',
-        '12345678901234567890123456789012',
-        'abcdefghijklmnopqrstuvwxyz123456',
+        "changeme",
+        "secret",
+        "password",
+        "admin",
+        "root",
+        "12345678901234567890123456789012",
+        "abcdefghijklmnopqrstuvwxyz123456",
     ]
 
     if csrf_secret in weak_secrets:
@@ -349,7 +369,9 @@ def validate_csrf_secret(csrf_secret: Optional[str], log_validation: bool = True
         )
 
 
-def validate_secret_key(secret_key: Optional[str], key_name: str = "SECRET_KEY", min_length: int = 32) -> None:
+def validate_secret_key(
+    secret_key: Optional[str], key_name: str = "SECRET_KEY", min_length: int = 32
+) -> None:
     """
     Generic validation for any secret key (JWT, encryption, session, etc.)
 
@@ -374,7 +396,14 @@ def validate_secret_key(secret_key: Optional[str], key_name: str = "SECRET_KEY",
         )
 
     # Check for placeholder patterns
-    placeholder_keywords = ['change', 'your_', 'replace', 'example', 'test', 'placeholder']
+    placeholder_keywords = [
+        "change",
+        "your_",
+        "replace",
+        "example",
+        "test",
+        "placeholder",
+    ]
     key_lower = secret_key.lower()
     for keyword in placeholder_keywords:
         if keyword in key_lower:
@@ -384,7 +413,9 @@ def validate_secret_key(secret_key: Optional[str], key_name: str = "SECRET_KEY",
             )
 
 
-def validate_webhook_secret(webhook_secret: Optional[str], key_name: str = "WEBHOOK_SECRET") -> None:
+def validate_webhook_secret(
+    webhook_secret: Optional[str], key_name: str = "WEBHOOK_SECRET"
+) -> None:
     """
     Validate webhook secret key strength.
 
@@ -400,13 +431,13 @@ def validate_webhook_secret(webhook_secret: Optional[str], key_name: str = "WEBH
 
     # Additional webhook-specific validation
     if webhook_secret:
-        webhook_placeholders = ['webhook', 'evolution', 'whatsapp']
+        webhook_placeholders = ["webhook", "evolution", "whatsapp"]
         secret_lower = webhook_secret.lower()
 
         for pattern in webhook_placeholders:
             if pattern in secret_lower and any(
                 placeholder in secret_lower
-                for placeholder in ['secret', 'key', 'change', 'replace']
+                for placeholder in ["secret", "key", "change", "replace"]
             ):
                 raise ValueError(
                     f"{key_name} appears to be a placeholder value (contains '{pattern}'). "
@@ -432,12 +463,12 @@ def validate_webhook_secret(webhook_secret: Optional[str], key_name: str = "WEBH
 
 
 __all__ = [
-    'validate_secret_entropy',
-    'validate_key_strength',
-    'mask_secret_for_logging',
-    'validate_all_secrets',
-    'is_production_ready',
-    'validate_csrf_secret',
-    'validate_secret_key',
-    'validate_webhook_secret',
+    "validate_secret_entropy",
+    "validate_key_strength",
+    "mask_secret_for_logging",
+    "validate_all_secrets",
+    "is_production_ready",
+    "validate_csrf_secret",
+    "validate_secret_key",
+    "validate_webhook_secret",
 ]

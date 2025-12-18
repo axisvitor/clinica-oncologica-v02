@@ -3,7 +3,6 @@ Capacity Planning and Forecasting
 Predictive resource planning and scaling recommendations.
 """
 
-import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, asdict
@@ -19,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class TrendDirection(str, Enum):
     """Resource trend direction"""
+
     INCREASING = "increasing"
     DECREASING = "decreasing"
     STABLE = "stable"
@@ -27,6 +27,7 @@ class TrendDirection(str, Enum):
 
 class ScalingRecommendation(str, Enum):
     """Scaling action recommendations"""
+
     SCALE_UP = "scale_up"
     SCALE_DOWN = "scale_down"
     MAINTAIN = "maintain"
@@ -36,6 +37,7 @@ class ScalingRecommendation(str, Enum):
 @dataclass
 class ResourceForecast:
     """Resource usage forecast"""
+
     resource_type: str
     current_value: float
     forecast_1h: float
@@ -50,6 +52,7 @@ class ResourceForecast:
 @dataclass
 class CapacityAnalysis:
     """Capacity planning analysis"""
+
     resource_type: str
     current_usage: float
     current_capacity: float
@@ -64,6 +67,7 @@ class CapacityAnalysis:
 @dataclass
 class CostProjection:
     """Cost projection for resource usage"""
+
     current_monthly_cost: float
     projected_1m_cost: float
     projected_3m_cost: float
@@ -80,9 +84,7 @@ class TimeSeriesForecaster:
         self.history_size = history_size
 
     def forecast(
-        self,
-        data: List[float],
-        periods: int = 24
+        self, data: List[float], periods: int = 24
     ) -> Tuple[List[float], float]:
         """
         Forecast future values using ensemble of methods
@@ -100,9 +102,9 @@ class TimeSeriesForecaster:
         forecasts = []
         for i in range(periods):
             ensemble_value = (
-                linear_forecast[i] * 0.4 +
-                moving_avg_forecast[i] * 0.3 +
-                exponential_forecast[i] * 0.3
+                linear_forecast[i] * 0.4
+                + moving_avg_forecast[i] * 0.3
+                + exponential_forecast[i] * 0.3
             )
             forecasts.append(max(0, ensemble_value))  # No negative values
 
@@ -112,9 +114,7 @@ class TimeSeriesForecaster:
         return forecasts, confidence
 
     def _linear_regression_forecast(
-        self,
-        data: List[float],
-        periods: int
+        self, data: List[float], periods: int
     ) -> List[float]:
         """Simple linear regression forecast"""
         n = len(data)
@@ -133,10 +133,7 @@ class TimeSeriesForecaster:
         return forecasts
 
     def _moving_average_forecast(
-        self,
-        data: List[float],
-        periods: int,
-        window: int = 10
+        self, data: List[float], periods: int, window: int = 10
     ) -> List[float]:
         """Moving average forecast"""
         window = min(window, len(data))
@@ -146,10 +143,7 @@ class TimeSeriesForecaster:
         return [ma] * periods
 
     def _exponential_smoothing_forecast(
-        self,
-        data: List[float],
-        periods: int,
-        alpha: float = 0.3
+        self, data: List[float], periods: int, alpha: float = 0.3
     ) -> List[float]:
         """Exponential smoothing forecast"""
         # Calculate smoothed values
@@ -190,34 +184,27 @@ class CapacityPlanner:
 
         # Resource limits and thresholds
         self.resource_limits = {
-            'cpu': 100.0,
-            'memory': 100.0,
-            'disk': 100.0,
-            'connections': 1000
+            "cpu": 100.0,
+            "memory": 100.0,
+            "disk": 100.0,
+            "connections": 1000,
         }
 
         self.warning_threshold = 80.0
         self.critical_threshold = 95.0
 
     def update_resource_data(
-        self,
-        resource_type: str,
-        value: float,
-        timestamp: Optional[datetime] = None
+        self, resource_type: str, value: float, timestamp: Optional[datetime] = None
     ):
         """Update resource usage data"""
         if resource_type not in self.resource_history:
             self.resource_history[resource_type] = deque(maxlen=1000)
 
-        self.resource_history[resource_type].append({
-            'value': value,
-            'timestamp': timestamp or datetime.utcnow()
-        })
+        self.resource_history[resource_type].append(
+            {"value": value, "timestamp": timestamp or datetime.utcnow()}
+        )
 
-    async def generate_forecast(
-        self,
-        resource_type: str
-    ) -> Optional[ResourceForecast]:
+    async def generate_forecast(self, resource_type: str) -> Optional[ResourceForecast]:
         """Generate resource usage forecast"""
         if resource_type not in self.resource_history:
             return None
@@ -227,13 +214,15 @@ class CapacityPlanner:
             return None
 
         # Extract values
-        values = [h['value'] for h in history]
+        values = [h["value"] for h in history]
 
         # Generate forecasts for different time horizons
         forecast_1h, confidence = self.forecaster.forecast(values, periods=1)
         forecast_6h, _ = self.forecaster.forecast(values, periods=6)
         forecast_24h, _ = self.forecaster.forecast(values, periods=24)
-        forecast_7d, _ = self.forecaster.forecast(values, periods=168)  # 7 days * 24 hours
+        forecast_7d, _ = self.forecaster.forecast(
+            values, periods=168
+        )  # 7 days * 24 hours
 
         # Determine trend
         trend = self._determine_trend(values)
@@ -247,7 +236,7 @@ class CapacityPlanner:
             forecast_7d=forecast_7d[167] if len(forecast_7d) > 167 else values[-1],
             trend=trend,
             confidence_score=confidence,
-            forecast_timestamp=datetime.utcnow()
+            forecast_timestamp=datetime.utcnow(),
         )
 
     def _determine_trend(self, data: List[float]) -> TrendDirection:
@@ -263,7 +252,11 @@ class CapacityPlanner:
         slope, _, _, _, _ = scipy_stats.linregress(x, y)
 
         # Calculate volatility
-        volatility = statistics.stdev(recent) / statistics.mean(recent) if statistics.mean(recent) > 0 else 0
+        volatility = (
+            statistics.stdev(recent) / statistics.mean(recent)
+            if statistics.mean(recent) > 0
+            else 0
+        )
 
         if volatility > 0.5:
             return TrendDirection.VOLATILE
@@ -274,10 +267,7 @@ class CapacityPlanner:
         else:
             return TrendDirection.STABLE
 
-    async def analyze_capacity(
-        self,
-        resource_type: str
-    ) -> Optional[CapacityAnalysis]:
+    async def analyze_capacity(self, resource_type: str) -> Optional[CapacityAnalysis]:
         """Analyze resource capacity and provide recommendations"""
         forecast = await self.generate_forecast(resource_type)
         if not forecast:
@@ -290,7 +280,7 @@ class CapacityPlanner:
         history = list(self.resource_history[resource_type])
         if len(history) >= 24:  # Need at least 24 hours of data
             growth_rate = self._calculate_growth_rate(
-                [h['value'] for h in history[-24:]]
+                [h["value"] for h in history[-24:]]
             )
         else:
             growth_rate = 0.0
@@ -303,14 +293,14 @@ class CapacityPlanner:
             remaining_capacity = capacity - forecast.current_value
             days_to_exhaustion = remaining_capacity / growth_rate
             if days_to_exhaustion > 0:
-                projected_exhaustion = datetime.utcnow() + timedelta(days=days_to_exhaustion)
+                projected_exhaustion = datetime.utcnow() + timedelta(
+                    days=days_to_exhaustion
+                )
                 days_until_exhaustion = int(days_to_exhaustion)
 
         # Generate recommendation
         recommendation = self._generate_recommendation(
-            utilization,
-            forecast.trend,
-            days_until_exhaustion
+            utilization, forecast.trend, days_until_exhaustion
         )
 
         return CapacityAnalysis(
@@ -323,10 +313,10 @@ class CapacityPlanner:
             growth_rate_per_day=growth_rate,
             recommendation=recommendation,
             details={
-                'forecast': asdict(forecast),
-                'warning_threshold': self.warning_threshold,
-                'critical_threshold': self.critical_threshold
-            }
+                "forecast": asdict(forecast),
+                "warning_threshold": self.warning_threshold,
+                "critical_threshold": self.critical_threshold,
+            },
         )
 
     def _calculate_growth_rate(self, data: List[float]) -> float:
@@ -349,7 +339,7 @@ class CapacityPlanner:
         self,
         utilization: float,
         trend: TrendDirection,
-        days_until_exhaustion: Optional[int]
+        days_until_exhaustion: Optional[int],
     ) -> ScalingRecommendation:
         """Generate scaling recommendation"""
         # Critical threshold exceeded
@@ -376,9 +366,7 @@ class CapacityPlanner:
         return ScalingRecommendation.MAINTAIN
 
     async def generate_cost_projection(
-        self,
-        resource_type: str,
-        cost_per_unit: float
+        self, resource_type: str, cost_per_unit: float
     ) -> Optional[CostProjection]:
         """Generate cost projections"""
         forecast = await self.generate_forecast(resource_type)
@@ -393,11 +381,13 @@ class CapacityPlanner:
 
         # Calculate optimization potential
         history = list(self.resource_history[resource_type])
-        values = [h['value'] for h in history]
+        values = [h["value"] for h in history]
 
         avg_usage = statistics.mean(values)
         max_usage = max(values)
-        optimization_potential = ((max_usage - avg_usage) / max_usage * 100) if max_usage > 0 else 0
+        optimization_potential = (
+            ((max_usage - avg_usage) / max_usage * 100) if max_usage > 0 else 0
+        )
 
         # Generate recommendations
         recommendations = []
@@ -424,39 +414,43 @@ class CapacityPlanner:
             projected_6m_cost=projected_6m,
             cost_trend=forecast.trend,
             optimization_potential=optimization_potential,
-            recommendations=recommendations
+            recommendations=recommendations,
         )
 
     async def generate_capacity_report(self) -> Dict[str, Any]:
         """Generate comprehensive capacity planning report"""
         report = {
-            'generated_at': datetime.utcnow().isoformat(),
-            'resources': {},
-            'summary': {
-                'total_resources': len(self.resource_history),
-                'critical_resources': 0,
-                'warning_resources': 0,
-                'scaling_recommendations': []
-            }
+            "generated_at": datetime.utcnow().isoformat(),
+            "resources": {},
+            "summary": {
+                "total_resources": len(self.resource_history),
+                "critical_resources": 0,
+                "warning_resources": 0,
+                "scaling_recommendations": [],
+            },
         }
 
         for resource_type in self.resource_history.keys():
             analysis = await self.analyze_capacity(resource_type)
             if analysis:
-                report['resources'][resource_type] = asdict(analysis)
+                report["resources"][resource_type] = asdict(analysis)
 
                 # Update summary
                 if analysis.utilization_percent >= self.critical_threshold:
-                    report['summary']['critical_resources'] += 1
+                    report["summary"]["critical_resources"] += 1
                 elif analysis.utilization_percent >= self.warning_threshold:
-                    report['summary']['warning_resources'] += 1
+                    report["summary"]["warning_resources"] += 1
 
                 if analysis.recommendation != ScalingRecommendation.MAINTAIN:
-                    report['summary']['scaling_recommendations'].append({
-                        'resource': resource_type,
-                        'action': analysis.recommendation,
-                        'urgency': 'high' if analysis.utilization_percent >= self.critical_threshold else 'medium'
-                    })
+                    report["summary"]["scaling_recommendations"].append(
+                        {
+                            "resource": resource_type,
+                            "action": analysis.recommendation,
+                            "urgency": "high"
+                            if analysis.utilization_percent >= self.critical_threshold
+                            else "medium",
+                        }
+                    )
 
         return report
 

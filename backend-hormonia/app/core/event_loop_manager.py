@@ -8,11 +8,12 @@ import asyncio
 import threading
 import logging
 import functools
-from typing import Optional, Callable, Any
+from typing import Optional, Callable
 from contextlib import contextmanager
 import weakref
 
 logger = logging.getLogger(__name__)
+
 
 class EventLoopManager:
     """
@@ -33,14 +34,16 @@ class EventLoopManager:
         thread_id = threading.get_ident()
 
         # Check if we have a loop for this thread
-        if not hasattr(cls._thread_local, 'loop') or cls._thread_local.loop is None:
+        if not hasattr(cls._thread_local, "loop") or cls._thread_local.loop is None:
             with cls._lock:
                 # Try to get existing event loop
                 try:
                     loop = asyncio.get_running_loop()
                     cls._thread_local.loop = loop
                     cls._loop_registry[thread_id] = loop
-                    logger.debug(f"[OK] Using existing event loop for thread {thread_id}")
+                    logger.debug(
+                        f"[OK] Using existing event loop for thread {thread_id}"
+                    )
                 except RuntimeError:
                     # No running loop, create new one
                     loop = asyncio.new_event_loop()
@@ -54,7 +57,7 @@ class EventLoopManager:
     @classmethod
     def cleanup_loop(cls, loop: Optional[asyncio.AbstractEventLoop] = None):
         """Properly cleanup event loop to prevent memory leaks."""
-        if loop is None and hasattr(cls._thread_local, 'loop'):
+        if loop is None and hasattr(cls._thread_local, "loop"):
             loop = cls._thread_local.loop
 
         if loop and not loop.is_closed():
@@ -66,7 +69,9 @@ class EventLoopManager:
 
                 # Run until all tasks are cancelled
                 if pending:
-                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                    loop.run_until_complete(
+                        asyncio.gather(*pending, return_exceptions=True)
+                    )
 
                 # Close the loop
                 loop.close()
@@ -75,7 +80,7 @@ class EventLoopManager:
                 logger.error(f"[ERROR] Failed to cleanup event loop: {e}")
             finally:
                 # Clear thread-local reference
-                if hasattr(cls._thread_local, 'loop'):
+                if hasattr(cls._thread_local, "loop"):
                     cls._thread_local.loop = None
 
                 # Remove from registry
@@ -127,9 +132,11 @@ def async_to_sync(func: Callable) -> Callable:
     Decorator to safely convert async function to sync.
     Prevents event loop leaks and RuntimeErrors.
     """
+
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         return EventLoopManager.run_async(func, *args, **kwargs)
+
     return wrapper
 
 
@@ -173,6 +180,7 @@ class ManagedAsyncService:
         Example of proper async handling without creating new loops.
         Replaces FlowEngine._schedule_step pattern.
         """
+
         async def _async_process():
             # Your async AI processing here
             await asyncio.sleep(0)  # Simulate async work
@@ -190,9 +198,11 @@ class ManagedAsyncService:
 # Singleton manager instance
 _event_loop_manager = EventLoopManager()
 
+
 def get_event_loop_manager() -> EventLoopManager:
     """Get singleton event loop manager."""
     return _event_loop_manager
+
 
 # Cleanup hook for application shutdown
 def cleanup_all_loops():

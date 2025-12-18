@@ -2,6 +2,7 @@
 Evolution API client main orchestration class.
 Coordinates message sending, webhook handling, and API communication.
 """
+
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 
@@ -10,7 +11,6 @@ import structlog
 
 from app.config import settings
 
-from .models import EvolutionAPIError
 from .rate_limiter import RateLimiter
 from .request_handler import RequestHandler
 from .message_sender import MessageSender
@@ -37,7 +37,7 @@ class EvolutionClient:
         max_retries: int = 3,
         retry_delay: float = 1.0,
         use_mock: bool = False,
-        railway_service: bool = False
+        railway_service: bool = False,
     ):
         """
         Initialize Evolution API client.
@@ -54,17 +54,26 @@ class EvolutionClient:
             railway_service: Whether running as Railway service
         """
         # Configure for Railway or external service
-        self.railway_service = railway_service or getattr(settings, 'RAILWAY_ENVIRONMENT', False)
+        self.railway_service = railway_service or getattr(
+            settings, "RAILWAY_ENVIRONMENT", False
+        )
 
         # URL configuration - prioritize Railway internal service
-        if self.railway_service and hasattr(settings, 'WHATSAPP_EVOLUTION_RAILWAY_URL'):
-            self.base_url = settings.WHATSAPP_EVOLUTION_RAILWAY_URL.rstrip('/')
+        if self.railway_service and hasattr(settings, "WHATSAPP_EVOLUTION_RAILWAY_URL"):
+            self.base_url = settings.WHATSAPP_EVOLUTION_RAILWAY_URL.rstrip("/")
         else:
-            self.base_url = (base_url or getattr(settings, 'EVOLUTION_API_URL', 'https://api.evolution.dev')).rstrip('/')
+            self.base_url = (
+                base_url
+                or getattr(settings, "EVOLUTION_API_URL", "https://api.evolution.dev")
+            ).rstrip("/")
 
-        self.instance_name = instance_name or getattr(settings, 'EVOLUTION_INSTANCE_NAME', 'hormonia')
-        self.api_key = api_key or getattr(settings, 'EVOLUTION_API_KEY', None)
-        self.webhook_secret = webhook_secret or getattr(settings, 'EVOLUTION_WEBHOOK_SECRET', None)
+        self.instance_name = instance_name or getattr(
+            settings, "EVOLUTION_INSTANCE_NAME", "hormonia"
+        )
+        self.api_key = api_key or getattr(settings, "EVOLUTION_API_KEY", None)
+        self.webhook_secret = webhook_secret or getattr(
+            settings, "EVOLUTION_WEBHOOK_SECRET", None
+        )
         self.timeout = timeout
         self.max_retries = max_retries
         self.retry_delay = retry_delay
@@ -78,34 +87,34 @@ class EvolutionClient:
             has_api_key=bool(self.api_key),
             has_webhook_secret=bool(self.webhook_secret),
             railway_service=self.railway_service,
-            use_mock=self.use_mock
+            use_mock=self.use_mock,
         )
 
         # Rate limiting configuration
-        rate_limit = getattr(settings, 'EVOLUTION_RATE_LIMIT', 10)
+        rate_limit = getattr(settings, "EVOLUTION_RATE_LIMIT", 10)
         self.rate_limiter = RateLimiter(requests_per_second=rate_limit)
 
         # HTTP client configuration with proper headers
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": "Hormonia-System/1.0"
+            "User-Agent": "Hormonia-System/1.0",
         }
 
         # Add API key to headers (Evolution uses different header names)
         if self.api_key:
             headers["apikey"] = self.api_key  # Standard Evolution header
-            headers["Authorization"] = f"Bearer {self.api_key}"  # Alternative auth method
+            headers["Authorization"] = (
+                f"Bearer {self.api_key}"  # Alternative auth method
+            )
 
         self.client = httpx.AsyncClient(
             timeout=httpx.Timeout(timeout, connect=10.0),
             headers=headers,
             follow_redirects=True,
             limits=httpx.Limits(
-                max_keepalive_connections=20,
-                max_connections=100,
-                keepalive_expiry=30.0
-            )
+                max_keepalive_connections=20, max_connections=100, keepalive_expiry=30.0
+            ),
         )
 
         # Initialize specialized handlers
@@ -115,20 +124,19 @@ class EvolutionClient:
             rate_limiter=self.rate_limiter,
             max_retries=max_retries,
             retry_delay=retry_delay,
-            use_mock=use_mock
+            use_mock=use_mock,
         )
 
         self.message_sender = MessageSender(
-            request_handler=self.request_handler,
-            instance_name=self.instance_name
+            request_handler=self.request_handler, instance_name=self.instance_name
         )
 
-        environment = getattr(settings, 'ENVIRONMENT', 'development')
+        environment = getattr(settings, "ENVIRONMENT", "development")
         self.webhook_handler = WebhookHandler(
             webhook_secret=self.webhook_secret,
             api_key=self.api_key,
             instance_name=self.instance_name,
-            environment=environment
+            environment=environment,
         )
 
         logger.info(
@@ -137,7 +145,7 @@ class EvolutionClient:
             base_url=self.base_url,
             timeout=timeout,
             max_retries=max_retries,
-            rate_limit=rate_limit
+            rate_limit=rate_limit,
         )
 
     async def __aenter__(self):
@@ -154,10 +162,7 @@ class EvolutionClient:
 
     # Message sending methods - delegate to MessageSender
     async def send_text_message(
-        self,
-        phone_number: str,
-        message: str,
-        delay: Optional[int] = None
+        self, phone_number: str, message: str, delay: Optional[int] = None
     ) -> Dict[str, Any]:
         """Send text message via WhatsApp."""
         return await self.message_sender.send_text_message(phone_number, message, delay)
@@ -167,10 +172,12 @@ class EvolutionClient:
         phone_number: str,
         text: str,
         buttons: List[Dict[str, str]],
-        delay: Optional[int] = None
+        delay: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Send button message via WhatsApp."""
-        return await self.message_sender.send_button_message(phone_number, text, buttons, delay)
+        return await self.message_sender.send_button_message(
+            phone_number, text, buttons, delay
+        )
 
     async def send_list_message(
         self,
@@ -178,10 +185,12 @@ class EvolutionClient:
         text: str,
         title: str,
         sections: List[Dict[str, Any]],
-        delay: Optional[int] = None
+        delay: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Send list message via WhatsApp."""
-        return await self.message_sender.send_list_message(phone_number, text, title, sections, delay)
+        return await self.message_sender.send_list_message(
+            phone_number, text, title, sections, delay
+        )
 
     async def send_media_message(
         self,
@@ -189,7 +198,7 @@ class EvolutionClient:
         media_url: str,
         media_type: str,
         caption: Optional[str] = None,
-        delay: Optional[int] = None
+        delay: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Send media message via WhatsApp."""
         return await self.message_sender.send_media_message(
@@ -223,10 +232,7 @@ class EvolutionClient:
 
     # Webhook methods - delegate to WebhookHandler
     def validate_webhook_signature(
-        self,
-        payload: bytes,
-        signature: str,
-        secret: Optional[str] = None
+        self, payload: bytes, signature: str, secret: Optional[str] = None
     ) -> bool:
         """Validate webhook signature for security."""
         return self.webhook_handler.validate_signature(payload, signature, secret)
@@ -246,7 +252,7 @@ class EvolutionClient:
             "service": "evolution_api",
             "healthy": False,
             "timestamp": datetime.utcnow().isoformat(),
-            "details": {}
+            "details": {},
         }
 
         try:
@@ -254,38 +260,43 @@ class EvolutionClient:
             status_response = await self.get_instance_status()
 
             is_connected = False
-            if status_response.get('status') == 'success':
-                connection_data = status_response.get('data', {})
-                is_connected = connection_data.get('connected', False) or connection_data.get('state') == 'open'
+            if status_response.get("status") == "success":
+                connection_data = status_response.get("data", {})
+                is_connected = (
+                    connection_data.get("connected", False)
+                    or connection_data.get("state") == "open"
+                )
 
-            health_status.update({
-                "healthy": is_connected,
-                "details": {
-                    "instance_name": self.instance_name,
-                    "base_url": self.base_url,
-                    "connected": is_connected,
-                    "response": status_response,
-                    "railway_service": self.railway_service,
-                    "rate_limit_remaining": self.rate_limiter.get_remaining_quota()
+            health_status.update(
+                {
+                    "healthy": is_connected,
+                    "details": {
+                        "instance_name": self.instance_name,
+                        "base_url": self.base_url,
+                        "connected": is_connected,
+                        "response": status_response,
+                        "railway_service": self.railway_service,
+                        "rate_limit_remaining": self.rate_limiter.get_remaining_quota(),
+                    },
                 }
-            })
+            )
 
             logger.info(
                 "Evolution API health check completed",
                 healthy=is_connected,
-                instance=self.instance_name
+                instance=self.instance_name,
             )
 
         except Exception as e:
             health_status["details"] = {
                 "error": str(e),
                 "error_type": type(e).__name__,
-                "instance_name": self.instance_name
+                "instance_name": self.instance_name,
             }
             logger.error(
                 "Evolution API health check failed",
                 error=str(e),
-                instance=self.instance_name
+                instance=self.instance_name,
             )
 
         return health_status

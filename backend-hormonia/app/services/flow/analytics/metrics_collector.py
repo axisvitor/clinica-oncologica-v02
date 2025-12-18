@@ -11,7 +11,7 @@ Migration Note:
     - Various monitoring scattered across flow services
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 from uuid import UUID
 from collections import defaultdict

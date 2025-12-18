@@ -13,7 +13,7 @@ import threading
 import logging
 from contextlib import contextmanager
 from typing import Generator, Optional
-from sqlalchemy import create_engine, pool, event
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import QueuePool
@@ -42,7 +42,7 @@ class ThreadSafeDatabaseManager:
 
     def __init__(self, database_url: str = None):
         """Initialize thread-safe database manager."""
-        if hasattr(self, '_initialized'):
+        if hasattr(self, "_initialized"):
             return
 
         self.database_url = database_url or settings.database_url
@@ -58,28 +58,29 @@ class ThreadSafeDatabaseManager:
         """Create database engine with thread-safe configuration."""
         engine_config = {
             # Connection pool configuration
-            'poolclass': QueuePool,
-            'pool_size': 10,  # Number of connections to maintain in pool
-            'max_overflow': 20,  # Additional connections beyond pool_size
-            'pool_pre_ping': True,  # Verify connections before use
-            'pool_recycle': 3600,  # Recycle connections after 1 hour
-            'pool_timeout': 30,  # Timeout for getting connection from pool
-
+            "poolclass": QueuePool,
+            "pool_size": 10,  # Number of connections to maintain in pool
+            "max_overflow": 20,  # Additional connections beyond pool_size
+            "pool_pre_ping": True,  # Verify connections before use
+            "pool_recycle": 3600,  # Recycle connections after 1 hour
+            "pool_timeout": 30,  # Timeout for getting connection from pool
             # Engine configuration for thread safety
-            'echo': settings.debug,  # Log SQL statements in debug mode
-            'isolation_level': 'READ_COMMITTED',  # Safe for concurrent access
-            'connect_args': {
-                'connect_timeout': 10,
-                'application_name': 'hormonia_backend',
-            }
+            "echo": settings.debug,  # Log SQL statements in debug mode
+            "isolation_level": "READ_COMMITTED",  # Safe for concurrent access
+            "connect_args": {
+                "connect_timeout": 10,
+                "application_name": "hormonia_backend",
+            },
         }
 
         # PostgreSQL specific optimizations
-        if 'postgresql' in self.database_url:
-            engine_config['connect_args'].update({
-                'options': '-c default_transaction_isolation=read_committed',
-                'server_side_cursors': True,
-            })
+        if "postgresql" in self.database_url:
+            engine_config["connect_args"].update(
+                {
+                    "options": "-c default_transaction_isolation=read_committed",
+                    "server_side_cursors": True,
+                }
+            )
 
         engine = create_engine(self.database_url, **engine_config)
 
@@ -113,7 +114,9 @@ class ThreadSafeDatabaseManager:
         def receive_invalidate(dbapi_connection, connection_record, exception):
             """Log connection invalidations."""
             thread_id = threading.get_ident()
-            logger.warning(f"Connection invalidated for thread {thread_id}: {exception}")
+            logger.warning(
+                f"Connection invalidated for thread {thread_id}: {exception}"
+            )
 
     def get_engine(self) -> Engine:
         """Get or create database engine."""
@@ -202,10 +205,10 @@ class ThreadSafeDatabaseManager:
         pool = engine.pool
 
         return {
-            'pool_size': pool.size(),
-            'checked_in': pool.checkedin(),
-            'checked_out': pool.checkedout(),
-            'overflow': pool.overflow(),
+            "pool_size": pool.size(),
+            "checked_in": pool.checkedin(),
+            "checked_out": pool.checkedout(),
+            "overflow": pool.overflow(),
         }
 
     def cleanup(self):
@@ -279,17 +282,17 @@ def get_database_metrics() -> dict:
         pool_status = db_manager.get_pool_status()
 
         return {
-            'status': 'healthy' if db_manager.health_check() else 'unhealthy',
-            'pool': pool_status,
-            'thread_id': threading.get_ident(),
+            "status": "healthy" if db_manager.health_check() else "unhealthy",
+            "pool": pool_status,
+            "thread_id": threading.get_ident(),
         }
 
     except Exception as e:
         logger.error(f"Error getting database metrics: {e}")
         return {
-            'status': 'error',
-            'error': str(e),
-            'thread_id': threading.get_ident(),
+            "status": "error",
+            "error": str(e),
+            "thread_id": threading.get_ident(),
         }
 
 
@@ -307,11 +310,11 @@ def cleanup_database():
 
 # Export public interface
 __all__ = [
-    'ThreadSafeDatabaseManager',
-    'get_database_manager',
-    'get_db_session_factory',
-    'get_db',
-    'health_check_database',
-    'get_database_metrics',
-    'cleanup_database'
+    "ThreadSafeDatabaseManager",
+    "get_database_manager",
+    "get_db_session_factory",
+    "get_db",
+    "health_check_database",
+    "get_database_metrics",
+    "cleanup_database",
 ]

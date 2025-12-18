@@ -9,14 +9,14 @@ LOC: ~400
 Responsibility: Data validation and integrity
 Pattern: Single Responsibility, DRY
 """
+
 from datetime import date, timedelta
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any
 from uuid import UUID
 import hashlib
 import logging
 import re
 
-from sqlalchemy import func, text
 from email_validator import validate_email, EmailNotValidError
 
 from app.models.patient import Patient, FlowState
@@ -58,7 +58,7 @@ class PatientIntegrityService:
         patient_data: PatientCreate | PatientUpdate,
         doctor_id: Optional[UUID] = None,
         patient_id: Optional[UUID] = None,
-        is_update: bool = False
+        is_update: bool = False,
     ) -> Dict[str, Any]:
         """
         SINGLE SOURCE OF TRUTH for all patient data validation.
@@ -91,7 +91,7 @@ class PatientIntegrityService:
 
         try:
             # 1. Normalize and validate CPF
-            if hasattr(patient_data, 'cpf') and patient_data.cpf:
+            if hasattr(patient_data, "cpf") and patient_data.cpf:
                 normalized_cpf = self._normalize_cpf(patient_data.cpf)
 
                 # Validate CPF format
@@ -104,13 +104,13 @@ class PatientIntegrityService:
                         # Validate CPF check digits
                         try:
                             self._validate_cpf(normalized_cpf)
-                            validated_data['cpf'] = normalized_cpf
+                            validated_data["cpf"] = normalized_cpf
 
                             # Check uniqueness
                             existing_cpf = await self._check_duplicate_cpf(
                                 normalized_cpf,
                                 doctor_id,
-                                exclude_patient_id=patient_id if is_update else None
+                                exclude_patient_id=patient_id if is_update else None,
                             )
                             if existing_cpf:
                                 validation_errors.append(
@@ -120,24 +120,22 @@ class PatientIntegrityService:
                             validation_errors.append(str(e))
 
             # 2. Validate and format phone to E.164
-            if hasattr(patient_data, 'phone') and patient_data.phone:
+            if hasattr(patient_data, "phone") and patient_data.phone:
                 try:
                     is_valid, formatted_phone, error = validate_and_format_phone(
-                        patient_data.phone,
-                        default_region="BR",
-                        strict=False
+                        patient_data.phone, default_region="BR", strict=False
                     )
 
                     if not is_valid:
                         validation_errors.append(f"Invalid phone number: {error}")
                     else:
-                        validated_data['phone'] = formatted_phone
+                        validated_data["phone"] = formatted_phone
 
                         # Check uniqueness
                         existing_phone = await self._check_duplicate_phone(
                             formatted_phone,
                             doctor_id,
-                            exclude_patient_id=patient_id if is_update else None
+                            exclude_patient_id=patient_id if is_update else None,
                         )
                         if existing_phone:
                             validation_errors.append(
@@ -148,16 +146,16 @@ class PatientIntegrityService:
                     validation_errors.append(f"Phone validation error: {str(e)}")
 
             # 3. Validate email format and uniqueness
-            if hasattr(patient_data, 'email') and patient_data.email:
+            if hasattr(patient_data, "email") and patient_data.email:
                 try:
                     validated_email = validate_email(patient_data.email)
-                    validated_data['email'] = validated_email.normalized
+                    validated_data["email"] = validated_email.normalized
 
                     # Check uniqueness
                     existing_email = await self._check_duplicate_email(
                         validated_email.normalized,
                         doctor_id,
-                        exclude_patient_id=patient_id if is_update else None
+                        exclude_patient_id=patient_id if is_update else None,
                     )
                     if existing_email:
                         validation_errors.append(
@@ -171,24 +169,29 @@ class PatientIntegrityService:
             if not is_update and doctor_id:
                 doctor = self.db.query(User).filter(User.id == doctor_id).first()
                 if not doctor:
-                    validation_errors.append(
-                        f"Doctor with id {doctor_id} not found"
-                    )
-                validated_data['doctor_id'] = doctor_id
+                    validation_errors.append(f"Doctor with id {doctor_id} not found")
+                validated_data["doctor_id"] = doctor_id
 
             # 5. Validate treatment dates
-            if hasattr(patient_data, 'treatment_start_date') and patient_data.treatment_start_date:
+            if (
+                hasattr(patient_data, "treatment_start_date")
+                and patient_data.treatment_start_date
+            ):
                 max_future_days = getattr(
                     settings, "PATIENT_TREATMENT_START_MAX_FUTURE_DAYS", 30
                 )
-                if patient_data.treatment_start_date > date.today() + timedelta(days=max_future_days):
+                if patient_data.treatment_start_date > date.today() + timedelta(
+                    days=max_future_days
+                ):
                     validation_errors.append(
                         f"Treatment start date cannot be more than {max_future_days} days in the future"
                     )
-                validated_data['treatment_start_date'] = patient_data.treatment_start_date
+                validated_data["treatment_start_date"] = (
+                    patient_data.treatment_start_date
+                )
 
             # 6. Validate birth_date
-            if hasattr(patient_data, 'birth_date') and patient_data.birth_date:
+            if hasattr(patient_data, "birth_date") and patient_data.birth_date:
                 if patient_data.birth_date > date.today():
                     validation_errors.append("Birth date cannot be in the future")
 
@@ -197,34 +200,41 @@ class PatientIntegrityService:
                 if min_age > 0:
                     age = (date.today() - patient_data.birth_date).days // 365
                     if age < min_age:
-                        validation_errors.append(f"Patient must be at least {min_age} years old")
+                        validation_errors.append(
+                            f"Patient must be at least {min_age} years old"
+                        )
 
-                validated_data['birth_date'] = patient_data.birth_date
+                validated_data["birth_date"] = patient_data.birth_date
 
             # 7. Validate name
-            if hasattr(patient_data, 'name') and patient_data.name:
+            if hasattr(patient_data, "name") and patient_data.name:
                 name = patient_data.name.strip()
                 if len(name) < 2:
                     validation_errors.append("Name must have at least 2 characters")
                 if len(name) > 200:
                     validation_errors.append("Name must not exceed 200 characters")
-                validated_data['name'] = name
+                validated_data["name"] = name
 
             # 8. Validate treatment_type
-            if hasattr(patient_data, 'treatment_type') and patient_data.treatment_type:
-                validated_data['treatment_type'] = patient_data.treatment_type.strip()
+            if hasattr(patient_data, "treatment_type") and patient_data.treatment_type:
+                validated_data["treatment_type"] = patient_data.treatment_type.strip()
 
             # 9. Validate diagnosis
-            if hasattr(patient_data, 'diagnosis') and patient_data.diagnosis:
+            if hasattr(patient_data, "diagnosis") and patient_data.diagnosis:
                 if len(patient_data.diagnosis) > 500:
                     validation_errors.append("Diagnosis must not exceed 500 characters")
-                validated_data['diagnosis'] = patient_data.diagnosis
+                validated_data["diagnosis"] = patient_data.diagnosis
 
             # 10. Validate treatment_phase
-            if hasattr(patient_data, 'treatment_phase') and patient_data.treatment_phase:
+            if (
+                hasattr(patient_data, "treatment_phase")
+                and patient_data.treatment_phase
+            ):
                 if len(patient_data.treatment_phase) > 100:
-                    validation_errors.append("Treatment phase must not exceed 100 characters")
-                validated_data['treatment_phase'] = patient_data.treatment_phase
+                    validation_errors.append(
+                        "Treatment phase must not exceed 100 characters"
+                    )
+                validated_data["treatment_phase"] = patient_data.treatment_phase
 
             # If there are validation errors, raise exception
             if validation_errors:
@@ -232,7 +242,7 @@ class PatientIntegrityService:
                 logger.error(f"Patient validation failed: {error_message}")
                 raise ValidationError(error_message)
 
-            validated_data['validation_errors'] = []
+            validated_data["validation_errors"] = []
             return validated_data
 
         except ValidationError:
@@ -254,7 +264,7 @@ class PatientIntegrityService:
         if not cpf:
             return None
         # Remove all non-digit characters
-        normalized = re.sub(r'[^0-9]', '', cpf)
+        normalized = re.sub(r"[^0-9]", "", cpf)
         # Limit to 11 digits (CPF max length)
         return normalized[:11] if normalized else None
 
@@ -339,7 +349,7 @@ class PatientIntegrityService:
         self,
         cpf: str,
         doctor_id: Optional[UUID] = None,
-        exclude_patient_id: Optional[UUID] = None
+        exclude_patient_id: Optional[UUID] = None,
     ) -> Optional[Patient]:
         """
         Check for existing patient with same CPF.
@@ -357,12 +367,12 @@ class PatientIntegrityService:
         try:
             # LGPD: Use cpf_hash for lookup (plaintext column removed in migration 030)
             from app.services.encryption import get_cpf_encryption_service
+
             service = get_cpf_encryption_service()
             cpf_hash = service.hash_cpf(cpf)
 
             query = self.db.query(Patient).filter(
-                Patient.cpf_hash == cpf_hash,
-                Patient.deleted_at.is_(None)
+                Patient.cpf_hash == cpf_hash, Patient.deleted_at.is_(None)
             )
 
             # Scope to doctor if provided
@@ -384,7 +394,7 @@ class PatientIntegrityService:
         self,
         email: str,
         doctor_id: Optional[UUID] = None,
-        exclude_patient_id: Optional[UUID] = None
+        exclude_patient_id: Optional[UUID] = None,
     ) -> Optional[Patient]:
         """
         Check for existing patient with same email.
@@ -397,12 +407,12 @@ class PatientIntegrityService:
         try:
             # LGPD: Use email_hash for lookup (plaintext column removed in migration 030)
             from app.services.encryption import get_lgpd_encryption_service
+
             service = get_lgpd_encryption_service()
             email_hash = service.hash_email(email.lower())
 
             query = self.db.query(Patient).filter(
-                Patient.email_hash == email_hash,
-                Patient.deleted_at.is_(None)
+                Patient.email_hash == email_hash, Patient.deleted_at.is_(None)
             )
 
             # Scope to doctor if provided
@@ -424,7 +434,7 @@ class PatientIntegrityService:
         self,
         phone: str,
         doctor_id: Optional[UUID] = None,
-        exclude_patient_id: Optional[UUID] = None
+        exclude_patient_id: Optional[UUID] = None,
     ) -> Optional[Patient]:
         """
         Check for existing patient with same phone.
@@ -437,12 +447,12 @@ class PatientIntegrityService:
         try:
             # LGPD: Use phone_hash for lookup (plaintext column removed in migration 030)
             from app.services.encryption import get_lgpd_encryption_service
+
             service = get_lgpd_encryption_service()
             phone_hash = service.hash_phone(phone)
 
             query = self.db.query(Patient).filter(
-                Patient.phone_hash == phone_hash,
-                Patient.deleted_at.is_(None)
+                Patient.phone_hash == phone_hash, Patient.deleted_at.is_(None)
             )
 
             # Scope to doctor if provided
@@ -585,7 +595,8 @@ class PatientIntegrityService:
             updates = {
                 "patient_data": merge_metadata,
                 "email": primary_patient.email or duplicate_patient.email,
-                "birth_date": primary_patient.birth_date or duplicate_patient.birth_date,
+                "birth_date": primary_patient.birth_date
+                or duplicate_patient.birth_date,
                 "treatment_type": primary_patient.treatment_type
                 or duplicate_patient.treatment_type,
                 "treatment_start_date": primary_patient.treatment_start_date

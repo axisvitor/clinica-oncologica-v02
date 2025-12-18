@@ -51,10 +51,16 @@ class TreatmentV2Base(BaseModel):
     status: str = Field(default="planned", description="Treatment status")
     start_date: Optional[date] = Field(None, description="Treatment start date")
     end_date: Optional[date] = Field(None, description="Treatment end date")
-    planned_sessions: Optional[str] = Field(None, max_length=100, description="Planned sessions")
-    completed_sessions: Optional[str] = Field(None, max_length=100, description="Completed sessions")
+    planned_sessions: Optional[str] = Field(
+        None, max_length=100, description="Planned sessions"
+    )
+    completed_sessions: Optional[str] = Field(
+        None, max_length=100, description="Completed sessions"
+    )
     diagnosis: Optional[str] = Field(None, description="Diagnosis")
-    protocol: Optional[str] = Field(None, max_length=200, description="Treatment protocol")
+    protocol: Optional[str] = Field(
+        None, max_length=200, description="Treatment protocol"
+    )
     notes: Optional[str] = Field(None, description="Additional notes")
     is_active: bool = Field(default=True, description="Active status")
 
@@ -63,13 +69,23 @@ class TreatmentV2Create(TreatmentV2Base):
     """Schema for creating a treatment"""
 
     patient_id: str = Field(..., description="Patient UUID")
-    treatment_type: str = Field(..., description="quimioterapia|radioterapia|hormonioterapia|imunoterapia|cirurgia|outros")
+    treatment_type: str = Field(
+        ...,
+        description="quimioterapia|radioterapia|hormonioterapia|imunoterapia|cirurgia|outros",
+    )
     start_date: date = Field(..., description="Treatment start date")
 
     @field_validator("treatment_type")
     @classmethod
     def validate_treatment_type(cls, v):
-        valid_types = ["quimioterapia", "radioterapia", "hormonioterapia", "imunoterapia", "cirurgia", "outros"]
+        valid_types = [
+            "quimioterapia",
+            "radioterapia",
+            "hormonioterapia",
+            "imunoterapia",
+            "cirurgia",
+            "outros",
+        ]
         if v not in valid_types:
             raise ValueError(f"treatment_type must be one of: {', '.join(valid_types)}")
         return v
@@ -89,7 +105,8 @@ class TreatmentV2Create(TreatmentV2Base):
             raise ValueError("end_date must be after start_date")
         return v
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
                 "doctor_id": "123e4567-e89b-12d3-a456-426614174001",
@@ -100,9 +117,10 @@ class TreatmentV2Create(TreatmentV2Base):
                 "planned_sessions": "12 sessões",
                 "diagnosis": "Câncer de próstata hormônio-dependente",
                 "protocol": "ADT (Androgen Deprivation Therapy)",
-                "notes": "Paciente em bom estado geral"
+                "notes": "Paciente em bom estado geral",
             }
-        })
+        }
+    )
 
 
 class TreatmentV2Update(BaseModel):
@@ -124,16 +142,31 @@ class TreatmentV2Update(BaseModel):
     @classmethod
     def validate_treatment_type(cls, v):
         if v:
-            valid_types = ["quimioterapia", "radioterapia", "hormonioterapia", "imunoterapia", "cirurgia", "outros"]
+            valid_types = [
+                "quimioterapia",
+                "radioterapia",
+                "hormonioterapia",
+                "imunoterapia",
+                "cirurgia",
+                "outros",
+            ]
             if v not in valid_types:
-                raise ValueError(f"treatment_type must be one of: {', '.join(valid_types)}")
+                raise ValueError(
+                    f"treatment_type must be one of: {', '.join(valid_types)}"
+                )
         return v
 
     @field_validator("status")
     @classmethod
     def validate_status(cls, v):
         if v:
-            valid_statuses = ["planned", "active", "completed", "suspended", "cancelled"]
+            valid_statuses = [
+                "planned",
+                "active",
+                "completed",
+                "suspended",
+                "cancelled",
+            ]
             if v not in valid_statuses:
                 raise ValueError(f"status must be one of: {', '.join(valid_statuses)}")
         return v

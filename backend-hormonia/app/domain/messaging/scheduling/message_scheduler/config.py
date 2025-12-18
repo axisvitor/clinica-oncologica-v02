@@ -1,6 +1,7 @@
 """
 Configuration for message scheduling service.
 """
+
 from datetime import time
 from .models import SchedulingWindow
 
@@ -14,7 +15,7 @@ class MessageSchedulerConfig:
         SchedulingWindow.AFTERNOON: (time(12, 0), time(17, 0)),
         SchedulingWindow.EVENING: (time(17, 0), time(20, 0)),
         SchedulingWindow.BUSINESS_HOURS: (time(9, 0), time(18, 0)),
-        SchedulingWindow.EXTENDED_HOURS: (time(8, 0), time(21, 0))
+        SchedulingWindow.EXTENDED_HOURS: (time(8, 0), time(21, 0)),
     }
 
     # Message constraints

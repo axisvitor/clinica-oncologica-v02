@@ -5,11 +5,10 @@ Centralized alert handling, notification, and escalation.
 
 import asyncio
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Set
-from dataclasses import dataclass, asdict, field
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass, field
 from enum import Enum
 import logging
-import json
 from collections import defaultdict
 import hashlib
 
@@ -18,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 class AlertSeverity(str, Enum):
     """Alert severity levels"""
+
     INFO = "info"
     WARNING = "warning"
     ERROR = "error"
@@ -27,6 +27,7 @@ class AlertSeverity(str, Enum):
 
 class AlertStatus(str, Enum):
     """Alert lifecycle status"""
+
     ACTIVE = "active"
     ACKNOWLEDGED = "acknowledged"
     RESOLVED = "resolved"
@@ -35,6 +36,7 @@ class AlertStatus(str, Enum):
 
 class NotificationChannel(str, Enum):
     """Notification delivery channels"""
+
     EMAIL = "email"
     SLACK = "slack"
     WEBHOOK = "webhook"
@@ -45,6 +47,7 @@ class NotificationChannel(str, Enum):
 @dataclass
 class Alert:
     """Alert definition"""
+
     alert_id: str
     severity: AlertSeverity
     title: str
@@ -68,6 +71,7 @@ class Alert:
 @dataclass
 class AlertRule:
     """Alert rule configuration"""
+
     rule_id: str
     name: str
     metric_name: str
@@ -83,6 +87,7 @@ class AlertRule:
 @dataclass
 class NotificationConfig:
     """Notification configuration"""
+
     channel: NotificationChannel
     enabled: bool = True
     recipients: List[str] = field(default_factory=list)
@@ -94,6 +99,7 @@ class NotificationConfig:
 @dataclass
 class EscalationPolicy:
     """Alert escalation policy"""
+
     policy_id: str
     name: str
     levels: List[Dict[str, Any]]  # [{delay_minutes: 15, notify: [...]}]
@@ -150,9 +156,7 @@ class NotificationManager:
         self.configs[config.channel] = config
 
     async def send_notification(
-        self,
-        alert: Alert,
-        channels: Optional[List[NotificationChannel]] = None
+        self, alert: Alert, channels: Optional[List[NotificationChannel]] = None
     ) -> Dict[str, bool]:
         """Send alert notification through configured channels"""
         results = {}
@@ -186,19 +190,19 @@ class NotificationManager:
             results[channel.value] = success
 
             if success:
-                self.notification_history.append({
-                    'alert_id': alert.alert_id,
-                    'channel': channel.value,
-                    'timestamp': datetime.utcnow(),
-                    'recipients': config.recipients
-                })
+                self.notification_history.append(
+                    {
+                        "alert_id": alert.alert_id,
+                        "channel": channel.value,
+                        "timestamp": datetime.utcnow(),
+                        "recipients": config.recipients,
+                    }
+                )
 
         return results
 
     def _check_rate_limit(
-        self,
-        channel: NotificationChannel,
-        limit_per_hour: int
+        self, channel: NotificationChannel, limit_per_hour: int
     ) -> bool:
         """Check notification rate limit"""
         now = datetime.utcnow()
@@ -218,10 +222,7 @@ class NotificationManager:
         return True
 
     async def _send_to_channel(
-        self,
-        channel: NotificationChannel,
-        alert: Alert,
-        config: NotificationConfig
+        self, channel: NotificationChannel, alert: Alert, config: NotificationConfig
     ) -> bool:
         """Send notification to specific channel"""
         try:
@@ -242,51 +243,31 @@ class NotificationManager:
             logger.error(f"Error sending notification via {channel.value}: {e}")
             return False
 
-    async def _send_email(
-        self,
-        alert: Alert,
-        config: NotificationConfig
-    ) -> bool:
+    async def _send_email(self, alert: Alert, config: NotificationConfig) -> bool:
         """Send email notification"""
         # TODO: Implement email sending
         logger.info(f"Would send email for alert {alert.alert_id}")
         return True
 
-    async def _send_slack(
-        self,
-        alert: Alert,
-        config: NotificationConfig
-    ) -> bool:
+    async def _send_slack(self, alert: Alert, config: NotificationConfig) -> bool:
         """Send Slack notification"""
         # TODO: Implement Slack webhook
         logger.info(f"Would send Slack notification for alert {alert.alert_id}")
         return True
 
-    async def _send_webhook(
-        self,
-        alert: Alert,
-        config: NotificationConfig
-    ) -> bool:
+    async def _send_webhook(self, alert: Alert, config: NotificationConfig) -> bool:
         """Send webhook notification"""
         # TODO: Implement webhook
         logger.info(f"Would send webhook for alert {alert.alert_id}")
         return True
 
-    async def _send_sms(
-        self,
-        alert: Alert,
-        config: NotificationConfig
-    ) -> bool:
+    async def _send_sms(self, alert: Alert, config: NotificationConfig) -> bool:
         """Send SMS notification"""
         # TODO: Implement SMS
         logger.info(f"Would send SMS for alert {alert.alert_id}")
         return True
 
-    async def _send_pagerduty(
-        self,
-        alert: Alert,
-        config: NotificationConfig
-    ) -> bool:
+    async def _send_pagerduty(self, alert: Alert, config: NotificationConfig) -> bool:
         """Send PagerDuty notification"""
         # TODO: Implement PagerDuty integration
         logger.info(f"Would send PagerDuty alert {alert.alert_id}")
@@ -315,19 +296,15 @@ class AlertManager:
         logger.info(f"Added escalation policy: {policy.name}")
 
     async def evaluate_rules(
-        self,
-        metric_name: str,
-        value: float,
-        source: str
+        self, metric_name: str, value: float, source: str
     ) -> List[Alert]:
         """Evaluate alert rules for a metric"""
         triggered_alerts = []
 
         # Track metric state for duration-based rules
-        self.metric_states[metric_name].append({
-            'value': value,
-            'timestamp': datetime.utcnow()
-        })
+        self.metric_states[metric_name].append(
+            {"value": value, "timestamp": datetime.utcnow()}
+        )
 
         # Limit state history
         if len(self.metric_states[metric_name]) > 100:
@@ -369,7 +346,7 @@ class AlertManager:
                 current_value=value,
                 threshold_value=rule.threshold,
                 created_at=datetime.utcnow(),
-                tags=rule.tags
+                tags=rule.tags,
             )
 
             # Check if should alert (deduplication)
@@ -383,9 +360,7 @@ class AlertManager:
                 # Start escalation if configured
                 await self._start_escalation(alert)
 
-                logger.warning(
-                    f"Alert triggered: {alert.title} - {alert.description}"
-                )
+                logger.warning(f"Alert triggered: {alert.title} - {alert.description}")
 
         return triggered_alerts
 
@@ -398,15 +373,13 @@ class AlertManager:
         cutoff_time = datetime.utcnow() - timedelta(seconds=rule.duration_seconds)
 
         # Check if all recent values within duration meet condition
-        recent_states = [
-            s for s in states if s['timestamp'] >= cutoff_time
-        ]
+        recent_states = [s for s in states if s["timestamp"] >= cutoff_time]
 
         if not recent_states:
             return False
 
         for state in recent_states:
-            value = state['value']
+            value = state["value"]
             meets_condition = False
 
             if rule.condition == "gt" and value > rule.threshold:
@@ -435,7 +408,7 @@ class AlertManager:
         """Execute escalation policy"""
         for level_idx, level in enumerate(policy.levels):
             # Wait for delay
-            delay_seconds = level.get('delay_minutes', 0) * 60
+            delay_seconds = level.get("delay_minutes", 0) * 60
             await asyncio.sleep(delay_seconds)
 
             # Check if alert still active
@@ -448,7 +421,7 @@ class AlertManager:
 
             # Escalate
             current_alert.escalation_level = level_idx + 1
-            notify_channels = level.get('notify', [])
+            notify_channels = level.get("notify", [])
 
             logger.warning(
                 f"Escalating alert {alert.alert_id} to level {level_idx + 1}"
@@ -456,15 +429,10 @@ class AlertManager:
 
             # Send escalation notifications
             await self.notification_manager.send_notification(
-                current_alert,
-                [NotificationChannel(ch) for ch in notify_channels]
+                current_alert, [NotificationChannel(ch) for ch in notify_channels]
             )
 
-    async def acknowledge_alert(
-        self,
-        alert_id: str,
-        acknowledged_by: str
-    ) -> bool:
+    async def acknowledge_alert(self, alert_id: str, acknowledged_by: str) -> bool:
         """Acknowledge an alert"""
         if alert_id not in self.alerts:
             return False
@@ -478,10 +446,7 @@ class AlertManager:
         return True
 
     async def resolve_alert(
-        self,
-        alert_id: str,
-        resolved_by: str,
-        resolution_note: Optional[str] = None
+        self, alert_id: str, resolved_by: str, resolution_note: Optional[str] = None
     ) -> bool:
         """Resolve an alert"""
         if alert_id not in self.alerts:
@@ -493,20 +458,16 @@ class AlertManager:
         alert.resolved_by = resolved_by
 
         if resolution_note:
-            alert.metadata['resolution_note'] = resolution_note
+            alert.metadata["resolution_note"] = resolution_note
 
         logger.info(f"Alert {alert_id} resolved by {resolved_by}")
         return True
 
     def get_active_alerts(
-        self,
-        severity: Optional[AlertSeverity] = None
+        self, severity: Optional[AlertSeverity] = None
     ) -> List[Alert]:
         """Get all active alerts"""
-        active = [
-            a for a in self.alerts.values()
-            if a.status == AlertStatus.ACTIVE
-        ]
+        active = [a for a in self.alerts.values() if a.status == AlertStatus.ACTIVE]
 
         if severity:
             active = [a for a in active if a.severity == severity]
@@ -519,20 +480,36 @@ class AlertManager:
         active_alerts = self.get_active_alerts()
 
         return {
-            'total_alerts': len(all_alerts),
-            'active_alerts': len(active_alerts),
-            'by_severity': {
-                'critical': len([a for a in active_alerts if a.severity == AlertSeverity.CRITICAL]),
-                'error': len([a for a in active_alerts if a.severity == AlertSeverity.ERROR]),
-                'warning': len([a for a in active_alerts if a.severity == AlertSeverity.WARNING]),
-                'info': len([a for a in active_alerts if a.severity == AlertSeverity.INFO])
+            "total_alerts": len(all_alerts),
+            "active_alerts": len(active_alerts),
+            "by_severity": {
+                "critical": len(
+                    [a for a in active_alerts if a.severity == AlertSeverity.CRITICAL]
+                ),
+                "error": len(
+                    [a for a in active_alerts if a.severity == AlertSeverity.ERROR]
+                ),
+                "warning": len(
+                    [a for a in active_alerts if a.severity == AlertSeverity.WARNING]
+                ),
+                "info": len(
+                    [a for a in active_alerts if a.severity == AlertSeverity.INFO]
+                ),
             },
-            'by_status': {
-                'active': len([a for a in all_alerts if a.status == AlertStatus.ACTIVE]),
-                'acknowledged': len([a for a in all_alerts if a.status == AlertStatus.ACKNOWLEDGED]),
-                'resolved': len([a for a in all_alerts if a.status == AlertStatus.RESOLVED])
+            "by_status": {
+                "active": len(
+                    [a for a in all_alerts if a.status == AlertStatus.ACTIVE]
+                ),
+                "acknowledged": len(
+                    [a for a in all_alerts if a.status == AlertStatus.ACKNOWLEDGED]
+                ),
+                "resolved": len(
+                    [a for a in all_alerts if a.status == AlertStatus.RESOLVED]
+                ),
             },
-            'escalated_alerts': len([a for a in active_alerts if a.escalation_level > 0])
+            "escalated_alerts": len(
+                [a for a in active_alerts if a.escalation_level > 0]
+            ),
         }
 
 

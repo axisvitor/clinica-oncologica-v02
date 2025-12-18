@@ -32,7 +32,7 @@ class VersionInfo:
         router: APIRouter,
         sunset_date: Optional[datetime] = None,
         replacement_version: Optional[str] = None,
-        is_deprecated: bool = False
+        is_deprecated: bool = False,
     ):
         self.version = version
         self.router = router
@@ -81,7 +81,7 @@ class VersionedRouter:
         router: APIRouter,
         sunset_date: Optional[datetime] = None,
         replacement_version: Optional[str] = None,
-        is_default: bool = False
+        is_default: bool = False,
     ) -> None:
         """
         Register a versioned router.
@@ -97,7 +97,7 @@ class VersionedRouter:
             version=version,
             router=router,
             sunset_date=sunset_date,
-            replacement_version=replacement_version
+            replacement_version=replacement_version,
         )
 
         self.versions[version] = version_info
@@ -129,12 +129,12 @@ class VersionedRouter:
         Returns:
             Version string (e.g., "v2") or None
         """
-        parts = path.split('/')
+        parts = path.split("/")
 
         # Expected format: /api/v{X}/...
-        if len(parts) >= 3 and parts[1] == 'api':
+        if len(parts) >= 3 and parts[1] == "api":
             version_part = parts[2]
-            if version_part.startswith('v') and version_part[1:].isdigit():
+            if version_part.startswith("v") and version_part[1:].isdigit():
                 return version_part
 
         return None
@@ -146,6 +146,7 @@ class VersionedRouter:
         Returns:
             Middleware function
         """
+
         async def version_middleware(request: Request, call_next):
             # Extract version from path
             version = self.extract_version_from_path(request.url.path)
@@ -158,7 +159,7 @@ class VersionedRouter:
                 version_info = self.versions[version]
 
                 # Add current version header
-                response.headers['X-API-Version'] = version
+                response.headers["X-API-Version"] = version
 
                 # Add deprecation headers if needed
                 if version_info.is_deprecated:
@@ -168,6 +169,7 @@ class VersionedRouter:
                 if version_info.is_sunset():
                     # Return 410 Gone for sunset versions
                     from fastapi.responses import JSONResponse
+
                     return JSONResponse(
                         status_code=410,
                         content={
@@ -176,13 +178,10 @@ class VersionedRouter:
                                 "message": f"API {version} was sunset on {version_info.sunset_date.isoformat()}",
                                 "sunset_date": version_info.sunset_date.isoformat(),
                                 "current_version": self.get_default_version(),
-                                "migration_guide": f"/docs/api/{version}-to-{version_info.replacement_version}-migration"
+                                "migration_guide": f"/docs/api/{version}-to-{version_info.replacement_version}-migration",
                             }
                         },
-                        headers={
-                            "X-API-Version": version,
-                            "X-API-Sunset": "true"
-                        }
+                        headers={"X-API-Version": version, "X-API-Sunset": "true"},
                     )
 
             return response
@@ -190,9 +189,7 @@ class VersionedRouter:
         return version_middleware
 
     def _add_deprecation_headers(
-        self,
-        response: Response,
-        version_info: VersionInfo
+        self, response: Response, version_info: VersionInfo
     ) -> None:
         """
         Add RFC 8594 deprecation headers to response.
@@ -204,40 +201,34 @@ class VersionedRouter:
         # Sunset header (RFC 8594)
         if version_info.sunset_date:
             # Use HTTP-date format: Wed, 21 Oct 2015 07:28:00 GMT
-            sunset_str = version_info.sunset_date.strftime(
-                '%a, %d %b %Y %H:%M:%S GMT'
-            )
-            response.headers['Sunset'] = sunset_str
+            sunset_str = version_info.sunset_date.strftime("%a, %d %b %Y %H:%M:%S GMT")
+            response.headers["Sunset"] = sunset_str
 
         # Deprecation header (RFC 8594)
-        response.headers['Deprecation'] = 'true'
+        response.headers["Deprecation"] = "true"
 
         # Link to replacement version (RFC 8288)
         if version_info.replacement_version:
-            response.headers['Link'] = (
-                f'</api/{version_info.replacement_version}>; '
-                f'rel="successor-version"'
+            response.headers["Link"] = (
+                f'</api/{version_info.replacement_version}>; rel="successor-version"'
             )
 
         # Custom warning header with countdown
         days_remaining = version_info.days_until_sunset()
         if days_remaining is not None:
             replacement = version_info.replacement_version or "latest"
-            response.headers['X-API-Warn'] = (
-                f'API version {version_info.version} will be sunset in '
-                f'{days_remaining} days. Please migrate to {replacement}.'
+            response.headers["X-API-Warn"] = (
+                f"API version {version_info.version} will be sunset in "
+                f"{days_remaining} days. Please migrate to {replacement}."
             )
         else:
-            response.headers['X-API-Warn'] = (
-                f'API version {version_info.version} is deprecated. '
-                f'Please migrate to {version_info.replacement_version or "latest"}.'
+            response.headers["X-API-Warn"] = (
+                f"API version {version_info.version} is deprecated. "
+                f"Please migrate to {version_info.replacement_version or 'latest'}."
             )
 
 
-def deprecated_endpoint(
-    sunset_date: datetime,
-    replacement: Optional[str] = None
-):
+def deprecated_endpoint(sunset_date: datetime, replacement: Optional[str] = None):
     """
     Decorator to mark individual endpoints as deprecated.
 
@@ -254,6 +245,7 @@ def deprecated_endpoint(
         sunset_date: When this endpoint will be removed
         replacement: URL of replacement endpoint (optional)
     """
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -271,24 +263,25 @@ def deprecated_endpoint(
                 response = JSONResponse(content=result)
 
             # Add deprecation headers
-            sunset_str = sunset_date.strftime('%a, %d %b %Y %H:%M:%S GMT')
-            response.headers['Sunset'] = sunset_str
-            response.headers['Deprecation'] = 'true'
+            sunset_str = sunset_date.strftime("%a, %d %b %Y %H:%M:%S GMT")
+            response.headers["Sunset"] = sunset_str
+            response.headers["Deprecation"] = "true"
 
             if replacement:
-                response.headers['Link'] = f'<{replacement}>; rel="successor-version"'
+                response.headers["Link"] = f'<{replacement}>; rel="successor-version"'
 
             # Calculate days remaining
             now = datetime.now(timezone.utc)
             days_remaining = max(0, (sunset_date - now).days)
 
-            response.headers['X-API-Warn'] = (
-                f'This endpoint will be removed in {days_remaining} days.'
+            response.headers["X-API-Warn"] = (
+                f"This endpoint will be removed in {days_remaining} days."
             )
 
             return response
 
         return wrapper
+
     return decorator
 
 

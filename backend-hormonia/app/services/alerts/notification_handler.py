@@ -9,7 +9,6 @@ import asyncio
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from uuid import UUID
 
 from .types import (
     Alert,
@@ -260,9 +259,7 @@ class NotificationHandler:
             "registered_channels": [c.value for c in self._channels.keys()],
         }
 
-    def get_history(
-        self, limit: Optional[int] = 100
-    ) -> List[NotificationResult]:
+    def get_history(self, limit: Optional[int] = 100) -> List[NotificationResult]:
         """
         Get notification history.
 

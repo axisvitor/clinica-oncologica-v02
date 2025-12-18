@@ -14,17 +14,10 @@ This package provides a modular structure for A/B testing analytics:
 """
 
 # Import models and constants
-from .models import (
-    HealthcareMetrics,
-    StatisticalSignificance,
-    EffectSizeMagnitude
-)
+from .models import HealthcareMetrics, StatisticalSignificance, EffectSizeMagnitude
 
 # Import main service
-from .service import (
-    ABTestingAnalyticsService,
-    get_ab_testing_analytics_service
-)
+from .service import ABTestingAnalyticsService, get_ab_testing_analytics_service
 
 # Backward compatibility alias
 ABTestingAnalytics = ABTestingAnalyticsService
@@ -35,7 +28,7 @@ from .analyzers import (
     HealthcareAnalyzer,
     DataQualityAnalyzer,
     BusinessImpactAnalyzer,
-    RiskAnalyzer
+    RiskAnalyzer,
 )
 
 # Import statistical components
@@ -50,40 +43,35 @@ from .helpers import (
     TrendAnalyzer,
     AlertChecker,
     DataExtractor,
-    ResultsStore
+    ResultsStore,
 )
 
 # Public API
 __all__ = [
     # Main service
-    'ABTestingAnalyticsService',
-    'ABTestingAnalytics',  # Backward compatibility alias
-    'get_ab_testing_analytics_service',
-
+    "ABTestingAnalyticsService",
+    "ABTestingAnalytics",  # Backward compatibility alias
+    "get_ab_testing_analytics_service",
     # Models and constants
-    'HealthcareMetrics',
-    'StatisticalSignificance',
-    'EffectSizeMagnitude',
-
+    "HealthcareMetrics",
+    "StatisticalSignificance",
+    "EffectSizeMagnitude",
     # Analyzers
-    'VariantAnalyzer',
-    'HealthcareAnalyzer',
-    'DataQualityAnalyzer',
-    'BusinessImpactAnalyzer',
-    'RiskAnalyzer',
-
+    "VariantAnalyzer",
+    "HealthcareAnalyzer",
+    "DataQualityAnalyzer",
+    "BusinessImpactAnalyzer",
+    "RiskAnalyzer",
     # Statistical components
-    'StatisticalAnalyzer',
-
+    "StatisticalAnalyzer",
     # Report generators
-    'ReportGenerator',
-
+    "ReportGenerator",
     # Helpers
-    'MetricsHelper',
-    'TrendAnalyzer',
-    'AlertChecker',
-    'DataExtractor',
-    'ResultsStore',
+    "MetricsHelper",
+    "TrendAnalyzer",
+    "AlertChecker",
+    "DataExtractor",
+    "ResultsStore",
 ]
 
-__version__ = '2.0.0'
+__version__ = "2.0.0"

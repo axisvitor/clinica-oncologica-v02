@@ -9,7 +9,6 @@ Contains:
 
 import uuid
 from datetime import datetime
-from pathlib import Path
 from typing import Optional, Dict, Any
 
 from fastapi import (
@@ -60,16 +59,22 @@ logger = get_logger(__name__)
 async def upload_file_handler(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(..., description="File to upload"),
-    generate_thumbnail: bool = Query(False, description="Generate thumbnail for images"),
+    generate_thumbnail: bool = Query(
+        False, description="Generate thumbnail for images"
+    ),
     generate_preview: bool = Query(False, description="Generate preview for images"),
-    resize_width: Optional[int] = Query(None, ge=100, le=4000, description="Resize width"),
-    resize_height: Optional[int] = Query(None, ge=100, le=4000, description="Resize height"),
+    resize_width: Optional[int] = Query(
+        None, ge=100, le=4000, description="Resize width"
+    ),
+    resize_height: Optional[int] = Query(
+        None, ge=100, le=4000, description="Resize height"
+    ),
     quality: int = Query(85, ge=1, le=100, description="Image quality"),
     scan_virus_flag: bool = Query(True, description="Enable virus scanning"),
     public: bool = Query(False, description="Make file publicly accessible"),
     fields: Optional[str] = Query(None, description="Fields to return"),
     current_user: User = Depends(get_current_user_object_from_session),
-    db = Depends(get_db),
+    db=Depends(get_db),
 ) -> Dict[str, Any]:
     """
     Upload a file with optional processing.
@@ -244,9 +249,13 @@ async def upload_file_handler(
                 storage_provider="local",
                 content_hash=checksum,
                 file_metadata={
-                    "category": category.value if hasattr(category, 'value') else str(category),
+                    "category": category.value
+                    if hasattr(category, "value")
+                    else str(category),
                     "original_filename": file.filename,
-                    "image_metadata": image_metadata.model_dump() if image_metadata else None,
+                    "image_metadata": image_metadata.model_dump()
+                    if image_metadata
+                    else None,
                 },
                 is_public=public,
                 virus_scanned=scan_virus_flag,
@@ -298,7 +307,7 @@ async def get_upload_info_handler(
     upload_id,
     fields: Optional[str] = None,
     current_user: User = None,
-    db = None,
+    db=None,
 ) -> Dict[str, Any]:
     """
     Get upload information.
@@ -335,10 +344,11 @@ async def get_upload_info_handler(
 
         # Query from database if not in cache
         if db:
-            upload_record = db.query(Upload).filter(
-                Upload.id == upload_id,
-                Upload.deleted_at.is_(None)
-            ).first()
+            upload_record = (
+                db.query(Upload)
+                .filter(Upload.id == upload_id, Upload.deleted_at.is_(None))
+                .first()
+            )
 
             if upload_record:
                 # Build response from database record
@@ -350,8 +360,11 @@ async def get_upload_info_handler(
                         id=upload_record.id,
                         filename=upload_record.file_name,
                         safe_filename=upload_record.file_name,
-                        content_type=upload_record.file_type or "application/octet-stream",
-                        category=get_file_category(upload_record.file_type or "application/octet-stream"),
+                        content_type=upload_record.file_type
+                        or "application/octet-stream",
+                        category=get_file_category(
+                            upload_record.file_type or "application/octet-stream"
+                        ),
                         size=upload_record.file_size,
                         checksum=upload_record.content_hash,
                     ),
@@ -372,7 +385,9 @@ async def get_upload_info_handler(
                 # Cache for future requests
                 if redis_client:
                     try:
-                        cache_key = generate_cache_key("metadata", upload_id=str(upload_id))
+                        cache_key = generate_cache_key(
+                            "metadata", upload_id=str(upload_id)
+                        )
                         await redis_client.setex(
                             cache_key,
                             CACHE_TTL_METADATA,
@@ -406,7 +421,7 @@ async def get_upload_info_handler(
 async def delete_upload_handler(
     upload_id,
     current_user: User,
-    db = None,
+    db=None,
 ) -> None:
     """
     Delete an uploaded file.
@@ -421,7 +436,9 @@ async def delete_upload_handler(
     redis_client = await get_redis_client()
 
     try:
-        logger.info(f"Delete request from user {current_user.id} for upload {upload_id}")
+        logger.info(
+            f"Delete request from user {current_user.id} for upload {upload_id}"
+        )
 
         # Get upload info from cache
         upload_info = None
@@ -434,10 +451,11 @@ async def delete_upload_handler(
         # Query from database if not in cache
         upload_record = None
         if not upload_info and db:
-            upload_record = db.query(Upload).filter(
-                Upload.id == upload_id,
-                Upload.deleted_at.is_(None)
-            ).first()
+            upload_record = (
+                db.query(Upload)
+                .filter(Upload.id == upload_id, Upload.deleted_at.is_(None))
+                .first()
+            )
 
             if upload_record:
                 # Build minimal info for deletion
@@ -449,8 +467,11 @@ async def delete_upload_handler(
                         id=upload_record.id,
                         filename=upload_record.file_name,
                         safe_filename=upload_record.file_name,
-                        content_type=upload_record.file_type or "application/octet-stream",
-                        category=get_file_category(upload_record.file_type or "application/octet-stream"),
+                        content_type=upload_record.file_type
+                        or "application/octet-stream",
+                        category=get_file_category(
+                            upload_record.file_type or "application/octet-stream"
+                        ),
                         size=upload_record.file_size,
                         checksum=upload_record.content_hash,
                     ),
@@ -504,7 +525,9 @@ async def delete_upload_handler(
         # Soft delete in database
         if db:
             try:
-                upload_to_delete = db.query(Upload).filter(Upload.id == upload_id).first()
+                upload_to_delete = (
+                    db.query(Upload).filter(Upload.id == upload_id).first()
+                )
                 if upload_to_delete:
                     upload_to_delete.deleted_at = datetime.utcnow()
                     db.commit()

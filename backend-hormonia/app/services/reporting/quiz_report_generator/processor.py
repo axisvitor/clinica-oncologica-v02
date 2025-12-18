@@ -2,11 +2,11 @@
 Quiz response processing service.
 Coordinates analysis of quiz responses and generation of comprehensive insights.
 """
+
 import logging
 from typing import Any
 from uuid import UUID
 
-from app.models.quiz import QuizSession
 from app.repositories.quiz import QuizSessionRepository, QuizResponseRepository
 from app.repositories.patient import PatientRepository
 from app.repositories.report import ReportRepository
@@ -50,7 +50,7 @@ class QuizResponseProcessor:
             if not session:
                 raise NotFoundError(f"Quiz session {session_id} not found")
 
-            if session.status != 'completed':
+            if session.status != "completed":
                 raise ValidationError(f"Quiz session {session_id} is not completed")
 
             # Get quiz responses
@@ -61,7 +61,9 @@ class QuizResponseProcessor:
 
             # Analyze response trends
             response_trends = await self.aggregator.analyze_response_trends(
-                session.patient_id, session.quiz_template_id, responses  # type: ignore[arg-type]
+                session.patient_id,
+                session.quiz_template_id,
+                responses,  # type: ignore[arg-type]
             )
 
             # Generate medical insights
@@ -81,7 +83,9 @@ class QuizResponseProcessor:
 
             # Generate recommendations
             recommendations = await self.analyzer.generate_recommendations(
-                medical_insights, concern_flags, session.patient_id  # type: ignore[arg-type]
+                medical_insights,
+                concern_flags,
+                session.patient_id,  # type: ignore[arg-type]
             )
 
             # Create analysis result
@@ -93,7 +97,7 @@ class QuizResponseProcessor:
                 medical_insights=medical_insights,
                 overall_health_score=overall_health_score,
                 concern_flags=concern_flags,
-                recommendations=recommendations
+                recommendations=recommendations,
             )
 
             logger.info(f"Quiz analysis completed for session {session_id}")

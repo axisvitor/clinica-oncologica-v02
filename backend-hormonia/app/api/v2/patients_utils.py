@@ -22,28 +22,26 @@ async def _get_current_user_simple(
     session_cookie_id: str = Cookie(None, alias="session_id"),
     x_session_id: str = Header(None, alias="X-Session-ID"),
     db: Session = Depends(get_db),
-    redis_cache = Depends(get_redis_cache)
+    redis_cache=Depends(get_redis_cache),
 ):
     """Simplified session validation without ServiceProvider."""
     final_session_id = session_cookie_id or x_session_id
     if not final_session_id:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session ID not provided"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Session ID not provided"
         )
 
     session_data = await redis_cache.get_session(final_session_id)
     if not session_data:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session"
+            detail="Invalid or expired session",
         )
 
     firebase_uid = session_data.get("firebase_uid")
     if not firebase_uid:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid session data"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session data"
         )
 
     # Get user from cache or DB
@@ -53,23 +51,21 @@ async def _get_current_user_simple(
         user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found"
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
             )
         user_data = {
             "id": str(user.id),
             "firebase_uid": user.firebase_uid,
             "email": user.email,
             "full_name": user.full_name,
-            "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
-            "is_active": user.is_active
+            "role": user.role.value if hasattr(user.role, "value") else str(user.role),
+            "is_active": user.is_active,
         }
         await redis_cache.cache_user_data(firebase_uid, user_data, ttl=900)
 
     if not user_data.get("is_active", False):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is inactive"
+            status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive"
         )
 
     return user_data
@@ -109,8 +105,6 @@ def _is_admin(current_user) -> bool:
 
 
 def _ensure_uuid(value: Optional[str]):
-    from uuid import UUID
-
     if value is None:
         return None
     try:
@@ -146,7 +140,7 @@ def _normalize_cpf(cpf: Optional[str]) -> Optional[str]:
     if not cpf:
         return None
     # Remove all non-digit characters
-    normalized = re.sub(r'[^0-9]', '', cpf)
+    normalized = re.sub(r"[^0-9]", "", cpf)
     # Limit to 11 digits (CPF max length)
     return normalized[:11] if normalized else None
 
@@ -154,7 +148,7 @@ def _normalize_cpf(cpf: Optional[str]) -> Optional[str]:
 def _normalize_phone(phone: Optional[str]) -> Optional[str]:
     """
     Normalize phone by removing non-digit characters.
-    
+
     DEPRECATED: Use app.utils.phone_validator.normalize_phone() instead.
     This function is kept for backward compatibility.
 
@@ -167,49 +161,47 @@ def _normalize_phone(phone: Optional[str]) -> Optional[str]:
     if not phone:
         return None
     # Remove all non-digit characters (spaces, parentheses, dashes)
-    normalized = re.sub(r'[^0-9+]', '', phone)
+    normalized = re.sub(r"[^0-9+]", "", phone)
     return normalized if normalized else None
 
 
 def _validate_and_format_phone(phone: str, strict: bool = True) -> str:
     """
     Validate and format phone to E.164 format using robust validation.
-    
+
     Args:
         phone: Phone number to validate
         strict: If True, raise HTTPException on invalid phone
-        
+
     Returns:
         Phone in E.164 format (+5511987654321)
-        
+
     Raises:
         HTTPException: If phone is invalid and strict=True
     """
-    from app.utils.phone_validator import validate_and_format_phone, PhoneValidationError
-    
+    from app.utils.phone_validator import (
+        validate_and_format_phone,
+        PhoneValidationError,
+    )
+
     try:
         is_valid, formatted, error = validate_and_format_phone(
-            phone, 
-            default_region="BR",
-            strict=False
+            phone, default_region="BR", strict=False
         )
-        
+
         if not is_valid:
             if strict:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid phone number: {error}"
+                    detail=f"Invalid phone number: {error}",
                 )
             return None
-            
+
         return formatted
-        
+
     except PhoneValidationError as e:
         if strict:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(e)
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
         return None
 
 
@@ -234,7 +226,9 @@ def _serialize_patient(patient) -> Optional[dict]:
         "phone": getattr(patient, "phone"),
         "birth_date": getattr(patient, "birth_date"),
         "cpf": getattr(patient, "cpf"),
-        "doctor_id": str(getattr(patient, "doctor_id")) if getattr(patient, "doctor_id", None) else None,
+        "doctor_id": str(getattr(patient, "doctor_id"))
+        if getattr(patient, "doctor_id", None)
+        else None,
         "treatment_type": getattr(patient, "treatment_type", None),
         "treatment_start_date": getattr(patient, "treatment_start_date", None),
         "doctor_notes": getattr(patient, "doctor_notes", None),
@@ -247,16 +241,18 @@ def _serialize_patient(patient) -> Optional[dict]:
     }
 
 
-def _serialize_patient_with_includes(patient, include: Optional[list] = None) -> Optional[dict]:
+def _serialize_patient_with_includes(
+    patient, include: Optional[list] = None
+) -> Optional[dict]:
     """
     Serialize patient with optional eager loaded relations.
     Encapsulates manual serialization logic for nested objects.
     """
     if not patient:
         return None
-        
+
     patient_dict = _serialize_patient(patient)
-    
+
     if include:
         if "doctor" in include and getattr(patient, "doctor", None):
             patient_dict["doctor"] = {
@@ -264,8 +260,10 @@ def _serialize_patient_with_includes(patient, include: Optional[list] = None) ->
                 "name": patient.doctor.name,
                 "email": patient.doctor.email,
             }
-            
-        if ("quiz_sessions" in include or "quizzes" in include) and hasattr(patient, "quiz_sessions"):
+
+        if ("quiz_sessions" in include or "quizzes" in include) and hasattr(
+            patient, "quiz_sessions"
+        ):
             # Use getattr to be safe with None/Missing
             sessions = getattr(patient, "quiz_sessions", [])
             patient_dict["quiz_sessions"] = [
@@ -279,5 +277,5 @@ def _serialize_patient_with_includes(patient, include: Optional[list] = None) ->
                 }
                 for q in sessions
             ]
-            
+
     return patient_dict

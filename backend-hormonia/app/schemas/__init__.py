@@ -149,14 +149,12 @@ __all__ = [
     "LoginResponse",
     "RefreshTokenRequest",
     "UserResponse",
-    
     # Patient
     "PatientBase",
     "PatientCreate",
     "PatientUpdate",
     "PatientResponse",
     "PatientListResponse",
-    
     # Message
     "MessageBase",
     "MessageCreate",
@@ -165,7 +163,6 @@ __all__ = [
     "MessageListResponse",
     "ScheduleMessageRequest",
     "InboundMessageRequest",
-    
     # Flow
     "FlowTemplateBase",
     "FlowTemplateCreate",
@@ -186,7 +183,6 @@ __all__ = [
     "PatientFlowStateListResponse",
     "FlowOverrideRequest",
     "FlowOverrideResponse",
-    
     # Quiz
     "QuestionType",
     "ValidationRule",
@@ -205,7 +201,6 @@ __all__ = [
     "QuizResponseListResponse",
     "QuizSessionListResponse",
     "PatientQuizAnalytics",
-    
     # Report
     "ReportSectionSchema",
     "ReportGenerationRequest",
@@ -217,7 +212,6 @@ __all__ = [
     "SystemAnalytics",
     "AnalyticsResponse",
     "DashboardResponse",
-    
     # Alert
     "AlertBase",
     "AlertCreate",
@@ -228,7 +222,6 @@ __all__ = [
     "AlertStatistics",
     "AlertListResponse",
     "PatientAlertSummary",
-    
     # WebSocket
     "WebSocketEventType",
     "WebSocketMessage",
@@ -245,7 +238,6 @@ __all__ = [
     "ConnectionStatsResponse",
     "WebSocketErrorResponse",
     "create_websocket_message",
-    
     # Common
     "PaginationParams",
     "PaginatedResponse",
@@ -259,7 +251,6 @@ __all__ = [
     "ServiceUnavailableErrorResponse",
     "SuccessResponse",
     "HealthCheckResponse",
-    
     # Examples
     "ALL_EXAMPLES",
 ]

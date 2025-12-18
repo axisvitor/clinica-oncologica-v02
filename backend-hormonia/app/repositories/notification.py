@@ -4,11 +4,12 @@ Notification repository with eager loading optimizations.
 PERFORMANCE OPTIMIZATION: All methods support eager loading by default to eliminate N+1 queries.
 Achieves 60-80% query reduction for read operations.
 """
+
 from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import and_, or_
+from sqlalchemy import and_
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.notification import Notification, NotificationType, NotificationPriority
@@ -55,12 +56,14 @@ class NotificationRepository(BaseRepository[Notification]):
         if eager_load:
             query = query.options(
                 selectinload(Notification.user),
-                selectinload(Notification.related_patient)
+                selectinload(Notification.related_patient),
             )
 
         return query.first()
 
-    def get_all(self, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Notification]:
+    def get_all(
+        self, skip: int = 0, limit: int = 100, eager_load: bool = True
+    ) -> List[Notification]:
         """
         Get all notifications with eager loading enabled by default.
 
@@ -79,12 +82,19 @@ class NotificationRepository(BaseRepository[Notification]):
         if eager_load:
             query = query.options(
                 selectinload(Notification.user),
-                selectinload(Notification.related_patient)
+                selectinload(Notification.related_patient),
             )
 
-        return query.order_by(Notification.created_at.desc()).offset(skip).limit(limit).all()
+        return (
+            query.order_by(Notification.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
-    def get_by_user(self, user_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Notification]:
+    def get_by_user(
+        self, user_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True
+    ) -> List[Notification]:
         """
         Get notifications by user with eager loading.
 
@@ -104,12 +114,19 @@ class NotificationRepository(BaseRepository[Notification]):
         if eager_load:
             query = query.options(
                 selectinload(Notification.user),
-                selectinload(Notification.related_patient)
+                selectinload(Notification.related_patient),
             )
 
-        return query.order_by(Notification.created_at.desc()).offset(skip).limit(limit).all()
+        return (
+            query.order_by(Notification.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
-    def get_unread(self, user_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Notification]:
+    def get_unread(
+        self, user_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True
+    ) -> List[Notification]:
         """
         Get unread notifications by user with eager loading.
 
@@ -127,20 +144,27 @@ class NotificationRepository(BaseRepository[Notification]):
         query = self.db.query(Notification).filter(
             and_(
                 Notification.user_id == user_id,
-                Notification.is_read == False,
-                Notification.is_archived == False
+                not Notification.is_read,
+                not Notification.is_archived,
             )
         )
 
         if eager_load:
             query = query.options(
                 selectinload(Notification.user),
-                selectinload(Notification.related_patient)
+                selectinload(Notification.related_patient),
             )
 
-        return query.order_by(Notification.created_at.desc()).offset(skip).limit(limit).all()
+        return (
+            query.order_by(Notification.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
-    def get_by_patient(self, patient_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Notification]:
+    def get_by_patient(
+        self, patient_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True
+    ) -> List[Notification]:
         """
         Get notifications related to a patient with eager loading.
 
@@ -153,15 +177,22 @@ class NotificationRepository(BaseRepository[Notification]):
         Returns:
             List of notifications with relationships pre-loaded
         """
-        query = self.db.query(Notification).filter(Notification.related_patient_id == patient_id)
+        query = self.db.query(Notification).filter(
+            Notification.related_patient_id == patient_id
+        )
 
         if eager_load:
             query = query.options(
                 selectinload(Notification.user),
-                selectinload(Notification.related_patient)
+                selectinload(Notification.related_patient),
             )
 
-        return query.order_by(Notification.created_at.desc()).offset(skip).limit(limit).all()
+        return (
+            query.order_by(Notification.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
     def get_by_type(
         self,
@@ -169,7 +200,7 @@ class NotificationRepository(BaseRepository[Notification]):
         user_id: Optional[UUID] = None,
         skip: int = 0,
         limit: int = 100,
-        eager_load: bool = True
+        eager_load: bool = True,
     ) -> List[Notification]:
         """
         Get notifications by type with eager loading.
@@ -194,10 +225,15 @@ class NotificationRepository(BaseRepository[Notification]):
         if eager_load:
             query = query.options(
                 selectinload(Notification.user),
-                selectinload(Notification.related_patient)
+                selectinload(Notification.related_patient),
             )
 
-        return query.order_by(Notification.created_at.desc()).offset(skip).limit(limit).all()
+        return (
+            query.order_by(Notification.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
     def get_by_priority(
         self,
@@ -205,7 +241,7 @@ class NotificationRepository(BaseRepository[Notification]):
         user_id: Optional[UUID] = None,
         skip: int = 0,
         limit: int = 100,
-        eager_load: bool = True
+        eager_load: bool = True,
     ) -> List[Notification]:
         """
         Get notifications by priority with eager loading.
@@ -220,7 +256,7 @@ class NotificationRepository(BaseRepository[Notification]):
         Returns:
             List of notifications with relationships pre-loaded
         """
-        filters = [Notification.priority == priority, Notification.is_archived == False]
+        filters = [Notification.priority == priority, not Notification.is_archived]
 
         if user_id:
             filters.append(Notification.user_id == user_id)
@@ -230,10 +266,15 @@ class NotificationRepository(BaseRepository[Notification]):
         if eager_load:
             query = query.options(
                 selectinload(Notification.user),
-                selectinload(Notification.related_patient)
+                selectinload(Notification.related_patient),
             )
 
-        return query.order_by(Notification.created_at.desc()).offset(skip).limit(limit).all()
+        return (
+            query.order_by(Notification.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
     def mark_as_read(self, notification_id: UUID) -> Optional[Notification]:
         """
@@ -266,15 +307,11 @@ class NotificationRepository(BaseRepository[Notification]):
             Number of notifications updated
         """
         now = datetime.utcnow()
-        count = self.db.query(Notification).filter(
-            and_(
-                Notification.user_id == user_id,
-                Notification.is_read == False
-            )
-        ).update({
-            "is_read": True,
-            "read_at": now
-        })
+        count = (
+            self.db.query(Notification)
+            .filter(and_(Notification.user_id == user_id, not Notification.is_read))
+            .update({"is_read": True, "read_at": now})
+        )
 
         self.db.commit()
         return count
@@ -311,16 +348,13 @@ class NotificationRepository(BaseRepository[Notification]):
         """
         now = datetime.utcnow()
         query = self.db.query(Notification).filter(
-            and_(
-                Notification.expires_at.isnot(None),
-                Notification.expires_at <= now
-            )
+            and_(Notification.expires_at.isnot(None), Notification.expires_at <= now)
         )
 
         if eager_load:
             query = query.options(
                 selectinload(Notification.user),
-                selectinload(Notification.related_patient)
+                selectinload(Notification.related_patient),
             )
 
         return query.all()

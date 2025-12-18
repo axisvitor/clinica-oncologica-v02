@@ -35,7 +35,7 @@ class FernetAlgorithm(BaseAlgorithm):
         Returns:
             Encrypted value: "encrypted:fernet:{token}"
         """
-        fernet = Fernet(self.keys['quiz'])
+        fernet = Fernet(self.keys["quiz"])
         encrypted_bytes = fernet.encrypt(plaintext.encode())
         return f"{self.get_prefix()}{encrypted_bytes.decode()}"
 
@@ -52,8 +52,8 @@ class FernetAlgorithm(BaseAlgorithm):
         Raises:
             ValueError: If token is invalid or corrupted
         """
-        encrypted_data = encrypted.replace(self.get_prefix(), '')
-        fernet = Fernet(self.keys['quiz'])
+        encrypted_data = encrypted.replace(self.get_prefix(), "")
+        fernet = Fernet(self.keys["quiz"])
 
         try:
             decrypted_bytes = fernet.decrypt(encrypted_data.encode())

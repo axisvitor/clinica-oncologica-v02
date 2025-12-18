@@ -2,6 +2,7 @@
 Main performance monitoring service.
 Composes collectors, analyzers, and reporters for comprehensive monitoring.
 """
+
 import logging
 from typing import Any, List
 from datetime import timedelta
@@ -12,7 +13,7 @@ from app.repositories.flow import FlowStateRepository
 from app.services.performance_monitoring.models import (
     MetricType,
     PerformanceMetric,
-    PerformanceBottleneck
+    PerformanceBottleneck,
 )
 from app.services.performance_monitoring.collectors import MetricCollector
 from app.services.performance_monitoring.analyzers import PerformanceAnalyzer
@@ -31,20 +32,20 @@ class PerformanceMonitoringService:
 
         # Performance thresholds
         self.thresholds = {
-            'response_time_warning': 2.0,  # seconds
-            'response_time_critical': 5.0,  # seconds
-            'throughput_warning': 10,  # messages per minute
-            'throughput_critical': 5,  # messages per minute
-            'error_rate_warning': 0.05,  # 5%
-            'error_rate_critical': 0.15,  # 15%
-            'queue_depth_warning': 50,
-            'queue_depth_critical': 200,
-            'memory_usage_warning': 0.8,  # 80%
-            'memory_usage_critical': 0.95,  # 95%
-            'cache_hit_rate_warning': 0.7,  # 70%
-            'cache_hit_rate_critical': 0.5,  # 50%
-            'db_connections_warning': 80,
-            'db_connections_critical': 95
+            "response_time_warning": 2.0,  # seconds
+            "response_time_critical": 5.0,  # seconds
+            "throughput_warning": 10,  # messages per minute
+            "throughput_critical": 5,  # messages per minute
+            "error_rate_warning": 0.05,  # 5%
+            "error_rate_critical": 0.15,  # 15%
+            "queue_depth_warning": 50,
+            "queue_depth_critical": 200,
+            "memory_usage_warning": 0.8,  # 80%
+            "memory_usage_critical": 0.95,  # 95%
+            "cache_hit_rate_warning": 0.7,  # 70%
+            "cache_hit_rate_critical": 0.5,  # 50%
+            "db_connections_warning": 80,
+            "db_connections_critical": 95,
         }
 
         # Metric collection intervals (in seconds)
@@ -55,7 +56,7 @@ class PerformanceMonitoringService:
             MetricType.QUEUE_DEPTH: 30,
             MetricType.MEMORY_USAGE: 60,
             MetricType.CACHE_HIT_RATE: 120,
-            MetricType.DATABASE_CONNECTIONS: 60
+            MetricType.DATABASE_CONNECTIONS: 60,
         }
 
         # Initialize components
@@ -134,7 +135,9 @@ class PerformanceMonitoringService:
             bottlenecks.extend(redis_bottlenecks)
 
             # Analyze concurrent processing limits
-            concurrency_bottlenecks = await self.analyzer.analyze_concurrency_limits(metrics)
+            concurrency_bottlenecks = await self.analyzer.analyze_concurrency_limits(
+                metrics
+            )
             bottlenecks.extend(concurrency_bottlenecks)
 
             return bottlenecks
@@ -147,10 +150,12 @@ class PerformanceMonitoringService:
         """Generate comprehensive performance report."""
         try:
             bottlenecks = await self.detect_bottlenecks()
-            return await self.reporter.generate_performance_report(time_range, bottlenecks)
+            return await self.reporter.generate_performance_report(
+                time_range, bottlenecks
+            )
         except Exception as e:
             logger.error(f"Error generating performance report: {e}")
-            return {'error': str(e)}
+            return {"error": str(e)}
 
     async def get_real_time_performance_dashboard(self) -> dict[str, Any]:
         """Get real-time performance dashboard data."""
@@ -161,8 +166,10 @@ class PerformanceMonitoringService:
             # Get active bottlenecks
             active_bottlenecks = await self.detect_bottlenecks()
 
-            return await self.reporter.generate_real_time_dashboard(current_metrics, active_bottlenecks)
+            return await self.reporter.generate_real_time_dashboard(
+                current_metrics, active_bottlenecks
+            )
 
         except Exception as e:
             logger.error(f"Error getting performance dashboard: {e}")
-            return {'error': str(e)}
+            return {"error": str(e)}

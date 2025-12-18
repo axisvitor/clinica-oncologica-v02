@@ -5,6 +5,7 @@ Handles report creation, statistics generation, and summary formatting.
 Responsibilities: Report generation, statistics calculation, metrics aggregation,
 and data formatting for analytics.
 """
+
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from uuid import UUID
@@ -25,9 +26,7 @@ class ReportGenerator:
         self.db = db
 
     async def get_monthly_quiz_stats(
-        self,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
     ) -> MonthlyQuizStats:
         """
         Get statistics for monthly quizzes within a date range.
@@ -53,30 +52,50 @@ class ReportGenerator:
 
         # Calculate stats
         total_links = len(sessions)
-        active_links = len([
-            s for s in sessions
-            if s.status != 'completed' and datetime.utcnow() <= datetime.fromisoformat(
-                (s.session_metadata or {}).get("expires_at", datetime.utcnow().isoformat())
-            )
-        ])
-        expired_links = len([
-            s for s in sessions
-            if s.status != 'completed' and datetime.utcnow() > datetime.fromisoformat(
-                (s.session_metadata or {}).get("expires_at", datetime.utcnow().isoformat())
-            )
-        ])
-        completed_quizzes = len([s for s in sessions if s.status == 'completed'])
+        active_links = len(
+            [
+                s
+                for s in sessions
+                if s.status != "completed"
+                and datetime.utcnow()
+                <= datetime.fromisoformat(
+                    (s.session_metadata or {}).get(
+                        "expires_at", datetime.utcnow().isoformat()
+                    )
+                )
+            ]
+        )
+        expired_links = len(
+            [
+                s
+                for s in sessions
+                if s.status != "completed"
+                and datetime.utcnow()
+                > datetime.fromisoformat(
+                    (s.session_metadata or {}).get(
+                        "expires_at", datetime.utcnow().isoformat()
+                    )
+                )
+            ]
+        )
+        completed_quizzes = len([s for s in sessions if s.status == "completed"])
 
-        completion_rate = (completed_quizzes / total_links * 100) if total_links > 0 else 0
+        completion_rate = (
+            (completed_quizzes / total_links * 100) if total_links > 0 else 0
+        )
 
         # Calculate average completion time
         completion_times = []
         for session in sessions:
-            if session.status == 'completed' and session.completed_at:
-                duration = (session.completed_at - session.started_at).total_seconds() / 60
+            if session.status == "completed" and session.completed_at:
+                duration = (
+                    session.completed_at - session.started_at
+                ).total_seconds() / 60
                 completion_times.append(duration)
 
-        avg_completion_time = sum(completion_times) / len(completion_times) if completion_times else None
+        avg_completion_time = (
+            sum(completion_times) / len(completion_times) if completion_times else None
+        )
 
         # Delivery methods distribution
         delivery_distribution: Dict[str, int] = {}
@@ -91,13 +110,10 @@ class ReportGenerator:
             completed_quizzes=completed_quizzes,
             completion_rate=completion_rate,
             average_completion_time=avg_completion_time,
-            delivery_methods_distribution=delivery_distribution
+            delivery_methods_distribution=delivery_distribution,
         )
 
-    async def get_quiz_stats(
-        self,
-        user_id: Optional[UUID] = None
-    ) -> Dict[str, Any]:
+    async def get_quiz_stats(self, user_id: Optional[UUID] = None) -> Dict[str, Any]:
         """
         Get quiz statistics with backward-compatible field names.
 
@@ -116,7 +132,7 @@ class ReportGenerator:
             pass  # Add created_by filter if column exists
 
         total = query.count()
-        completed = query.filter(QuizSession.status == 'completed').count()
+        completed = query.filter(QuizSession.status == "completed").count()
 
         # Calculate expired links and average score
         current_time = datetime.utcnow()
@@ -128,12 +144,12 @@ class ReportGenerator:
 
         for session in sessions:
             # Calculate average score from completed sessions
-            if session.status == 'completed' and session.score is not None:
+            if session.status == "completed" and session.score is not None:
                 total_score_sum += session.score
                 scored_sessions += 1
 
             # Skip completion check for expired/active calculation
-            if session.status == 'completed':
+            if session.status == "completed":
                 continue
 
             metadata = session.session_metadata or {}
@@ -146,10 +162,14 @@ class ReportGenerator:
                     else:
                         active += 1
                 except ValueError as e:
-                    logger.debug(f"Failed to parse expires_at from session metadata: {e}")
+                    logger.debug(
+                        f"Failed to parse expires_at from session metadata: {e}"
+                    )
 
         # Calculate average score
-        avg_score = round((total_score_sum / scored_sessions), 2) if scored_sessions > 0 else 0
+        avg_score = (
+            round((total_score_sum / scored_sessions), 2) if scored_sessions > 0 else 0
+        )
 
         return {
             # New field names
@@ -158,22 +178,17 @@ class ReportGenerator:
             "total_expired": expired,
             "total_active": active,
             "average_score": avg_score,
-
             # Old field names (backward compatibility)
             "total_links_created": total,
             "completed_quizzes": completed,
             "expired_links": expired,
             "active_links": active,
-
             # Calculated metrics
             "completion_rate": round((completed / total * 100), 2) if total > 0 else 0,
-            "expiration_rate": round((expired / total * 100), 2) if total > 0 else 0
+            "expiration_rate": round((expired / total * 100), 2) if total > 0 else 0,
         }
 
-    def generate_session_report(
-        self,
-        session_id: UUID
-    ) -> Dict[str, Any]:
+    def generate_session_report(self, session_id: UUID) -> Dict[str, Any]:
         """
         Generate detailed report for a single session.
 
@@ -183,9 +198,9 @@ class ReportGenerator:
         Returns:
             Detailed session report
         """
-        session = self.db.query(QuizSession).filter(
-            QuizSession.id == session_id
-        ).first()
+        session = (
+            self.db.query(QuizSession).filter(QuizSession.id == session_id).first()
+        )
 
         if not session:
             return {"error": "Session not found"}
@@ -204,8 +219,12 @@ class ReportGenerator:
             "quiz_template_id": str(session.quiz_template_id),
             "status": session.status,
             "score": session.score,
-            "started_at": session.started_at.isoformat() if session.started_at else None,
-            "completed_at": session.completed_at.isoformat() if session.completed_at else None,
+            "started_at": session.started_at.isoformat()
+            if session.started_at
+            else None,
+            "completed_at": session.completed_at.isoformat()
+            if session.completed_at
+            else None,
             "duration_seconds": duration,
             "current_question": session.current_question,
             "access_count": metadata.get("access_count", 0),
@@ -213,15 +232,12 @@ class ReportGenerator:
             "expires_at": metadata.get("expires_at"),
             "link_status": metadata.get("link_status"),
             "delivery_attempts": metadata.get("delivery_attempts", []),
-            "failure_count": metadata.get("failure_count", 0)
+            "failure_count": metadata.get("failure_count", 0),
         }
 
         return report
 
-    def generate_bulk_report(
-        self,
-        session_ids: List[UUID]
-    ) -> Dict[str, Any]:
+    def generate_bulk_report(self, session_ids: List[UUID]) -> Dict[str, Any]:
         """
         Generate aggregate report for multiple sessions.
 
@@ -231,13 +247,13 @@ class ReportGenerator:
         Returns:
             Aggregate report with statistics
         """
-        sessions = self.db.query(QuizSession).filter(
-            QuizSession.id.in_(session_ids)
-        ).all()
+        sessions = (
+            self.db.query(QuizSession).filter(QuizSession.id.in_(session_ids)).all()
+        )
 
         total_sessions = len(sessions)
-        completed_sessions = len([s for s in sessions if s.status == 'completed'])
-        in_progress_sessions = len([s for s in sessions if s.status == 'in_progress'])
+        completed_sessions = len([s for s in sessions if s.status == "completed"])
+        in_progress_sessions = len([s for s in sessions if s.status == "in_progress"])
 
         # Calculate score statistics
         scores = [s.score for s in sessions if s.score is not None]
@@ -252,23 +268,24 @@ class ReportGenerator:
 
         avg_completion_time = (
             round(sum(completion_times) / len(completion_times), 2)
-            if completion_times else None
+            if completion_times
+            else None
         )
 
         return {
             "total_sessions": total_sessions,
             "completed_sessions": completed_sessions,
             "in_progress_sessions": in_progress_sessions,
-            "completion_rate": round((completed_sessions / total_sessions * 100), 2) if total_sessions > 0 else 0,
+            "completion_rate": round((completed_sessions / total_sessions * 100), 2)
+            if total_sessions > 0
+            else 0,
             "average_score": avg_score,
             "average_completion_time_seconds": avg_completion_time,
-            "sessions": [str(s.id) for s in sessions]
+            "sessions": [str(s.id) for s in sessions],
         }
 
     def generate_patient_report(
-        self,
-        patient_id: UUID,
-        limit: int = 10
+        self, patient_id: UUID, limit: int = 10
     ) -> Dict[str, Any]:
         """
         Generate report for all sessions of a specific patient.
@@ -280,15 +297,21 @@ class ReportGenerator:
         Returns:
             Patient quiz history report
         """
-        sessions = self.db.query(QuizSession).filter(
-            and_(
-                QuizSession.patient_id == patient_id,
-                QuizSession.session_metadata.isnot(None)
+        sessions = (
+            self.db.query(QuizSession)
+            .filter(
+                and_(
+                    QuizSession.patient_id == patient_id,
+                    QuizSession.session_metadata.isnot(None),
+                )
             )
-        ).order_by(QuizSession.started_at.desc()).limit(limit).all()
+            .order_by(QuizSession.started_at.desc())
+            .limit(limit)
+            .all()
+        )
 
         total_sessions = len(sessions)
-        completed_sessions = len([s for s in sessions if s.status == 'completed'])
+        completed_sessions = len([s for s in sessions if s.status == "completed"])
 
         # Calculate scores
         scores = [s.score for s in sessions if s.score is not None]
@@ -308,23 +331,25 @@ class ReportGenerator:
             "latest_score": latest_score,
             "latest_session_id": str(latest_session.id) if latest_session else None,
             "latest_session_status": latest_session.status if latest_session else None,
-            "latest_session_date": latest_session.started_at.isoformat() if latest_session and latest_session.started_at else None,
+            "latest_session_date": latest_session.started_at.isoformat()
+            if latest_session and latest_session.started_at
+            else None,
             "session_history": [
                 {
                     "session_id": str(s.id),
                     "status": s.status,
                     "score": s.score,
                     "started_at": s.started_at.isoformat() if s.started_at else None,
-                    "completed_at": s.completed_at.isoformat() if s.completed_at else None
+                    "completed_at": s.completed_at.isoformat()
+                    if s.completed_at
+                    else None,
                 }
                 for s in sessions
-            ]
+            ],
         }
 
     def generate_delivery_report(
-        self,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
     ) -> Dict[str, Any]:
         """
         Generate report on delivery success rates.
@@ -352,7 +377,7 @@ class ReportGenerator:
             "successful_deliveries": 0,
             "failed_deliveries": 0,
             "pending_deliveries": 0,
-            "by_method": {}
+            "by_method": {},
         }
 
         for session in sessions:
@@ -377,7 +402,7 @@ class ReportGenerator:
                         "total": 0,
                         "successful": 0,
                         "failed": 0,
-                        "pending": 0
+                        "pending": 0,
                     }
 
                 delivery_stats["by_method"][method]["total"] += 1
@@ -390,18 +415,20 @@ class ReportGenerator:
 
         # Calculate success rate
         delivery_stats["success_rate"] = round(
-            (delivery_stats["successful_deliveries"] / delivery_stats["total_attempts"] * 100)
-            if delivery_stats["total_attempts"] > 0 else 0,
-            2
+            (
+                delivery_stats["successful_deliveries"]
+                / delivery_stats["total_attempts"]
+                * 100
+            )
+            if delivery_stats["total_attempts"] > 0
+            else 0,
+            2,
         )
 
         return delivery_stats
 
     def generate_time_based_report(
-        self,
-        start_date: datetime,
-        end_date: datetime,
-        granularity: str = "day"
+        self, start_date: datetime, end_date: datetime, granularity: str = "day"
     ) -> Dict[str, Any]:
         """
         Generate time-based report with specified granularity.
@@ -414,13 +441,17 @@ class ReportGenerator:
         Returns:
             Time-based statistics report
         """
-        sessions = self.db.query(QuizSession).filter(
-            and_(
-                QuizSession.started_at >= start_date,
-                QuizSession.started_at <= end_date,
-                QuizSession.session_metadata.isnot(None)
+        sessions = (
+            self.db.query(QuizSession)
+            .filter(
+                and_(
+                    QuizSession.started_at >= start_date,
+                    QuizSession.started_at <= end_date,
+                    QuizSession.session_metadata.isnot(None),
+                )
             )
-        ).all()
+            .all()
+        )
 
         # Group sessions by time period
         time_groups: Dict[str, List[QuizSession]] = {}
@@ -442,21 +473,29 @@ class ReportGenerator:
         # Calculate statistics for each period
         time_series = []
         for period, period_sessions in sorted(time_groups.items()):
-            completed = len([s for s in period_sessions if s.status == 'completed'])
+            completed = len([s for s in period_sessions if s.status == "completed"])
             scores = [s.score for s in period_sessions if s.score is not None]
 
-            time_series.append({
-                "period": period,
-                "total_sessions": len(period_sessions),
-                "completed_sessions": completed,
-                "completion_rate": round((completed / len(period_sessions) * 100), 2) if period_sessions else 0,
-                "average_score": round(sum(scores) / len(scores), 2) if scores else 0.0
-            })
+            time_series.append(
+                {
+                    "period": period,
+                    "total_sessions": len(period_sessions),
+                    "completed_sessions": completed,
+                    "completion_rate": round(
+                        (completed / len(period_sessions) * 100), 2
+                    )
+                    if period_sessions
+                    else 0,
+                    "average_score": round(sum(scores) / len(scores), 2)
+                    if scores
+                    else 0.0,
+                }
+            )
 
         return {
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
             "granularity": granularity,
             "total_periods": len(time_series),
-            "time_series": time_series
+            "time_series": time_series,
         }

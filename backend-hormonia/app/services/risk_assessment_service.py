@@ -6,8 +6,9 @@ N+1 query patterns with efficient JOIN queries.
 
 Performance target: < 200ms for 50 patients
 """
+
 import logging
-from sqlalchemy import func, and_, or_
+from sqlalchemy import func, and_
 from datetime import datetime, timedelta
 from typing import Any, List, Dict, Optional
 from uuid import UUID
@@ -36,9 +37,7 @@ class RiskAssessmentService:
         self.db = db
 
     def calculate_risk_score(
-        self,
-        alerts: List[Alert],
-        patient_metadata: Optional[Dict] = None
+        self, alerts: List[Alert], patient_metadata: Optional[Dict] = None
     ) -> float:
         """
         Calculate risk score from alerts and patient metadata.
@@ -66,7 +65,7 @@ class RiskAssessmentService:
             AlertSeverity.CRITICAL: (0.4, 2),  # (weight, max_count)
             AlertSeverity.HIGH: (0.2, 3),
             AlertSeverity.MEDIUM: (0.1, 4),
-            AlertSeverity.LOW: (0.05, 4)
+            AlertSeverity.LOW: (0.05, 4),
         }
 
         # Count alerts by severity
@@ -82,7 +81,7 @@ class RiskAssessmentService:
         # AI insights scoring (replace hardcoded adherence_score = 0.85)
         if patient_metadata:
             # Medication adherence from AI analysis
-            adherence = patient_metadata.get('adherence_score')
+            adherence = patient_metadata.get("adherence_score")
             if adherence is not None:
                 if adherence < 0.7:
                     score += 0.3
@@ -90,12 +89,12 @@ class RiskAssessmentService:
                     score += 0.15
 
             # Symptom severity from AI analysis
-            symptom_severity = patient_metadata.get('symptom_severity', 0)
+            symptom_severity = patient_metadata.get("symptom_severity", 0)
             if isinstance(symptom_severity, (int, float)):
                 score += min(symptom_severity, 1.0) * 0.2
 
             # Treatment compliance
-            treatment_compliance = patient_metadata.get('treatment_compliance')
+            treatment_compliance = patient_metadata.get("treatment_compliance")
             if treatment_compliance is not None and treatment_compliance < 0.7:
                 score += 0.15
 
@@ -125,7 +124,7 @@ class RiskAssessmentService:
         self,
         physician_id: UUID,
         patient_id: Optional[UUID] = None,
-        days_lookback: int = 30
+        days_lookback: int = 30,
     ) -> List[Dict]:
         """
         Get aggregated risk assessments for physician's patients.
@@ -155,15 +154,15 @@ class RiskAssessmentService:
                 Patient.id,
                 Patient.name,
                 Patient.patient_data,  # JSONB metadata
-                func.count(Alert.id).label('alert_count'),
-                func.max(Alert.created_at).label('last_alert')
+                func.count(Alert.id).label("alert_count"),
+                func.max(Alert.created_at).label("last_alert"),
             ).outerjoin(
                 Alert,
                 and_(
                     Alert.patient_id == Patient.id,
                     Alert.status.in_([AlertStatus.PENDING, AlertStatus.ACTIVE]),
-                    Alert.created_at >= cutoff_date
-                )
+                    Alert.created_at >= cutoff_date,
+                ),
             )
 
             # Filter by physician
@@ -187,13 +186,14 @@ class RiskAssessmentService:
             patient_ids = [row.id for row in patient_rows]
 
             # === QUERY 2: Get all alerts for these patients (bulk) ===
-            alerts_query = self.db.query(Alert).filter(
-                Alert.patient_id.in_(patient_ids),
-                Alert.status.in_([AlertStatus.PENDING, AlertStatus.ACTIVE]),
-                Alert.created_at >= cutoff_date
-            ).order_by(
-                Alert.severity.desc(),
-                Alert.created_at.desc()
+            alerts_query = (
+                self.db.query(Alert)
+                .filter(
+                    Alert.patient_id.in_(patient_ids),
+                    Alert.status.in_([AlertStatus.PENDING, AlertStatus.ACTIVE]),
+                    Alert.created_at >= cutoff_date,
+                )
+                .order_by(Alert.severity.desc(), Alert.created_at.desc())
             )
 
             # Group alerts by patient
@@ -216,8 +216,7 @@ class RiskAssessmentService:
 
                 # Calculate risk score
                 risk_score = self.calculate_risk_score(
-                    alerts=patient_alerts,
-                    patient_metadata=patient_metadata
+                    alerts=patient_alerts, patient_metadata=patient_metadata
                 )
 
                 # Build individual assessments from alerts
@@ -236,50 +235,60 @@ class RiskAssessmentService:
                     AlertSeverity.CRITICAL: (1.0, "critical"),
                     AlertSeverity.HIGH: (0.75, "high"),
                     AlertSeverity.MEDIUM: (0.5, "medium"),
-                    AlertSeverity.LOW: (0.25, "low")
+                    AlertSeverity.LOW: (0.25, "low"),
                 }
 
                 for category, category_alerts in alert_categories.items():
                     # Use the highest severity alert for this category
                     top_alert = max(
                         category_alerts,
-                        key=lambda a: severity_map.get(a.severity, (0, "low"))[0]
+                        key=lambda a: severity_map.get(a.severity, (0, "low"))[0],
                     )
 
                     severity_score, risk_level = severity_map.get(
-                        top_alert.severity,
-                        (0.25, "low")
+                        top_alert.severity, (0.25, "low")
                     )
 
-                    assessments.append({
-                        "category": category,
-                        "risk_level": risk_level,
-                        "severity_score": severity_score,
-                        "last_updated": top_alert.created_at,
-                        "description": top_alert.description or f"{len(category_alerts)} active alerts"
-                    })
+                    assessments.append(
+                        {
+                            "category": category,
+                            "risk_level": risk_level,
+                            "severity_score": severity_score,
+                            "last_updated": top_alert.created_at,
+                            "description": top_alert.description
+                            or f"{len(category_alerts)} active alerts",
+                        }
+                    )
 
                 # Add medication adherence assessment if available
-                if patient_metadata.get('adherence_score') is not None:
-                    adherence = patient_metadata['adherence_score']
-                    assessments.append({
-                        "category": "medication_adherence",
-                        "risk_level": "high" if adherence < 0.7 else "medium" if adherence < 0.85 else "low",
-                        "severity_score": max(0, min(1, 1.0 - adherence)),
-                        "last_updated": datetime.utcnow(),
-                        "description": f"Adherence: {adherence*100:.0f}%"
-                    })
+                if patient_metadata.get("adherence_score") is not None:
+                    adherence = patient_metadata["adherence_score"]
+                    assessments.append(
+                        {
+                            "category": "medication_adherence",
+                            "risk_level": "high"
+                            if adherence < 0.7
+                            else "medium"
+                            if adherence < 0.85
+                            else "low",
+                            "severity_score": max(0, min(1, 1.0 - adherence)),
+                            "last_updated": datetime.utcnow(),
+                            "description": f"Adherence: {adherence * 100:.0f}%",
+                        }
+                    )
 
                 # Build profile
-                risk_profiles.append({
-                    "patient_id": str(row.id),
-                    "patient_name": row.name,
-                    "overall_risk": self.score_to_level(risk_score),
-                    "risk_score": round(risk_score, 2),
-                    "assessments": assessments,
-                    "alert_count": row.alert_count or 0,
-                    "last_assessment": row.last_alert or datetime.utcnow()
-                })
+                risk_profiles.append(
+                    {
+                        "patient_id": str(row.id),
+                        "patient_name": row.name,
+                        "overall_risk": self.score_to_level(risk_score),
+                        "risk_score": round(risk_score, 2),
+                        "assessments": assessments,
+                        "alert_count": row.alert_count or 0,
+                        "last_assessment": row.last_alert or datetime.utcnow(),
+                    }
+                )
 
             # Log performance
             elapsed_ms = (datetime.utcnow() - start_time).total_seconds() * 1000

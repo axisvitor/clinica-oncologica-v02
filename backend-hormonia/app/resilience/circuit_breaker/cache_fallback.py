@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CacheEntry:
     """Cache entry with TTL"""
+
     value: Any
     timestamp: float
     ttl: float
@@ -44,10 +45,12 @@ class CacheFallback:
     - Configurable cache size
     """
 
-    def __init__(self,
-                 default_ttl: float = 300.0,  # 5 minutes
-                 max_size: int = 1000,
-                 cleanup_interval: float = 60.0):
+    def __init__(
+        self,
+        default_ttl: float = 300.0,  # 5 minutes
+        max_size: int = 1000,
+        cleanup_interval: float = 60.0,
+    ):
         self.default_ttl = default_ttl
         self.max_size = max_size
         self.cleanup_interval = cleanup_interval
@@ -60,12 +63,14 @@ class CacheFallback:
         self._misses = 0
         self._evictions = 0
 
-        logger.info(f"Cache fallback initialized (ttl={default_ttl}s, max_size={max_size})")
+        logger.info(
+            f"Cache fallback initialized (ttl={default_ttl}s, max_size={max_size})"
+        )
 
     def get_cache_key(self, func: Callable, *args, **kwargs) -> str:
         """Generate cache key from function and arguments"""
         # Create a stable hash from function name and arguments
-        func_name = getattr(func, '__name__', str(func))
+        func_name = getattr(func, "__name__", str(func))
 
         # Serialize arguments for hashing
         try:
@@ -109,11 +114,7 @@ class CacheFallback:
         if len(self._cache) >= self.max_size:
             self._evict_oldest()
 
-        self._cache[key] = CacheEntry(
-            value=value,
-            timestamp=time.time(),
-            ttl=ttl
-        )
+        self._cache[key] = CacheEntry(value=value, timestamp=time.time(), ttl=ttl)
 
         logger.debug(f"Cached value for key: {key[:8]}... (ttl={ttl}s)")
 
@@ -151,8 +152,7 @@ class CacheFallback:
         if not self._cache:
             return
 
-        oldest_key = min(self._cache.keys(),
-                        key=lambda k: self._cache[k].timestamp)
+        oldest_key = min(self._cache.keys(), key=lambda k: self._cache[k].timestamp)
         del self._cache[oldest_key]
         self._evictions += 1
 
@@ -169,35 +169,37 @@ class CacheFallback:
         hit_rate = self._hits / total_requests if total_requests > 0 else 0.0
 
         return {
-            'total_entries': len(self._cache),
-            'max_size': self.max_size,
-            'hits': self._hits,
-            'misses': self._misses,
-            'hit_rate': hit_rate,
-            'evictions': self._evictions,
-            'default_ttl': self.default_ttl
+            "total_entries": len(self._cache),
+            "max_size": self.max_size,
+            "hits": self._hits,
+            "misses": self._misses,
+            "hit_rate": hit_rate,
+            "evictions": self._evictions,
+            "default_ttl": self.default_ttl,
         }
 
     def get_cache_info(self) -> Dict:
         """Get detailed cache information"""
-        current_time = time.time()
+        time.time()
         entries_info = []
 
         for key, entry in self._cache.items():
-            entries_info.append({
-                'key': key[:16] + '...' if len(key) > 16 else key,
-                'age': entry.age,
-                'ttl': entry.ttl,
-                'hit_count': entry.hit_count,
-                'is_expired': entry.is_expired
-            })
+            entries_info.append(
+                {
+                    "key": key[:16] + "..." if len(key) > 16 else key,
+                    "age": entry.age,
+                    "ttl": entry.ttl,
+                    "hit_count": entry.hit_count,
+                    "is_expired": entry.is_expired,
+                }
+            )
 
         # Sort by age (newest first)
-        entries_info.sort(key=lambda x: x['age'])
+        entries_info.sort(key=lambda x: x["age"])
 
         return {
-            'metrics': self.get_metrics(),
-            'entries': entries_info[:10]  # Show only first 10 entries
+            "metrics": self.get_metrics(),
+            "entries": entries_info[:10],  # Show only first 10 entries
         }
 
 

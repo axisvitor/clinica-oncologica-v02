@@ -7,7 +7,6 @@ Provides async Redis client functions and utilities.
 import logging
 import re
 from contextlib import asynccontextmanager
-from typing import Optional
 import redis.asyncio as redis_async
 
 from app.config import settings
@@ -23,6 +22,7 @@ async def get_async_redis_client() -> redis_async.Redis:
         Async Redis client
     """
     from .utils import get_redis_manager
+
     manager = get_redis_manager()
     return await manager.get_async_client()
 
@@ -50,6 +50,7 @@ async def redis_transaction():
 async def cleanup_redis_connections():
     """Cleanup all Redis connections (for application shutdown)."""
     from .utils import _cleanup_managers
+
     await _cleanup_managers()
     logger.info("All Redis connections cleaned up")
 
@@ -61,15 +62,17 @@ async def redis_health_check() -> dict:
     Returns:
         Health check results
     """
+
     def sanitize_redis_url(url: str) -> str:
         """Remove password from Redis URL for safe logging"""
         if not url:
-            return 'not_configured'
+            return "not_configured"
         # Replace password in redis://user:password@host:port format
-        return re.sub(r'://([^:]*):([^@]*)@', r'://\1:***@', url)
+        return re.sub(r"://([^:]*):([^@]*)@", r"://\1:***@", url)
 
     try:
         from .utils import get_redis_manager
+
         manager = get_redis_manager()
 
         # Test async client
@@ -84,13 +87,17 @@ async def redis_health_check() -> dict:
             "status": "healthy",
             "async_ping": bool(async_ping),
             "sync_ping": bool(sync_ping),
-            "redis_url": sanitize_redis_url(settings.REDIS_URL),  # SEC-001: Sanitized URL
-            "max_connections": manager.max_connections
+            "redis_url": sanitize_redis_url(
+                settings.REDIS_URL
+            ),  # SEC-001: Sanitized URL
+            "max_connections": manager.max_connections,
         }
 
     except Exception as e:
         return {
             "status": "unhealthy",
             "error": str(e),
-            "redis_url": sanitize_redis_url(getattr(settings, 'REDIS_URL', 'not_configured'))  # SEC-001: Sanitized URL
+            "redis_url": sanitize_redis_url(
+                getattr(settings, "REDIS_URL", "not_configured")
+            ),  # SEC-001: Sanitized URL
         }

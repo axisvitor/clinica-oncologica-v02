@@ -4,6 +4,7 @@ Batch processing tasks and helpers.
 This module contains helper functions for batch processing of patient flows,
 including single patient processing and message template retrieval.
 """
+
 import asyncio
 import logging
 from typing import Any, Optional
@@ -20,9 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 async def _process_single_patient_flow_safe(
-    engine,
-    flow_state: PatientFlowState,
-    db: Session
+    engine, flow_state: PatientFlowState, db: Session
 ) -> dict[str, Any]:
     """
     Process flow for a single patient with error handling and timeout.
@@ -46,19 +45,23 @@ async def _process_single_patient_flow_safe(
         return {
             "status": "timeout",
             "patient_id": str(flow_state.patient_id),
-            "error": "Processing timeout"
+            "error": "Processing timeout",
         }
     except Exception as e:
-        logger.error(f"Flow processing error for patient {flow_state.patient_id}: {e}", exc_info=True)
+        logger.error(
+            f"Flow processing error for patient {flow_state.patient_id}: {e}",
+            exc_info=True,
+        )
         return {
             "status": "error",
             "patient_id": str(flow_state.patient_id),
-            "error": str(e)
+            "error": str(e),
         }
 
 
-async def _process_single_patient_flow(flow_engine,
-                                     flow_state: PatientFlowState) -> dict[str, Any]:
+async def _process_single_patient_flow(
+    flow_engine, flow_state: PatientFlowState
+) -> dict[str, Any]:
     """
     Process flow for a single patient.
 
@@ -91,20 +94,26 @@ async def _process_single_patient_flow(flow_engine,
         # Get patient timezone
         timezone_str = "America/Sao_Paulo"
         if flow_state.patient and hasattr(flow_state.patient, "timezone"):
-             timezone_str = flow_state.patient.timezone
+            timezone_str = flow_state.patient.timezone
 
         try:
             import pytz
+
             tz = pytz.timezone(timezone_str)
         except Exception:
-            logger.warning(f"Invalid timezone {timezone_str} for patient {patient_id}, defaulting to America/Sao_Paulo")
+            logger.warning(
+                f"Invalid timezone {timezone_str} for patient {patient_id}, defaulting to America/Sao_Paulo"
+            )
             import pytz
+
             tz = pytz.timezone("America/Sao_Paulo")
 
         # Check if message should be sent today (in patient's timezone)
         last_message_date = None
         if flow_state.state_data and "last_message_sent" in flow_state.state_data:
-            last_message_date = datetime.fromisoformat(flow_state.state_data["last_message_sent"])
+            last_message_date = datetime.fromisoformat(
+                flow_state.state_data["last_message_sent"]
+            )
             # Ensure last_message_date is timezone aware
             if last_message_date.tzinfo is None:
                 last_message_date = pytz.utc.localize(last_message_date)
@@ -118,7 +127,7 @@ async def _process_single_patient_flow(flow_engine,
                 "status": "skipped",
                 "reason": "Message already sent today",
                 "patient_id": str(patient_id),
-                "current_day": current_day
+                "current_day": current_day,
             }
 
         # Advance patient flow
@@ -126,7 +135,9 @@ async def _process_single_patient_flow(flow_engine,
 
         # Get message template for current day
         flow_type_enum = FlowType(flow_state.flow_type)
-        message_template = _get_message_template_for_day(db, flow_type_enum, current_day)
+        message_template = _get_message_template_for_day(
+            db, flow_type_enum, current_day
+        )
 
         if not message_template:
             return {
@@ -134,11 +145,13 @@ async def _process_single_patient_flow(flow_engine,
                 "reason": "No message template for current day",
                 "patient_id": str(patient_id),
                 "current_day": current_day,
-                "flow_type": flow_type_enum.value
+                "flow_type": flow_type_enum.value,
             }
 
         # Generate personalized message
-        personalized_content = await flow_engine.generate_flow_message(patient_id, current_day, message_template)
+        personalized_content = await flow_engine.generate_flow_message(
+            patient_id, current_day, message_template
+        )
 
         # Schedule message for sending
         message_data = {
@@ -150,12 +163,13 @@ async def _process_single_patient_flow(flow_engine,
             "personalized": True,
             "metadata": {
                 "generated_at": datetime.utcnow().isoformat(),
-                "template_intent": message_template.intent
-            }
+                "template_intent": message_template.intent,
+            },
         }
 
         # Send message asynchronously (lazy import to avoid circular dependency)
         from .flow_tasks import send_flow_message
+
         send_task = send_flow_message.delay(str(patient_id), message_data)
 
         # Update flow state
@@ -171,21 +185,19 @@ async def _process_single_patient_flow(flow_engine,
             "flow_type": flow_type_enum.value,
             "message_scheduled": True,
             "task_id": send_task.id,
-            "advancement_result": advancement_result
+            "advancement_result": advancement_result,
         }
 
     except Exception as e:
         logger.error(f"Error processing patient flow {patient_id}: {e}")
-        return {
-            "status": "error",
-            "patient_id": str(patient_id),
-            "error": str(e)
-        }
+        return {"status": "error", "patient_id": str(patient_id), "error": str(e)}
     finally:
         db.close()
 
 
-def _get_message_template_for_day(db: Session, flow_type: FlowType, day: int) -> Optional[MessageTemplate]:
+def _get_message_template_for_day(
+    db: Session, flow_type: FlowType, day: int
+) -> Optional[MessageTemplate]:
     """
     Get message template for specific flow type and day from database.
 
@@ -201,20 +213,25 @@ def _get_message_template_for_day(db: Session, flow_type: FlowType, day: int) ->
         from app.models.flow import FlowKind, FlowTemplateVersion
 
         # 1. Find the Flow Kind
-        flow_kind = db.query(FlowKind).filter(
-            FlowKind.flow_type == flow_type.value,
-            FlowKind.is_active == True
-        ).first()
+        flow_kind = (
+            db.query(FlowKind)
+            .filter(FlowKind.flow_type == flow_type.value, FlowKind.is_active)
+            .first()
+        )
 
         if not flow_kind:
             logger.warning(f"Flow kind not found or inactive: {flow_type.value}")
             return None
 
         # 2. Find the active Template Version for this kind
-        active_version = db.query(FlowTemplateVersion).filter(
-            FlowTemplateVersion.kind_id == flow_kind.id,
-            FlowTemplateVersion.is_active == True
-        ).first()
+        active_version = (
+            db.query(FlowTemplateVersion)
+            .filter(
+                FlowTemplateVersion.kind_id == flow_kind.id,
+                FlowTemplateVersion.is_active,
+            )
+            .first()
+        )
 
         if not active_version:
             logger.warning(f"No active template version found for: {flow_type.value}")
@@ -229,7 +246,7 @@ def _get_message_template_for_day(db: Session, flow_type: FlowType, day: int) ->
         for step in steps:
             # Check if this step corresponds to the requested day
             # The JSON structure might vary, checking common patterns
-            step_day = step.get('day') or step.get('step_id')
+            step_day = step.get("day") or step.get("step_id")
 
             # Handle both string and int comparisons
             if str(step_day) == str(day):
@@ -243,14 +260,14 @@ def _get_message_template_for_day(db: Session, flow_type: FlowType, day: int) ->
 
         # 5. Convert to MessageTemplate object
         # Extract content and metadata
-        content = target_step.get('message') or target_step.get('content') or ""
+        content = target_step.get("message") or target_step.get("content") or ""
         if not content:
             return None
 
-        intent = target_step.get('intent', 'daily_engagement')
-        metadata = target_step.get('metadata', {})
-        personalization = metadata.get('personalization_hints', [])
-        ai_instructions = metadata.get('ai_instructions', '')
+        intent = target_step.get("intent", "daily_engagement")
+        metadata = target_step.get("metadata", {})
+        personalization = metadata.get("personalization_hints", [])
+        ai_instructions = metadata.get("ai_instructions", "")
 
         return MessageTemplate(
             day=day,
@@ -258,11 +275,13 @@ def _get_message_template_for_day(db: Session, flow_type: FlowType, day: int) ->
             base_content=content,
             personalization_hints=personalization,
             ai_instructions=ai_instructions,
-            variations=metadata.get('variations', [])
+            variations=metadata.get("variations", []),
         )
 
     except Exception as e:
-        logger.error(f"Error fetching template from DB for {flow_type.value} day {day}: {e}")
+        logger.error(
+            f"Error fetching template from DB for {flow_type.value} day {day}: {e}"
+        )
         # Fallback to hardcoded safety net only on critical DB error
         return _get_fallback_template(flow_type, day)
 
@@ -290,7 +309,7 @@ def _get_fallback_template(flow_type: FlowType, day: int) -> Optional[MessageTem
                 intent="welcome",
                 base_content="Bem-vindo! Estamos aqui para apoiá-lo em sua jornada.",
                 personalization_hints=["nome do paciente"],
-                ai_instructions="Mensagem calorosa de boas-vindas"
+                ai_instructions="Mensagem calorosa de boas-vindas",
             )
         },
         FlowType.DAILY_ENGAGEMENT: {
@@ -299,9 +318,9 @@ def _get_fallback_template(flow_type: FlowType, day: int) -> Optional[MessageTem
                 intent="daily_check",
                 base_content="Olá! Como você está se sentindo hoje?",
                 personalization_hints=["nome do paciente"],
-                ai_instructions="Verificação diária amigável"
+                ai_instructions="Verificação diária amigável",
             )
-        }
+        },
     }
 
     return fallback_templates.get(flow_type, {}).get(day)

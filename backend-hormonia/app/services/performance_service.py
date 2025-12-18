@@ -3,12 +3,10 @@ Performance Service
 Business logic for performance monitoring and optimization.
 """
 
-import asyncio
 import json
 import hashlib
-import logging
 import time
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, Dict, Any, Tuple
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
@@ -16,13 +14,15 @@ from sqlalchemy import text
 
 from app.database import get_pool_status, is_pool_healthy
 from app.schemas.v2.performance import (
-    CacheMetrics, CacheStats, CacheInvalidationRequest, CacheInvalidationResponse,
-    CacheClearResponse, PerformanceOverview, ComponentPerformance, DatabasePerformance,
-    APIPerformance, SlowQuery, SlowQueriesResponse, OptimizationRecommendation,
-    DatabaseHealth, ConnectionPoolStatus, ActiveConnection, ActiveConnectionsResponse,
-    DatabaseLock, DatabaseLocksResponse, IndexAnalysis, VacuumRequest, VacuumResponse,
-    TableStatistics, OptimizationSuggestion, PerformanceStatus, HealthStatus,
-    OptimizationBenefit
+    CacheMetrics,
+    PerformanceOverview,
+    ComponentPerformance,
+    DatabaseHealth,
+    ConnectionPoolStatus,
+    VacuumRequest,
+    VacuumResponse,
+    PerformanceStatus,
+    HealthStatus,
 )
 from app.core.redis_unified import get_async_redis
 from app.utils.logging import get_logger
@@ -34,6 +34,7 @@ CACHE_TTL_METRICS = 30
 CACHE_TTL_HEALTH = 60
 CACHE_TTL_STATS = 120
 CACHE_TTL_OPTIMIZATION = 600
+
 
 class PerformanceService:
     """Service for performance monitoring and optimization."""
@@ -62,13 +63,19 @@ class PerformanceService:
             if redis_client is None:
                 return
             # Handle Pydantic models or dicts
-            if hasattr(data, 'model_dump'):
+            if hasattr(data, "model_dump"):
                 serialized = json.dumps(data.model_dump(), default=str)
-            elif isinstance(data, list) and len(data) > 0 and hasattr(data[0], 'model_dump'):
-                serialized = json.dumps([item.model_dump() for item in data], default=str)
+            elif (
+                isinstance(data, list)
+                and len(data) > 0
+                and hasattr(data[0], "model_dump")
+            ):
+                serialized = json.dumps(
+                    [item.model_dump() for item in data], default=str
+                )
             else:
                 serialized = json.dumps(data, default=str)
-                
+
             await redis_client.setex(cache_key, ttl, serialized)
         except Exception as e:
             logger.warning(f"Cache write failed: {e}")
@@ -84,7 +91,7 @@ class PerformanceService:
         cache_hit_rate: float,
         avg_query_time_ms: float,
         pool_utilization: float,
-        slow_query_percent: float
+        slow_query_percent: float,
     ) -> Tuple[float, PerformanceStatus]:
         """Calculate overall performance score."""
         # Cache score (0-100)
@@ -113,10 +120,10 @@ class PerformanceService:
 
         # Weighted average
         total_score = (
-            cache_score * 0.30 +
-            query_score * 0.30 +
-            pool_score * 0.20 +
-            slow_query_score * 0.20
+            cache_score * 0.30
+            + query_score * 0.30
+            + pool_score * 0.20
+            + slow_query_score * 0.20
         )
 
         if total_score >= 90:
@@ -134,11 +141,11 @@ class PerformanceService:
     def _get_cache_service(self):
         try:
             # Assuming this was the intended import in the original file
-            from app.services.unified_cache import UnifiedCacheService
-            # This seems to be a singleton getter or similar in original code, 
-            # but let's assume we can instantiate or get it. 
+            # This seems to be a singleton getter or similar in original code,
+            # but let's assume we can instantiate or get it.
             # The original code had _get_cache_service() calling get_analytics_cache() or get_unified_cache_manager()
             from app.infrastructure.cache import get_unified_cache_manager
+
             return get_unified_cache_manager()
         except Exception:
             return None
@@ -146,6 +153,7 @@ class PerformanceService:
     def _get_query_monitor(self):
         try:
             from app.services.query_performance_monitor import QueryPerformanceMonitor
+
             return QueryPerformanceMonitor(self.db)
         except Exception:
             return None
@@ -153,6 +161,7 @@ class PerformanceService:
     def _get_db_optimizer(self):
         try:
             from app.services.database_index_optimizer import DatabaseIndexOptimizer
+
             return DatabaseIndexOptimizer(self.db)
         except Exception:
             return None
@@ -165,16 +174,23 @@ class PerformanceService:
 
         cache_service = self._get_cache_service()
         if not cache_service:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Cache service unavailable")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Cache service unavailable",
+            )
 
-        cache_info = cache_service.get_cache_info() if hasattr(cache_service, 'get_cache_info') else {}
-        stats = cache_service.get_stats() if hasattr(cache_service, 'get_stats') else {}
-        
+        cache_info = (
+            cache_service.get_cache_info()
+            if hasattr(cache_service, "get_cache_info")
+            else {}
+        )
+        stats = cache_service.get_stats() if hasattr(cache_service, "get_stats") else {}
+
         # Construct metrics from stats if metrics obj not available
-        hits = stats.get('hits', 0)
-        misses = stats.get('misses', 0)
-        hit_rate = stats.get('hit_rate_percent', 0)
-        
+        hits = stats.get("hits", 0)
+        misses = stats.get("misses", 0)
+        hit_rate = stats.get("hit_rate_percent", 0)
+
         result = CacheMetrics(
             hits=hits,
             misses=misses,
@@ -183,7 +199,7 @@ class PerformanceService:
             memory_usage_mb=cache_info.get("memory_usage_mb"),
             evictions=cache_info.get("evictions", 0),
             invalidations=0,
-            warming_operations=0
+            warming_operations=0,
         )
 
         await self._set_cached_result(cache_key, result, CACHE_TTL_METRICS)
@@ -199,21 +215,27 @@ class PerformanceService:
         cache_service = self._get_cache_service()
         cache_hit_rate = 0
         if cache_service:
-            stats = cache_service.get_stats() if hasattr(cache_service, 'get_stats') else {}
-            cache_hit_rate = stats.get('hit_rate_percent', 0)
+            stats = (
+                cache_service.get_stats() if hasattr(cache_service, "get_stats") else {}
+            )
+            cache_hit_rate = stats.get("hit_rate_percent", 0)
 
         # 2. DB Stats
         query_monitor = self._get_query_monitor()
         avg_query_time = 0
         slow_query_percent = 0
         if query_monitor:
-            q_stats = query_monitor.get_query_stats() if hasattr(query_monitor, 'get_query_stats') else {}
-            avg_query_time = q_stats.get('avg_duration_ms', 0)
-            slow_query_percent = q_stats.get('slow_query_percentage', 0)
+            q_stats = (
+                query_monitor.get_query_stats()
+                if hasattr(query_monitor, "get_query_stats")
+                else {}
+            )
+            avg_query_time = q_stats.get("avg_duration_ms", 0)
+            slow_query_percent = q_stats.get("slow_query_percentage", 0)
 
         # 3. Pool Status
         pool_status = get_pool_status()
-        pool_utilization = pool_status.get('utilization_percent', 0)
+        pool_utilization = pool_status.get("utilization_percent", 0)
         pool_healthy = is_pool_healthy()
 
         # Score
@@ -223,35 +245,55 @@ class PerformanceService:
 
         # Components
         components = []
-        
+
         # Cache Component
-        components.append(ComponentPerformance(
-            name="cache",
-            status=PerformanceStatus.EXCELLENT if cache_hit_rate >= 80 else (PerformanceStatus.GOOD if cache_hit_rate >= 60 else PerformanceStatus.POOR),
-            score=cache_hit_rate,
-            response_time_ms=2.5,
-            error_rate_percent=0.1
-        ))
+        components.append(
+            ComponentPerformance(
+                name="cache",
+                status=PerformanceStatus.EXCELLENT
+                if cache_hit_rate >= 80
+                else (
+                    PerformanceStatus.GOOD
+                    if cache_hit_rate >= 60
+                    else PerformanceStatus.POOR
+                ),
+                score=cache_hit_rate,
+                response_time_ms=2.5,
+                error_rate_percent=0.1,
+            )
+        )
 
         # Database Component
         db_score = max(0, 100 - (avg_query_time / 10))
-        components.append(ComponentPerformance(
-            name="database",
-            status=PerformanceStatus.EXCELLENT if avg_query_time < 50 else (PerformanceStatus.GOOD if avg_query_time < 100 else PerformanceStatus.POOR),
-            score=round(db_score, 2),
-            response_time_ms=avg_query_time,
-            error_rate_percent=0
-        ))
+        components.append(
+            ComponentPerformance(
+                name="database",
+                status=PerformanceStatus.EXCELLENT
+                if avg_query_time < 50
+                else (
+                    PerformanceStatus.GOOD
+                    if avg_query_time < 100
+                    else PerformanceStatus.POOR
+                ),
+                score=round(db_score, 2),
+                response_time_ms=avg_query_time,
+                error_rate_percent=0,
+            )
+        )
 
         # Pool Component
         pool_score = max(0, 100 - pool_utilization)
-        components.append(ComponentPerformance(
-            name="connection_pool",
-            status=PerformanceStatus.EXCELLENT if pool_utilization < 70 and pool_healthy else PerformanceStatus.POOR,
-            score=round(pool_score, 2),
-            response_time_ms=None,
-            error_rate_percent=0
-        ))
+        components.append(
+            ComponentPerformance(
+                name="connection_pool",
+                status=PerformanceStatus.EXCELLENT
+                if pool_utilization < 70 and pool_healthy
+                else PerformanceStatus.POOR,
+                score=round(pool_score, 2),
+                response_time_ms=None,
+                error_rate_percent=0,
+            )
+        )
 
         # Recommendations
         recommendations = []
@@ -269,7 +311,7 @@ class PerformanceService:
             status=perf_status,
             components=components,
             recommendations=recommendations,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
 
         await self._set_cached_result(cache_key, result, CACHE_TTL_STATS)
@@ -286,23 +328,30 @@ class PerformanceService:
         pool_healthy = is_pool_healthy()
 
         pool_status = ConnectionPoolStatus(
-            pool_size=pool_status_dict.get('pool_size', 0),
-            max_overflow=pool_status_dict.get('overflow', 0),
-            checked_out=pool_status_dict.get('checked_out', 0),
-            checked_in=pool_status_dict.get('checked_in', 0),
-            total_capacity=pool_status_dict.get('pool_size', 0) + pool_status_dict.get('overflow', 0),
-            utilization_percent=pool_status_dict.get('utilization_percent', 0),
-            health_status=HealthStatus.HEALTHY if pool_healthy else HealthStatus.DEGRADED
+            pool_size=pool_status_dict.get("pool_size", 0),
+            max_overflow=pool_status_dict.get("overflow", 0),
+            checked_out=pool_status_dict.get("checked_out", 0),
+            checked_in=pool_status_dict.get("checked_in", 0),
+            total_capacity=pool_status_dict.get("pool_size", 0)
+            + pool_status_dict.get("overflow", 0),
+            utilization_percent=pool_status_dict.get("utilization_percent", 0),
+            health_status=HealthStatus.HEALTHY
+            if pool_healthy
+            else HealthStatus.DEGRADED,
         )
 
         try:
-            result = self.db.execute(text("SELECT count(*) FROM pg_stat_activity WHERE state = 'active'"))
+            result = self.db.execute(
+                text("SELECT count(*) FROM pg_stat_activity WHERE state = 'active'")
+            )
             active_connections = result.scalar() or 0
         except Exception:
-            active_connections = pool_status_dict.get('checked_out', 0)
+            active_connections = pool_status_dict.get("checked_out", 0)
 
         try:
-            result = self.db.execute(text("SELECT count(*) FROM pg_locks WHERE granted = true"))
+            result = self.db.execute(
+                text("SELECT count(*) FROM pg_locks WHERE granted = true")
+            )
             locks_count = result.scalar() or 0
         except Exception:
             locks_count = 0
@@ -312,7 +361,7 @@ class PerformanceService:
             issues.append("Pool utilization > 90%")
         if not pool_healthy:
             issues.append("Pool unhealthy")
-        
+
         health = HealthStatus.HEALTHY if not issues else HealthStatus.DEGRADED
         response_time = (time.time() - start_time) * 1000
 
@@ -323,7 +372,7 @@ class PerformanceService:
             locks_count=locks_count,
             response_time_ms=round(response_time, 2),
             timestamp=datetime.now(timezone.utc),
-            issues=issues
+            issues=issues,
         )
 
         await self._set_cached_result(cache_key, result, CACHE_TTL_HEALTH)
@@ -331,7 +380,10 @@ class PerformanceService:
 
     async def run_vacuum(self, request: VacuumRequest, user_id: str) -> VacuumResponse:
         if request.full and not request.confirm:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="FULL VACUUM requires confirmation")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="FULL VACUUM requires confirmation",
+            )
 
         start_time = time.time()
         vacuum_cmd = "VACUUM"
@@ -346,14 +398,13 @@ class PerformanceService:
             self.db.commit()
             self.db.execute(text(vacuum_cmd))
             duration = (time.time() - start_time) * 1000
-            
+
             return VacuumResponse(
                 success=True,
                 message="VACUUM completed",
                 table_name=request.table_name,
-                duration_ms=round(duration, 2)
+                duration_ms=round(duration, 2),
             )
         except Exception as e:
             logger.error(f"Vacuum failed: {e}")
             raise HTTPException(status_code=500, detail=str(e))
-

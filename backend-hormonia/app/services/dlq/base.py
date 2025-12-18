@@ -6,9 +6,7 @@ used across the DLQ (Dead Letter Queue) system.
 """
 
 from enum import Enum
-from typing import Protocol, Any, Optional, Dict, Tuple
-from uuid import UUID
-from datetime import datetime
+from typing import Protocol, Any, Dict
 
 
 class ErrorCategory(str, Enum):
@@ -19,6 +17,7 @@ class ErrorCategory(str, Enum):
     - PERMANENT: Permanent errors - requires manual intervention
     - UNKNOWN: Unknown errors - requires analysis
     """
+
     TRANSIENT = "transient"
     PERMANENT = "permanent"
     UNKNOWN = "unknown"
@@ -67,11 +66,7 @@ class RetryConfig:
 class MessageProcessor(Protocol):
     """Protocol for message processing handlers."""
 
-    def process(
-        self,
-        payload: Dict[str, Any],
-        metadata: Dict[str, Any]
-    ) -> bool:
+    def process(self, payload: Dict[str, Any], metadata: Dict[str, Any]) -> bool:
         """
         Process a message payload.
 
@@ -88,11 +83,7 @@ class MessageProcessor(Protocol):
 class RetryHandler(Protocol):
     """Protocol for retry logic handlers."""
 
-    def should_retry(
-        self,
-        retry_count: int,
-        error_category: ErrorCategory
-    ) -> bool:
+    def should_retry(self, retry_count: int, error_category: ErrorCategory) -> bool:
         """
         Determine if message should be retried.
 
@@ -121,29 +112,17 @@ class RetryHandler(Protocol):
 class MetricsCollector(Protocol):
     """Protocol for metrics collection."""
 
-    def record_message_added(
-        self,
-        category: str,
-        error_type: str
-    ) -> None:
+    def record_message_added(self, category: str, error_type: str) -> None:
         """Record a message being added to DLQ."""
         ...
 
     def record_retry_attempt(
-        self,
-        category: str,
-        success: bool,
-        duration_seconds: float
+        self, category: str, success: bool, duration_seconds: float
     ) -> None:
         """Record a retry attempt."""
         ...
 
-    def update_queue_size(
-        self,
-        category: str,
-        status: str,
-        size: int
-    ) -> None:
+    def update_queue_size(self, category: str, status: str, size: int) -> None:
         """Update queue size metric."""
         ...
 

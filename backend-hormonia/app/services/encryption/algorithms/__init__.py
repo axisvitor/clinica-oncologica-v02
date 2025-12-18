@@ -13,8 +13,8 @@ from .aes_cbc import AESCBCAlgorithm
 from .fernet import FernetAlgorithm
 
 __all__ = [
-    'BaseAlgorithm',
-    'AESGCMAlgorithm',
-    'AESCBCAlgorithm',
-    'FernetAlgorithm',
+    "BaseAlgorithm",
+    "AESGCMAlgorithm",
+    "AESCBCAlgorithm",
+    "FernetAlgorithm",
 ]

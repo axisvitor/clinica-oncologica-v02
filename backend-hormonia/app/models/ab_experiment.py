@@ -5,7 +5,17 @@ Defines database schema for A/B testing experiments with HIPAA compliance
 and healthcare safety requirements.
 """
 
-from sqlalchemy import Column, String, Text, DateTime, Boolean, Integer, Float, ForeignKey, Index
+from sqlalchemy import (
+    Column,
+    String,
+    Text,
+    DateTime,
+    Boolean,
+    Integer,
+    Float,
+    ForeignKey,
+    Index,
+)
 from sqlalchemy.dialects.postgresql import UUID, JSONB, ENUM
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -16,6 +26,7 @@ from app.models.base import BaseModel
 
 class ExperimentStatus(enum.Enum):
     """Experiment lifecycle status."""
+
     DRAFT = "draft"
     ACTIVE = "active"
     PAUSED = "paused"
@@ -25,12 +36,14 @@ class ExperimentStatus(enum.Enum):
 
 class VariantType(enum.Enum):
     """A/B test variant types."""
+
     CONTROL = "control"
     TREATMENT = "treatment"
 
 
 class PatientSafetyLevel(enum.Enum):
     """Patient safety classification."""
+
     SAFE = "safe"
     RESTRICTED = "restricted"
     EXCLUDED = "excluded"
@@ -38,6 +51,7 @@ class PatientSafetyLevel(enum.Enum):
 
 class ABExperiment(BaseModel):
     """A/B Testing Experiment model."""
+
     __tablename__ = "ab_experiments"
 
     # Basic experiment info
@@ -48,14 +62,21 @@ class ABExperiment(BaseModel):
     # Experiment configuration
     target_population = Column(JSONB, nullable=True, default=dict)
     duration_days = Column(Integer, nullable=False, default=30)
-    traffic_split = Column(Float, nullable=False, default=0.5)  # Percentage to treatment
+    traffic_split = Column(
+        Float, nullable=False, default=0.5
+    )  # Percentage to treatment
 
     # Metrics configuration
     primary_metric = Column(String(100), nullable=False, default="response_rate")
     secondary_metrics = Column(JSONB, nullable=True, default=list)
 
     # Status and lifecycle
-    status = Column(ENUM(ExperimentStatus), nullable=False, default=ExperimentStatus.DRAFT, index=True)
+    status = Column(
+        ENUM(ExperimentStatus),
+        nullable=False,
+        default=ExperimentStatus.DRAFT,
+        index=True,
+    )
     start_date = Column(DateTime(timezone=True), nullable=True, index=True)
     end_date = Column(DateTime(timezone=True), nullable=True, index=True)
 
@@ -92,7 +113,9 @@ class ABExperiment(BaseModel):
     confidence_interval = Column(JSONB, nullable=True)
 
     # Relationships
-    variant_assignments = relationship("ABVariantAssignment", back_populates="experiment")
+    variant_assignments = relationship(
+        "ABVariantAssignment", back_populates="experiment"
+    )
     experiment_metrics = relationship("ABExperimentMetric", back_populates="experiment")
 
     def __repr__(self):
@@ -116,32 +139,46 @@ class ABExperiment(BaseModel):
 
 class ABVariantAssignment(BaseModel):
     """Patient variant assignments for A/B testing."""
+
     __tablename__ = "ab_variant_assignments"
 
     # Experiment reference
-    experiment_id = Column(UUID(as_uuid=True), ForeignKey("ab_experiments.id"), nullable=False, index=True)
+    experiment_id = Column(
+        UUID(as_uuid=True), ForeignKey("ab_experiments.id"), nullable=False, index=True
+    )
 
     # Patient reference (anonymized for privacy)
-    anonymous_patient_id = Column(String(32), nullable=False, index=True)  # SHA-256 hash (first 32 chars)
+    anonymous_patient_id = Column(
+        String(32), nullable=False, index=True
+    )  # SHA-256 hash (first 32 chars)
 
     # Assignment details
     variant = Column(ENUM(VariantType), nullable=False, index=True)
     safety_level = Column(ENUM(PatientSafetyLevel), nullable=False, index=True)
 
     # Assignment metadata
-    assignment_hash = Column(String(64), nullable=False, index=True)  # For deterministic assignment
+    assignment_hash = Column(
+        String(64), nullable=False, index=True
+    )  # For deterministic assignment
     assignment_reason = Column(String(100), nullable=True)  # e.g., "safety_restriction"
 
     # Tracking
-    assigned_at = Column(DateTime(timezone=True), nullable=False, default=func.now(), index=True)
+    assigned_at = Column(
+        DateTime(timezone=True), nullable=False, default=func.now(), index=True
+    )
 
     # Relationships
     experiment = relationship("ABExperiment", back_populates="variant_assignments")
 
     __table_args__ = (
-        Index('ix_ab_variant_exp_patient', 'experiment_id', 'anonymous_patient_id', unique=True),
-        Index('ix_ab_variant_exp_variant', 'experiment_id', 'variant'),
-        Index('ix_ab_variant_safety', 'safety_level', 'variant'),
+        Index(
+            "ix_ab_variant_exp_patient",
+            "experiment_id",
+            "anonymous_patient_id",
+            unique=True,
+        ),
+        Index("ix_ab_variant_exp_variant", "experiment_id", "variant"),
+        Index("ix_ab_variant_safety", "safety_level", "variant"),
     )
 
     def __repr__(self):
@@ -150,18 +187,25 @@ class ABVariantAssignment(BaseModel):
 
 class ABExperimentMetric(BaseModel):
     """A/B experiment performance metrics."""
+
     __tablename__ = "ab_experiment_metrics"
 
     # Experiment reference
-    experiment_id = Column(UUID(as_uuid=True), ForeignKey("ab_experiments.id"), nullable=False, index=True)
+    experiment_id = Column(
+        UUID(as_uuid=True), ForeignKey("ab_experiments.id"), nullable=False, index=True
+    )
 
     # Message/event tracking
-    message_id = Column(Integer, nullable=True, index=True)  # Reference to messages table
+    message_id = Column(
+        Integer, nullable=True, index=True
+    )  # Reference to messages table
     anonymous_patient_id = Column(String(32), nullable=False, index=True)
 
     # Variant and event details
     variant = Column(ENUM(VariantType), nullable=False, index=True)
-    event_type = Column(String(100), nullable=False, index=True)  # sent, delivered, read, responded, error
+    event_type = Column(
+        String(100), nullable=False, index=True
+    )  # sent, delivered, read, responded, error
 
     # Performance data
     response_time_seconds = Column(Float, nullable=True)  # Time to respond
@@ -170,7 +214,9 @@ class ABExperimentMetric(BaseModel):
 
     # Event metadata
     event_data = Column(JSONB, nullable=True, default=dict)
-    event_timestamp = Column(DateTime(timezone=True), nullable=False, default=func.now(), index=True)
+    event_timestamp = Column(
+        DateTime(timezone=True), nullable=False, default=func.now(), index=True
+    )
 
     # Processing flags
     processed = Column(Boolean, nullable=False, default=False, index=True)
@@ -181,10 +227,15 @@ class ABExperimentMetric(BaseModel):
     experiment = relationship("ABExperiment", back_populates="experiment_metrics")
 
     __table_args__ = (
-        Index('ix_ab_metrics_exp_variant', 'experiment_id', 'variant'),
-        Index('ix_ab_metrics_event_time', 'event_type', 'event_timestamp'),
-        Index('ix_ab_metrics_patient_event', 'anonymous_patient_id', 'event_type'),
-        Index('ix_ab_metrics_analysis', 'experiment_id', 'included_in_analysis', 'processed'),
+        Index("ix_ab_metrics_exp_variant", "experiment_id", "variant"),
+        Index("ix_ab_metrics_event_time", "event_type", "event_timestamp"),
+        Index("ix_ab_metrics_patient_event", "anonymous_patient_id", "event_type"),
+        Index(
+            "ix_ab_metrics_analysis",
+            "experiment_id",
+            "included_in_analysis",
+            "processed",
+        ),
     )
 
     def __repr__(self):
@@ -193,13 +244,22 @@ class ABExperimentMetric(BaseModel):
 
 class ABExperimentResult(BaseModel):
     """Comprehensive A/B experiment results and analysis."""
+
     __tablename__ = "ab_experiment_results"
 
     # Experiment reference
-    experiment_id = Column(UUID(as_uuid=True), ForeignKey("ab_experiments.id"), nullable=False, unique=True, index=True)
+    experiment_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("ab_experiments.id"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
 
     # Analysis metadata
-    analysis_timestamp = Column(DateTime(timezone=True), nullable=False, default=func.now(), index=True)
+    analysis_timestamp = Column(
+        DateTime(timezone=True), nullable=False, default=func.now(), index=True
+    )
     analysis_version = Column(String(50), nullable=False, default="1.0")
     analyst_id = Column(String(255), nullable=True)  # Who ran the analysis
 
@@ -232,7 +292,9 @@ class ABExperimentResult(BaseModel):
     ci_margin_of_error = Column(Float, nullable=True)
 
     # Winner determination
-    winner = Column(String(50), nullable=True, index=True)  # control, treatment, or null (tie)
+    winner = Column(
+        String(50), nullable=True, index=True
+    )  # control, treatment, or null (tie)
     winner_confidence = Column(Float, nullable=True)  # Confidence in winner
     recommendation = Column(Text, nullable=True)
 
@@ -262,27 +324,36 @@ class ABExperimentResult(BaseModel):
     def is_conclusive(self) -> bool:
         """Check if results are conclusive (significant with adequate sample size)."""
         return (
-            self.is_statistically_significant and
-            self.control_sample_size >= 100 and
-            self.treatment_sample_size >= 100
+            self.is_statistically_significant
+            and self.control_sample_size >= 100
+            and self.treatment_sample_size >= 100
         )
 
 
 # Add relationship back to ABExperiment
-ABExperiment.experiment_results = relationship("ABExperimentResult", back_populates="experiment", uselist=False)
+ABExperiment.experiment_results = relationship(
+    "ABExperimentResult", back_populates="experiment", uselist=False
+)
 
 
 class ABExperimentAudit(BaseModel):
     """Audit log for A/B experiment activities."""
+
     __tablename__ = "ab_experiment_audit"
 
     # Experiment reference
-    experiment_id = Column(UUID(as_uuid=True), ForeignKey("ab_experiments.id"), nullable=False, index=True)
+    experiment_id = Column(
+        UUID(as_uuid=True), ForeignKey("ab_experiments.id"), nullable=False, index=True
+    )
 
     # Audit details
-    action = Column(String(100), nullable=False, index=True)  # created, started, stopped, modified
+    action = Column(
+        String(100), nullable=False, index=True
+    )  # created, started, stopped, modified
     actor = Column(String(255), nullable=False)  # User or system performing action
-    actor_type = Column(String(50), nullable=False, default="user")  # user, system, automated
+    actor_type = Column(
+        String(50), nullable=False, default="user"
+    )  # user, system, automated
 
     # Action details
     action_details = Column(JSONB, nullable=True, default=dict)
@@ -299,12 +370,14 @@ class ABExperimentAudit(BaseModel):
     gdpr_compliant = Column(Boolean, nullable=False, default=True)
 
     # Timestamp
-    timestamp = Column(DateTime(timezone=True), nullable=False, default=func.now(), index=True)
+    timestamp = Column(
+        DateTime(timezone=True), nullable=False, default=func.now(), index=True
+    )
 
     __table_args__ = (
-        Index('ix_ab_audit_exp_action', 'experiment_id', 'action'),
-        Index('ix_ab_audit_actor_time', 'actor', 'timestamp'),
-        Index('ix_ab_audit_compliance', 'hipaa_logged', 'gdpr_compliant'),
+        Index("ix_ab_audit_exp_action", "experiment_id", "action"),
+        Index("ix_ab_audit_actor_time", "actor", "timestamp"),
+        Index("ix_ab_audit_compliance", "hipaa_logged", "gdpr_compliant"),
     )
 
     def __repr__(self):
@@ -314,13 +387,18 @@ class ABExperimentAudit(BaseModel):
 # Performance monitoring table for real-time alerts
 class ABExperimentMonitoring(BaseModel):
     """Real-time monitoring data for A/B experiments."""
+
     __tablename__ = "ab_experiment_monitoring"
 
     # Experiment reference
-    experiment_id = Column(UUID(as_uuid=True), ForeignKey("ab_experiments.id"), nullable=False, index=True)
+    experiment_id = Column(
+        UUID(as_uuid=True), ForeignKey("ab_experiments.id"), nullable=False, index=True
+    )
 
     # Monitoring period
-    monitoring_period_start = Column(DateTime(timezone=True), nullable=False, index=True)
+    monitoring_period_start = Column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
     monitoring_period_end = Column(DateTime(timezone=True), nullable=False, index=True)
 
     # Key performance indicators
@@ -351,9 +429,17 @@ class ABExperimentMonitoring(BaseModel):
     next_check_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
     __table_args__ = (
-        Index('ix_ab_monitoring_period', 'monitoring_period_start', 'monitoring_period_end'),
-        Index('ix_ab_monitoring_alerts', 'emergency_stop_triggered', 'response_rate_threshold_breached'),
-        Index('ix_ab_monitoring_next_check', 'next_check_at'),
+        Index(
+            "ix_ab_monitoring_period",
+            "monitoring_period_start",
+            "monitoring_period_end",
+        ),
+        Index(
+            "ix_ab_monitoring_alerts",
+            "emergency_stop_triggered",
+            "response_rate_threshold_breached",
+        ),
+        Index("ix_ab_monitoring_next_check", "next_check_at"),
     )
 
     def __repr__(self):

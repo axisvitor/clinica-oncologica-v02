@@ -18,6 +18,7 @@ Phase 2 Simplification:
 - Removed SagaIntegrationService wrapper (0% business logic)
 - Now calls SagaOrchestrator directly
 """
+
 from typing import Optional, TYPE_CHECKING
 from uuid import UUID
 import logging
@@ -101,9 +102,8 @@ class OnboardingCoordinator:
         Returns:
             True if saga is enabled and orchestrator is available
         """
-        return (
-            self.saga_orchestrator is not None
-            and getattr(settings, "ENABLE_SAGA_PATTERN", True)
+        return self.saga_orchestrator is not None and getattr(
+            settings, "ENABLE_SAGA_PATTERN", True
         )
 
     @with_db_retry(max_retries=3)
@@ -137,9 +137,7 @@ class OnboardingCoordinator:
         """
         # Step 1: Validate data using SINGLE SOURCE OF TRUTH
         await self.integrity_service.validate_patient_data(
-            patient_data=patient_data,
-            doctor_id=doctor_id,
-            is_update=False
+            patient_data=patient_data, doctor_id=doctor_id, is_update=False
         )
         logger.info(f"Patient data validated for doctor {doctor_id}")
 
@@ -147,7 +145,9 @@ class OnboardingCoordinator:
         if not self._is_saga_enabled():
             raise ValidationError("Saga Pattern desabilitado ou não configurado")
 
-        logger.info(f"Attempting patient creation via Saga Pattern for doctor {doctor_id}")
+        logger.info(
+            f"Attempting patient creation via Saga Pattern for doctor {doctor_id}"
+        )
 
         try:
             patient = await self.saga_orchestrator.execute_patient_onboarding_saga(
@@ -158,14 +158,16 @@ class OnboardingCoordinator:
             )
 
             if not patient:
-                raise ValidationError("Saga Pattern não retornou paciente após execução")
+                raise ValidationError(
+                    "Saga Pattern não retornou paciente após execução"
+                )
 
             logger.info(
                 f"✅ Patient created successfully via Saga: {patient.id}",
                 extra={
                     "patient_id": str(patient.id),
                     "doctor_id": str(doctor_id),
-                }
+                },
             )
             return patient
 
@@ -176,7 +178,7 @@ class OnboardingCoordinator:
                 extra={
                     "doctor_id": str(doctor_id),
                     "exception_type": type(e).__name__,
-                }
+                },
             )
             if isinstance(e, ValidationError):
                 raise

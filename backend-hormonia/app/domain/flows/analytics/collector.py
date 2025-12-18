@@ -5,7 +5,6 @@ Collects and tracks flow events for analytics and monitoring.
 """
 
 import logging
-from datetime import datetime
 from typing import Dict, Any, Optional
 from uuid import UUID
 
@@ -43,7 +42,7 @@ class AnalyticsCollector:
         event_type: str,
         flow_type: str,
         current_day: int,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """
         Track flow event in analytics service.
@@ -61,7 +60,7 @@ class AnalyticsCollector:
                 event_type=event_type,
                 flow_type=flow_type,
                 flow_day=current_day,
-                additional_data=metadata or {}
+                additional_data=metadata or {},
             )
 
             logger.debug(f"Flow event tracked: {event_type} for patient {patient_id}")
@@ -74,7 +73,7 @@ class AnalyticsCollector:
         patient_id: UUID,
         flow_type: str,
         current_day: int,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """Track flow start event."""
         await self.track_flow_event(
@@ -82,15 +81,11 @@ class AnalyticsCollector:
             event_type="flow_started",
             flow_type=flow_type,
             current_day=current_day,
-            metadata=metadata
+            metadata=metadata,
         )
 
     async def track_flow_advance(
-        self,
-        patient_id: UUID,
-        flow_type: str,
-        from_day: int,
-        to_day: int
+        self, patient_id: UUID, flow_type: str, from_day: int, to_day: int
     ):
         """Track flow advancement event."""
         await self.track_flow_event(
@@ -98,7 +93,7 @@ class AnalyticsCollector:
             event_type="flow_advanced",
             flow_type=flow_type,
             current_day=to_day,
-            metadata={'from_day': from_day, 'to_day': to_day}
+            metadata={"from_day": from_day, "to_day": to_day},
         )
 
     async def track_flow_pause(
@@ -106,7 +101,7 @@ class AnalyticsCollector:
         patient_id: UUID,
         flow_type: str,
         current_day: int,
-        reason: Optional[str] = None
+        reason: Optional[str] = None,
     ):
         """Track flow pause event."""
         await self.track_flow_event(
@@ -114,14 +109,11 @@ class AnalyticsCollector:
             event_type="flow_paused",
             flow_type=flow_type,
             current_day=current_day,
-            metadata={'reason': reason}
+            metadata={"reason": reason},
         )
 
     async def track_flow_resume(
-        self,
-        patient_id: UUID,
-        flow_type: str,
-        current_day: int
+        self, patient_id: UUID, flow_type: str, current_day: int
     ):
         """Track flow resume event."""
         await self.track_flow_event(
@@ -129,7 +121,7 @@ class AnalyticsCollector:
             event_type="flow_resumed",
             flow_type=flow_type,
             current_day=current_day,
-            metadata={}
+            metadata={},
         )
 
     async def track_flow_stop(
@@ -137,7 +129,7 @@ class AnalyticsCollector:
         patient_id: UUID,
         flow_type: str,
         final_day: int,
-        reason: Optional[str] = None
+        reason: Optional[str] = None,
     ):
         """Track flow stop event."""
         await self.track_flow_event(
@@ -145,15 +137,11 @@ class AnalyticsCollector:
             event_type="flow_stopped",
             flow_type=flow_type,
             current_day=final_day,
-            metadata={'reason': reason}
+            metadata={"reason": reason},
         )
 
     async def track_flow_transition(
-        self,
-        patient_id: UUID,
-        from_flow_type: str,
-        to_flow_type: str,
-        current_day: int
+        self, patient_id: UUID, from_flow_type: str, to_flow_type: str, current_day: int
     ):
         """Track flow type transition event."""
         await self.track_flow_event(
@@ -161,15 +149,11 @@ class AnalyticsCollector:
             event_type="flow_type_transition",
             flow_type=to_flow_type,
             current_day=current_day,
-            metadata={'from_flow_type': from_flow_type, 'to_flow_type': to_flow_type}
+            metadata={"from_flow_type": from_flow_type, "to_flow_type": to_flow_type},
         )
 
     async def track_quiz_trigger(
-        self,
-        patient_id: UUID,
-        flow_type: str,
-        quiz_type: str,
-        monthly_cycle: int
+        self, patient_id: UUID, flow_type: str, quiz_type: str, monthly_cycle: int
     ):
         """Track quiz trigger event."""
         await self.track_flow_event(
@@ -177,5 +161,5 @@ class AnalyticsCollector:
             event_type="quiz_triggered",
             flow_type=flow_type,
             current_day=0,
-            metadata={'quiz_type': quiz_type, 'monthly_cycle': monthly_cycle}
+            metadata={"quiz_type": quiz_type, "monthly_cycle": monthly_cycle},
         )

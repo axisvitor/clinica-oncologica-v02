@@ -17,8 +17,7 @@ Environment Variables:
 import os
 import json
 import logging
-from typing import Any, Optional
-from datetime import datetime
+from typing import Optional
 from cryptography.fernet import Fernet
 
 logger = logging.getLogger(__name__)
@@ -47,11 +46,18 @@ class KeyManagementService:
         if use_aws:
             try:
                 import boto3
-                self.secrets_client = boto3.client('secretsmanager')
-                self.secret_name = os.getenv("AWS_SECRET_NAME", "hormonia/encryption-keys")
-                logger.info(f"Initialized AWS Secrets Manager client for '{self.secret_name}'")
+
+                self.secrets_client = boto3.client("secretsmanager")
+                self.secret_name = os.getenv(
+                    "AWS_SECRET_NAME", "hormonia/encryption-keys"
+                )
+                logger.info(
+                    f"Initialized AWS Secrets Manager client for '{self.secret_name}'"
+                )
             except ImportError:
-                logger.warning("boto3 not installed. Falling back to environment variables.")
+                logger.warning(
+                    "boto3 not installed. Falling back to environment variables."
+                )
                 self.use_aws = False
                 self.secrets_client = None
         else:
@@ -103,12 +109,10 @@ class KeyManagementService:
         """
         try:
             # Get secret from AWS
-            response = self.secrets_client.get_secret_value(
-                SecretId=self.secret_name
-            )
+            response = self.secrets_client.get_secret_value(SecretId=self.secret_name)
 
             # Parse JSON secret
-            secret = json.loads(response['SecretString'])
+            secret = json.loads(response["SecretString"])
 
             # Extract key
             key_value = secret.get(key_type)
@@ -175,14 +179,17 @@ class KeyManagementService:
             'a1b2c3d4...' (64 characters, hex)
         """
         import secrets
+
         return secrets.token_hex(32)
 
 
 class KeyNotFoundError(Exception):
     """Raised when encryption key is not found."""
+
     pass
 
 
 class AWSError(Exception):
     """Raised when AWS API call fails."""
+
     pass

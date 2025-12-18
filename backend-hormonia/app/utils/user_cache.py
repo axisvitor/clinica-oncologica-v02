@@ -8,7 +8,6 @@ with automatic invalidation and TTL management.
 import json
 import logging
 from typing import Optional, Dict, Any
-from datetime import timedelta
 
 from app.core.redis_unified import get_sync_redis, get_async_redis
 
@@ -35,6 +34,7 @@ def _get_password_attempt_key(firebase_uid: str) -> str:
 
 
 # Synchronous cache functions
+
 
 def get_cached_profile(firebase_uid: str) -> Optional[Dict[str, Any]]:
     """
@@ -82,11 +82,7 @@ def set_cached_profile(firebase_uid: str, profile: Dict[str, Any]) -> bool:
             return False
 
         key = _get_profile_cache_key(firebase_uid)
-        redis_client.setex(
-            key,
-            USER_PROFILE_TTL,
-            json.dumps(profile, default=str)
-        )
+        redis_client.setex(key, USER_PROFILE_TTL, json.dumps(profile, default=str))
         logger.debug(f"Cached profile for {firebase_uid}")
         return True
     except Exception as e:
@@ -165,9 +161,7 @@ def set_cached_preferences(user_id: str, preferences: Dict[str, Any]) -> bool:
 
         key = _get_preferences_cache_key(user_id)
         redis_client.setex(
-            key,
-            USER_PREFERENCES_TTL,
-            json.dumps(preferences, default=str)
+            key, USER_PREFERENCES_TTL, json.dumps(preferences, default=str)
         )
         logger.debug(f"Cached preferences for {user_id}")
         return True
@@ -218,7 +212,10 @@ def invalidate_user_cache(firebase_uid: str, user_id: str) -> bool:
 
 # Rate limiting for password changes
 
-def check_password_change_rate_limit(firebase_uid: str, max_attempts: int = 3, window_seconds: int = 3600) -> bool:
+
+def check_password_change_rate_limit(
+    firebase_uid: str, max_attempts: int = 3, window_seconds: int = 3600
+) -> bool:
     """
     Check if user has exceeded password change rate limit.
 
@@ -285,6 +282,7 @@ def reset_password_change_rate_limit(firebase_uid: str) -> bool:
 
 # Async versions
 
+
 async def get_cached_profile_async(firebase_uid: str) -> Optional[Dict[str, Any]]:
     """Async version of get_cached_profile."""
     try:
@@ -315,9 +313,7 @@ async def set_cached_profile_async(firebase_uid: str, profile: Dict[str, Any]) -
 
         key = _get_profile_cache_key(firebase_uid)
         await redis_client.setex(
-            key,
-            USER_PROFILE_TTL,
-            json.dumps(profile, default=str)
+            key, USER_PROFILE_TTL, json.dumps(profile, default=str)
         )
         logger.debug(f"Cached profile for {firebase_uid}")
         return True

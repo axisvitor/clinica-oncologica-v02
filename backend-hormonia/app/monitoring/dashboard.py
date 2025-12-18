@@ -7,8 +7,8 @@ WebSocket-based live dashboard with metrics streaming and alerts.
 import asyncio
 import json
 import logging
-from typing import Dict, List, Optional, Any, Set
-from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any
+from datetime import datetime
 from dataclasses import dataclass
 import redis.asyncio as redis
 from fastapi import WebSocket, WebSocketDisconnect
@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DashboardMetrics:
     """Dashboard metrics snapshot."""
+
     timestamp: datetime
     apm_stats: Dict[str, Any]
     database_stats: Dict[str, Any]
@@ -36,8 +37,12 @@ class ConnectionManager:
         self.active_connections: Dict[str, WebSocket] = {}
         self.connection_metadata: Dict[str, Dict[str, Any]] = {}
 
-    async def connect(self, websocket: WebSocket, client_id: str,
-                     metadata: Optional[Dict[str, Any]] = None) -> None:
+    async def connect(
+        self,
+        websocket: WebSocket,
+        client_id: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """Accept and store a new WebSocket connection."""
         await websocket.accept()
         self.active_connections[client_id] = websocket
@@ -65,8 +70,9 @@ class ConnectionManager:
             self.disconnect(client_id)
             return False
 
-    async def broadcast(self, message: Dict[str, Any],
-                       filter_metadata: Optional[Dict[str, Any]] = None) -> int:
+    async def broadcast(
+        self, message: Dict[str, Any], filter_metadata: Optional[Dict[str, Any]] = None
+    ) -> int:
         """Broadcast message to all or filtered connections."""
         sent_count = 0
 
@@ -93,7 +99,7 @@ class ConnectionManager:
             {
                 "client_id": client_id,
                 "metadata": metadata,
-                "connected_at": metadata.get("connected_at", "unknown")
+                "connected_at": metadata.get("connected_at", "unknown"),
             }
             for client_id, metadata in self.connection_metadata.items()
         ]
@@ -102,8 +108,14 @@ class ConnectionManager:
 class RealTimeDashboard:
     """Real-time dashboard with WebSocket streaming."""
 
-    def __init__(self, apm_collector, db_monitor, resource_monitor,
-                 business_metrics, redis_client: Optional[redis.Redis] = None):
+    def __init__(
+        self,
+        apm_collector,
+        db_monitor,
+        resource_monitor,
+        business_metrics,
+        redis_client: Optional[redis.Redis] = None,
+    ):
         self.apm_collector = apm_collector
         self.db_monitor = db_monitor
         self.resource_monitor = resource_monitor
@@ -122,7 +134,7 @@ class RealTimeDashboard:
             "cpu_usage": 80.0,  # 80%
             "memory_usage": 85.0,  # 85%
             "db_slow_queries": 10.0,  # 10%
-            "message_delivery_failure": 10.0  # 10%
+            "message_delivery_failure": 10.0,  # 10%
         }
 
     async def start_streaming(self) -> None:
@@ -167,8 +179,8 @@ class RealTimeDashboard:
                         "database": metrics.database_stats,
                         "resources": metrics.resource_stats,
                         "business": metrics.business_stats,
-                        "system_health": metrics.system_health
-                    }
+                        "system_health": metrics.system_health,
+                    },
                 }
 
                 # Send alerts separately
@@ -176,7 +188,7 @@ class RealTimeDashboard:
                     alert_update = {
                         "type": "alerts",
                         "timestamp": metrics.timestamp.isoformat(),
-                        "alerts": alerts
+                        "alerts": alerts,
                     }
                     await self.connection_manager.broadcast(alert_update)
 
@@ -208,7 +220,9 @@ class RealTimeDashboard:
         resource_stats = self.resource_monitor.get_current_stats()
 
         # Business metrics
-        business_stats = self.business_metrics.get_all_metrics_summary(time_range_hours=1)
+        business_stats = self.business_metrics.get_all_metrics_summary(
+            time_range_hours=1
+        )
 
         # System health
         system_health = await self._calculate_system_health(
@@ -222,13 +236,16 @@ class RealTimeDashboard:
             resource_stats=resource_stats,
             business_stats=business_stats,
             alerts=[],
-            system_health=system_health
+            system_health=system_health,
         )
 
-    async def _calculate_system_health(self, apm_stats: Dict[str, Any],
-                                     db_stats: Dict[str, Any],
-                                     resource_stats: Dict[str, Any],
-                                     business_stats: Dict[str, Any]) -> Dict[str, Any]:
+    async def _calculate_system_health(
+        self,
+        apm_stats: Dict[str, Any],
+        db_stats: Dict[str, Any],
+        resource_stats: Dict[str, Any],
+        business_stats: Dict[str, Any],
+    ) -> Dict[str, Any]:
         """Calculate overall system health score."""
         health_score = 100
         issues = []
@@ -243,9 +260,14 @@ class RealTimeDashboard:
             issues.append(f"High response time P95: {apm_stats['p95']:.0f}ms")
 
         # Database health checks
-        if db_stats.get("slow_query_percentage", 0) > self.alert_thresholds["db_slow_queries"]:
+        if (
+            db_stats.get("slow_query_percentage", 0)
+            > self.alert_thresholds["db_slow_queries"]
+        ):
             health_score -= 15
-            issues.append(f"High slow query rate: {db_stats['slow_query_percentage']:.1f}%")
+            issues.append(
+                f"High slow query rate: {db_stats['slow_query_percentage']:.1f}%"
+            )
 
         if not db_stats.get("connection_pool", {}).get("is_healthy", True):
             health_score -= 20
@@ -264,9 +286,14 @@ class RealTimeDashboard:
 
         # Business metrics health checks
         message_metrics = business_stats.get("metrics", {}).get("message_delivery", {})
-        if message_metrics.get("failure_rate", 0) > self.alert_thresholds["message_delivery_failure"]:
+        if (
+            message_metrics.get("failure_rate", 0)
+            > self.alert_thresholds["message_delivery_failure"]
+        ):
             health_score -= 10
-            issues.append(f"High message delivery failure rate: {message_metrics['failure_rate']:.1f}%")
+            issues.append(
+                f"High message delivery failure rate: {message_metrics['failure_rate']:.1f}%"
+            )
 
         # Determine status
         if health_score >= 90:
@@ -289,10 +316,16 @@ class RealTimeDashboard:
             "issues": issues,
             "components": {
                 "api": "healthy" if apm_stats.get("error_rate", 0) < 5 else "degraded",
-                "database": "healthy" if db_stats.get("connection_pool", {}).get("is_healthy", True) else "degraded",
-                "resources": "healthy" if cpu_percent < 80 and memory_percent < 85 else "degraded",
-                "business": "healthy" if message_metrics.get("failure_rate", 0) < 10 else "degraded"
-            }
+                "database": "healthy"
+                if db_stats.get("connection_pool", {}).get("is_healthy", True)
+                else "degraded",
+                "resources": "healthy"
+                if cpu_percent < 80 and memory_percent < 85
+                else "degraded",
+                "business": "healthy"
+                if message_metrics.get("failure_rate", 0) < 10
+                else "degraded",
+            },
         }
 
     async def _check_alerts(self, metrics: DashboardMetrics) -> List[Dict[str, Any]]:
@@ -301,76 +334,88 @@ class RealTimeDashboard:
 
         # Response time alert
         if metrics.apm_stats.get("p95", 0) > self.alert_thresholds["response_time_p95"]:
-            alerts.append({
-                "type": "performance",
-                "severity": "warning",
-                "title": "High Response Time",
-                "message": f"95th percentile response time is {metrics.apm_stats['p95']:.0f}ms",
-                "timestamp": metrics.timestamp.isoformat(),
-                "value": metrics.apm_stats["p95"],
-                "threshold": self.alert_thresholds["response_time_p95"]
-            })
+            alerts.append(
+                {
+                    "type": "performance",
+                    "severity": "warning",
+                    "title": "High Response Time",
+                    "message": f"95th percentile response time is {metrics.apm_stats['p95']:.0f}ms",
+                    "timestamp": metrics.timestamp.isoformat(),
+                    "value": metrics.apm_stats["p95"],
+                    "threshold": self.alert_thresholds["response_time_p95"],
+                }
+            )
 
         # Error rate alert
         if metrics.apm_stats.get("error_rate", 0) > self.alert_thresholds["error_rate"]:
-            alerts.append({
-                "type": "reliability",
-                "severity": "critical" if metrics.apm_stats["error_rate"] > 10 else "warning",
-                "title": "High Error Rate",
-                "message": f"Error rate is {metrics.apm_stats['error_rate']:.1f}%",
-                "timestamp": metrics.timestamp.isoformat(),
-                "value": metrics.apm_stats["error_rate"],
-                "threshold": self.alert_thresholds["error_rate"]
-            })
+            alerts.append(
+                {
+                    "type": "reliability",
+                    "severity": "critical"
+                    if metrics.apm_stats["error_rate"] > 10
+                    else "warning",
+                    "title": "High Error Rate",
+                    "message": f"Error rate is {metrics.apm_stats['error_rate']:.1f}%",
+                    "timestamp": metrics.timestamp.isoformat(),
+                    "value": metrics.apm_stats["error_rate"],
+                    "threshold": self.alert_thresholds["error_rate"],
+                }
+            )
 
         # Resource alerts
         cpu_percent = metrics.resource_stats.get("cpu", {}).get("percent", 0)
         if cpu_percent > self.alert_thresholds["cpu_usage"]:
-            alerts.append({
-                "type": "resource",
-                "severity": "critical" if cpu_percent > 95 else "warning",
-                "title": "High CPU Usage",
-                "message": f"CPU usage is {cpu_percent:.1f}%",
-                "timestamp": metrics.timestamp.isoformat(),
-                "value": cpu_percent,
-                "threshold": self.alert_thresholds["cpu_usage"]
-            })
+            alerts.append(
+                {
+                    "type": "resource",
+                    "severity": "critical" if cpu_percent > 95 else "warning",
+                    "title": "High CPU Usage",
+                    "message": f"CPU usage is {cpu_percent:.1f}%",
+                    "timestamp": metrics.timestamp.isoformat(),
+                    "value": cpu_percent,
+                    "threshold": self.alert_thresholds["cpu_usage"],
+                }
+            )
 
         memory_percent = metrics.resource_stats.get("memory", {}).get("percent", 0)
         if memory_percent > self.alert_thresholds["memory_usage"]:
-            alerts.append({
-                "type": "resource",
-                "severity": "critical" if memory_percent > 95 else "warning",
-                "title": "High Memory Usage",
-                "message": f"Memory usage is {memory_percent:.1f}%",
-                "timestamp": metrics.timestamp.isoformat(),
-                "value": memory_percent,
-                "threshold": self.alert_thresholds["memory_usage"]
-            })
+            alerts.append(
+                {
+                    "type": "resource",
+                    "severity": "critical" if memory_percent > 95 else "warning",
+                    "title": "High Memory Usage",
+                    "message": f"Memory usage is {memory_percent:.1f}%",
+                    "timestamp": metrics.timestamp.isoformat(),
+                    "value": memory_percent,
+                    "threshold": self.alert_thresholds["memory_usage"],
+                }
+            )
 
         # Database alerts
         slow_query_pct = metrics.database_stats.get("slow_query_percentage", 0)
         if slow_query_pct > self.alert_thresholds["db_slow_queries"]:
-            alerts.append({
-                "type": "database",
-                "severity": "warning",
-                "title": "High Slow Query Rate",
-                "message": f"Slow query rate is {slow_query_pct:.1f}%",
-                "timestamp": metrics.timestamp.isoformat(),
-                "value": slow_query_pct,
-                "threshold": self.alert_thresholds["db_slow_queries"]
-            })
+            alerts.append(
+                {
+                    "type": "database",
+                    "severity": "warning",
+                    "title": "High Slow Query Rate",
+                    "message": f"Slow query rate is {slow_query_pct:.1f}%",
+                    "timestamp": metrics.timestamp.isoformat(),
+                    "value": slow_query_pct,
+                    "threshold": self.alert_thresholds["db_slow_queries"],
+                }
+            )
 
         return alerts
 
-    async def handle_websocket_connection(self, websocket: WebSocket,
-                                        client_id: str) -> None:
+    async def handle_websocket_connection(
+        self, websocket: WebSocket, client_id: str
+    ) -> None:
         """Handle a new WebSocket connection."""
         try:
             # Connect client
             await self.connection_manager.connect(
-                websocket, client_id,
-                {"connected_at": datetime.utcnow().isoformat()}
+                websocket, client_id, {"connected_at": datetime.utcnow().isoformat()}
             )
 
             # Send initial dashboard state
@@ -383,8 +428,8 @@ class RealTimeDashboard:
                     "database": initial_metrics.database_stats,
                     "resources": initial_metrics.resource_stats,
                     "business": initial_metrics.business_stats,
-                    "system_health": initial_metrics.system_health
-                }
+                    "system_health": initial_metrics.system_health,
+                },
             }
 
             await self.connection_manager.send_to_client(client_id, initial_message)
@@ -408,16 +453,17 @@ class RealTimeDashboard:
         finally:
             self.connection_manager.disconnect(client_id)
 
-    async def _handle_client_message(self, client_id: str, message: Dict[str, Any]) -> None:
+    async def _handle_client_message(
+        self, client_id: str, message: Dict[str, Any]
+    ) -> None:
         """Handle incoming client message."""
         message_type = message.get("type")
 
         if message_type == "ping":
             # Respond to ping with pong
-            await self.connection_manager.send_to_client(client_id, {
-                "type": "pong",
-                "timestamp": datetime.utcnow().isoformat()
-            })
+            await self.connection_manager.send_to_client(
+                client_id, {"type": "pong", "timestamp": datetime.utcnow().isoformat()}
+            )
 
         elif message_type == "request_metrics":
             # Send current metrics
@@ -430,18 +476,22 @@ class RealTimeDashboard:
                     "database": metrics.database_stats,
                     "resources": metrics.resource_stats,
                     "business": metrics.business_stats,
-                    "system_health": metrics.system_health
-                }
+                    "system_health": metrics.system_health,
+                },
             }
             await self.connection_manager.send_to_client(client_id, response)
 
         elif message_type == "subscribe_alerts":
             # Update client metadata to indicate alert subscription
             if client_id in self.connection_manager.connection_metadata:
-                self.connection_manager.connection_metadata[client_id]["subscribe_alerts"] = True
+                self.connection_manager.connection_metadata[client_id][
+                    "subscribe_alerts"
+                ] = True
 
         else:
-            logger.warning(f"Unknown message type from client {client_id}: {message_type}")
+            logger.warning(
+                f"Unknown message type from client {client_id}: {message_type}"
+            )
 
     def get_dashboard_status(self) -> Dict[str, Any]:
         """Get dashboard status information."""
@@ -449,5 +499,5 @@ class RealTimeDashboard:
             "streaming_active": self.streaming_active,
             "connected_clients": len(self.connection_manager.active_connections),
             "update_interval_seconds": self.update_interval,
-            "clients": self.connection_manager.get_connected_clients()
+            "clients": self.connection_manager.get_connected_clients(),
         }

@@ -4,6 +4,7 @@ Task monitoring and health check functionality.
 This module contains Celery tasks for monitoring the health of the flow processing
 system, including database, Redis, and external service connectivity checks.
 """
+
 import asyncio
 import logging
 from typing import Any
@@ -53,7 +54,7 @@ def monitor_flow_task_health(self) -> dict[str, Any]:
                 "active_flows_count": 0,
                 "pending_messages_count": 0,
                 "failed_tasks_count": 0,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
             # Test database connection
@@ -72,7 +73,7 @@ def monitor_flow_task_health(self) -> dict[str, Any]:
                     settings.REDIS_URL,
                     decode_responses=True,
                     socket_connect_timeout=5,
-                    socket_timeout=5
+                    socket_timeout=5,
                 )
 
                 redis_client.ping()
@@ -88,18 +89,24 @@ def monitor_flow_task_health(self) -> dict[str, Any]:
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
                     try:
-                        health_results["gemini_client"] = loop.run_until_complete(gemini_client.health_check())
+                        health_results["gemini_client"] = loop.run_until_complete(
+                            gemini_client.health_check()
+                        )
                     finally:
                         loop.close()
                 except RuntimeError as e:
                     if "cannot be called from a running event loop" in str(e):
                         import concurrent.futures
+
                         with concurrent.futures.ThreadPoolExecutor() as executor:
                             from app.config.settings.tasks import HEALTH_CHECK_TIMEOUT
+
                             future = executor.submit(
                                 lambda: asyncio.run(gemini_client.health_check())
                             )
-                            health_results["gemini_client"] = future.result(timeout=HEALTH_CHECK_TIMEOUT)
+                            health_results["gemini_client"] = future.result(
+                                timeout=HEALTH_CHECK_TIMEOUT
+                            )
                     else:
                         raise
             except Exception as e:
@@ -108,17 +115,22 @@ def monitor_flow_task_health(self) -> dict[str, Any]:
             # Count active flows
             try:
                 from app.config.settings.tasks import HEALTH_ACTIVE_FLOWS_LIMIT
+
                 flow_repo = FlowStateRepository(db)
-                active_flows = flow_repo.get_active_flows(limit=HEALTH_ACTIVE_FLOWS_LIMIT)
+                active_flows = flow_repo.get_active_flows(
+                    limit=HEALTH_ACTIVE_FLOWS_LIMIT
+                )
                 health_results["active_flows_count"] = len(active_flows)
             except Exception as e:
                 logger.error(f"Failed to count active flows: {e}")
 
             # Count pending messages
             try:
-                pending_messages = db.query(Message).filter(
-                    Message.status == MessageStatus.PENDING
-                ).count()
+                pending_messages = (
+                    db.query(Message)
+                    .filter(Message.status == MessageStatus.PENDING)
+                    .count()
+                )
                 health_results["pending_messages_count"] = pending_messages
             except Exception as e:
                 logger.error(f"Failed to count pending messages: {e}")
@@ -132,7 +144,7 @@ def monitor_flow_task_health(self) -> dict[str, Any]:
                     settings.REDIS_URL,
                     decode_responses=True,
                     socket_connect_timeout=5,
-                    socket_timeout=5
+                    socket_timeout=5,
                 )
 
                 failed_tasks = redis_client.keys("task_result:*")
@@ -149,11 +161,13 @@ def monitor_flow_task_health(self) -> dict[str, Any]:
                 logger.error(f"Failed to check task failures: {e}")
 
             # Overall health status
-            health_results["overall_healthy"] = all([
-                health_results["database_connection"],
-                health_results["redis_connection"],
-                health_results["gemini_client"]
-            ])
+            health_results["overall_healthy"] = all(
+                [
+                    health_results["database_connection"],
+                    health_results["redis_connection"],
+                    health_results["gemini_client"],
+                ]
+            )
 
             logger.info(f"Flow task health monitoring completed: {health_results}")
             return health_results
@@ -166,5 +180,5 @@ def monitor_flow_task_health(self) -> dict[str, Any]:
         return {
             "error": str(e),
             "timestamp": datetime.utcnow().isoformat(),
-            "overall_healthy": False
+            "overall_healthy": False,
         }

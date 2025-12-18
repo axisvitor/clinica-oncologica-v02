@@ -22,14 +22,12 @@ Security Enhancements:
 Author: Claude Code (Backend API Developer)
 """
 
-import logging
 import time
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Tuple, Union, Any
+from typing import Dict, List, Optional, Tuple, Any
 from uuid import uuid4
 
 from fastapi import HTTPException, Request, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
@@ -43,6 +41,7 @@ logger = get_logger(__name__)
 # =============================================================================
 # ENHANCED AUTHENTICATION MIDDLEWARE
 # =============================================================================
+
 
 class EnhancedAuthMiddleware(BaseHTTPMiddleware):
     """
@@ -61,7 +60,7 @@ class EnhancedAuthMiddleware(BaseHTTPMiddleware):
         app,
         blacklist_manager: Optional[TokenBlacklistManager] = None,
         excluded_paths: Optional[List[str]] = None,
-        fail_open_on_redis_error: bool = False
+        fail_open_on_redis_error: bool = False,
     ):
         """
         Initialize enhanced authentication middleware.
@@ -88,10 +87,12 @@ class EnhancedAuthMiddleware(BaseHTTPMiddleware):
             "/api/v2/health",
             "/api/v2/health/railway",
             "/api/v2/health/production",
-            "/api/v2/system/health"
+            "/api/v2/system/health",
         ]
 
-        logger.info(f"EnhancedAuthMiddleware initialized with {len(self.excluded_paths)} excluded paths")
+        logger.info(
+            f"EnhancedAuthMiddleware initialized with {len(self.excluded_paths)} excluded paths"
+        )
 
     def _should_skip_auth(self, path: str) -> bool:
         """
@@ -109,12 +110,14 @@ class EnhancedAuthMiddleware(BaseHTTPMiddleware):
                 return True
 
         # Skip for static files
-        if any(path.endswith(ext) for ext in ['.ico', '.png', '.jpg', '.css', '.js']):
+        if any(path.endswith(ext) for ext in [".ico", ".png", ".jpg", ".css", ".js"]):
             return True
 
         return False
 
-    def _extract_token_from_request(self, request: Request) -> Optional[Tuple[str, str]]:
+    def _extract_token_from_request(
+        self, request: Request
+    ) -> Optional[Tuple[str, str]]:
         """
         Extract JWT token from request using multiple sources.
 
@@ -165,14 +168,16 @@ class EnhancedAuthMiddleware(BaseHTTPMiddleware):
             # X-Forwarded-For can contain multiple IPs, take the first one
             ip_address = ip_address.split(",")[0].strip()
         else:
-            ip_address = request.headers.get("X-Real-IP") or str(request.client.host if request.client else "unknown")
+            ip_address = request.headers.get("X-Real-IP") or str(
+                request.client.host if request.client else "unknown"
+            )
 
         return {
             "ip_address": ip_address,
             "user_agent": request.headers.get("User-Agent", ""),
             "method": request.method,
             "path": str(request.url.path),
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     def _log_security_event(
@@ -180,7 +185,7 @@ class EnhancedAuthMiddleware(BaseHTTPMiddleware):
         event_type: str,
         request: Request,
         details: Dict[str, Any],
-        level: str = "info"
+        level: str = "info",
     ) -> None:
         """
         Log security events for monitoring and audit.
@@ -198,7 +203,7 @@ class EnhancedAuthMiddleware(BaseHTTPMiddleware):
                 "event_type": event_type,
                 "client_info": client_info,
                 "details": details,
-                "request_id": getattr(request.state, "request_id", str(uuid4()))
+                "request_id": getattr(request.state, "request_id", str(uuid4())),
             }
 
             log_message = f"Security Event: {event_type}"
@@ -256,10 +261,12 @@ class EnhancedAuthMiddleware(BaseHTTPMiddleware):
                         request,
                         {
                             "token_source": token_source,
-                            "token_hash": token[:16] + "..." if len(token) > 16 else token,
-                            "action": "denied"
+                            "token_hash": token[:16] + "..."
+                            if len(token) > 16
+                            else token,
+                            "action": "denied",
                         },
-                        level="warning"
+                        level="warning",
                     )
 
                     raise HTTPException(
@@ -277,8 +284,10 @@ class EnhancedAuthMiddleware(BaseHTTPMiddleware):
                     request,
                     {
                         "token_source": token_source,
-                        "validation_time_ms": round((time.time() - start_time) * 1000, 2)
-                    }
+                        "validation_time_ms": round(
+                            (time.time() - start_time) * 1000, 2
+                        ),
+                    },
                 )
 
             except Exception as redis_error:
@@ -289,20 +298,22 @@ class EnhancedAuthMiddleware(BaseHTTPMiddleware):
                     {
                         "error": str(redis_error),
                         "token_source": token_source,
-                        "fail_open": self.fail_open_on_redis_error
+                        "fail_open": self.fail_open_on_redis_error,
                     },
-                    level="error"
+                    level="error",
                 )
 
                 if not self.fail_open_on_redis_error:
                     # Fail closed - deny access if Redis is down
                     raise HTTPException(
                         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                        detail="Authentication service temporarily unavailable"
+                        detail="Authentication service temporarily unavailable",
                     )
 
                 # Fail open - continue processing but log the error
-                logger.warning(f"Continuing with blacklist check failure (fail-open mode): {redis_error}")
+                logger.warning(
+                    f"Continuing with blacklist check failure (fail-open mode): {redis_error}"
+                )
 
             # Continue to next middleware/handler
             response = await call_next(request)
@@ -315,9 +326,9 @@ class EnhancedAuthMiddleware(BaseHTTPMiddleware):
                     request,
                     {
                         "processing_time_ms": processing_time,
-                        "status_code": response.status_code
+                        "status_code": response.status_code,
                     },
-                    level="warning"
+                    level="warning",
                 )
 
             return response
@@ -331,23 +342,21 @@ class EnhancedAuthMiddleware(BaseHTTPMiddleware):
             self._log_security_event(
                 "authentication_middleware_error",
                 request,
-                {
-                    "error": str(e),
-                    "error_type": type(e).__name__
-                },
-                level="error"
+                {"error": str(e), "error_type": type(e).__name__},
+                level="error",
             )
 
             # Return 500 for unexpected errors
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Internal authentication error"
+                detail="Internal authentication error",
             )
 
 
 # =============================================================================
 # ENHANCED TOKEN VALIDATOR
 # =============================================================================
+
 
 class EnhancedTokenValidator:
     """
@@ -363,10 +372,7 @@ class EnhancedTokenValidator:
         self.security_config = get_security_config()
 
     async def validate_token(
-        self,
-        token: str,
-        request: Request,
-        required_scopes: Optional[List[str]] = None
+        self, token: str, request: Request, required_scopes: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Validate token with blacklist check and scope validation.
@@ -385,7 +391,9 @@ class EnhancedTokenValidator:
         try:
             # Check blacklist first (fast check)
             if self.blacklist_manager.is_blacklisted(token):
-                logger.warning(f"Blocked blacklisted token access from {request.client.host if request.client else 'unknown'}")
+                logger.warning(
+                    f"Blocked blacklisted token access from {request.client.host if request.client else 'unknown'}"
+                )
 
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -401,7 +409,7 @@ class EnhancedTokenValidator:
                 "valid": True,
                 "blacklist_checked": True,
                 "validation_time": datetime.now(timezone.utc),
-                "scopes_validated": required_scopes is not None
+                "scopes_validated": required_scopes is not None,
             }
 
         except HTTPException:
@@ -410,13 +418,14 @@ class EnhancedTokenValidator:
             logger.error(f"Token validation error: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Token validation failed"
+                detail="Token validation failed",
             )
 
 
 # =============================================================================
 # DEPENDENCY INJECTION HELPERS
 # =============================================================================
+
 
 class TokenBlacklistDependency:
     """
@@ -455,7 +464,9 @@ class TokenBlacklistDependency:
 
         # If no middleware validation, we can't validate here without the token
         # This would require integration with the main auth system
-        logger.warning("Token blacklist dependency called without middleware validation")
+        logger.warning(
+            "Token blacklist dependency called without middleware validation"
+        )
         return True
 
 
@@ -463,10 +474,11 @@ class TokenBlacklistDependency:
 # UTILITY FUNCTIONS
 # =============================================================================
 
+
 def create_enhanced_auth_middleware(
     app,
     excluded_paths: Optional[List[str]] = None,
-    fail_open_on_redis_error: bool = False
+    fail_open_on_redis_error: bool = False,
 ) -> EnhancedAuthMiddleware:
     """
     Factory function to create enhanced authentication middleware.
@@ -482,7 +494,7 @@ def create_enhanced_auth_middleware(
     return EnhancedAuthMiddleware(
         app=app,
         excluded_paths=excluded_paths,
-        fail_open_on_redis_error=fail_open_on_redis_error
+        fail_open_on_redis_error=fail_open_on_redis_error,
     )
 
 
@@ -499,6 +511,7 @@ def get_enhanced_token_validator() -> EnhancedTokenValidator:
 # =============================================================================
 # INTEGRATION WITH EXISTING AUTH SYSTEM
 # =============================================================================
+
 
 class AuthTokenExtractor:
     """
@@ -568,5 +581,5 @@ __all__ = [
     "TokenBlacklistDependency",
     "AuthTokenExtractor",
     "create_enhanced_auth_middleware",
-    "get_enhanced_token_validator"
+    "get_enhanced_token_validator",
 ]

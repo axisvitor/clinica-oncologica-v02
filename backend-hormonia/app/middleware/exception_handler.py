@@ -22,21 +22,16 @@ Usage:
     setup_exception_handlers(app)
 """
 
-from typing import Union, Dict, Any
+from typing import Dict, Any
 import logging
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError, HTTPException
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from pydantic import ValidationError as PydanticValidationError
 
 from app.core.exceptions import (
     APIException,
     HormoniaException,
-    ValidationError,
-    NotFoundError,
-    ConflictError,
-    BusinessRuleError,
 )
 
 logger = logging.getLogger(__name__)
@@ -48,10 +43,7 @@ logger = logging.getLogger(__name__)
 
 
 def format_error_response(
-    error_code: str,
-    message: str,
-    status_code: int,
-    details: Dict[str, Any] = None
+    error_code: str, message: str, status_code: int, details: Dict[str, Any] = None
 ) -> Dict[str, Any]:
     """
     Format a standardized error response.
@@ -65,11 +57,7 @@ def format_error_response(
     Returns:
         Standardized error response dictionary
     """
-    response = {
-        "error": error_code,
-        "message": message,
-        "status_code": status_code
-    }
+    response = {"error": error_code, "message": message, "status_code": status_code}
 
     if details:
         response["details"] = details
@@ -77,9 +65,7 @@ def format_error_response(
     return response
 
 
-def format_validation_error_response(
-    errors: list
-) -> Dict[str, Any]:
+def format_validation_error_response(errors: list) -> Dict[str, Any]:
     """
     Format Pydantic validation errors into standard format.
 
@@ -105,7 +91,7 @@ def format_validation_error_response(
         error_code="VALIDATION_ERROR",
         message="Input validation failed",
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        details={"errors": formatted_errors}
+        details={"errors": formatted_errors},
     )
 
 
@@ -114,10 +100,7 @@ def format_validation_error_response(
 # =========================================================================
 
 
-async def api_exception_handler(
-    request: Request,
-    exc: APIException
-) -> JSONResponse:
+async def api_exception_handler(request: Request, exc: APIException) -> JSONResponse:
     """
     Handle all APIException instances (ValidationError, NotFoundError, etc.).
 
@@ -135,19 +118,15 @@ async def api_exception_handler(
             "status_code": exc.status_code,
             "details": exc.details,
             "path": request.url.path,
-            "method": request.method
-        }
+            "method": request.method,
+        },
     )
 
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=exc.to_dict()
-    )
+    return JSONResponse(status_code=exc.status_code, content=exc.to_dict())
 
 
 async def hormonia_exception_handler(
-    request: Request,
-    exc: HormoniaException
+    request: Request, exc: HormoniaException
 ) -> JSONResponse:
     """
     Handle generic HormoniaException (non-API exceptions).
@@ -164,9 +143,9 @@ async def hormonia_exception_handler(
         extra={
             "details": exc.details,
             "path": request.url.path,
-            "method": request.method
+            "method": request.method,
         },
-        exc_info=True
+        exc_info=True,
     )
 
     return JSONResponse(
@@ -175,14 +154,13 @@ async def hormonia_exception_handler(
             error_code="INTERNAL_ERROR",
             message=exc.message,
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            details=exc.details
-        )
+            details=exc.details,
+        ),
     )
 
 
 async def validation_exception_handler(
-    request: Request,
-    exc: RequestValidationError
+    request: Request, exc: RequestValidationError
 ) -> JSONResponse:
     """
     Handle Pydantic RequestValidationError (422 Unprocessable Entity).
@@ -199,20 +177,17 @@ async def validation_exception_handler(
         extra={
             "errors": exc.errors(),
             "path": request.url.path,
-            "method": request.method
-        }
+            "method": request.method,
+        },
     )
 
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content=format_validation_error_response(exc.errors())
+        content=format_validation_error_response(exc.errors()),
     )
 
 
-async def http_exception_handler(
-    request: Request,
-    exc: HTTPException
-) -> JSONResponse:
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
     """
     Handle FastAPI HTTPException.
 
@@ -229,8 +204,8 @@ async def http_exception_handler(
             "status_code": exc.status_code,
             "detail": exc.detail,
             "path": request.url.path,
-            "method": request.method
-        }
+            "method": request.method,
+        },
     )
 
     # Determine error code from status code
@@ -251,16 +226,13 @@ async def http_exception_handler(
     return JSONResponse(
         status_code=exc.status_code,
         content=format_error_response(
-            error_code=error_code,
-            message=str(exc.detail),
-            status_code=exc.status_code
-        )
+            error_code=error_code, message=str(exc.detail), status_code=exc.status_code
+        ),
     )
 
 
 async def integrity_error_handler(
-    request: Request,
-    exc: IntegrityError
+    request: Request, exc: IntegrityError
 ) -> JSONResponse:
     """
     Handle SQLAlchemy IntegrityError (duplicate keys, constraint violations).
@@ -274,15 +246,12 @@ async def integrity_error_handler(
     """
     logger.warning(
         f"Database Integrity Error: {str(exc)}",
-        extra={
-            "path": request.url.path,
-            "method": request.method
-        },
-        exc_info=True
+        extra={"path": request.url.path, "method": request.method},
+        exc_info=True,
     )
 
     # Parse common constraint violations
-    error_msg = str(exc.orig) if hasattr(exc, 'orig') else str(exc)
+    error_msg = str(exc.orig) if hasattr(exc, "orig") else str(exc)
 
     # Check for unique constraint violations
     if "duplicate key" in error_msg.lower() or "unique constraint" in error_msg.lower():
@@ -301,8 +270,8 @@ async def integrity_error_handler(
                 error_code="DUPLICATE_RESOURCE",
                 message="Resource already exists",
                 status_code=status.HTTP_409_CONFLICT,
-                details={"field": field} if field else None
-            )
+                details={"field": field} if field else None,
+            ),
         )
 
     # Generic integrity error
@@ -311,14 +280,13 @@ async def integrity_error_handler(
         content=format_error_response(
             error_code="INTEGRITY_ERROR",
             message="Database integrity constraint violated",
-            status_code=status.HTTP_400_BAD_REQUEST
-        )
+            status_code=status.HTTP_400_BAD_REQUEST,
+        ),
     )
 
 
 async def sqlalchemy_error_handler(
-    request: Request,
-    exc: SQLAlchemyError
+    request: Request, exc: SQLAlchemyError
 ) -> JSONResponse:
     """
     Handle generic SQLAlchemy errors.
@@ -332,11 +300,8 @@ async def sqlalchemy_error_handler(
     """
     logger.error(
         f"Database Error: {str(exc)}",
-        extra={
-            "path": request.url.path,
-            "method": request.method
-        },
-        exc_info=True
+        extra={"path": request.url.path, "method": request.method},
+        exc_info=True,
     )
 
     return JSONResponse(
@@ -344,15 +309,12 @@ async def sqlalchemy_error_handler(
         content=format_error_response(
             error_code="DATABASE_ERROR",
             message="An error occurred while accessing the database",
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        ),
     )
 
 
-async def generic_exception_handler(
-    request: Request,
-    exc: Exception
-) -> JSONResponse:
+async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """
     Handle all unhandled exceptions (catch-all).
 
@@ -368,9 +330,9 @@ async def generic_exception_handler(
         extra={
             "exception_type": type(exc).__name__,
             "path": request.url.path,
-            "method": request.method
+            "method": request.method,
         },
-        exc_info=True
+        exc_info=True,
     )
 
     return JSONResponse(
@@ -378,8 +340,8 @@ async def generic_exception_handler(
         content=format_error_response(
             error_code="INTERNAL_ERROR",
             message="An unexpected error occurred",
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        ),
     )
 
 

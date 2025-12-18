@@ -1,6 +1,7 @@
 """
 Data models and enums for response processing.
 """
+
 from typing import List, Optional, Any
 from datetime import datetime
 from enum import Enum
@@ -12,6 +13,7 @@ from app.services.ai import ConcernLevel
 
 class ResponseType(str, Enum):
     """Types of patient responses."""
+
     TEXT = "text"
     BUTTON = "button"
     QUICK_REPLY = "quick_reply"
@@ -25,6 +27,7 @@ class ResponseType(str, Enum):
 @dataclass
 class ResponseProcessorConfig:
     """Configuration for ResponseProcessor."""
+
     max_conversation_history: int = 50
     message_limit: int = 4096
     default_confidence_score: float = 0.5
@@ -37,6 +40,7 @@ class ResponseProcessorConfig:
 @dataclass
 class ResponseValidationResult:
     """Result of response validation."""
+
     is_valid: bool
     response_type: ResponseType
     extracted_value: Any = None
@@ -46,6 +50,7 @@ class ResponseValidationResult:
 @dataclass
 class StructuredResponse:
     """Structured data extracted from patient response."""
+
     patient_id: UUID
     original_message: str
     response_type: ResponseType
@@ -61,6 +66,7 @@ class StructuredResponse:
 @dataclass
 class FlowAction:
     """Action to be taken based on patient response."""
+
     action_type: str
     parameters: dict[str, Any]
     priority: str = "normal"
@@ -70,6 +76,7 @@ class FlowAction:
 @dataclass
 class ResponseProcessingResult:
     """Result of response processing."""
+
     patient_id: UUID
     structured_response: StructuredResponse
     flow_actions: List[FlowAction]
@@ -82,6 +89,7 @@ class ResponseProcessingResult:
 @dataclass
 class InboundMessage:
     """Inbound message data structure."""
+
     patient_phone: str
     content: str
     whatsapp_id: str
@@ -93,6 +101,7 @@ class InboundMessage:
 @dataclass
 class InteractiveResponse:
     """Interactive response (buttons, quick replies, etc.)."""
+
     patient_id: UUID
     response_value: str
     response_type: ResponseType
@@ -104,10 +113,12 @@ class ResponseFactory:
     """Factory for creating response objects."""
 
     @staticmethod
-    def create_error_response(patient_id: UUID,
-                            original_message: str,
-                            response_type: ResponseType,
-                            validation_errors: List[str]) -> StructuredResponse:
+    def create_error_response(
+        patient_id: UUID,
+        original_message: str,
+        response_type: ResponseType,
+        validation_errors: List[str],
+    ) -> StructuredResponse:
         """Create a structured response for validation errors."""
         return StructuredResponse(
             patient_id=patient_id,
@@ -118,13 +129,13 @@ class ResponseFactory:
             medical_concerns=[],
             concern_level=ConcernLevel.LOW,
             requires_attention=False,
-            confidence_score=0.5
+            confidence_score=0.5,
         )
 
     @staticmethod
-    def create_fallback_response(patient_id: UUID,
-                               original_message: str,
-                               response_type: ResponseType) -> StructuredResponse:
+    def create_fallback_response(
+        patient_id: UUID, original_message: str, response_type: ResponseType
+    ) -> StructuredResponse:
         """Create a fallback structured response when AI processing fails."""
         return StructuredResponse(
             patient_id=patient_id,
@@ -135,5 +146,5 @@ class ResponseFactory:
             medical_concerns=[],
             concern_level=ConcernLevel.LOW,
             requires_attention=False,
-            confidence_score=0.5
+            confidence_score=0.5,
         )

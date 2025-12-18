@@ -12,7 +12,6 @@ from uuid import uuid4
 
 from ..types import (
     Alert,
-    AlertRule,
     AlertRuleType,
     AlertSeverity,
     AlertStatus,

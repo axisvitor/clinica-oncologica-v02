@@ -9,11 +9,10 @@ Security: Admin role required.
 
 from typing import Optional
 from datetime import datetime
-import logging
 
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 
-from app.models.user import User, UserRole
+from app.models.user import UserRole
 from app.schemas.v2.system import (
     ConfigValidationRequest,
     ConfigValidationResponse,
@@ -31,6 +30,7 @@ logger = get_logger(__name__)
 # Helper Functions
 # ============================================================================
 
+
 def _is_admin(current_user) -> bool:
     """Check if user has admin role."""
     if isinstance(current_user, dict):
@@ -47,6 +47,7 @@ def _is_admin(current_user) -> bool:
 # Configuration Validation Endpoint (ADMIN ONLY)
 # ============================================================================
 
+
 @router.post(
     "/validate",
     response_model=ConfigValidationResponse,
@@ -56,7 +57,7 @@ def _is_admin(current_user) -> bool:
 
     **Authentication:** Admin role required
     **Rate limit:** 10 requests/hour
-    """
+    """,
 )
 @limiter.limit("10/hour")
 async def validate_configuration(
@@ -77,7 +78,7 @@ async def validate_configuration(
     if not _is_admin(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin privileges required for configuration validation"
+            detail="Admin privileges required for configuration validation",
         )
 
     if validation_request is None:
@@ -89,38 +90,46 @@ async def validate_configuration(
         recommendations = []
 
         # Validate critical settings
-        if not settings.SECURITY_SECRET_KEY or 'CHANGE_THIS' in settings.SECURITY_SECRET_KEY.upper():
+        if (
+            not settings.SECURITY_SECRET_KEY
+            or "CHANGE_THIS" in settings.SECURITY_SECRET_KEY.upper()
+        ):
             errors.append("SECRET_KEY is not properly configured")
 
         if not settings.DATABASE_URL:
             errors.append("DATABASE_URL is not configured")
 
         # Check Firebase configuration
-        firebase_configured = all([
-            settings.FIREBASE_ADMIN_PROJECT_ID,
-            settings.FIREBASE_ADMIN_PRIVATE_KEY,
-            settings.FIREBASE_ADMIN_CLIENT_EMAIL
-        ])
+        firebase_configured = all(
+            [
+                settings.FIREBASE_ADMIN_PROJECT_ID,
+                settings.FIREBASE_ADMIN_PRIVATE_KEY,
+                settings.FIREBASE_ADMIN_CLIENT_EMAIL,
+            ]
+        )
 
         if not firebase_configured:
             warnings.append("Firebase Admin SDK is not fully configured")
             recommendations.append("Configure Firebase for authentication features")
 
         # Check production security settings
-        if settings.APP_ENVIRONMENT.lower() == 'production':
+        if settings.APP_ENVIRONMENT.lower() == "production":
             if settings.APP_ENABLE_DEBUG:
                 errors.append("DEBUG should be False in production")
 
-            if not getattr(settings, 'SESSION_COOKIE_SECURE', False):
+            if not getattr(settings, "SESSION_COOKIE_SECURE", False):
                 warnings.append("SESSION_COOKIE_SECURE should be True in production")
                 recommendations.append("Enable secure cookies for production")
 
-            if not getattr(settings, 'SECURE_SSL_REDIRECT', False):
+            if not getattr(settings, "SECURE_SSL_REDIRECT", False):
                 warnings.append("SECURE_SSL_REDIRECT should be True in production")
                 recommendations.append("Enable HTTPS redirect for production")
 
         # Check CORS configuration
-        if not getattr(settings, 'ALLOWED_ORIGINS', None) and not settings.CORS_FRONTEND_URL:
+        if (
+            not getattr(settings, "ALLOWED_ORIGINS", None)
+            and not settings.CORS_FRONTEND_URL
+        ):
             warnings.append("CORS origins not configured")
             recommendations.append("Configure allowed CORS origins")
 
@@ -129,14 +138,23 @@ async def validate_configuration(
             warnings.append("Evolution API is enabled but API key not configured")
 
         if settings.AI_ENABLE_HUMANIZATION and not settings.AI_GEMINI_API_KEY:
-            warnings.append("AI humanization is enabled but Gemini API key not configured")
+            warnings.append(
+                "AI humanization is enabled but Gemini API key not configured"
+            )
 
         # Check rate limiting
-        if not settings.RATE_LIMIT_ENABLE_SERVICE and settings.APP_ENVIRONMENT == 'production':
+        if (
+            not settings.RATE_LIMIT_ENABLE_SERVICE
+            and settings.APP_ENVIRONMENT == "production"
+        ):
             warnings.append("Rate limiting is disabled in production")
             recommendations.append("Enable rate limiting for production security")
 
-        categories_checked = validation_request.categories or ["security", "database", "external_services"]
+        categories_checked = validation_request.categories or [
+            "security",
+            "database",
+            "external_services",
+        ]
 
         return ConfigValidationResponse(
             valid=len(errors) == 0,
@@ -144,12 +162,12 @@ async def validate_configuration(
             errors=errors,
             checked_at=datetime.utcnow(),
             categories_checked=categories_checked,
-            recommendations=recommendations
+            recommendations=recommendations,
         )
 
     except Exception as e:
         logger.error(f"Configuration validation failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Configuration validation failed"
+            detail="Configuration validation failed",
         )

@@ -5,7 +5,6 @@ Base module for analytics - Common utilities and types.
 from typing import Optional, Tuple, Dict, Any
 import json
 import hashlib
-from datetime import datetime
 from uuid import UUID
 from fastapi import APIRouter
 
@@ -138,6 +137,7 @@ async def get_cached_result(cache_key: str):
     """
     try:
         from app.core.redis_unified import get_async_redis
+
         redis_client = await get_async_redis()
         if redis_client is None:
             logger.debug("Redis not available, skipping cache read")
@@ -164,6 +164,7 @@ async def set_cached_result(cache_key: str, data: dict, ttl: int = ANALYTICS_CAC
     """
     try:
         from app.core.redis_unified import get_async_redis
+
         redis_client = await get_async_redis()
         if redis_client is None:
             logger.debug("Redis not available, skipping cache write")

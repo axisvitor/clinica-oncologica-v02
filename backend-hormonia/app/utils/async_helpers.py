@@ -1,6 +1,7 @@
 """
 Async/Sync boundary helpers for Celery tasks and other sync contexts.
 """
+
 import asyncio
 import concurrent.futures
 import threading
@@ -10,7 +11,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 # Thread-local storage for event loop caching
 _thread_local_loop = threading.local()
@@ -23,7 +24,7 @@ def get_or_create_event_loop() -> asyncio.AbstractEventLoop:
     This avoids the overhead of creating a new event loop for each
     async call in Celery workers, providing ~2-5ms savings per call.
     """
-    if not hasattr(_thread_local_loop, 'loop') or _thread_local_loop.loop.is_closed():
+    if not hasattr(_thread_local_loop, "loop") or _thread_local_loop.loop.is_closed():
         _thread_local_loop.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(_thread_local_loop.loop)
     return _thread_local_loop.loop
@@ -58,9 +59,7 @@ def run_async(coro: Coroutine[Any, Any, T], timeout: int = 60) -> T:
     """
     try:
         loop = get_or_create_event_loop()
-        return loop.run_until_complete(
-            asyncio.wait_for(coro, timeout=timeout)
-        )
+        return loop.run_until_complete(asyncio.wait_for(coro, timeout=timeout))
     except asyncio.TimeoutError:
         logger.error(f"Async operation timed out after {timeout} seconds")
         raise TimeoutError(f"Operation timed out after {timeout} seconds")
@@ -108,9 +107,7 @@ def run_async_in_sync(coro: Coroutine[Any, Any, T], timeout: int = 60) -> T:
 
     try:
         # Run the coroutine with timeout
-        return new_loop.run_until_complete(
-            asyncio.wait_for(coro, timeout=timeout)
-        )
+        return new_loop.run_until_complete(asyncio.wait_for(coro, timeout=timeout))
     except asyncio.TimeoutError:
         logger.error(f"Async operation timed out after {timeout} seconds")
         raise TimeoutError(f"Operation timed out after {timeout} seconds")
@@ -141,6 +138,7 @@ def run_async_in_thread(coro: Coroutine[Any, Any, T], timeout: int = 60) -> T:
         TimeoutError: If the coroutine doesn't complete within timeout
         Exception: Any exception raised by the coroutine
     """
+
     def run_in_thread():
         """Function to run in thread with new event loop."""
         loop = asyncio.new_event_loop()
@@ -174,7 +172,10 @@ def async_to_sync(timeout: int = 60):
         # Can now be called from sync context
         result = my_async_function()
     """
-    def decorator(async_func: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., T]:
+
+    def decorator(
+        async_func: Callable[..., Coroutine[Any, Any, T]],
+    ) -> Callable[..., T]:
         @wraps(async_func)
         def sync_wrapper(*args, **kwargs) -> T:
             coro = async_func(*args, **kwargs)
@@ -231,6 +232,7 @@ class AsyncContextManager:
 
 # Helper functions for common operations
 
+
 def run_async_safe(coro: Coroutine[Any, Any, T], timeout: int = 60) -> T:
     """
     Safely run an async coroutine from any context.
@@ -240,7 +242,7 @@ def run_async_safe(coro: Coroutine[Any, Any, T], timeout: int = 60) -> T:
     """
     try:
         # Check if we're in async context
-        loop = asyncio.get_running_loop()
+        asyncio.get_running_loop()
         # We're in async context, create a task
         return asyncio.create_task(coro)
     except RuntimeError:

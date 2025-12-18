@@ -1,6 +1,7 @@
 """
 Quiz trigger service for monthly quiz initiation within flow system.
 """
+
 import logging
 from typing import Any, Optional
 from datetime import datetime, timedelta
@@ -16,9 +17,19 @@ from app.domain.messaging.delivery import MessageSender
 from app.domain.messaging.core import MessageFactory
 from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
-from app.schemas.quiz import QuizSessionCreate, QuizSessionResponse, QuizTemplateCreate, QuizQuestion, QuestionOption, QuestionType
+from app.schemas.quiz import (
+    QuizSessionCreate,
+    QuizSessionResponse,
+    QuizTemplateCreate,
+    QuizQuestion,
+    QuestionOption,
+    QuestionType,
+)
 from app.exceptions import NotFoundError
-from app.core.monthly_quiz_config import get_monthly_quiz_config, should_use_link_based_quiz
+from app.core.monthly_quiz_config import (
+    get_monthly_quiz_config,
+    should_use_link_based_quiz,
+)
 from app.services.monthly_quiz_message_integration import MonthlyQuizMessageIntegration
 from app.schemas.monthly_quiz import DeliveryMethod
 
@@ -39,7 +50,9 @@ class QuizTriggerService:
         self.message_sender = MessageSender(db)
         self.message_factory = MessageFactory(db)
 
-    async def check_and_trigger_monthly_quizzes(self, limit: int = 50) -> dict[str, Any]:
+    async def check_and_trigger_monthly_quizzes(
+        self, limit: int = 50
+    ) -> dict[str, Any]:
         """
         Check for patients due for monthly quizzes and trigger them.
 
@@ -50,12 +63,13 @@ class QuizTriggerService:
             Processing results
         """
         try:
-            logger.info(f"Checking for patients due for monthly quizzes (limit: {limit})")
+            logger.info(
+                f"Checking for patients due for monthly quizzes (limit: {limit})"
+            )
 
             # Get patients in monthly recurring flow
             monthly_flows = self.flow_repo.get_flows_by_type(
-                flow_type=FlowType.MONTHLY_RECURRING.value,
-                limit=limit
+                flow_type=FlowType.MONTHLY_RECURRING.value, limit=limit
             )
 
             results = {
@@ -63,7 +77,7 @@ class QuizTriggerService:
                 "quizzes_triggered": 0,
                 "already_completed": 0,
                 "errors": [],
-                "triggered_patients": []
+                "triggered_patients": [],
             }
 
             for flow_state in monthly_flows:
@@ -81,26 +95,31 @@ class QuizTriggerService:
 
                         if trigger_result["success"]:
                             results["quizzes_triggered"] += 1
-                            results["triggered_patients"].append({
-                                "patient_id": str(flow_state.patient_id),
-                                "quiz_template": quiz_info["template_name"],
-                                "trigger_reason": quiz_info["trigger_reason"]
-                            })
+                            results["triggered_patients"].append(
+                                {
+                                    "patient_id": str(flow_state.patient_id),
+                                    "quiz_template": quiz_info["template_name"],
+                                    "trigger_reason": quiz_info["trigger_reason"],
+                                }
+                            )
                         else:
-                            results["errors"].append({
-                                "patient_id": str(flow_state.patient_id),
-                                "error": trigger_result["error"]
-                            })
+                            results["errors"].append(
+                                {
+                                    "patient_id": str(flow_state.patient_id),
+                                    "error": trigger_result["error"],
+                                }
+                            )
                     else:
                         if quiz_info.get("already_completed"):
                             results["already_completed"] += 1
 
                 except Exception as e:
-                    logger.error(f"Error checking patient {flow_state.patient_id} for quiz: {e}")
-                    results["errors"].append({
-                        "patient_id": str(flow_state.patient_id),
-                        "error": str(e)
-                    })
+                    logger.error(
+                        f"Error checking patient {flow_state.patient_id} for quiz: {e}"
+                    )
+                    results["errors"].append(
+                        {"patient_id": str(flow_state.patient_id), "error": str(e)}
+                    )
 
             logger.info(f"Monthly quiz check completed: {results}")
             return results
@@ -109,7 +128,9 @@ class QuizTriggerService:
             logger.error(f"Failed to check monthly quizzes: {e}")
             raise
 
-    async def _is_patient_due_for_quiz(self, flow_state: PatientFlowState) -> tuple[bool, dict[str, Any]]:
+    async def _is_patient_due_for_quiz(
+        self, flow_state: PatientFlowState
+    ) -> tuple[bool, dict[str, Any]]:
         """
         Check if patient is due for monthly quiz.
 
@@ -149,7 +170,7 @@ class QuizTriggerService:
             quiz_info = {
                 "monthly_cycle": monthly_cycle,
                 "template_name": f"monthly_checkup_cycle_{monthly_cycle}",
-                "trigger_reason": f"Monthly quiz day {quiz_day} of cycle {monthly_cycle}"
+                "trigger_reason": f"Monthly quiz day {quiz_day} of cycle {monthly_cycle}",
             }
 
             # Check for existing quiz session this month
@@ -157,7 +178,7 @@ class QuizTriggerService:
                 flow_state.patient_id, monthly_cycle
             )
 
-            if existing_session and existing_session.status == 'completed':
+            if existing_session and existing_session.status == "completed":
                 return False, {**quiz_info, "already_completed": True}
 
             return True, quiz_info
@@ -166,9 +187,9 @@ class QuizTriggerService:
             logger.error(f"Error checking quiz due status: {e}")
             return False, {"error": str(e)}
 
-    async def _get_current_month_quiz_session(self,
-                                            patient_id: UUID,
-                                            monthly_cycle: int) -> Optional[QuizSessionResponse]:
+    async def _get_current_month_quiz_session(
+        self, patient_id: UUID, monthly_cycle: int
+    ) -> Optional[QuizSessionResponse]:
         """Get quiz session for current monthly cycle."""
         try:
             # Get active session for patient
@@ -176,16 +197,18 @@ class QuizTriggerService:
 
             if active_session:
                 # Check if it's for current monthly cycle
-                session_metadata = getattr(active_session, 'session_metadata', {}) or {}
-                if session_metadata.get('monthly_cycle') == monthly_cycle:
+                session_metadata = getattr(active_session, "session_metadata", {}) or {}
+                if session_metadata.get("monthly_cycle") == monthly_cycle:
                     return active_session
 
             # Check recent completed sessions
-            sessions, _ = self.quiz_session_service.get_patient_sessions(patient_id, limit=10)
+            sessions, _ = self.quiz_session_service.get_patient_sessions(
+                patient_id, limit=10
+            )
 
             for session in sessions:
-                session_metadata = getattr(session, 'session_metadata', {}) or {}
-                if session_metadata.get('monthly_cycle') == monthly_cycle:
+                session_metadata = getattr(session, "session_metadata", {}) or {}
+                if session_metadata.get("monthly_cycle") == monthly_cycle:
                     return session
 
             return None
@@ -194,9 +217,9 @@ class QuizTriggerService:
             logger.error(f"Error getting current month quiz session: {e}")
             return None
 
-    async def _trigger_patient_quiz(self,
-                                  flow_state: PatientFlowState,
-                                  quiz_info: dict[str, Any]) -> dict[str, Any]:
+    async def _trigger_patient_quiz(
+        self, flow_state: PatientFlowState, quiz_info: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Trigger quiz for a specific patient.
         Detects delivery method (link vs conversational) based on configuration and rollout.
@@ -220,8 +243,10 @@ class QuizTriggerService:
             # Determine if patient should receive link-based quiz
             use_link = should_use_link_based_quiz(str(patient_id))
 
-            logger.info(f"Quiz trigger for patient {patient_id}: use_link={use_link}, "
-                       f"rollout_percentage={config.MONTHLY_QUIZ_LINK_PERCENTAGE}%")
+            logger.info(
+                f"Quiz trigger for patient {patient_id}: use_link={use_link}, "
+                f"rollout_percentage={config.MONTHLY_QUIZ_LINK_PERCENTAGE}%"
+            )
 
             if use_link:
                 # Trigger quiz via link
@@ -229,7 +254,7 @@ class QuizTriggerService:
                     patient_id=patient_id,
                     quiz_template_id=template.id,
                     quiz_info=quiz_info,
-                    flow_state=flow_state
+                    flow_state=flow_state,
                 )
             else:
                 # Trigger quiz via WhatsApp conversational
@@ -237,25 +262,28 @@ class QuizTriggerService:
                     patient_id=patient_id,
                     template=template,
                     quiz_info=quiz_info,
-                    flow_state=flow_state
+                    flow_state=flow_state,
                 )
 
         except Exception as e:
             logger.error(f"Error triggering patient quiz: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
 
-    async def _get_or_create_monthly_template(self, quiz_info: dict[str, Any]) -> QuizTemplate:
+    async def _get_or_create_monthly_template(
+        self, quiz_info: dict[str, Any]
+    ) -> QuizTemplate:
         """Get or create monthly quiz template."""
         try:
             template_name = quiz_info["template_name"]
 
             # Try to get existing template
             try:
-                template_response = self.quiz_template_service.get_template_by_name(template_name)
-                return self.quiz_template_service.template_repository.get(template_response.id)
+                template_response = self.quiz_template_service.get_template_by_name(
+                    template_name
+                )
+                return self.quiz_template_service.template_repository.get(
+                    template_response.id
+                )
             except NotFoundError:
                 pass
 
@@ -270,22 +298,26 @@ class QuizTriggerService:
                         QuestionOption(id="2", text="Mal", value="2"),
                         QuestionOption(id="3", text="Neutro", value="3"),
                         QuestionOption(id="4", text="Bem", value="4"),
-                        QuestionOption(id="5", text="Muito bem", value="5")
+                        QuestionOption(id="5", text="Muito bem", value="5"),
                     ],
-                    is_required=True
+                    is_required=True,
                 ),
                 QuizQuestion(
                     id="energy_levels",
                     text="Como estão seus níveis de energia?",
                     type=QuestionType.MULTIPLE_CHOICE,
                     options=[
-                        QuestionOption(id="very_low", text="Muito baixos", value="very_low"),
+                        QuestionOption(
+                            id="very_low", text="Muito baixos", value="very_low"
+                        ),
                         QuestionOption(id="low", text="Baixos", value="low"),
                         QuestionOption(id="normal", text="Normais", value="normal"),
                         QuestionOption(id="high", text="Altos", value="high"),
-                        QuestionOption(id="very_high", text="Muito altos", value="very_high")
+                        QuestionOption(
+                            id="very_high", text="Muito altos", value="very_high"
+                        ),
                     ],
-                    is_required=True
+                    is_required=True,
                 ),
                 QuizQuestion(
                     id="sleep_quality",
@@ -296,15 +328,15 @@ class QuizTriggerService:
                         QuestionOption(id="2", text="Ruim", value="2"),
                         QuestionOption(id="3", text="Regular", value="3"),
                         QuestionOption(id="4", text="Boa", value="4"),
-                        QuestionOption(id="5", text="Excelente", value="5")
+                        QuestionOption(id="5", text="Excelente", value="5"),
                     ],
-                    is_required=True
+                    is_required=True,
                 ),
                 QuizQuestion(
                     id="side_effects",
                     text="Você tem experimentado algum efeito colateral do tratamento?",
                     type=QuestionType.OPEN_TEXT,
-                    is_required=False
+                    is_required=False,
                 ),
                 QuizQuestion(
                     id="overall_satisfaction",
@@ -315,30 +347,30 @@ class QuizTriggerService:
                         QuestionOption(id="2", text="Insatisfeita", value="2"),
                         QuestionOption(id="3", text="Neutro", value="3"),
                         QuestionOption(id="4", text="Satisfeita", value="4"),
-                        QuestionOption(id="5", text="Muito satisfeita", value="5")
+                        QuestionOption(id="5", text="Muito satisfeita", value="5"),
                     ],
-                    is_required=True
-                )
+                    is_required=True,
+                ),
             ]
 
             template_data = QuizTemplateCreate(
-                name=template_name,
-                version="1.0",
-                questions=questions,
-                is_active=True
+                name=template_name, version="1.0", questions=questions, is_active=True
             )
 
-            template_response = self.quiz_template_service.create_template(template_data)
-            return self.quiz_template_service.template_repository.get(template_response.id)
+            template_response = self.quiz_template_service.create_template(
+                template_data
+            )
+            return self.quiz_template_service.template_repository.get(
+                template_response.id
+            )
 
         except Exception as e:
             logger.error(f"Error getting/creating monthly template: {e}")
             raise
 
-    async def _send_quiz_introduction_message(self,
-                                            patient_id: UUID,
-                                            session: Any,
-                                            template: QuizTemplate):
+    async def _send_quiz_introduction_message(
+        self, patient_id: UUID, session: Any, template: QuizTemplate
+    ):
         """Send introduction message for quiz."""
         try:
             patient = self.patient_repo.get(patient_id)
@@ -352,13 +384,13 @@ class QuizTriggerService:
                 patient_name=patient.name,
                 session_id=str(session.id),
                 first_question=first_question,
-                total_questions=len(template.questions)
+                total_questions=len(template.questions),
             )
 
             # Add additional metadata
             message.message_metadata["flow_context"] = {
                 "flow_type": "quiz",
-                "quiz_template_id": str(template.id)
+                "quiz_template_id": str(template.id),
             }
 
             self.db.commit()
@@ -368,17 +400,21 @@ class QuizTriggerService:
             if success:
                 logger.info(f"Quiz introduction sent to patient {patient_id}")
             else:
-                logger.error(f"Failed to send quiz introduction to patient {patient_id}")
+                logger.error(
+                    f"Failed to send quiz introduction to patient {patient_id}"
+                )
 
         except Exception as e:
             logger.error(f"Error sending quiz introduction: {e}")
             raise
 
-    async def _trigger_quiz_via_link(self,
-                                   patient_id: UUID,
-                                   quiz_template_id: UUID,
-                                   quiz_info: dict[str, Any],
-                                   flow_state: PatientFlowState) -> dict[str, Any]:
+    async def _trigger_quiz_via_link(
+        self,
+        patient_id: UUID,
+        quiz_template_id: UUID,
+        quiz_info: dict[str, Any],
+        flow_state: PatientFlowState,
+    ) -> dict[str, Any]:
         """
         Trigger quiz via secure link delivery.
 
@@ -398,7 +434,9 @@ class QuizTriggerService:
             quiz_integration = MonthlyQuizMessageIntegration(self.db)
 
             # Determine delivery method from patient preferences or default
-            delivery_method = await self._get_patient_preferred_delivery_method(patient_id)
+            delivery_method = await self._get_patient_preferred_delivery_method(
+                patient_id
+            )
 
             # Send quiz link with message
             result = await quiz_integration.send_quiz_link(
@@ -406,7 +444,7 @@ class QuizTriggerService:
                 quiz_template_id=quiz_template_id,
                 delivery_method=delivery_method,
                 expiry_hours=config.MONTHLY_QUIZ_TOKEN_EXPIRY_HOURS,
-                send_immediately=True
+                send_immediately=True,
             )
 
             # Update flow state with link metadata
@@ -418,7 +456,9 @@ class QuizTriggerService:
             flow_state.state_data["quiz_link_token"] = result["token"]
             flow_state.state_data["quiz_link_expires_at"] = result["expires_at"]
             flow_state.state_data["monthly_cycle"] = quiz_info["monthly_cycle"]
-            flow_state.state_data["quiz_link_created_at"] = datetime.utcnow().isoformat()
+            flow_state.state_data["quiz_link_created_at"] = (
+                datetime.utcnow().isoformat()
+            )
             flow_state.state_data["quiz_link_access_count"] = 0
 
             self.db.commit()
@@ -426,10 +466,12 @@ class QuizTriggerService:
             # Schedule automatic reminders
             await self._schedule_link_reminders(
                 quiz_session_id=UUID(result["quiz_session_id"]),
-                expires_at=datetime.fromisoformat(result["expires_at"])
+                expires_at=datetime.fromisoformat(result["expires_at"]),
             )
 
-            logger.info(f"Successfully triggered quiz via link for patient {patient_id}")
+            logger.info(
+                f"Successfully triggered quiz via link for patient {patient_id}"
+            )
 
             return {
                 "success": True,
@@ -440,26 +482,30 @@ class QuizTriggerService:
                 "link_url": result["link_url"],
                 "expires_at": result["expires_at"],
                 "message_sent": result["message_sent"],
-                "monthly_cycle": quiz_info["monthly_cycle"]
+                "monthly_cycle": quiz_info["monthly_cycle"],
             }
 
         except Exception as e:
             logger.error(f"Error triggering quiz via link: {e}")
             # Fallback to WhatsApp conversational if link creation fails
-            logger.warning(f"Attempting fallback to WhatsApp conversational for patient {patient_id}")
+            logger.warning(
+                f"Attempting fallback to WhatsApp conversational for patient {patient_id}"
+            )
             return await self._trigger_quiz_via_whatsapp_with_fallback(
                 patient_id=patient_id,
                 quiz_template_id=quiz_template_id,
                 quiz_info=quiz_info,
                 flow_state=flow_state,
-                error_reason=str(e)
+                error_reason=str(e),
             )
 
-    async def _trigger_quiz_via_whatsapp(self,
-                                       patient_id: UUID,
-                                       template: QuizTemplate,
-                                       quiz_info: dict[str, Any],
-                                       flow_state: PatientFlowState) -> dict[str, Any]:
+    async def _trigger_quiz_via_whatsapp(
+        self,
+        patient_id: UUID,
+        template: QuizTemplate,
+        quiz_info: dict[str, Any],
+        flow_state: PatientFlowState,
+    ) -> dict[str, Any]:
         """
         Trigger quiz via WhatsApp conversational flow (original method).
 
@@ -475,19 +521,18 @@ class QuizTriggerService:
         try:
             # Create quiz session
             session_data = QuizSessionCreate(
-                patient_id=patient_id,
-                quiz_template_id=template.id
+                patient_id=patient_id, quiz_template_id=template.id
             )
 
             session = await self.quiz_session_service.start_quiz_session(session_data)
 
             # Update session metadata with monthly cycle info
-            session_metadata = {
+            {
                 "monthly_cycle": quiz_info["monthly_cycle"],
                 "triggered_by": "flow_system",
                 "trigger_date": datetime.utcnow().isoformat(),
                 "flow_state_id": str(flow_state.id),
-                "delivery_method": "whatsapp_conversational"
+                "delivery_method": "whatsapp_conversational",
             }
 
             # Update flow state to indicate quiz in progress
@@ -503,7 +548,9 @@ class QuizTriggerService:
             # Send initial quiz message
             await self._send_quiz_introduction_message(patient_id, session, template)
 
-            logger.info(f"Successfully triggered quiz via WhatsApp for patient {patient_id}")
+            logger.info(
+                f"Successfully triggered quiz via WhatsApp for patient {patient_id}"
+            )
 
             return {
                 "success": True,
@@ -511,19 +558,16 @@ class QuizTriggerService:
                 "session_id": str(session.id),
                 "template_id": str(template.id),
                 "delivery_method": "whatsapp_conversational",
-                "monthly_cycle": quiz_info["monthly_cycle"]
+                "monthly_cycle": quiz_info["monthly_cycle"],
             }
 
         except Exception as e:
             logger.error(f"Error triggering quiz via WhatsApp: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
 
-    async def _schedule_link_reminders(self,
-                                     quiz_session_id: UUID,
-                                     expires_at: datetime) -> None:
+    async def _schedule_link_reminders(
+        self, quiz_session_id: UUID, expires_at: datetime
+    ) -> None:
         """
         Schedule automatic reminders for quiz link.
 
@@ -533,7 +577,8 @@ class QuizTriggerService:
         """
         try:
             from app.tasks.quiz_flow import send_quiz_link_reminder_task
-            config = get_monthly_quiz_config()
+
+            get_monthly_quiz_config()
 
             # Calculate reminder times based on expiry
             # First reminder: 24h before expiry
@@ -545,26 +590,32 @@ class QuizTriggerService:
             # Schedule reminders using Celery
             if reminder_1_time > datetime.utcnow():
                 task_1 = send_quiz_link_reminder_task.apply_async(
-                    args=[str(quiz_session_id), 24],
-                    eta=reminder_1_time
+                    args=[str(quiz_session_id), 24], eta=reminder_1_time
                 )
-                logger.info(f"Scheduled first reminder for quiz {quiz_session_id} at {reminder_1_time} (task: {task_1.id})")
+                logger.info(
+                    f"Scheduled first reminder for quiz {quiz_session_id} at {reminder_1_time} (task: {task_1.id})"
+                )
 
             if reminder_2_time > datetime.utcnow():
                 task_2 = send_quiz_link_reminder_task.apply_async(
-                    args=[str(quiz_session_id), 6],
-                    eta=reminder_2_time
+                    args=[str(quiz_session_id), 6], eta=reminder_2_time
                 )
-                logger.info(f"Scheduled second reminder for quiz {quiz_session_id} at {reminder_2_time} (task: {task_2.id})")
+                logger.info(
+                    f"Scheduled second reminder for quiz {quiz_session_id} at {reminder_2_time} (task: {task_2.id})"
+                )
 
             # Store reminder schedule in session metadata
             session = self.quiz_session_service.session_repository.get(quiz_session_id)
             if session:
                 session_metadata = session.session_metadata or {}
-                session_metadata['reminders_scheduled'] = {
-                    'first_reminder': reminder_1_time.isoformat() if reminder_1_time > datetime.utcnow() else None,
-                    'second_reminder': reminder_2_time.isoformat() if reminder_2_time > datetime.utcnow() else None,
-                    'scheduled_at': datetime.utcnow().isoformat()
+                session_metadata["reminders_scheduled"] = {
+                    "first_reminder": reminder_1_time.isoformat()
+                    if reminder_1_time > datetime.utcnow()
+                    else None,
+                    "second_reminder": reminder_2_time.isoformat()
+                    if reminder_2_time > datetime.utcnow()
+                    else None,
+                    "scheduled_at": datetime.utcnow().isoformat(),
                 }
                 session.session_metadata = session_metadata
                 self.db.commit()
@@ -572,7 +623,9 @@ class QuizTriggerService:
         except Exception as e:
             logger.error(f"Error scheduling link reminders: {e}")
 
-    async def _get_patient_preferred_delivery_method(self, patient_id: UUID) -> DeliveryMethod:
+    async def _get_patient_preferred_delivery_method(
+        self, patient_id: UUID
+    ) -> DeliveryMethod:
         """
         Get patient's preferred delivery method for quiz links.
 
@@ -585,24 +638,28 @@ class QuizTriggerService:
         try:
             patient = self.patient_repo.get(patient_id)
 
-            if patient and hasattr(patient, 'preferences'):
+            if patient and hasattr(patient, "preferences"):
                 preferences = patient.preferences or {}
-                delivery_pref = preferences.get('quiz_delivery_method', 'whatsapp')
+                delivery_pref = preferences.get("quiz_delivery_method", "whatsapp")
                 return DeliveryMethod(delivery_pref)
 
             # Default to WhatsApp
             return DeliveryMethod.WHATSAPP
 
         except Exception as e:
-            logger.warning(f"Error getting patient delivery preference: {e}, using default")
+            logger.warning(
+                f"Error getting patient delivery preference: {e}, using default"
+            )
             return DeliveryMethod.WHATSAPP
 
-    async def _trigger_quiz_via_whatsapp_with_fallback(self,
-                                                      patient_id: UUID,
-                                                      quiz_template_id: UUID,
-                                                      quiz_info: dict[str, Any],
-                                                      flow_state: PatientFlowState,
-                                                      error_reason: str) -> dict[str, Any]:
+    async def _trigger_quiz_via_whatsapp_with_fallback(
+        self,
+        patient_id: UUID,
+        quiz_template_id: UUID,
+        quiz_info: dict[str, Any],
+        flow_state: PatientFlowState,
+        error_reason: str,
+    ) -> dict[str, Any]:
         """
         Fallback to WhatsApp conversational when link creation fails.
 
@@ -625,7 +682,7 @@ class QuizTriggerService:
                 patient_id=patient_id,
                 template=template,
                 quiz_info=quiz_info,
-                flow_state=flow_state
+                flow_state=flow_state,
             )
 
             # Add fallback metadata
@@ -638,10 +695,14 @@ class QuizTriggerService:
                 flow_state.state_data = flow_state.state_data or {}
                 flow_state.state_data["quiz_fallback_triggered"] = True
                 flow_state.state_data["quiz_fallback_reason"] = error_reason
-                flow_state.state_data["quiz_fallback_at"] = datetime.utcnow().isoformat()
+                flow_state.state_data["quiz_fallback_at"] = (
+                    datetime.utcnow().isoformat()
+                )
                 self.db.commit()
 
-            logger.info(f"Fallback to WhatsApp conversational successful for patient {patient_id}")
+            logger.info(
+                f"Fallback to WhatsApp conversational successful for patient {patient_id}"
+            )
             return result
 
         except Exception as e:
@@ -650,5 +711,5 @@ class QuizTriggerService:
                 "success": False,
                 "error": f"Both link and WhatsApp fallback failed: {str(e)}",
                 "fallback_triggered": True,
-                "fallback_failed": True
+                "fallback_failed": True,
             }

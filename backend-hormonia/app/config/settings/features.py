@@ -85,24 +85,20 @@ class FeaturesSettings(BaseAppSettings):
     # File Storage Configuration - Direct ENV names
     # ============================================================================
     UPLOAD_DIRECTORY: str = Field(
-        default="uploads",
-        description="Upload directory for files"
+        default="uploads", description="Upload directory for files"
     )
     UPLOAD_MAX_SIZE_BYTES: int = Field(
-        default=10 * 1024 * 1024,
-        description="Max file size in bytes (10MB)"
+        default=10 * 1024 * 1024, description="Max file size in bytes (10MB)"
     )
 
     # ============================================================================
     # Data Retention Configuration - Direct ENV names
     # ============================================================================
     RETENTION_DATA_DAYS: int = Field(
-        default=730,
-        description="Data retention period in days (default: 2 years)"
+        default=730, description="Data retention period in days (default: 2 years)"
     )
     RETENTION_AUDIT_LOG_DAYS: int = Field(
-        default=365,
-        description="Audit log retention period in days"
+        default=365, description="Audit log retention period in days"
     )
 
     # ============================================================================
@@ -119,5 +115,5 @@ class FeaturesSettings(BaseAppSettings):
     def validate_quiz_url(cls, v: str) -> str:
         """Validate that quiz URL is present if link mode is enabled."""
         if v is None or (isinstance(v, str) and v.strip() == ""):
-             return "http://localhost:3001"
+            return "http://localhost:3001"
         return v.rstrip("/") if isinstance(v, str) else v

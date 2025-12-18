@@ -6,7 +6,6 @@ Provides storage health checks.
 
 import logging
 import psutil
-from datetime import datetime
 
 from fastapi import APIRouter, Depends
 
@@ -24,9 +23,9 @@ async def check_storage_health() -> StorageHealth:
     try:
         disk = psutil.disk_usage("/")
 
-        total_gb = disk.total / (1024 ** 3)
-        used_gb = disk.used / (1024 ** 3)
-        free_gb = disk.free / (1024 ** 3)
+        total_gb = disk.total / (1024**3)
+        used_gb = disk.used / (1024**3)
+        free_gb = disk.free / (1024**3)
         utilization = disk.percent
 
         storage_status = HealthStatus.HEALTHY
@@ -55,7 +54,7 @@ async def check_storage_health() -> StorageHealth:
 
 @router.get("/storage", response_model=StorageHealth)
 async def storage_health_check(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> StorageHealth:
     """
     Storage health check (Authenticated).

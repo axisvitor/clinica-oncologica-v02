@@ -11,7 +11,7 @@ Usage:
 """
 
 from fastapi import HTTPException
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 import logging
 
 from app.config.i18n import t
@@ -31,7 +31,7 @@ class TranslatableHTTPException(HTTPException):
         status_code: int,
         translation_key: str,
         headers: Optional[Dict[str, str]] = None,
-        **kwargs
+        **kwargs,
     ):
         """
         Initialize translatable exception.
@@ -58,14 +58,15 @@ class TranslatableHTTPException(HTTPException):
 # Patient-related exceptions
 # ===============================
 
+
 class PatientNotFoundException(TranslatableHTTPException):
     """Raised when patient is not found."""
 
     def __init__(self, patient_id: Optional[str] = None):
         super().__init__(
             status_code=404,
-            translation_key='errors.patient.not_found',
-            patient_id=patient_id or ''
+            translation_key="errors.patient.not_found",
+            patient_id=patient_id or "",
         )
 
 
@@ -74,9 +75,7 @@ class DuplicateCPFException(TranslatableHTTPException):
 
     def __init__(self, cpf: str):
         super().__init__(
-            status_code=409,
-            translation_key='errors.patient.duplicate_cpf',
-            cpf=cpf
+            status_code=409, translation_key="errors.patient.duplicate_cpf", cpf=cpf
         )
 
 
@@ -86,8 +85,8 @@ class DuplicateEmailException(TranslatableHTTPException):
     def __init__(self, email: str):
         super().__init__(
             status_code=409,
-            translation_key='errors.patient.duplicate_email',
-            email=email
+            translation_key="errors.patient.duplicate_email",
+            email=email,
         )
 
 
@@ -97,8 +96,8 @@ class DuplicatePhoneException(TranslatableHTTPException):
     def __init__(self, phone: str):
         super().__init__(
             status_code=409,
-            translation_key='errors.patient.duplicate_phone',
-            phone=phone
+            translation_key="errors.patient.duplicate_phone",
+            phone=phone,
         )
 
 
@@ -106,10 +105,7 @@ class InvalidCPFException(TranslatableHTTPException):
     """Raised when CPF format is invalid."""
 
     def __init__(self):
-        super().__init__(
-            status_code=400,
-            translation_key='errors.patient.invalid_cpf'
-        )
+        super().__init__(status_code=400, translation_key="errors.patient.invalid_cpf")
 
 
 class InvalidPhoneException(TranslatableHTTPException):
@@ -117,9 +113,7 @@ class InvalidPhoneException(TranslatableHTTPException):
 
     def __init__(self, phone: str):
         super().__init__(
-            status_code=400,
-            translation_key='errors.patient.invalid_phone',
-            phone=phone
+            status_code=400, translation_key="errors.patient.invalid_phone", phone=phone
         )
 
 
@@ -128,8 +122,7 @@ class PatientAccessDeniedException(TranslatableHTTPException):
 
     def __init__(self):
         super().__init__(
-            status_code=403,
-            translation_key='errors.patient.access_denied'
+            status_code=403, translation_key="errors.patient.access_denied"
         )
 
 
@@ -137,13 +130,13 @@ class PatientAccessDeniedException(TranslatableHTTPException):
 # Authentication exceptions
 # ===============================
 
+
 class InvalidCredentialsException(TranslatableHTTPException):
     """Raised when login credentials are invalid."""
 
     def __init__(self):
         super().__init__(
-            status_code=401,
-            translation_key='errors.auth.invalid_credentials'
+            status_code=401, translation_key="errors.auth.invalid_credentials"
         )
 
 
@@ -151,53 +144,41 @@ class TokenExpiredException(TranslatableHTTPException):
     """Raised when authentication token has expired."""
 
     def __init__(self):
-        super().__init__(
-            status_code=401,
-            translation_key='errors.auth.token_expired'
-        )
+        super().__init__(status_code=401, translation_key="errors.auth.token_expired")
 
 
 class SessionExpiredException(TranslatableHTTPException):
     """Raised when session has expired."""
 
     def __init__(self):
-        super().__init__(
-            status_code=401,
-            translation_key='errors.auth.session_expired'
-        )
+        super().__init__(status_code=401, translation_key="errors.auth.session_expired")
 
 
 class UnauthorizedException(TranslatableHTTPException):
     """Raised when user is not authenticated."""
 
     def __init__(self):
-        super().__init__(
-            status_code=401,
-            translation_key='errors.auth.unauthorized'
-        )
+        super().__init__(status_code=401, translation_key="errors.auth.unauthorized")
 
 
 class ForbiddenException(TranslatableHTTPException):
     """Raised when user doesn't have permission."""
 
     def __init__(self):
-        super().__init__(
-            status_code=403,
-            translation_key='errors.auth.forbidden'
-        )
+        super().__init__(status_code=403, translation_key="errors.auth.forbidden")
 
 
 # ===============================
 # Quiz exceptions
 # ===============================
 
+
 class QuizSessionNotFoundException(TranslatableHTTPException):
     """Raised when quiz session is not found."""
 
     def __init__(self):
         super().__init__(
-            status_code=404,
-            translation_key='errors.quiz.session_not_found'
+            status_code=404, translation_key="errors.quiz.session_not_found"
         )
 
 
@@ -205,10 +186,7 @@ class QuizSessionExpiredException(TranslatableHTTPException):
     """Raised when quiz session has expired."""
 
     def __init__(self):
-        super().__init__(
-            status_code=410,
-            translation_key='errors.quiz.session_expired'
-        )
+        super().__init__(status_code=410, translation_key="errors.quiz.session_expired")
 
 
 class QuizAlreadyCompletedException(TranslatableHTTPException):
@@ -216,8 +194,7 @@ class QuizAlreadyCompletedException(TranslatableHTTPException):
 
     def __init__(self):
         super().__init__(
-            status_code=409,
-            translation_key='errors.quiz.already_completed'
+            status_code=409, translation_key="errors.quiz.already_completed"
         )
 
 
@@ -227,8 +204,8 @@ class InvalidQuizAnswerException(TranslatableHTTPException):
     def __init__(self, question_id: str):
         super().__init__(
             status_code=400,
-            translation_key='errors.quiz.invalid_answer',
-            question_id=question_id
+            translation_key="errors.quiz.invalid_answer",
+            question_id=question_id,
         )
 
 
@@ -236,13 +213,13 @@ class InvalidQuizAnswerException(TranslatableHTTPException):
 # Webhook exceptions
 # ===============================
 
+
 class InvalidWebhookSignatureException(TranslatableHTTPException):
     """Raised when webhook signature is invalid."""
 
     def __init__(self):
         super().__init__(
-            status_code=401,
-            translation_key='errors.webhook.invalid_signature'
+            status_code=401, translation_key="errors.webhook.invalid_signature"
         )
 
 
@@ -252,9 +229,9 @@ class WebhookRateLimitException(TranslatableHTTPException):
     def __init__(self, retry_after: int):
         super().__init__(
             status_code=429,
-            translation_key='errors.webhook.rate_limit_exceeded',
+            translation_key="errors.webhook.rate_limit_exceeded",
             retry_after=retry_after,
-            headers={'Retry-After': str(retry_after)}
+            headers={"Retry-After": str(retry_after)},
         )
 
 
@@ -262,14 +239,15 @@ class WebhookRateLimitException(TranslatableHTTPException):
 # Saga exceptions
 # ===============================
 
+
 class SagaExecutionFailedException(TranslatableHTTPException):
     """Raised when saga execution fails."""
 
     def __init__(self, saga_id: str):
         super().__init__(
             status_code=500,
-            translation_key='errors.saga.execution_failed',
-            saga_id=saga_id
+            translation_key="errors.saga.execution_failed",
+            saga_id=saga_id,
         )
 
 
@@ -279,8 +257,8 @@ class SagaCompensationFailedException(TranslatableHTTPException):
     def __init__(self, step: str):
         super().__init__(
             status_code=500,
-            translation_key='errors.saga.compensation_failed',
-            step=step
+            translation_key="errors.saga.compensation_failed",
+            step=step,
         )
 
 
@@ -289,9 +267,7 @@ class SagaTimeoutException(TranslatableHTTPException):
 
     def __init__(self, timeout: int):
         super().__init__(
-            status_code=408,
-            translation_key='errors.saga.timeout',
-            timeout=timeout
+            status_code=408, translation_key="errors.saga.timeout", timeout=timeout
         )
 
 
@@ -299,14 +275,15 @@ class SagaTimeoutException(TranslatableHTTPException):
 # Flow exceptions
 # ===============================
 
+
 class FlowNotFoundException(TranslatableHTTPException):
     """Raised when flow is not found."""
 
     def __init__(self, patient_id: str):
         super().__init__(
             status_code=404,
-            translation_key='errors.flow.not_found',
-            patient_id=patient_id
+            translation_key="errors.flow.not_found",
+            patient_id=patient_id,
         )
 
 
@@ -315,9 +292,7 @@ class InvalidFlowStateException(TranslatableHTTPException):
 
     def __init__(self, state: str):
         super().__init__(
-            status_code=400,
-            translation_key='errors.flow.invalid_state',
-            state=state
+            status_code=400, translation_key="errors.flow.invalid_state", state=state
         )
 
 
@@ -325,14 +300,15 @@ class InvalidFlowStateException(TranslatableHTTPException):
 # Validation exceptions
 # ===============================
 
+
 class RequiredFieldException(TranslatableHTTPException):
     """Raised when required field is missing."""
 
     def __init__(self, field: str):
         super().__init__(
             status_code=422,
-            translation_key='errors.validation.required_field',
-            field=field
+            translation_key="errors.validation.required_field",
+            field=field,
         )
 
 
@@ -342,8 +318,8 @@ class InvalidFormatException(TranslatableHTTPException):
     def __init__(self, field: str):
         super().__init__(
             status_code=422,
-            translation_key='errors.validation.invalid_format',
-            field=field
+            translation_key="errors.validation.invalid_format",
+            field=field,
         )
 
 
@@ -351,13 +327,13 @@ class InvalidFormatException(TranslatableHTTPException):
 # Server exceptions
 # ===============================
 
+
 class InternalServerErrorException(TranslatableHTTPException):
     """Raised for internal server errors."""
 
     def __init__(self):
         super().__init__(
-            status_code=500,
-            translation_key='errors.server.internal_error'
+            status_code=500, translation_key="errors.server.internal_error"
         )
 
 
@@ -366,8 +342,7 @@ class ServiceUnavailableException(TranslatableHTTPException):
 
     def __init__(self):
         super().__init__(
-            status_code=503,
-            translation_key='errors.server.service_unavailable'
+            status_code=503, translation_key="errors.server.service_unavailable"
         )
 
 
@@ -376,6 +351,5 @@ class DatabaseErrorException(TranslatableHTTPException):
 
     def __init__(self):
         super().__init__(
-            status_code=500,
-            translation_key='errors.server.database_error'
+            status_code=500, translation_key="errors.server.database_error"
         )

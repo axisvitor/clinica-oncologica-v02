@@ -12,7 +12,6 @@ from datetime import datetime
 
 from .types import (
     Alert,
-    AlertRule,
     AlertRuleType,
     AlertSeverity,
     AlertStatus,
@@ -128,9 +127,7 @@ class AlertManager:
                 alert = await self._create_alert_from_evaluation(evaluation, context)
                 triggered_alerts.append(alert)
 
-        logger.info(
-            f"Patient {patient_id}: {len(triggered_alerts)} alerts triggered"
-        )
+        logger.info(f"Patient {patient_id}: {len(triggered_alerts)} alerts triggered")
 
         return triggered_alerts
 
@@ -439,7 +436,6 @@ class AlertManager:
         Returns:
             List of NotificationTarget
         """
-        from uuid import uuid4
 
         targets: List[NotificationTarget] = []
 
@@ -490,7 +486,6 @@ class AlertManager:
         Returns:
             List of user UUIDs
         """
-        from uuid import uuid4
 
         target_user_ids: List[UUID] = []
 
@@ -498,9 +493,7 @@ class AlertManager:
         if "notify_user_ids" in alert.context:
             for uid in alert.context["notify_user_ids"]:
                 try:
-                    target_user_ids.append(
-                        UUID(uid) if isinstance(uid, str) else uid
-                    )
+                    target_user_ids.append(UUID(uid) if isinstance(uid, str) else uid)
                 except (ValueError, TypeError):
                     logger.warning(f"Invalid user ID: {uid}")
 

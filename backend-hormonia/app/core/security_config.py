@@ -4,10 +4,10 @@ Security Configuration Management for Hormonia Backend.
 Centralized configuration for security settings including rate limiting,
 authentication, and role-based access control.
 """
+
 import logging
-from typing import Dict, List, Optional, Any
+from typing import List, Optional
 from pydantic import BaseModel, Field, field_validator
-from datetime import timedelta
 import os
 
 logger = logging.getLogger(__name__)
@@ -16,8 +16,10 @@ logger = logging.getLogger(__name__)
 # SECURITY CONFIGURATION MODELS
 # =============================================================================
 
+
 class RateLimitConfig(BaseModel):
     """Rate limiting configuration."""
+
     enabled: bool = True
     requests_per_minute: int = Field(default=60, ge=1, le=1000)
     requests_per_hour: int = Field(default=1000, ge=1, le=10000)
@@ -31,16 +33,17 @@ class RateLimitConfig(BaseModel):
     # Privileged endpoint limits
     admin_requests_per_minute: int = Field(default=100, ge=1, le=500)
 
-    @field_validator('requests_per_hour')
+    @field_validator("requests_per_hour")
     @classmethod
     def validate_hourly_limit(cls, v, info):
-        if 'requests_per_minute' in info.data and v < info.data['requests_per_minute']:
-            raise ValueError('Hourly limit must be >= minute limit')
+        if "requests_per_minute" in info.data and v < info.data["requests_per_minute"]:
+            raise ValueError("Hourly limit must be >= minute limit")
         return v
 
 
 class AuthenticationConfig(BaseModel):
     """Authentication security configuration."""
+
     require_email_verification: bool = True
     password_min_length: int = Field(default=8, ge=6, le=128)
     password_require_special_chars: bool = True
@@ -62,25 +65,18 @@ class AuthenticationConfig(BaseModel):
 
 class DomainSecurityConfig(BaseModel):
     """Domain-based security configuration."""
+
     # Trusted domains for automatic role assignment
-    trusted_domains: List[str] = [
-        "hormonia.io",
-        "admin.local",
-        "clinica.med.br"
-    ]
+    trusted_domains: List[str] = ["hormonia.io", "admin.local", "clinica.med.br"]
 
     # High-security domains requiring additional verification
-    high_security_domains: List[str] = [
-        "med.br",
-        "saude.gov.br",
-        "crm.org.br"
-    ]
+    high_security_domains: List[str] = ["med.br", "saude.gov.br", "crm.org.br"]
 
     # Blocked domains
     blocked_domains: List[str] = [
         "tempmail.org",
         "10minutemail.com",
-        "guerrillamail.com"
+        "guerrillamail.com",
     ]
 
     # Domain validation patterns
@@ -88,7 +84,7 @@ class DomainSecurityConfig(BaseModel):
         r".*\.med\.br$",
         r".*\.saude\.gov\.br$",
         r".*\.crm\.org\.br$",
-        r".*hospital.*\.com\.br$"
+        r".*hospital.*\.com\.br$",
     ]
 
 
@@ -99,6 +95,7 @@ class APISecurityConfig(BaseModel):
     app/config/settings/security.py with CORS_FRONTEND_URL, CORS_QUIZ_URL,
     and CORS_ALLOWED_ORIGINS environment variables.
     """
+
     # CORS settings (defaults empty - load from environment)
     cors_allow_origins: List[str] = []
     cors_allow_credentials: bool = True
@@ -112,7 +109,7 @@ class APISecurityConfig(BaseModel):
         "X-Requested-With",
         "X-CSRF-Token",
         "Accept",
-        "Origin"
+        "Origin",
     ]
 
     # API key settings
@@ -131,6 +128,7 @@ class APISecurityConfig(BaseModel):
 
 class WhatsAppSecurityConfig(BaseModel):
     """WhatsApp-specific security configuration."""
+
     # Access control
     enable_patient_validation: bool = True
     enable_phone_blocking: bool = True
@@ -156,6 +154,7 @@ class WhatsAppSecurityConfig(BaseModel):
 
 class LoggingSecurityConfig(BaseModel):
     """Security logging configuration."""
+
     # Authentication events
     log_successful_logins: bool = True
     log_failed_logins: bool = True
@@ -188,6 +187,7 @@ class LoggingSecurityConfig(BaseModel):
 
 class SecurityConfig(BaseModel):
     """Master security configuration."""
+
     rate_limiting: RateLimitConfig = RateLimitConfig()
     authentication: AuthenticationConfig = AuthenticationConfig()
     domain_security: DomainSecurityConfig = DomainSecurityConfig()
@@ -206,18 +206,18 @@ class SecurityConfig(BaseModel):
     enable_audit_logging: bool = True
     enable_whatsapp_security_monitoring: bool = True
 
-    @field_validator('environment')
+    @field_validator("environment")
     @classmethod
     def validate_environment(cls, v):
-        allowed_envs = ['development', 'testing', 'staging', 'production']
+        allowed_envs = ["development", "testing", "staging", "production"]
         if v not in allowed_envs:
-            raise ValueError(f'Environment must be one of: {allowed_envs}')
+            raise ValueError(f"Environment must be one of: {allowed_envs}")
         return v
 
-    @field_validator('debug_mode')
+    @field_validator("debug_mode")
     @classmethod
     def validate_debug_mode(cls, v, info):
-        if v and info.data.get('environment') == 'production':
+        if v and info.data.get("environment") == "production":
             logger.warning("Debug mode should not be enabled in production")
         return v
 
@@ -225,6 +225,7 @@ class SecurityConfig(BaseModel):
 # =============================================================================
 # SECURITY CONFIGURATION LOADER
 # =============================================================================
+
 
 class SecurityConfigLoader:
     """Load and validate security configuration from environment."""
@@ -245,11 +246,17 @@ class SecurityConfigLoader:
             # Rate limiting configuration
             rate_limit_config = {}
             if os.getenv("RATE_LIMIT_ENABLED") is not None:
-                rate_limit_config["enabled"] = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
+                rate_limit_config["enabled"] = (
+                    os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
+                )
             if os.getenv("RATE_LIMIT_PER_MINUTE"):
-                rate_limit_config["requests_per_minute"] = int(os.getenv("RATE_LIMIT_PER_MINUTE"))
+                rate_limit_config["requests_per_minute"] = int(
+                    os.getenv("RATE_LIMIT_PER_MINUTE")
+                )
             if os.getenv("AUTH_LOGIN_RATE_LIMIT"):
-                rate_limit_config["auth_login_per_minute"] = int(os.getenv("AUTH_LOGIN_RATE_LIMIT"))
+                rate_limit_config["auth_login_per_minute"] = int(
+                    os.getenv("AUTH_LOGIN_RATE_LIMIT")
+                )
 
             if rate_limit_config:
                 config_dict["rate_limiting"] = rate_limit_config
@@ -257,13 +264,21 @@ class SecurityConfigLoader:
             # Authentication configuration
             auth_config = {}
             if os.getenv("REQUIRE_EMAIL_VERIFICATION") is not None:
-                auth_config["require_email_verification"] = os.getenv("REQUIRE_EMAIL_VERIFICATION", "true").lower() == "true"
+                auth_config["require_email_verification"] = (
+                    os.getenv("REQUIRE_EMAIL_VERIFICATION", "true").lower() == "true"
+                )
             if os.getenv("PASSWORD_MIN_LENGTH"):
-                auth_config["password_min_length"] = int(os.getenv("PASSWORD_MIN_LENGTH"))
+                auth_config["password_min_length"] = int(
+                    os.getenv("PASSWORD_MIN_LENGTH")
+                )
             if os.getenv("SESSION_TIMEOUT_MINUTES"):
-                auth_config["session_timeout_minutes"] = int(os.getenv("SESSION_TIMEOUT_MINUTES"))
+                auth_config["session_timeout_minutes"] = int(
+                    os.getenv("SESSION_TIMEOUT_MINUTES")
+                )
             if os.getenv("MFA_ENABLED") is not None:
-                auth_config["mfa_enabled"] = os.getenv("MFA_ENABLED", "false").lower() == "true"
+                auth_config["mfa_enabled"] = (
+                    os.getenv("MFA_ENABLED", "false").lower() == "true"
+                )
 
             if auth_config:
                 config_dict["authentication"] = auth_config
@@ -271,9 +286,13 @@ class SecurityConfigLoader:
             # Domain security configuration
             domain_config = {}
             if os.getenv("TRUSTED_DOMAINS"):
-                domain_config["trusted_domains"] = os.getenv("TRUSTED_DOMAINS").split(",")
+                domain_config["trusted_domains"] = os.getenv("TRUSTED_DOMAINS").split(
+                    ","
+                )
             if os.getenv("BLOCKED_DOMAINS"):
-                domain_config["blocked_domains"] = os.getenv("BLOCKED_DOMAINS").split(",")
+                domain_config["blocked_domains"] = os.getenv("BLOCKED_DOMAINS").split(
+                    ","
+                )
 
             if domain_config:
                 config_dict["domain_security"] = domain_config
@@ -281,9 +300,13 @@ class SecurityConfigLoader:
             # API security configuration
             api_config = {}
             if os.getenv("CORS_ALLOW_ORIGINS"):
-                api_config["cors_allow_origins"] = os.getenv("CORS_ALLOW_ORIGINS").split(",")
+                api_config["cors_allow_origins"] = os.getenv(
+                    "CORS_ALLOW_ORIGINS"
+                ).split(",")
             if os.getenv("MAX_REQUEST_SIZE_MB"):
-                api_config["max_request_size_mb"] = int(os.getenv("MAX_REQUEST_SIZE_MB"))
+                api_config["max_request_size_mb"] = int(
+                    os.getenv("MAX_REQUEST_SIZE_MB")
+                )
 
             if api_config:
                 config_dict["api_security"] = api_config
@@ -291,31 +314,53 @@ class SecurityConfigLoader:
             # WhatsApp security configuration
             whatsapp_config = {}
             if os.getenv("WHATSAPP_ENABLE_PATIENT_VALIDATION") is not None:
-                whatsapp_config["enable_patient_validation"] = os.getenv("WHATSAPP_ENABLE_PATIENT_VALIDATION", "true").lower() == "true"
+                whatsapp_config["enable_patient_validation"] = (
+                    os.getenv("WHATSAPP_ENABLE_PATIENT_VALIDATION", "true").lower()
+                    == "true"
+                )
             if os.getenv("WHATSAPP_ENABLE_PHONE_BLOCKING") is not None:
-                whatsapp_config["enable_phone_blocking"] = os.getenv("WHATSAPP_ENABLE_PHONE_BLOCKING", "true").lower() == "true"
+                whatsapp_config["enable_phone_blocking"] = (
+                    os.getenv("WHATSAPP_ENABLE_PHONE_BLOCKING", "true").lower()
+                    == "true"
+                )
             if os.getenv("WHATSAPP_MAX_ATTEMPTS_PER_HOUR"):
-                whatsapp_config["max_unauthorized_attempts_per_hour"] = int(os.getenv("WHATSAPP_MAX_ATTEMPTS_PER_HOUR"))
+                whatsapp_config["max_unauthorized_attempts_per_hour"] = int(
+                    os.getenv("WHATSAPP_MAX_ATTEMPTS_PER_HOUR")
+                )
             if os.getenv("WHATSAPP_BLOCK_DURATION_HOURS"):
-                whatsapp_config["block_duration_hours"] = int(os.getenv("WHATSAPP_BLOCK_DURATION_HOURS"))
+                whatsapp_config["block_duration_hours"] = int(
+                    os.getenv("WHATSAPP_BLOCK_DURATION_HOURS")
+                )
             if os.getenv("WHATSAPP_ENABLE_ENHANCED_VALIDATION") is not None:
-                whatsapp_config["enable_enhanced_validation"] = os.getenv("WHATSAPP_ENABLE_ENHANCED_VALIDATION", "true").lower() == "true"
+                whatsapp_config["enable_enhanced_validation"] = (
+                    os.getenv("WHATSAPP_ENABLE_ENHANCED_VALIDATION", "true").lower()
+                    == "true"
+                )
 
             if whatsapp_config:
                 config_dict["whatsapp_security"] = whatsapp_config
 
             # Feature flags
             if os.getenv("ENABLE_AUTO_PROVISIONING") is not None:
-                config_dict["enable_auto_provisioning"] = os.getenv("ENABLE_AUTO_PROVISIONING", "true").lower() == "true"
+                config_dict["enable_auto_provisioning"] = (
+                    os.getenv("ENABLE_AUTO_PROVISIONING", "true").lower() == "true"
+                )
             if os.getenv("ENABLE_AUDIT_LOGGING") is not None:
-                config_dict["enable_audit_logging"] = os.getenv("ENABLE_AUDIT_LOGGING", "true").lower() == "true"
+                config_dict["enable_audit_logging"] = (
+                    os.getenv("ENABLE_AUDIT_LOGGING", "true").lower() == "true"
+                )
             if os.getenv("ENABLE_WHATSAPP_SECURITY_MONITORING") is not None:
-                config_dict["enable_whatsapp_security_monitoring"] = os.getenv("ENABLE_WHATSAPP_SECURITY_MONITORING", "true").lower() == "true"
+                config_dict["enable_whatsapp_security_monitoring"] = (
+                    os.getenv("ENABLE_WHATSAPP_SECURITY_MONITORING", "true").lower()
+                    == "true"
+                )
 
             # Create configuration object
             self._config = SecurityConfig(**config_dict)
 
-            logger.info(f"Security configuration loaded for environment: {self._config.environment}")
+            logger.info(
+                f"Security configuration loaded for environment: {self._config.environment}"
+            )
 
         except Exception as e:
             logger.error(f"Failed to load security configuration: {e}")
@@ -349,7 +394,9 @@ class SecurityConfigLoader:
                 warnings.append("Email verification should be required in production")
 
             if self._config.authentication.password_min_length < 8:
-                warnings.append("Password minimum length should be at least 8 characters")
+                warnings.append(
+                    "Password minimum length should be at least 8 characters"
+                )
 
             if not self._config.logging.log_failed_logins:
                 warnings.append("Failed login logging should be enabled in production")
@@ -366,11 +413,15 @@ class SecurityConfigLoader:
 
         # Check CORS settings
         if "*" in self._config.api_security.cors_allow_origins:
-            warnings.append("CORS allow origins should not include wildcard in production")
+            warnings.append(
+                "CORS allow origins should not include wildcard in production"
+            )
 
         # SECURITY: Check for wildcard headers with credentials
-        if (self._config.api_security.cors_allow_credentials and
-            "*" in self._config.api_security.cors_allow_headers):
+        if (
+            self._config.api_security.cors_allow_credentials
+            and "*" in self._config.api_security.cors_allow_headers
+        ):
             warnings.append(
                 "CRITICAL: CORS wildcard headers with credentials enabled - "
                 "this exposes all request headers to cross-origin requests and "
@@ -429,17 +480,21 @@ ENABLE_WHATSAPP_SECURITY_MONITORING=true
 # Create global configuration loader
 _config_loader = SecurityConfigLoader()
 
+
 def get_security_config() -> SecurityConfig:
     """Get the current security configuration."""
     return _config_loader.config
+
 
 def reload_security_config() -> None:
     """Reload security configuration from environment."""
     _config_loader.reload_config()
 
+
 def validate_security_config() -> List[str]:
     """Validate security configuration and return warnings."""
     return _config_loader.validate_config()
+
 
 # Export the config for direct access
 security_config = get_security_config()

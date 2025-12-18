@@ -6,12 +6,12 @@ Comprehensive retry management with dead letter queue and metrics.
 
 import time
 import asyncio
-from typing import Any, Callable, Optional, List, Dict, Type, Union
+from typing import Any, Callable, Optional, List, Dict
 from dataclasses import dataclass, field
 from enum import Enum
 import logging
 
-from .backoff import ExponentialBackoff, BackoffConfig, create_exponential_backoff
+from .backoff import ExponentialBackoff, BackoffConfig
 from .dead_letter import DeadLetterQueue
 
 logger = logging.getLogger(__name__)
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 class RetryResult(Enum):
     """Retry operation results"""
+
     SUCCESS = "success"
     FAILED = "failed"
     DEAD_LETTER = "dead_letter"
@@ -27,12 +28,13 @@ class RetryResult(Enum):
 @dataclass
 class RetryConfig:
     """Retry configuration"""
-    max_attempts: int = 3                    # Maximum retry attempts
+
+    max_attempts: int = 3  # Maximum retry attempts
     backoff_config: BackoffConfig = field(default_factory=BackoffConfig)
     retryable_exceptions: tuple = (Exception,)  # Exceptions to retry
-    stop_exceptions: tuple = ()              # Exceptions to never retry
-    timeout: Optional[float] = None          # Operation timeout
-    enable_dead_letter: bool = True          # Enable dead letter queue
+    stop_exceptions: tuple = ()  # Exceptions to never retry
+    timeout: Optional[float] = None  # Operation timeout
+    enable_dead_letter: bool = True  # Enable dead letter queue
 
     # Conditional retry
     retry_condition: Optional[Callable] = None  # Custom retry condition
@@ -45,6 +47,7 @@ class RetryConfig:
 @dataclass
 class RetryAttempt:
     """Information about a retry attempt"""
+
     attempt_number: int
     start_time: float
     end_time: Optional[float] = None
@@ -68,6 +71,7 @@ class RetryAttempt:
 @dataclass
 class RetryExecution:
     """Complete retry execution information"""
+
     function_name: str
     start_time: float
     end_time: Optional[float] = None
@@ -106,10 +110,12 @@ class RetryManager:
     - Timeout support
     """
 
-    def __init__(self,
-                 config: RetryConfig,
-                 name: str = "default",
-                 dead_letter_queue: Optional[DeadLetterQueue] = None):
+    def __init__(
+        self,
+        config: RetryConfig,
+        name: str = "default",
+        dead_letter_queue: Optional[DeadLetterQueue] = None,
+    ):
         self.config = config
         self.name = name
         self.backoff = ExponentialBackoff(config.backoff_config)
@@ -127,19 +133,19 @@ class RetryManager:
         self._failed_executions = 0
         self._dead_letter_count = 0
 
-        logger.info(f"Retry manager '{name}' initialized with {config.max_attempts} max attempts")
+        logger.info(
+            f"Retry manager '{name}' initialized with {config.max_attempts} max attempts"
+        )
 
     def execute(self, func: Callable, *args, **kwargs) -> Any:
         """Execute function with retry logic"""
         execution = RetryExecution(
-            function_name=getattr(func, '__name__', str(func)),
-            start_time=time.time()
+            function_name=getattr(func, "__name__", str(func)), start_time=time.time()
         )
 
         for attempt_num in range(self.config.max_attempts):
             attempt = RetryAttempt(
-                attempt_number=attempt_num + 1,
-                start_time=time.time()
+                attempt_number=attempt_num + 1, start_time=time.time()
             )
 
             try:
@@ -162,7 +168,7 @@ class RetryManager:
                 if self.config.log_attempts:
                     logger.log(
                         self.config.log_level,
-                        f"Retry manager '{self.name}' succeeded on attempt {attempt_num + 1}"
+                        f"Retry manager '{self.name}' succeeded on attempt {attempt_num + 1}",
                     )
 
                 return result
@@ -203,7 +209,7 @@ class RetryManager:
                     logger.log(
                         self.config.log_level,
                         f"Retry manager '{self.name}' attempt {attempt_num + 1} failed: "
-                        f"{type(e).__name__}: {str(e)}. Retrying in {delay:.3f}s"
+                        f"{type(e).__name__}: {str(e)}. Retrying in {delay:.3f}s",
                     )
 
                 # Wait before retry
@@ -215,22 +221,19 @@ class RetryManager:
     async def aexecute(self, func: Callable, *args, **kwargs) -> Any:
         """Execute async function with retry logic"""
         execution = RetryExecution(
-            function_name=getattr(func, '__name__', str(func)),
-            start_time=time.time()
+            function_name=getattr(func, "__name__", str(func)), start_time=time.time()
         )
 
         for attempt_num in range(self.config.max_attempts):
             attempt = RetryAttempt(
-                attempt_number=attempt_num + 1,
-                start_time=time.time()
+                attempt_number=attempt_num + 1, start_time=time.time()
             )
 
             try:
                 # Execute with timeout if configured
                 if self.config.timeout:
                     result = await asyncio.wait_for(
-                        func(*args, **kwargs),
-                        timeout=self.config.timeout
+                        func(*args, **kwargs), timeout=self.config.timeout
                     )
                 else:
                     result = await func(*args, **kwargs)
@@ -248,7 +251,7 @@ class RetryManager:
                 if self.config.log_attempts:
                     logger.log(
                         self.config.log_level,
-                        f"Async retry manager '{self.name}' succeeded on attempt {attempt_num + 1}"
+                        f"Async retry manager '{self.name}' succeeded on attempt {attempt_num + 1}",
                     )
 
                 return result
@@ -289,7 +292,7 @@ class RetryManager:
                     logger.log(
                         self.config.log_level,
                         f"Async retry manager '{self.name}' attempt {attempt_num + 1} failed: "
-                        f"{type(e).__name__}: {str(e)}. Retrying in {delay:.3f}s"
+                        f"{type(e).__name__}: {str(e)}. Retrying in {delay:.3f}s",
                     )
 
                 # Wait before retry
@@ -303,7 +306,9 @@ class RetryManager:
         import signal
 
         def timeout_handler(signum, frame):
-            raise TimeoutError(f"Function execution timed out after {self.config.timeout}s")
+            raise TimeoutError(
+                f"Function execution timed out after {self.config.timeout}s"
+            )
 
         # Set timeout alarm
         signal.signal(signal.SIGALRM, timeout_handler)
@@ -333,31 +338,37 @@ class RetryManager:
 
         return True
 
-    def _send_to_dead_letter(self, func: Callable, args: tuple, kwargs: dict, execution: RetryExecution):
+    def _send_to_dead_letter(
+        self, func: Callable, args: tuple, kwargs: dict, execution: RetryExecution
+    ):
         """Send failed execution to dead letter queue"""
         if not self.dead_letter_queue:
             return
 
-        self.dead_letter_queue.add_message({
-            'function_name': execution.function_name,
-            'args': args,
-            'kwargs': kwargs,
-            'execution_info': {
-                'total_attempts': execution.total_attempts,
-                'total_duration': execution.total_duration,
-                'final_exception': str(execution.final_exception),
-                'attempts': [
-                    {
-                        'attempt_number': attempt.attempt_number,
-                        'duration': attempt.duration,
-                        'exception': str(attempt.exception) if attempt.exception else None
-                    }
-                    for attempt in execution.attempts
-                ]
-            },
-            'retry_manager': self.name,
-            'timestamp': execution.start_time
-        })
+        self.dead_letter_queue.add_message(
+            {
+                "function_name": execution.function_name,
+                "args": args,
+                "kwargs": kwargs,
+                "execution_info": {
+                    "total_attempts": execution.total_attempts,
+                    "total_duration": execution.total_duration,
+                    "final_exception": str(execution.final_exception),
+                    "attempts": [
+                        {
+                            "attempt_number": attempt.attempt_number,
+                            "duration": attempt.duration,
+                            "exception": str(attempt.exception)
+                            if attempt.exception
+                            else None,
+                        }
+                        for attempt in execution.attempts
+                    ],
+                },
+                "retry_manager": self.name,
+                "timestamp": execution.start_time,
+            }
+        )
 
         self._dead_letter_count += 1
 
@@ -389,32 +400,31 @@ class RetryManager:
         total_executions = self._successful_executions + self._failed_executions
         success_rate = (
             self._successful_executions / total_executions
-            if total_executions > 0 else 0.0
+            if total_executions > 0
+            else 0.0
         )
 
         avg_attempts = (
-            self._total_attempts / total_executions
-            if total_executions > 0 else 0.0
+            self._total_attempts / total_executions if total_executions > 0 else 0.0
         )
 
         return {
-            'name': self.name,
-            'total_executions': total_executions,
-            'successful_executions': self._successful_executions,
-            'failed_executions': self._failed_executions,
-            'success_rate': success_rate,
-            'total_attempts': self._total_attempts,
-            'average_attempts': avg_attempts,
-            'dead_letter_count': self._dead_letter_count,
-            'config': {
-                'max_attempts': self.config.max_attempts,
-                'timeout': self.config.timeout,
-                'backoff_strategy': self.config.backoff_config.strategy.value
+            "name": self.name,
+            "total_executions": total_executions,
+            "successful_executions": self._successful_executions,
+            "failed_executions": self._failed_executions,
+            "success_rate": success_rate,
+            "total_attempts": self._total_attempts,
+            "average_attempts": avg_attempts,
+            "dead_letter_count": self._dead_letter_count,
+            "config": {
+                "max_attempts": self.config.max_attempts,
+                "timeout": self.config.timeout,
+                "backoff_strategy": self.config.backoff_config.strategy.value,
             },
-            'dead_letter_queue': (
-                self.dead_letter_queue.get_metrics()
-                if self.dead_letter_queue else None
-            )
+            "dead_letter_queue": (
+                self.dead_letter_queue.get_metrics() if self.dead_letter_queue else None
+            ),
         }
 
     def reset_metrics(self):

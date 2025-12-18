@@ -23,6 +23,11 @@
 import type { User as FirebaseUser, UserCredential } from 'firebase/auth'
 import type { FirebaseApp, FirebaseOptions } from 'firebase/app'
 
+// Static imports for modules that are used everywhere anyway
+// This eliminates the Vite warning about mixed dynamic/static imports
+import { getRuntimeConfigSync } from './runtime-config'
+import { createLogger } from './logger'
+
 // Singleton instance holders
 let firebaseAppInstance: FirebaseApp | null = null
 let firebaseAuthInstance: any = null
@@ -37,8 +42,6 @@ async function getFirebaseApp(): Promise<FirebaseApp> {
 
   // Dynamic import - loads Firebase only when needed
   const { initializeApp, getApps } = await import('firebase/app')
-  const { getRuntimeConfigSync } = await import('./runtime-config')
-  const { createLogger } = await import('./logger')
 
   const logger = createLogger('FirebaseLazy')
   const existingApps = getApps()

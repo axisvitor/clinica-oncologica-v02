@@ -6,7 +6,6 @@ Executes business rules for flow operations.
 
 import logging
 from typing import Dict, Any, Optional, Callable, List
-from uuid import UUID
 
 from app.utils.date_helpers import calculate_flow_type_from_day
 
@@ -28,20 +27,16 @@ class FlowRulesEngine:
     def __init__(self):
         """Initialize FlowRulesEngine."""
         self.rules: Dict[str, List[Callable]] = {
-            'flow_start': [],
-            'flow_advance': [],
-            'flow_pause': [],
-            'flow_resume': [],
-            'flow_stop': []
+            "flow_start": [],
+            "flow_advance": [],
+            "flow_pause": [],
+            "flow_resume": [],
+            "flow_stop": [],
         }
 
         logger.info("FlowRulesEngine initialized")
 
-    def register_rule(
-        self,
-        rule_type: str,
-        rule_function: Callable
-    ):
+    def register_rule(self, rule_type: str, rule_function: Callable):
         """
         Register a business rule.
 
@@ -56,9 +51,7 @@ class FlowRulesEngine:
             logger.warning(f"Unknown rule type: {rule_type}")
 
     async def execute_rules(
-        self,
-        rule_type: str,
-        context: Dict[str, Any]
+        self, rule_type: str, context: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
         Execute all rules for a given type.
@@ -80,14 +73,12 @@ class FlowRulesEngine:
                     results.append(result)
             except Exception as e:
                 logger.error(f"Error executing rule: {e}")
-                results.append({'success': False, 'error': str(e)})
+                results.append({"success": False, "error": str(e)})
 
         return results
 
     def determine_flow_type(
-        self,
-        treatment_day: int,
-        patient_metadata: Optional[Dict[str, Any]] = None
+        self, treatment_day: int, patient_metadata: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         Determine flow type based on treatment day and patient metadata.
@@ -105,9 +96,7 @@ class FlowRulesEngine:
         return flow_type
 
     def should_transition_flow_type(
-        self,
-        current_flow_type: str,
-        target_day: int
+        self, current_flow_type: str, target_day: int
     ) -> tuple[bool, Optional[str]]:
         """
         Determine if flow type should transition.
@@ -122,7 +111,9 @@ class FlowRulesEngine:
         new_flow_type = calculate_flow_type_from_day(target_day)
 
         if new_flow_type != current_flow_type:
-            logger.info(f"Flow type transition needed: {current_flow_type} -> {new_flow_type}")
+            logger.info(
+                f"Flow type transition needed: {current_flow_type} -> {new_flow_type}"
+            )
             return True, new_flow_type
 
         return False, None

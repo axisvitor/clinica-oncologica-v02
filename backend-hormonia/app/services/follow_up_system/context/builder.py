@@ -2,6 +2,7 @@
 Patient context builder for AI processing.
 Constructs comprehensive patient context from various data sources.
 """
+
 import logging
 from uuid import UUID
 
@@ -16,7 +17,9 @@ logger = logging.getLogger(__name__)
 class ContextBuilder:
     """Builds patient context for AI processing."""
 
-    def __init__(self, message_repo: MessageRepository, flow_state_repo: FlowStateRepository):
+    def __init__(
+        self, message_repo: MessageRepository, flow_state_repo: FlowStateRepository
+    ):
         """
         Initialize context builder.
 
@@ -40,9 +43,12 @@ class ContextBuilder:
         """
         try:
             # Get recent messages
-            recent_messages = self.message_repo.get_conversation_history(patient_id, limit=5)
+            recent_messages = self.message_repo.get_conversation_history(
+                patient_id, limit=5
+            )
             recent_responses = [
-                msg.content for msg in recent_messages
+                msg.content
+                for msg in recent_messages
                 if msg.direction == MessageDirection.INBOUND and msg.content
             ]
 
@@ -53,12 +59,12 @@ class ContextBuilder:
             return PatientContext(
                 patient_id=str(patient_id),
                 name=patient.name,
-                treatment_type=getattr(patient, 'treatment_type', 'general'),
+                treatment_type=getattr(patient, "treatment_type", "general"),
                 treatment_day=treatment_day,
-                age=getattr(patient, 'age', None),
+                age=getattr(patient, "age", None),
                 recent_responses=recent_responses,
-                medical_history=getattr(patient, 'medical_history', {}),
-                preferences=getattr(patient, 'preferences', {})
+                medical_history=getattr(patient, "medical_history", {}),
+                preferences=getattr(patient, "preferences", {}),
             )
 
         except Exception as e:

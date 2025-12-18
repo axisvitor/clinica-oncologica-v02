@@ -8,11 +8,11 @@ This service provides high-performance Redis storage for metrics data with:
 - Real-time metric updates
 - Memory-optimized storage patterns
 """
+
 import json
 import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Union
-from uuid import UUID
 import redis.asyncio as redis
 import logging
 from dataclasses import dataclass, asdict
@@ -25,15 +25,17 @@ logger = logging.getLogger(__name__)
 
 class MetricType(str, Enum):
     """Metric data types for optimized storage."""
-    GAUGE = "gauge"          # Single value at point in time
-    COUNTER = "counter"      # Monotonically increasing value
+
+    GAUGE = "gauge"  # Single value at point in time
+    COUNTER = "counter"  # Monotonically increasing value
     HISTOGRAM = "histogram"  # Distribution of values
-    TIMER = "timer"         # Duration measurements
+    TIMER = "timer"  # Duration measurements
 
 
 @dataclass
 class MetricPoint:
     """Individual metric data point."""
+
     timestamp: int
     value: Union[float, int]
     tags: Dict[str, str] = None
@@ -64,48 +66,144 @@ class MetricsRedisStorage:
         # Storage configuration
         self.retention_policies = {
             # Raw data retention periods
-            "raw": timedelta(hours=24),           # 24 hours of raw data
-            "hourly": timedelta(days=7),          # 7 days of hourly aggregates
-            "daily": timedelta(days=90),          # 90 days of daily aggregates
-            "monthly": timedelta(days=365),       # 1 year of monthly aggregates
+            "raw": timedelta(hours=24),  # 24 hours of raw data
+            "hourly": timedelta(days=7),  # 7 days of hourly aggregates
+            "daily": timedelta(days=90),  # 90 days of daily aggregates
+            "monthly": timedelta(days=365),  # 1 year of monthly aggregates
         }
 
         # Metric-specific configurations
         self.metric_configs = {
             # Healthcare KPIs
-            "engagement_rate": {"type": MetricType.GAUGE, "unit": "percent", "retention": "monthly"},
-            "quiz_completion_rate": {"type": MetricType.GAUGE, "unit": "percent", "retention": "monthly"},
-            "ai_personalization_impact": {"type": MetricType.GAUGE, "unit": "percent", "retention": "monthly"},
-            "active_patients": {"type": MetricType.GAUGE, "unit": "count", "retention": "daily"},
-            "daily_messages": {"type": MetricType.COUNTER, "unit": "count", "retention": "daily"},
-
+            "engagement_rate": {
+                "type": MetricType.GAUGE,
+                "unit": "percent",
+                "retention": "monthly",
+            },
+            "quiz_completion_rate": {
+                "type": MetricType.GAUGE,
+                "unit": "percent",
+                "retention": "monthly",
+            },
+            "ai_personalization_impact": {
+                "type": MetricType.GAUGE,
+                "unit": "percent",
+                "retention": "monthly",
+            },
+            "active_patients": {
+                "type": MetricType.GAUGE,
+                "unit": "count",
+                "retention": "daily",
+            },
+            "daily_messages": {
+                "type": MetricType.COUNTER,
+                "unit": "count",
+                "retention": "daily",
+            },
             # Patient engagement metrics
-            "patient_responses": {"type": MetricType.COUNTER, "unit": "count", "retention": "daily"},
-            "avg_response_time": {"type": MetricType.TIMER, "unit": "hours", "retention": "daily"},
-            "daily_active_users": {"type": MetricType.GAUGE, "unit": "count", "retention": "daily"},
-            "weekly_active_users": {"type": MetricType.GAUGE, "unit": "count", "retention": "daily"},
-            "monthly_active_users": {"type": MetricType.GAUGE, "unit": "count", "retention": "daily"},
-
+            "patient_responses": {
+                "type": MetricType.COUNTER,
+                "unit": "count",
+                "retention": "daily",
+            },
+            "avg_response_time": {
+                "type": MetricType.TIMER,
+                "unit": "hours",
+                "retention": "daily",
+            },
+            "daily_active_users": {
+                "type": MetricType.GAUGE,
+                "unit": "count",
+                "retention": "daily",
+            },
+            "weekly_active_users": {
+                "type": MetricType.GAUGE,
+                "unit": "count",
+                "retention": "daily",
+            },
+            "monthly_active_users": {
+                "type": MetricType.GAUGE,
+                "unit": "count",
+                "retention": "daily",
+            },
             # Quiz metrics
-            "quiz_sessions_started": {"type": MetricType.COUNTER, "unit": "count", "retention": "daily"},
-            "quiz_sessions_completed": {"type": MetricType.COUNTER, "unit": "count", "retention": "daily"},
-            "quiz_completion_time": {"type": MetricType.TIMER, "unit": "minutes", "retention": "daily"},
-
+            "quiz_sessions_started": {
+                "type": MetricType.COUNTER,
+                "unit": "count",
+                "retention": "daily",
+            },
+            "quiz_sessions_completed": {
+                "type": MetricType.COUNTER,
+                "unit": "count",
+                "retention": "daily",
+            },
+            "quiz_completion_time": {
+                "type": MetricType.TIMER,
+                "unit": "minutes",
+                "retention": "daily",
+            },
             # AI metrics
-            "ai_messages_processed": {"type": MetricType.COUNTER, "unit": "count", "retention": "daily"},
-            "ai_personalization_rate": {"type": MetricType.GAUGE, "unit": "percent", "retention": "daily"},
-            "ai_safety_interventions": {"type": MetricType.COUNTER, "unit": "count", "retention": "daily"},
-            "ai_fallback_rate": {"type": MetricType.GAUGE, "unit": "percent", "retention": "daily"},
-            "ai_quality_score": {"type": MetricType.GAUGE, "unit": "score", "retention": "daily"},
-
+            "ai_messages_processed": {
+                "type": MetricType.COUNTER,
+                "unit": "count",
+                "retention": "daily",
+            },
+            "ai_personalization_rate": {
+                "type": MetricType.GAUGE,
+                "unit": "percent",
+                "retention": "daily",
+            },
+            "ai_safety_interventions": {
+                "type": MetricType.COUNTER,
+                "unit": "count",
+                "retention": "daily",
+            },
+            "ai_fallback_rate": {
+                "type": MetricType.GAUGE,
+                "unit": "percent",
+                "retention": "daily",
+            },
+            "ai_quality_score": {
+                "type": MetricType.GAUGE,
+                "unit": "score",
+                "retention": "daily",
+            },
             # System metrics
-            "cpu_usage": {"type": MetricType.GAUGE, "unit": "percent", "retention": "hourly"},
-            "memory_usage": {"type": MetricType.GAUGE, "unit": "percent", "retention": "hourly"},
-            "disk_usage": {"type": MetricType.GAUGE, "unit": "percent", "retention": "hourly"},
-            "response_time": {"type": MetricType.TIMER, "unit": "milliseconds", "retention": "hourly"},
-            "error_rate": {"type": MetricType.GAUGE, "unit": "percent", "retention": "hourly"},
-            "throughput": {"type": MetricType.GAUGE, "unit": "rps", "retention": "hourly"},
-            "active_connections": {"type": MetricType.GAUGE, "unit": "count", "retention": "hourly"},
+            "cpu_usage": {
+                "type": MetricType.GAUGE,
+                "unit": "percent",
+                "retention": "hourly",
+            },
+            "memory_usage": {
+                "type": MetricType.GAUGE,
+                "unit": "percent",
+                "retention": "hourly",
+            },
+            "disk_usage": {
+                "type": MetricType.GAUGE,
+                "unit": "percent",
+                "retention": "hourly",
+            },
+            "response_time": {
+                "type": MetricType.TIMER,
+                "unit": "milliseconds",
+                "retention": "hourly",
+            },
+            "error_rate": {
+                "type": MetricType.GAUGE,
+                "unit": "percent",
+                "retention": "hourly",
+            },
+            "throughput": {
+                "type": MetricType.GAUGE,
+                "unit": "rps",
+                "retention": "hourly",
+            },
+            "active_connections": {
+                "type": MetricType.GAUGE,
+                "unit": "count",
+                "retention": "hourly",
+            },
         }
 
     async def _get_redis_client(self) -> redis.Redis:
@@ -114,6 +212,7 @@ class MetricsRedisStorage:
             try:
                 # Use unified Redis client
                 from app.core.redis_unified import get_async_redis
+
                 self.redis_client = await get_async_redis()
                 logger.info("MetricsRedisStorage connected to Redis via unified client")
             except Exception as e:
@@ -128,12 +227,19 @@ class MetricsRedisStorage:
                     retry_on_error=[redis.ConnectionError, redis.TimeoutError],
                     socket_keepalive=True,
                     socket_keepalive_options={},
-                    health_check_interval=30
+                    health_check_interval=30,
                 )
-                logger.warning("MetricsRedisStorage using direct Redis connection as fallback")
+                logger.warning(
+                    "MetricsRedisStorage using direct Redis connection as fallback"
+                )
         return self.redis_client
 
-    def _get_metric_key(self, metric_name: str, granularity: str = "raw", timestamp: Optional[int] = None) -> str:
+    def _get_metric_key(
+        self,
+        metric_name: str,
+        granularity: str = "raw",
+        timestamp: Optional[int] = None,
+    ) -> str:
         """Generate Redis key for metric storage."""
         if timestamp is None:
             timestamp = int(time.time())
@@ -162,7 +268,7 @@ class MetricsRedisStorage:
         value: Union[float, int],
         timestamp: Optional[int] = None,
         tags: Optional[Dict[str, str]] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
         Record a single metric point.
@@ -188,7 +294,7 @@ class MetricsRedisStorage:
                 timestamp=timestamp,
                 value=value,
                 tags=tags or {},
-                metadata=metadata or {}
+                metadata=metadata or {},
             )
 
             # Store raw data point
@@ -211,7 +317,7 @@ class MetricsRedisStorage:
             metric_info = {
                 "last_updated": timestamp,
                 "latest_value": value,
-                **self.metric_configs.get(metric_name, {})
+                **self.metric_configs.get(metric_name, {}),
             }
             await redis_client.hset(catalog_key, metric_name, json.dumps(metric_info))
 
@@ -255,17 +361,16 @@ class MetricsRedisStorage:
 
                 # Create metric point
                 point = MetricPoint(
-                    timestamp=timestamp,
-                    value=value,
-                    tags=tags,
-                    metadata=metadata
+                    timestamp=timestamp, value=value, tags=tags, metadata=metadata
                 )
 
                 # Add to pipeline
                 raw_key = self._get_metric_key(metric_name, "raw", timestamp)
                 point_data = json.dumps(asdict(point))
                 pipe.zadd(raw_key, {point_data: timestamp})
-                pipe.expire(raw_key, int(self.retention_policies["raw"].total_seconds()))
+                pipe.expire(
+                    raw_key, int(self.retention_policies["raw"].total_seconds())
+                )
 
                 # Update current value
                 current_key = f"{self.key_prefix}current:{metric_name}"
@@ -293,11 +398,7 @@ class MetricsRedisStorage:
             return None
 
     async def get_metric_history(
-        self,
-        metric_name: str,
-        start_time: int,
-        end_time: int,
-        granularity: str = "raw"
+        self, metric_name: str, start_time: int, end_time: int, granularity: str = "raw"
     ) -> List[MetricPoint]:
         """
         Get historical metric data for a time range.
@@ -339,7 +440,9 @@ class MetricsRedisStorage:
                     current_time = hour_bucket + 3600
             else:
                 # For aggregated data, use single key per time unit
-                aggregated_key = self._get_metric_key(metric_name, granularity, start_time)
+                aggregated_key = self._get_metric_key(
+                    metric_name, granularity, start_time
+                )
                 points_data = await redis_client.zrangebyscore(
                     aggregated_key, start_time, end_time, withscores=False
                 )
@@ -362,7 +465,7 @@ class MetricsRedisStorage:
         metric_names: List[str],
         start_time: int,
         end_time: int,
-        aggregation: str = "avg"
+        aggregation: str = "avg",
     ) -> Dict[str, float]:
         """
         Get aggregated values for multiple metrics.
@@ -380,7 +483,9 @@ class MetricsRedisStorage:
 
         for metric_name in metric_names:
             try:
-                history = await self.get_metric_history(metric_name, start_time, end_time)
+                history = await self.get_metric_history(
+                    metric_name, start_time, end_time
+                )
                 if not history:
                     results[metric_name] = 0.0
                     continue
@@ -474,8 +579,8 @@ class MetricsRedisStorage:
                     "count": len(values),
                     "min": min(values),
                     "max": max(values),
-                    "sum": sum(values)
-                }
+                    "sum": sum(values),
+                },
             )
 
             # Store aggregated data
@@ -494,7 +599,7 @@ class MetricsRedisStorage:
         """Clean up expired metric data (should be run periodically)."""
         try:
             redis_client = await self._get_redis_client()
-            current_time = int(time.time())
+            int(time.time())
 
             # Get all metric keys
             all_keys = await redis_client.keys(f"{self.key_prefix}*")
@@ -506,13 +611,24 @@ class MetricsRedisStorage:
                     if ttl == -1:  # No expiry set
                         # Set appropriate expiry based on key type
                         if ":raw:" in key:
-                            await redis_client.expire(key, int(self.retention_policies["raw"].total_seconds()))
+                            await redis_client.expire(
+                                key, int(self.retention_policies["raw"].total_seconds())
+                            )
                         elif ":hourly:" in key:
-                            await redis_client.expire(key, int(self.retention_policies["hourly"].total_seconds()))
+                            await redis_client.expire(
+                                key,
+                                int(self.retention_policies["hourly"].total_seconds()),
+                            )
                         elif ":daily:" in key:
-                            await redis_client.expire(key, int(self.retention_policies["daily"].total_seconds()))
+                            await redis_client.expire(
+                                key,
+                                int(self.retention_policies["daily"].total_seconds()),
+                            )
                         elif ":monthly:" in key:
-                            await redis_client.expire(key, int(self.retention_policies["monthly"].total_seconds()))
+                            await redis_client.expire(
+                                key,
+                                int(self.retention_policies["monthly"].total_seconds()),
+                            )
 
                 except Exception as e:
                     logger.error(f"Error cleaning up key {key}: {e}")
@@ -542,7 +658,9 @@ class MetricsRedisStorage:
                 "memory_used_human": memory_info.get("used_memory_human", "0B"),
                 "key_counts": key_counts,
                 "total_keys": sum(key_counts.values()),
-                "retention_policies": {k: v.total_seconds() for k, v in self.retention_policies.items()},
+                "retention_policies": {
+                    k: v.total_seconds() for k, v in self.retention_policies.items()
+                },
             }
 
         except Exception as e:

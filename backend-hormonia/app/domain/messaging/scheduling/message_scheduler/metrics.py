@@ -1,6 +1,7 @@
 """
 Message delivery metrics and monitoring.
 """
+
 import logging
 from typing import Dict, Any, List
 from datetime import datetime, timedelta
@@ -20,9 +21,9 @@ class MetricsCollector:
         self.db = db
 
     @with_db_retry(max_retries=3)
-    async def get_scheduled_messages(self,
-                                   patient_id: UUID = None,
-                                   limit: int = 50) -> List[Dict[str, Any]]:
+    async def get_scheduled_messages(
+        self, patient_id: UUID = None, limit: int = 50
+    ) -> List[Dict[str, Any]]:
         """
         Get scheduled messages with optional patient filter.
 
@@ -48,16 +49,18 @@ class MetricsCollector:
                 task_id = message.message_metadata.get("celery_task_id")
                 task_status = await self._get_task_status(task_id) if task_id else None
 
-                result.append({
-                    "message_id": str(message.id),
-                    "patient_id": str(message.patient_id),
-                    "content": message.content,
-                    "scheduled_for": message.scheduled_for.isoformat(),
-                    "created_at": message.created_at.isoformat(),
-                    "task_id": task_id,
-                    "task_status": task_status,
-                    "metadata": message.message_metadata
-                })
+                result.append(
+                    {
+                        "message_id": str(message.id),
+                        "patient_id": str(message.patient_id),
+                        "content": message.content,
+                        "scheduled_for": message.scheduled_for.isoformat(),
+                        "created_at": message.created_at.isoformat(),
+                        "task_id": task_id,
+                        "task_status": task_status,
+                        "metadata": message.message_metadata,
+                    }
+                )
 
             return result
 
@@ -66,9 +69,9 @@ class MetricsCollector:
             return []
 
     @with_db_retry(max_retries=3)
-    async def get_delivery_metrics(self,
-                                 patient_id: UUID = None,
-                                 days_back: int = 7) -> Dict[str, Any]:
+    async def get_delivery_metrics(
+        self, patient_id: UUID = None, days_back: int = 7
+    ) -> Dict[str, Any]:
         """
         Get message delivery metrics.
 
@@ -82,9 +85,7 @@ class MetricsCollector:
         try:
             cutoff_date = datetime.utcnow() - timedelta(days=days_back)
 
-            query = self.db.query(Message).filter(
-                Message.created_at >= cutoff_date
-            )
+            query = self.db.query(Message).filter(Message.created_at >= cutoff_date)
 
             if patient_id:
                 query = query.filter(Message.patient_id == patient_id)
@@ -98,7 +99,7 @@ class MetricsCollector:
                     "success_rate": 0.0,
                     "read_rate": 0.0,
                     "avg_delivery_time": None,
-                    "period_days": days_back
+                    "period_days": days_back,
                 }
 
             # Calculate metrics
@@ -111,27 +112,33 @@ class MetricsCollector:
                 status_counts[status] = status_counts.get(status, 0) + 1
 
                 if message.sent_at and message.delivered_at:
-                    delivery_time = (message.delivered_at - message.sent_at).total_seconds()
+                    delivery_time = (
+                        message.delivered_at - message.sent_at
+                    ).total_seconds()
                     delivery_times.append(delivery_time)
 
             successful_messages = sum(
-                status_counts.get(status, 0)
-                for status in ["sent", "delivered", "read"]
+                status_counts.get(status, 0) for status in ["sent", "delivered", "read"]
             )
             delivered_messages = sum(
-                status_counts.get(status, 0)
-                for status in ["delivered", "read"]
+                status_counts.get(status, 0) for status in ["delivered", "read"]
             )
             read_messages = status_counts.get("read", 0)
 
             return {
                 "total_messages": total_messages,
                 "status_distribution": status_counts,
-                "success_rate": (successful_messages / total_messages) * 100 if total_messages > 0 else 0,
-                "read_rate": (read_messages / delivered_messages) * 100 if delivered_messages > 0 else 0,
-                "avg_delivery_time": sum(delivery_times) / len(delivery_times) if delivery_times else None,
+                "success_rate": (successful_messages / total_messages) * 100
+                if total_messages > 0
+                else 0,
+                "read_rate": (read_messages / delivered_messages) * 100
+                if delivered_messages > 0
+                else 0,
+                "avg_delivery_time": sum(delivery_times) / len(delivery_times)
+                if delivery_times
+                else None,
                 "period_days": days_back,
-                "analysis_date": datetime.utcnow().isoformat()
+                "analysis_date": datetime.utcnow().isoformat(),
             }
 
         except Exception as e:
@@ -158,13 +165,9 @@ class MetricsCollector:
                 "status": result.status,
                 "result": result.result if result.ready() else None,
                 "traceback": result.traceback if result.failed() else None,
-                "date_done": result.date_done
+                "date_done": result.date_done,
             }
 
         except Exception as e:
             logger.error(f"Failed to get task status for {task_id}: {e}")
-            return {
-                "task_id": task_id,
-                "status": "UNKNOWN",
-                "error": str(e)
-            }
+            return {"task_id": task_id, "status": "UNKNOWN", "error": str(e)}

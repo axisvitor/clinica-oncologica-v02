@@ -18,7 +18,7 @@ from fastapi import Depends, HTTPException, status, Request
 from typing import Union
 
 from app.database import get_db
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.models.audit_log import AuditLog
 from app.schemas.v2.debug import DebugSeverity
 from app.dependencies.auth_dependencies import get_current_active_admin
@@ -30,14 +30,28 @@ DEBUG_ENDPOINTS_ENABLED = os.getenv("ENABLE_DEBUG_ENDPOINTS", "false").lower() =
 
 # Safe environment variables (whitelist only)
 SAFE_ENV_VARS = {
-    "ENVIRONMENT", "DEBUG", "PYTHON_VERSION", "PYTHONPATH",
-    "TZ", "LANG", "LC_ALL", "PORT", "HOST",
+    "ENVIRONMENT",
+    "DEBUG",
+    "PYTHON_VERSION",
+    "PYTHONPATH",
+    "TZ",
+    "LANG",
+    "LC_ALL",
+    "PORT",
+    "HOST",
     # Database (masked values)
-    "DATABASE_URL", "DB_HOST", "DB_PORT", "DB_NAME",
+    "DATABASE_URL",
+    "DB_HOST",
+    "DB_PORT",
+    "DB_NAME",
     # Redis (masked values)
-    "REDIS_URL", "REDIS_HOST", "REDIS_PORT",
+    "REDIS_URL",
+    "REDIS_HOST",
+    "REDIS_PORT",
     # App config
-    "API_VERSION", "APP_NAME", "LOG_LEVEL",
+    "API_VERSION",
+    "APP_NAME",
+    "LOG_LEVEL",
 }
 
 # Sensitive claims to mask in tokens
@@ -48,18 +62,15 @@ SENSITIVE_CLAIMS = {"password", "secret", "token", "key", "private"}
 # Helper Functions
 # ============================================================================
 
+
 def check_debug_enabled():
     """Check if debug endpoints are enabled, raise 404 if not."""
     if not DEBUG_ENDPOINTS_ENABLED:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
 
 
 async def get_admin_user(
-    admin_data: Dict[str, Any] = Depends(get_current_active_admin),
-    db = Depends(get_db)
+    admin_data: Dict[str, Any] = Depends(get_current_active_admin), db=Depends(get_db)
 ) -> Union[User, Dict[str, Any]]:
     """
     Verify ADMIN-ONLY access using session-based authentication.
@@ -95,7 +106,7 @@ async def log_debug_operation(
     parameters: Dict[str, Any],
     result_summary: str,
     request: Request,
-    severity: DebugSeverity = DebugSeverity.INFO
+    severity: DebugSeverity = DebugSeverity.INFO,
 ):
     """
     Log debug operation to audit trail.
@@ -132,7 +143,7 @@ async def log_debug_operation(
             },
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent"),
-            created_at=datetime.utcnow()
+            created_at=datetime.utcnow(),
         )
         db.add(audit_log)
         db.commit()
@@ -157,8 +168,15 @@ def mask_sensitive_value(key: str, value: str) -> tuple[str, bool]:
         Tuple of (masked_value, is_masked)
     """
     sensitive_keywords = {
-        "password", "secret", "key", "token", "credential",
-        "private", "api_key", "auth", "jwt"
+        "password",
+        "secret",
+        "key",
+        "token",
+        "credential",
+        "private",
+        "api_key",
+        "auth",
+        "jwt",
     }
 
     key_lower = key.lower()

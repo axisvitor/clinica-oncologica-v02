@@ -1,4 +1,5 @@
 """Fast 404 middleware for patient resources."""
+
 import logging
 import re
 import time

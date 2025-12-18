@@ -2,6 +2,7 @@
 Template Management Module.
 Handles template loading, fallback generation, and template error handling.
 """
+
 import logging
 from typing import Optional
 from sqlalchemy.orm import Session
@@ -12,7 +13,7 @@ from app.services.template_loader import (
     MessageTemplate,
     TemplateLoadError,
     FlowTemplateData,
-    MessageType as TemplateMessageType
+    MessageType as TemplateMessageType,
 )
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,9 @@ logger = logging.getLogger(__name__)
 class MessageTemplateLoader:
     """Manages template loading and fallback generation for flow messages."""
 
-    def __init__(self, db: Session, template_loader: Optional[EnhancedTemplateLoader] = None):
+    def __init__(
+        self, db: Session, template_loader: Optional[EnhancedTemplateLoader] = None
+    ):
         """
         Initialize template manager.
 
@@ -32,9 +35,9 @@ class MessageTemplateLoader:
         self.db = db
         self.template_loader = template_loader or EnhancedTemplateLoader(db=db)
 
-    async def get_message_template_for_day(self,
-                                          flow_type: FlowType,
-                                          day: int) -> Optional[MessageTemplate]:
+    async def get_message_template_for_day(
+        self, flow_type: FlowType, day: int
+    ) -> Optional[MessageTemplate]:
         """
         Get message template for specific flow type and day with comprehensive error handling.
 
@@ -58,7 +61,9 @@ class MessageTemplateLoader:
         try:
             # Load flow template with proper error handling
             try:
-                flow_template: FlowTemplateData = self.template_loader.load_flow_template(flow_type.value)
+                flow_template: FlowTemplateData = (
+                    self.template_loader.load_flow_template(flow_type.value)
+                )
             except TemplateLoadError as e:
                 logger.error(
                     f"Template load error for {flow_type.value}: {e}. "
@@ -75,7 +80,7 @@ class MessageTemplateLoader:
                 logger.error(
                     f"Unexpected error loading template {flow_type.value}: {e}. "
                     f"Using fallback message.",
-                    exc_info=True
+                    exc_info=True,
                 )
                 return await self.get_fallback_template(flow_type, day)
 
@@ -95,39 +100,41 @@ class MessageTemplateLoader:
             logger.error(
                 f"Critical error getting message template for {flow_type.value} day {day}: {e}. "
                 f"Using fallback message.",
-                exc_info=True
+                exc_info=True,
             )
             return await self.get_fallback_template(flow_type, day)
 
-    async def get_fallback_template(self, flow_type: FlowType, day: int) -> Optional[MessageTemplate]:
+    async def get_fallback_template(
+        self, flow_type: FlowType, day: int
+    ) -> Optional[MessageTemplate]:
         """Provide fallback template when primary template loading fails."""
         try:
             # Create a simple fallback message template in Portuguese
             fallback_messages = {
                 FlowType.INITIAL_15_DAYS: {
-                    'content': "Olá! Como você está se sentindo hoje?",
-                    'intent': 'daily_check_initial',
-                    'ai_instructions': 'Generate a warm, caring message asking about patient well-being'
+                    "content": "Olá! Como você está se sentindo hoje?",
+                    "intent": "daily_check_initial",
+                    "ai_instructions": "Generate a warm, caring message asking about patient well-being",
                 },
                 FlowType.DAYS_16_45: {
-                    'content': "Esperamos que você esteja bem. Como está seu tratamento?",
-                    'intent': 'treatment_followup',
-                    'ai_instructions': 'Generate an empathetic message about treatment progress'
+                    "content": "Esperamos que você esteja bem. Como está seu tratamento?",
+                    "intent": "treatment_followup",
+                    "ai_instructions": "Generate an empathetic message about treatment progress",
                 },
                 FlowType.MONTHLY_RECURRING: {
-                    'content': "Olá! É hora de fazer seu check-in mensal.",
-                    'intent': 'monthly_checkin',
-                    'ai_instructions': 'Generate a friendly monthly check-in message'
-                }
+                    "content": "Olá! É hora de fazer seu check-in mensal.",
+                    "intent": "monthly_checkin",
+                    "ai_instructions": "Generate a friendly monthly check-in message",
+                },
             }
 
             fallback_data = fallback_messages.get(
                 flow_type,
                 {
-                    'content': "Olá! Como podemos ajudá-lo hoje?",
-                    'intent': 'general_checkin',
-                    'ai_instructions': 'Generate a supportive, caring message'
-                }
+                    "content": "Olá! Como podemos ajudá-lo hoje?",
+                    "intent": "general_checkin",
+                    "ai_instructions": "Generate a supportive, caring message",
+                },
             )
 
             logger.warning(
@@ -137,19 +144,23 @@ class MessageTemplateLoader:
 
             return MessageTemplate(
                 day=day,
-                intent=fallback_data['intent'],
-                base_content=fallback_data['content'],
+                intent=fallback_data["intent"],
+                base_content=fallback_data["content"],
                 core_elements={"greeting": True, "care": True, "support": True},
-                personalization_hints=["patient_name", "treatment_type", "patient_condition"],
-                ai_instructions=fallback_data['ai_instructions'],
+                personalization_hints=[
+                    "patient_name",
+                    "treatment_type",
+                    "patient_condition",
+                ],
+                ai_instructions=fallback_data["ai_instructions"],
                 message_type=TemplateMessageType.TEXT,
-                variations=[]  # No variations for fallback
+                variations=[],  # No variations for fallback
             )
         except Exception as e:
             logger.error(
                 f"Critical failure generating fallback template: {e}. "
                 f"Returning None - flow will skip this day.",
-                exc_info=True
+                exc_info=True,
             )
             return None
 
@@ -168,14 +179,14 @@ class MessageTemplateLoader:
                 return False
 
             # Check required fields
-            required_fields = ['intent', 'base_content', 'ai_instructions']
+            required_fields = ["intent", "base_content", "ai_instructions"]
             for field in required_fields:
                 if not hasattr(template, field) or not getattr(template, field):
                     logger.warning(f"Template missing required field: {field}")
                     return False
 
             # Validate day number
-            if hasattr(template, 'day') and template.day < 0:
+            if hasattr(template, "day") and template.day < 0:
                 logger.warning("Template has invalid day number")
                 return False
 
@@ -185,7 +196,9 @@ class MessageTemplateLoader:
             logger.error(f"Error validating template: {e}")
             return False
 
-    async def load_all_templates_for_flow(self, flow_type: FlowType) -> dict[int, MessageTemplate]:
+    async def load_all_templates_for_flow(
+        self, flow_type: FlowType
+    ) -> dict[int, MessageTemplate]:
         """
         Load all templates for a given flow type.
 
@@ -196,7 +209,9 @@ class MessageTemplateLoader:
             Dictionary mapping day number to MessageTemplate
         """
         try:
-            flow_template: FlowTemplateData = self.template_loader.load_flow_template(flow_type.value)
+            flow_template: FlowTemplateData = self.template_loader.load_flow_template(
+                flow_type.value
+            )
             return flow_template.messages
         except Exception as e:
             logger.error(f"Failed to load all templates for {flow_type.value}: {e}")
@@ -216,16 +231,20 @@ class MessageTemplateLoader:
         try:
             template = await self.get_message_template_for_day(flow_type, day)
             if not template:
-                return {'exists': False}
+                return {"exists": False}
 
             return {
-                'exists': True,
-                'intent': template.intent,
-                'day': template.day,
-                'message_type': template.message_type.value if hasattr(template.message_type, 'value') else str(template.message_type),
-                'has_variations': bool(template.variations),
-                'personalization_hints_count': len(template.personalization_hints) if template.personalization_hints else 0
+                "exists": True,
+                "intent": template.intent,
+                "day": template.day,
+                "message_type": template.message_type.value
+                if hasattr(template.message_type, "value")
+                else str(template.message_type),
+                "has_variations": bool(template.variations),
+                "personalization_hints_count": len(template.personalization_hints)
+                if template.personalization_hints
+                else 0,
             }
         except Exception as e:
             logger.error(f"Failed to get template metadata: {e}")
-            return {'exists': False, 'error': str(e)}
+            return {"exists": False, "error": str(e)}

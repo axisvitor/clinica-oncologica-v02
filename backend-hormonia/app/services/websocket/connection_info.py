@@ -13,6 +13,7 @@ from fastapi import WebSocket
 
 class ConnectionState(Enum):
     """WebSocket connection state."""
+
     CONNECTING = "connecting"
     CONNECTED = "connected"
     AUTHENTICATED = "authenticated"
@@ -29,6 +30,7 @@ class ConnectionInfo:
     Combines simple dict-based storage from original with rich metadata
     from enhanced version.
     """
+
     connection_id: str
     websocket: WebSocket
     state: ConnectionState = ConnectionState.CONNECTED

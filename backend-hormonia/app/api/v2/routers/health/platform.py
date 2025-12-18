@@ -6,7 +6,6 @@ Provides Railway, production, and environment health checks.
 
 import os
 import logging
-from datetime import datetime
 
 from fastapi import APIRouter, Depends
 
@@ -27,7 +26,7 @@ router = APIRouter()
 
 @router.get("/railway", response_model=RailwayHealth)
 async def railway_health_check(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> RailwayHealth:
     """
     Railway-specific health check (Authenticated).
@@ -48,7 +47,7 @@ async def railway_health_check(
 
 @router.get("/production", response_model=ProductionHealth)
 async def production_health_check(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> ProductionHealth:
     """
     Production environment health check (Authenticated).
@@ -66,7 +65,7 @@ async def production_health_check(
 
 @router.get("/environment", response_model=EnvironmentHealth)
 async def environment_health_check(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> EnvironmentHealth:
     """
     Environment configuration health check (Authenticated).

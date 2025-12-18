@@ -8,12 +8,9 @@ establish contracts for the modular alert system components.
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Protocol
 from uuid import UUID
-from datetime import datetime
 
 from .types import (
     Alert,
-    AlertRule,
-    AlertEvaluation,
     NotificationTarget,
     NotificationResult,
     DispatchResult,

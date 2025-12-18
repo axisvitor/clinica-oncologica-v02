@@ -2,21 +2,20 @@
 Data Synchronization Coordinator
 Manages data consistency between database, cache, and real-time updates
 """
+
 import asyncio
 import json
-import logging
-from typing import Dict, List, Optional, Any, Callable, Set
-from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any, Callable
+from datetime import datetime
 from dataclasses import dataclass, field
 from enum import Enum
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete
-from contextlib import asynccontextmanager
 
-from app.config import settings
-from app.database import get_async_db
 from app.core.redis_unified import get_async_redis
-from app.orchestration.websocket_coordinator import websocket_coordinator, WebSocketEvent, EventType
+from app.orchestration.websocket_coordinator import (
+    websocket_coordinator,
+    WebSocketEvent,
+    EventType,
+)
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -24,6 +23,7 @@ logger = get_logger(__name__)
 
 class SyncOperation(str, Enum):
     """Data synchronization operations"""
+
     CREATE = "create"
     UPDATE = "update"
     DELETE = "delete"
@@ -33,6 +33,7 @@ class SyncOperation(str, Enum):
 
 class SyncStatus(str, Enum):
     """Synchronization status"""
+
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
@@ -43,6 +44,7 @@ class SyncStatus(str, Enum):
 @dataclass
 class SyncEvent:
     """Data synchronization event"""
+
     entity_type: str  # e.g., 'patient', 'message', 'report'
     entity_id: str
     operation: SyncOperation
@@ -55,34 +57,35 @@ class SyncEvent:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
         return {
-            'entity_type': self.entity_type,
-            'entity_id': self.entity_id,
-            'operation': self.operation.value,
-            'data': self.data,
-            'user_id': self.user_id,
-            'timestamp': self.timestamp.isoformat(),
-            'correlation_id': self.correlation_id,
-            'metadata': self.metadata
+            "entity_type": self.entity_type,
+            "entity_id": self.entity_id,
+            "operation": self.operation.value,
+            "data": self.data,
+            "user_id": self.user_id,
+            "timestamp": self.timestamp.isoformat(),
+            "correlation_id": self.correlation_id,
+            "metadata": self.metadata,
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'SyncEvent':
+    def from_dict(cls, data: Dict[str, Any]) -> "SyncEvent":
         """Create from dictionary"""
         return cls(
-            entity_type=data['entity_type'],
-            entity_id=data['entity_id'],
-            operation=SyncOperation(data['operation']),
-            data=data['data'],
-            user_id=data.get('user_id'),
-            timestamp=datetime.fromisoformat(data['timestamp']),
-            correlation_id=data.get('correlation_id'),
-            metadata=data.get('metadata', {})
+            entity_type=data["entity_type"],
+            entity_id=data["entity_id"],
+            operation=SyncOperation(data["operation"]),
+            data=data["data"],
+            user_id=data.get("user_id"),
+            timestamp=datetime.fromisoformat(data["timestamp"]),
+            correlation_id=data.get("correlation_id"),
+            metadata=data.get("metadata", {}),
         )
 
 
 @dataclass
 class CacheEntry:
     """Cache entry with TTL and metadata"""
+
     key: str
     value: Any
     ttl: int  # seconds
@@ -169,14 +172,18 @@ class DataSyncCoordinator:
             # Add to sync queue
             await self.sync_queue.put((sync_id, sync_event))
 
-            logger.debug(f"Queued sync event {sync_id} for {sync_event.entity_type}:{sync_event.entity_id}")
+            logger.debug(
+                f"Queued sync event {sync_id} for {sync_event.entity_type}:{sync_event.entity_id}"
+            )
             return sync_id
 
         except Exception as e:
             logger.error(f"Failed to queue sync event: {e}")
             raise
 
-    async def get_cached_data(self, entity_type: str, entity_id: str, key: str = None) -> Optional[Any]:
+    async def get_cached_data(
+        self, entity_type: str, entity_id: str, key: str = None
+    ) -> Optional[Any]:
         """Get data from cache"""
         try:
             cache_key = self._generate_cache_key(entity_type, entity_id, key)
@@ -188,11 +195,19 @@ class DataSyncCoordinator:
             return None
 
         except Exception as e:
-            logger.error(f"Failed to get cached data for {entity_type}:{entity_id}: {e}")
+            logger.error(
+                f"Failed to get cached data for {entity_type}:{entity_id}: {e}"
+            )
             return None
 
-    async def set_cached_data(self, entity_type: str, entity_id: str, data: Any,
-                            key: str = None, ttl: int = None) -> bool:
+    async def set_cached_data(
+        self,
+        entity_type: str,
+        entity_id: str,
+        data: Any,
+        key: str = None,
+        ttl: int = None,
+    ) -> bool:
         """Set data in cache"""
         try:
             cache_key = self._generate_cache_key(entity_type, entity_id, key)
@@ -200,14 +215,10 @@ class DataSyncCoordinator:
             # Get TTL from cache policy or use provided
             if ttl is None:
                 policy = self.cache_policies.get(entity_type, {})
-                ttl = policy.get('ttl', 3600)  # Default 1 hour
+                ttl = policy.get("ttl", 3600)  # Default 1 hour
 
             # Store in Redis
-            await self.redis_client.setex(
-                cache_key,
-                ttl,
-                json.dumps(data, default=str)
-            )
+            await self.redis_client.setex(cache_key, ttl, json.dumps(data, default=str))
 
             logger.debug(f"Cached data for {entity_type}:{entity_id} with TTL {ttl}s")
             return True
@@ -216,8 +227,9 @@ class DataSyncCoordinator:
             logger.error(f"Failed to cache data for {entity_type}:{entity_id}: {e}")
             return False
 
-    async def invalidate_cache(self, entity_type: str, entity_id: str = None,
-                             pattern: str = None) -> int:
+    async def invalidate_cache(
+        self, entity_type: str, entity_id: str = None, pattern: str = None
+    ) -> int:
         """Invalidate cache entries"""
         try:
             if pattern:
@@ -236,7 +248,9 @@ class DataSyncCoordinator:
             if keys:
                 # Delete keys
                 deleted = await self.redis_client.delete(*keys)
-                logger.debug(f"Invalidated {deleted} cache entries for pattern {cache_pattern}")
+                logger.debug(
+                    f"Invalidated {deleted} cache entries for pattern {cache_pattern}"
+                )
                 return deleted
 
             return 0
@@ -245,8 +259,13 @@ class DataSyncCoordinator:
             logger.error(f"Failed to invalidate cache for {entity_type}: {e}")
             return 0
 
-    async def coordinate_database_update(self, entity_type: str, entity_id: str,
-                                       data: Dict[str, Any], user_id: str = None) -> bool:
+    async def coordinate_database_update(
+        self,
+        entity_type: str,
+        entity_id: str,
+        data: Dict[str, Any],
+        user_id: str = None,
+    ) -> bool:
         """Coordinate a database update with cache invalidation and real-time sync"""
         try:
             # Create sync event
@@ -255,7 +274,7 @@ class DataSyncCoordinator:
                 entity_id=entity_id,
                 operation=SyncOperation.UPDATE,
                 data=data,
-                user_id=user_id
+                user_id=user_id,
             )
 
             # Queue for synchronization
@@ -267,11 +286,14 @@ class DataSyncCoordinator:
             return result == SyncStatus.COMPLETED
 
         except Exception as e:
-            logger.error(f"Failed to coordinate database update for {entity_type}:{entity_id}: {e}")
+            logger.error(
+                f"Failed to coordinate database update for {entity_type}:{entity_id}: {e}"
+            )
             return False
 
-    async def coordinate_bulk_update(self, entity_type: str, updates: List[Dict[str, Any]],
-                                   user_id: str = None) -> bool:
+    async def coordinate_bulk_update(
+        self, entity_type: str, updates: List[Dict[str, Any]], user_id: str = None
+    ) -> bool:
         """Coordinate bulk database updates"""
         try:
             # Create bulk sync event
@@ -279,8 +301,8 @@ class DataSyncCoordinator:
                 entity_type=entity_type,
                 entity_id="bulk",
                 operation=SyncOperation.BULK_UPDATE,
-                data={'updates': updates},
-                user_id=user_id
+                data={"updates": updates},
+                user_id=user_id,
             )
 
             # Queue for synchronization
@@ -327,12 +349,16 @@ class DataSyncCoordinator:
                     # Mark as completed
                     self.active_syncs[sync_id] = SyncStatus.COMPLETED
 
-                    logger.debug(f"Completed sync {sync_id} for {sync_event.entity_type}:{sync_event.entity_id}")
+                    logger.debug(
+                        f"Completed sync {sync_id} for {sync_event.entity_type}:{sync_event.entity_id}"
+                    )
 
                 except Exception as e:
                     # Mark as failed
                     self.active_syncs[sync_id] = SyncStatus.FAILED
-                    logger.error(f"Failed sync {sync_id} for {sync_event.entity_type}:{sync_event.entity_id}: {e}")
+                    logger.error(
+                        f"Failed sync {sync_id} for {sync_event.entity_type}:{sync_event.entity_id}: {e}"
+                    )
 
                 # Mark task as done
                 self.sync_queue.task_done()
@@ -348,7 +374,9 @@ class DataSyncCoordinator:
             # Get sync handler
             handler = self.sync_handlers.get(sync_event.entity_type)
             if not handler:
-                logger.warning(f"No sync handler for entity type {sync_event.entity_type}")
+                logger.warning(
+                    f"No sync handler for entity type {sync_event.entity_type}"
+                )
                 return
 
             # Execute sync handler
@@ -360,7 +388,9 @@ class DataSyncCoordinator:
             # Broadcast real-time update
             await self._broadcast_sync_event(sync_event, result)
 
-            logger.debug(f"Processed sync event for {sync_event.entity_type}:{sync_event.entity_id}")
+            logger.debug(
+                f"Processed sync event for {sync_event.entity_type}:{sync_event.entity_id}"
+            )
 
         except Exception as e:
             logger.error(f"Error processing sync event: {e}")
@@ -372,20 +402,20 @@ class DataSyncCoordinator:
             # Map sync operations to WebSocket events
             event_type_mapping = {
                 SyncOperation.CREATE: {
-                    'patient': EventType.PATIENT_CREATED,
-                    'message': EventType.MESSAGE_SENT,
-                    'alert': EventType.ALERT_CREATED
+                    "patient": EventType.PATIENT_CREATED,
+                    "message": EventType.MESSAGE_SENT,
+                    "alert": EventType.ALERT_CREATED,
                 },
                 SyncOperation.UPDATE: {
-                    'patient': EventType.PATIENT_UPDATED,
-                    'message': EventType.MESSAGE_DELIVERED,
-                    'alert': EventType.ALERT_ACKNOWLEDGED
+                    "patient": EventType.PATIENT_UPDATED,
+                    "message": EventType.MESSAGE_DELIVERED,
+                    "alert": EventType.ALERT_ACKNOWLEDGED,
                 },
                 SyncOperation.DELETE: {
-                    'patient': EventType.PATIENT_UPDATED,  # Use updated for delete with status
-                    'message': EventType.MESSAGE_FAILED,
-                    'alert': EventType.ALERT_RESOLVED
-                }
+                    "patient": EventType.PATIENT_UPDATED,  # Use updated for delete with status
+                    "message": EventType.MESSAGE_FAILED,
+                    "alert": EventType.ALERT_RESOLVED,
+                },
             }
 
             # Get WebSocket event type
@@ -397,14 +427,14 @@ class DataSyncCoordinator:
                 ws_event = WebSocketEvent(
                     event_type=ws_event_type,
                     data={
-                        'entity_type': sync_event.entity_type,
-                        'entity_id': sync_event.entity_id,
-                        'operation': sync_event.operation.value,
-                        'data': sync_event.data,
-                        'result': result
+                        "entity_type": sync_event.entity_type,
+                        "entity_id": sync_event.entity_id,
+                        "operation": sync_event.operation.value,
+                        "data": sync_event.data,
+                        "result": result,
                     },
                     user_id=sync_event.user_id,
-                    correlation_id=sync_event.correlation_id
+                    correlation_id=sync_event.correlation_id,
                 )
 
                 # Broadcast via WebSocket coordinator
@@ -413,14 +443,20 @@ class DataSyncCoordinator:
         except Exception as e:
             logger.error(f"Failed to broadcast sync event: {e}")
 
-    async def _wait_for_sync_completion(self, sync_id: str, timeout: int = 30) -> SyncStatus:
+    async def _wait_for_sync_completion(
+        self, sync_id: str, timeout: int = 30
+    ) -> SyncStatus:
         """Wait for sync completion with timeout"""
         start_time = datetime.utcnow()
 
         while (datetime.utcnow() - start_time).total_seconds() < timeout:
             status = self.active_syncs.get(sync_id, SyncStatus.PENDING)
 
-            if status in [SyncStatus.COMPLETED, SyncStatus.FAILED, SyncStatus.CANCELLED]:
+            if status in [
+                SyncStatus.COMPLETED,
+                SyncStatus.FAILED,
+                SyncStatus.CANCELLED,
+            ]:
                 return status
 
             await asyncio.sleep(0.1)  # Check every 100ms
@@ -436,9 +472,9 @@ class DataSyncCoordinator:
                 await asyncio.sleep(300)  # Run every 5 minutes
 
                 # Get cache statistics
-                info = await self.redis_client.info('memory')
-                used_memory = info.get('used_memory', 0)
-                max_memory = info.get('maxmemory', 0)
+                info = await self.redis_client.info("memory")
+                used_memory = info.get("used_memory", 0)
+                max_memory = info.get("maxmemory", 0)
 
                 # If memory usage is high, clean up expired keys
                 if max_memory > 0 and used_memory / max_memory > 0.8:
@@ -472,7 +508,9 @@ class DataSyncCoordinator:
         except Exception as e:
             logger.error(f"Error cleaning up cache entries: {e}")
 
-    def _generate_cache_key(self, entity_type: str, entity_id: str, key: str = None) -> str:
+    def _generate_cache_key(
+        self, entity_type: str, entity_id: str, key: str = None
+    ) -> str:
         """Generate cache key"""
         if key:
             return f"sync:cache:{entity_type}:{entity_id}:{key}"
@@ -481,11 +519,11 @@ class DataSyncCoordinator:
     def _setup_default_cache_policies(self):
         """Set up default cache policies"""
         default_policies = {
-            'patient': {'ttl': 1800, 'max_size': 1000},  # 30 minutes
-            'message': {'ttl': 300, 'max_size': 5000},   # 5 minutes
-            'report': {'ttl': 3600, 'max_size': 500},    # 1 hour
-            'alert': {'ttl': 600, 'max_size': 2000},     # 10 minutes
-            'flow': {'ttl': 1200, 'max_size': 1000},     # 20 minutes
+            "patient": {"ttl": 1800, "max_size": 1000},  # 30 minutes
+            "message": {"ttl": 300, "max_size": 5000},  # 5 minutes
+            "report": {"ttl": 3600, "max_size": 500},  # 1 hour
+            "alert": {"ttl": 600, "max_size": 2000},  # 10 minutes
+            "flow": {"ttl": 1200, "max_size": 1000},  # 20 minutes
         }
 
         for entity_type, policy in default_policies.items():
@@ -499,28 +537,32 @@ class DataSyncCoordinator:
         async def default_patient_handler(sync_event: SyncEvent) -> Dict[str, Any]:
             """Default patient sync handler"""
             # This would implement actual database operations
-            logger.debug(f"Processing patient sync: {sync_event.operation} for {sync_event.entity_id}")
-            return {'status': 'processed', 'timestamp': datetime.utcnow().isoformat()}
+            logger.debug(
+                f"Processing patient sync: {sync_event.operation} for {sync_event.entity_id}"
+            )
+            return {"status": "processed", "timestamp": datetime.utcnow().isoformat()}
 
         async def default_message_handler(sync_event: SyncEvent) -> Dict[str, Any]:
             """Default message sync handler"""
-            logger.debug(f"Processing message sync: {sync_event.operation} for {sync_event.entity_id}")
-            return {'status': 'processed', 'timestamp': datetime.utcnow().isoformat()}
+            logger.debug(
+                f"Processing message sync: {sync_event.operation} for {sync_event.entity_id}"
+            )
+            return {"status": "processed", "timestamp": datetime.utcnow().isoformat()}
 
-        self.register_sync_handler('patient', default_patient_handler)
-        self.register_sync_handler('message', default_message_handler)
+        self.register_sync_handler("patient", default_patient_handler)
+        self.register_sync_handler("message", default_message_handler)
 
     def get_sync_stats(self) -> Dict[str, Any]:
         """Get synchronization statistics"""
         return {
-            'queue_size': self.sync_queue.qsize(),
-            'active_syncs': len(self.active_syncs),
-            'sync_status_counts': {
+            "queue_size": self.sync_queue.qsize(),
+            "active_syncs": len(self.active_syncs),
+            "sync_status_counts": {
                 status.value: sum(1 for s in self.active_syncs.values() if s == status)
                 for status in SyncStatus
             },
-            'registered_handlers': list(self.sync_handlers.keys()),
-            'cache_policies': self.cache_policies
+            "registered_handlers": list(self.sync_handlers.keys()),
+            "cache_policies": self.cache_policies,
         }
 
 

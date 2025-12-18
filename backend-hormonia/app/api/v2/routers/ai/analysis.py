@@ -1,6 +1,7 @@
 """
 AI Services - Analysis Endpoints (sentiment, risk, quality)
 """
+
 import logging
 from datetime import datetime
 
@@ -51,7 +52,7 @@ async def analyze_sentiment(
     request: SentimentAnalysisRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(verify_physician_or_admin),
-    db = Depends(get_db),
+    db=Depends(get_db),
 ) -> SentimentAnalysisResponse:
     """Analyze sentiment of patient message."""
     try:
@@ -79,13 +80,19 @@ async def analyze_sentiment(
             concern_level=concern_level,
             confidence=0.88,
             key_phrases=["tired"] if has_concerns else [],
-            medical_concerns=["fatigue"] if has_concerns and request.include_medical_concerns else [],
-            urgency_indicators=[] if not request.include_urgency else (["very"] if "very" in request.message.lower() else []),
+            medical_concerns=["fatigue"]
+            if has_concerns and request.include_medical_concerns
+            else [],
+            urgency_indicators=[]
+            if not request.include_urgency
+            else (["very"] if "very" in request.message.lower() else []),
             emotion_scores={
                 "anxiety": 0.3 if has_concerns else 0.1,
                 "fatigue": 0.7 if has_concerns else 0.2,
             },
-            recommended_action="Schedule follow-up" if has_concerns else "Continue monitoring",
+            recommended_action="Schedule follow-up"
+            if has_concerns
+            else "Continue monitoring",
             token_usage=token_usage,
             analyzed_at=datetime.utcnow(),
         )
@@ -105,7 +112,7 @@ async def analyze_sentiment(
         logger.error(f"Sentiment analysis error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Sentiment analysis failed: {str(e)}"
+            detail=f"Sentiment analysis failed: {str(e)}",
         )
 
 
@@ -119,15 +126,13 @@ async def analyze_risk(
     request: RiskAnalysisRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(verify_physician_or_admin),
-    db = Depends(get_db),
+    db=Depends(get_db),
 ) -> RiskAnalysisResponse:
     """Perform AI risk analysis for patient."""
     try:
         # Validate patient access
-        patient = await validate_patient_access(
-            request.patient_id,
-            current_user,
-            get_patient_service(db)
+        await validate_patient_access(
+            request.patient_id, current_user, get_patient_service(db)
         )
 
         # ===== AI RISK ANALYSIS WOULD GO HERE =====
@@ -176,7 +181,7 @@ async def analyze_risk(
         logger.error(f"Risk analysis error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Risk analysis failed: {str(e)}"
+            detail=f"Risk analysis failed: {str(e)}",
         )
 
 
@@ -217,7 +222,9 @@ async def analyze_response_quality(
             clarity_score=0.85,
             suggestions=[
                 "Message is clear and professional",
-            ] if quality_score > 70 else [
+            ]
+            if quality_score > 70
+            else [
                 "Consider adding more context",
             ],
             strengths=[
@@ -243,5 +250,5 @@ async def analyze_response_quality(
         logger.error(f"Response quality analysis error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Response quality analysis failed: {str(e)}"
+            detail=f"Response quality analysis failed: {str(e)}",
         )

@@ -11,7 +11,7 @@ Features:
 - Interactive report dashboards
 """
 
-from datetime import datetime, date, time
+from datetime import datetime, date
 from typing import Optional, List, Dict, Any, Literal
 from uuid import UUID
 from enum import Enum
@@ -22,8 +22,10 @@ from pydantic import BaseModel, Field, model_validator, field_validator, ConfigD
 # Enums
 # ============================================================================
 
+
 class VisualizationType(str, Enum):
     """Types of data visualizations."""
+
     LINE_CHART = "line_chart"
     BAR_CHART = "bar_chart"
     PIE_CHART = "pie_chart"
@@ -38,6 +40,7 @@ class VisualizationType(str, Enum):
 
 class ReportPermissionLevel(str, Enum):
     """Permission levels for report sharing."""
+
     VIEW = "view"
     EDIT = "edit"
     ADMIN = "admin"
@@ -45,6 +48,7 @@ class ReportPermissionLevel(str, Enum):
 
 class DeliveryMethod(str, Enum):
     """Report delivery methods."""
+
     EMAIL = "email"
     WEBHOOK = "webhook"
     DOWNLOAD = "download"
@@ -53,6 +57,7 @@ class DeliveryMethod(str, Enum):
 
 class ExportFormat(str, Enum):
     """Enhanced export formats."""
+
     PDF = "pdf"
     EXCEL = "excel"
     POWERPOINT = "powerpoint"
@@ -63,6 +68,7 @@ class ExportFormat(str, Enum):
 
 class DashboardLayout(str, Enum):
     """Dashboard layout types."""
+
     GRID = "grid"
     ROWS = "rows"
     COLUMNS = "columns"
@@ -73,18 +79,25 @@ class DashboardLayout(str, Enum):
 # Report Builder Schemas
 # ============================================================================
 
+
 class ReportFieldConfig(BaseModel):
     """Configuration for a report field."""
+
     field_name: str = Field(..., description="Field identifier")
     display_name: str = Field(..., description="Display label")
-    field_type: Literal["text", "number", "date", "boolean", "enum", "calculated"] = "text"
+    field_type: Literal["text", "number", "date", "boolean", "enum", "calculated"] = (
+        "text"
+    )
     data_source: str = Field(..., description="Data source (table/model)")
-    aggregation: Optional[Literal["sum", "avg", "count", "min", "max", "distinct"]] = None
+    aggregation: Optional[Literal["sum", "avg", "count", "min", "max", "distinct"]] = (
+        None
+    )
     filter_enabled: bool = True
     sortable: bool = True
     format_string: Optional[str] = None
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "field_name": "patient_count",
                 "display_name": "Total Patients",
@@ -92,13 +105,15 @@ class ReportFieldConfig(BaseModel):
                 "data_source": "patients",
                 "aggregation": "count",
                 "filter_enabled": True,
-                "sortable": True
+                "sortable": True,
             }
-        })
+        }
+    )
 
 
 class ReportBuilderCreate(BaseModel):
     """Create a custom report using the builder."""
+
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=1000)
 
@@ -134,6 +149,7 @@ class ReportBuilderCreate(BaseModel):
 
 class ReportBuilderResponse(BaseModel):
     """Response from report builder."""
+
     id: UUID
     name: str
     description: Optional[str]
@@ -152,8 +168,10 @@ class ReportBuilderResponse(BaseModel):
 # Visualization Schemas
 # ============================================================================
 
+
 class VisualizationConfig(BaseModel):
     """Configuration for a data visualization."""
+
     type: VisualizationType
     title: str = Field(..., max_length=200)
 
@@ -178,6 +196,7 @@ class VisualizationConfig(BaseModel):
 
 class VisualizationCreate(BaseModel):
     """Create a visualization for a report."""
+
     report_id: UUID
     visualization: VisualizationConfig
 
@@ -188,6 +207,7 @@ class VisualizationCreate(BaseModel):
 
 class VisualizationResponse(BaseModel):
     """Visualization response with generated data."""
+
     id: UUID
     report_id: UUID
     config: VisualizationConfig
@@ -200,6 +220,7 @@ class VisualizationResponse(BaseModel):
 
 class VisualizationListResponse(BaseModel):
     """List of visualizations."""
+
     items: List[VisualizationResponse]
     total: int
     cursor: Optional[str] = None
@@ -210,8 +231,10 @@ class VisualizationListResponse(BaseModel):
 # Scheduled Delivery Schemas
 # ============================================================================
 
+
 class DeliverySchedule(BaseModel):
     """Schedule for report delivery."""
+
     frequency: Literal["once", "daily", "weekly", "monthly", "quarterly", "custom"]
     start_date: date
     end_date: Optional[date] = None
@@ -239,6 +262,7 @@ class DeliverySchedule(BaseModel):
 
 class EmailDeliveryConfig(BaseModel):
     """Email delivery configuration."""
+
     recipients: List[str] = Field(..., min_items=1, max_items=20)
     cc: Optional[List[str]] = Field(None, max_items=10)
     subject: str = Field(..., max_length=200)
@@ -249,6 +273,7 @@ class EmailDeliveryConfig(BaseModel):
 
 class WebhookDeliveryConfig(BaseModel):
     """Webhook delivery configuration."""
+
     url: str = Field(..., pattern=r"^https?://")
     method: Literal["POST", "PUT"] = "POST"
     headers: Dict[str, str] = Field(default_factory=dict)
@@ -260,6 +285,7 @@ class WebhookDeliveryConfig(BaseModel):
 
 class DeliveryConfigCreate(BaseModel):
     """Create delivery configuration for a report."""
+
     report_id: UUID
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
@@ -281,7 +307,7 @@ class DeliveryConfigCreate(BaseModel):
     is_active: bool = True
     send_on_error: bool = False
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_config(self):
         """Ensure method-specific config is provided."""
         if self.method == DeliveryMethod.EMAIL and not self.email_config:
@@ -293,6 +319,7 @@ class DeliveryConfigCreate(BaseModel):
 
 class DeliveryConfigResponse(BaseModel):
     """Delivery configuration response."""
+
     id: UUID
     report_id: UUID
     name: str
@@ -315,6 +342,7 @@ class DeliveryConfigResponse(BaseModel):
 
 class DeliveryHistoryEntry(BaseModel):
     """Single delivery history entry."""
+
     id: UUID
     delivery_config_id: UUID
     executed_at: datetime
@@ -328,8 +356,10 @@ class DeliveryHistoryEntry(BaseModel):
 # Report Sharing Schemas
 # ============================================================================
 
+
 class ReportShareCreate(BaseModel):
     """Share a report with users."""
+
     report_id: UUID
     user_ids: List[UUID] = Field(..., min_items=1, max_items=50)
     permission_level: ReportPermissionLevel = ReportPermissionLevel.VIEW
@@ -347,13 +377,14 @@ class ReportShareCreate(BaseModel):
 
 class PublicLinkCreate(BaseModel):
     """Create public link for report sharing."""
+
     report_id: UUID
     expires_at: Optional[datetime] = None
     password_protected: bool = False
     password: Optional[str] = Field(None, min_length=8, max_length=50)
     max_views: Optional[int] = Field(None, ge=1, le=10000)
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_password(self):
         """Ensure password is provided if password_protected."""
         if self.password_protected and not self.password:
@@ -363,6 +394,7 @@ class PublicLinkCreate(BaseModel):
 
 class ReportShareResponse(BaseModel):
     """Report share response."""
+
     id: UUID
     report_id: UUID
     shared_with: UUID
@@ -377,6 +409,7 @@ class ReportShareResponse(BaseModel):
 
 class PublicLinkResponse(BaseModel):
     """Public link response."""
+
     id: UUID
     report_id: UUID
     token: str
@@ -395,6 +428,7 @@ class PublicLinkResponse(BaseModel):
 # ============================================================================
 # Export Schemas
 # ============================================================================
+
 
 class ExportOptionsAdvanced(BaseModel):
     """Advanced export options for different formats."""
@@ -425,6 +459,7 @@ class ExportOptionsAdvanced(BaseModel):
 
 class MultiFormatExportRequest(BaseModel):
     """Request for multi-format export."""
+
     report_id: UUID
     formats: List[ExportFormat] = Field(..., min_items=1, max_items=5)
     options: ExportOptionsAdvanced = Field(default_factory=ExportOptionsAdvanced)
@@ -433,6 +468,7 @@ class MultiFormatExportRequest(BaseModel):
 
 class ExportResponse(BaseModel):
     """Export response with download URLs."""
+
     export_id: UUID
     report_id: UUID
     formats: List[ExportFormat]
@@ -449,8 +485,10 @@ class ExportResponse(BaseModel):
 # Report Versioning Schemas
 # ============================================================================
 
+
 class ReportVersion(BaseModel):
     """Report version information."""
+
     version: int
     created_at: datetime
     created_by: UUID
@@ -461,6 +499,7 @@ class ReportVersion(BaseModel):
 
 class ReportHistoryResponse(BaseModel):
     """Report version history."""
+
     report_id: UUID
     current_version: int
     versions: List[ReportVersion]
@@ -471,6 +510,7 @@ class ReportHistoryResponse(BaseModel):
 
 class ReportRestoreRequest(BaseModel):
     """Request to restore a report version."""
+
     report_id: UUID
     version: int = Field(..., ge=1)
     create_backup: bool = True
@@ -480,8 +520,10 @@ class ReportRestoreRequest(BaseModel):
 # Dashboard Schemas
 # ============================================================================
 
+
 class DashboardWidgetConfig(BaseModel):
     """Configuration for a dashboard widget."""
+
     type: Literal["chart", "metric", "table", "text", "iframe"]
     report_id: Optional[UUID] = None
     visualization_id: Optional[UUID] = None
@@ -502,6 +544,7 @@ class DashboardWidgetConfig(BaseModel):
 
 class DashboardCreate(BaseModel):
     """Create an interactive dashboard."""
+
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=1000)
     layout: DashboardLayout = DashboardLayout.GRID
@@ -522,6 +565,7 @@ class DashboardCreate(BaseModel):
 
 class DashboardUpdate(BaseModel):
     """Update dashboard configuration."""
+
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = None
     layout: Optional[DashboardLayout] = None
@@ -535,6 +579,7 @@ class DashboardUpdate(BaseModel):
 
 class DashboardResponse(BaseModel):
     """Dashboard response with widget data."""
+
     id: UUID
     name: str
     description: Optional[str]
@@ -555,6 +600,7 @@ class DashboardResponse(BaseModel):
 
 class DashboardListResponse(BaseModel):
     """List of dashboards."""
+
     items: List[DashboardResponse]
     total: int
     cursor: Optional[str] = None
@@ -563,6 +609,7 @@ class DashboardListResponse(BaseModel):
 
 class DashboardSnapshotCreate(BaseModel):
     """Create a dashboard snapshot."""
+
     dashboard_id: UUID
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
@@ -571,6 +618,7 @@ class DashboardSnapshotCreate(BaseModel):
 
 class DashboardSnapshotResponse(BaseModel):
     """Dashboard snapshot response."""
+
     id: UUID
     dashboard_id: UUID
     name: str

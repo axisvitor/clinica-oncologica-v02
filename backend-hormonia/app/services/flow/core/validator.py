@@ -1,4 +1,3 @@
-from typing import Any
 """
 Backward compatibility shim for FlowValidator.
 
@@ -9,4 +8,3 @@ app.services.flow.core.validator module.
 from ..validation.validator import FlowValidator
 
 __all__ = ["FlowValidator"]
-

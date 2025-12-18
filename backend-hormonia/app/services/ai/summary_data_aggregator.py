@@ -10,7 +10,7 @@ Date: January 2025
 """
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Dict, List, Any, Optional
 from uuid import UUID
 from dataclasses import dataclass
@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 
-from app.models import Patient, QuizResponse, Message, Alert, FlowAnalytics
+from app.models import Patient, QuizResponse, Message, Alert
 from app.models.message import MessageDirection
 
 logger = logging.getLogger(__name__)
@@ -103,7 +103,9 @@ class AggregatedPatientData:
         lines = []
         for msg in self.messages_summary[:5]:  # Limit to 5 most relevant
             date_str = msg.get("date", "")
-            direction = "→ Paciente" if msg.get("direction") == "outbound" else "← Paciente"
+            direction = (
+                "→ Paciente" if msg.get("direction") == "outbound" else "← Paciente"
+            )
             content = msg.get("content", "")[:100]  # Truncate
             lines.append(f"- [{date_str}] {direction}: {content}")
 
@@ -154,10 +156,7 @@ class SummaryDataAggregator:
         self.db = db
 
     async def aggregate_patient_data(
-        self,
-        patient_id: UUID,
-        start_date: date,
-        end_date: date
+        self, patient_id: UUID, start_date: date, end_date: date
     ) -> AggregatedPatientData:
         """
         Aggregate all patient data for the specified period.
@@ -170,7 +169,9 @@ class SummaryDataAggregator:
         Returns:
             AggregatedPatientData with all collected data
         """
-        logger.info(f"Aggregating data for patient {patient_id} from {start_date} to {end_date}")
+        logger.info(
+            f"Aggregating data for patient {patient_id} from {start_date} to {end_date}"
+        )
 
         # Fetch patient info
         patient = await self._get_patient(patient_id)
@@ -179,11 +180,12 @@ class SummaryDataAggregator:
 
         # Run aggregations in parallel using asyncio.gather for better performance
         import asyncio
+
         quiz_data, message_data, alert_data, engagement = await asyncio.gather(
             self._aggregate_quiz_responses(patient_id, start_date, end_date),
             self._aggregate_messages(patient_id, start_date, end_date),
             self._aggregate_alerts(patient_id, start_date, end_date),
-            self._calculate_engagement_metrics(patient_id, start_date, end_date)
+            self._calculate_engagement_metrics(patient_id, start_date, end_date),
         )
 
         return AggregatedPatientData(
@@ -208,16 +210,11 @@ class SummaryDataAggregator:
 
     async def _get_patient(self, patient_id: UUID) -> Optional[Patient]:
         """Get patient by ID."""
-        result = await self.db.execute(
-            select(Patient).where(Patient.id == patient_id)
-        )
+        result = await self.db.execute(select(Patient).where(Patient.id == patient_id))
         return result.scalar_one_or_none()
 
     async def _aggregate_quiz_responses(
-        self,
-        patient_id: UUID,
-        start_date: date,
-        end_date: date
+        self, patient_id: UUID, start_date: date, end_date: date
     ) -> Dict[str, Any]:
         """Aggregate quiz responses for the period."""
         # Convert dates to datetime for comparison
@@ -230,7 +227,7 @@ class SummaryDataAggregator:
                 and_(
                     QuizResponse.patient_id == patient_id,
                     QuizResponse.created_at >= start_dt,
-                    QuizResponse.created_at <= end_dt
+                    QuizResponse.created_at <= end_dt,
                 )
             )
             .order_by(QuizResponse.created_at.desc())
@@ -239,22 +236,20 @@ class SummaryDataAggregator:
 
         formatted = []
         for resp in responses:
-            formatted.append({
-                "date": resp.created_at.strftime("%d/%m/%Y"),
-                "question": resp.question_text if hasattr(resp, 'question_text') else "Pergunta",
-                "answer": str(resp.response_value) if resp.response_value else "",
-            })
+            formatted.append(
+                {
+                    "date": resp.created_at.strftime("%d/%m/%Y"),
+                    "question": resp.question_text
+                    if hasattr(resp, "question_text")
+                    else "Pergunta",
+                    "answer": str(resp.response_value) if resp.response_value else "",
+                }
+            )
 
-        return {
-            "count": len(responses),
-            "responses": formatted
-        }
+        return {"count": len(responses), "responses": formatted}
 
     async def _aggregate_messages(
-        self,
-        patient_id: UUID,
-        start_date: date,
-        end_date: date
+        self, patient_id: UUID, start_date: date, end_date: date
     ) -> Dict[str, Any]:
         """Aggregate messages for the period."""
         start_dt = datetime.combine(start_date, datetime.min.time())
@@ -266,7 +261,7 @@ class SummaryDataAggregator:
                 and_(
                     Message.patient_id == patient_id,
                     Message.created_at >= start_dt,
-                    Message.created_at <= end_dt
+                    Message.created_at <= end_dt,
                 )
             )
             .order_by(Message.created_at.desc())
@@ -276,22 +271,21 @@ class SummaryDataAggregator:
 
         formatted = []
         for msg in messages:
-            formatted.append({
-                "date": msg.created_at.strftime("%d/%m/%Y %H:%M"),
-                "direction": msg.direction.value if msg.direction else "unknown",
-                "content": msg.content[:200] if msg.content else "",
-            })
+            formatted.append(
+                {
+                    "date": msg.created_at.strftime("%d/%m/%Y %H:%M"),
+                    "direction": msg.direction.value if msg.direction else "unknown",
+                    "content": msg.content[:200] if msg.content else "",
+                }
+            )
 
         return {
             "count": len(messages),
-            "messages": formatted[:10]  # Only include 10 in summary
+            "messages": formatted[:10],  # Only include 10 in summary
         }
 
     async def _aggregate_alerts(
-        self,
-        patient_id: UUID,
-        start_date: date,
-        end_date: date
+        self, patient_id: UUID, start_date: date, end_date: date
     ) -> Dict[str, Any]:
         """Aggregate alerts for the period."""
         start_dt = datetime.combine(start_date, datetime.min.time())
@@ -303,7 +297,7 @@ class SummaryDataAggregator:
                 and_(
                     Alert.patient_id == patient_id,
                     Alert.created_at >= start_dt,
-                    Alert.created_at <= end_dt
+                    Alert.created_at <= end_dt,
                 )
             )
             .order_by(Alert.created_at.desc())
@@ -312,22 +306,20 @@ class SummaryDataAggregator:
 
         formatted = []
         for alert in alerts:
-            formatted.append({
-                "date": alert.created_at.strftime("%d/%m/%Y"),
-                "severity": alert.severity.value if alert.severity else "unknown",
-                "message": alert.message if hasattr(alert, 'message') else str(alert),
-            })
+            formatted.append(
+                {
+                    "date": alert.created_at.strftime("%d/%m/%Y"),
+                    "severity": alert.severity.value if alert.severity else "unknown",
+                    "message": alert.message
+                    if hasattr(alert, "message")
+                    else str(alert),
+                }
+            )
 
-        return {
-            "count": len(alerts),
-            "alerts": formatted
-        }
+        return {"count": len(alerts), "alerts": formatted}
 
     async def _calculate_engagement_metrics(
-        self,
-        patient_id: UUID,
-        start_date: date,
-        end_date: date
+        self, patient_id: UUID, start_date: date, end_date: date
     ) -> Dict[str, Any]:
         """Calculate engagement metrics for the period."""
         start_dt = datetime.combine(start_date, datetime.min.time())
@@ -335,13 +327,12 @@ class SummaryDataAggregator:
 
         # Count sent messages
         sent_result = await self.db.execute(
-            select(func.count(Message.id))
-            .where(
+            select(func.count(Message.id)).where(
                 and_(
                     Message.patient_id == patient_id,
                     Message.direction == MessageDirection.OUTBOUND,
                     Message.created_at >= start_dt,
-                    Message.created_at <= end_dt
+                    Message.created_at <= end_dt,
                 )
             )
         )
@@ -349,13 +340,12 @@ class SummaryDataAggregator:
 
         # Count received messages
         received_result = await self.db.execute(
-            select(func.count(Message.id))
-            .where(
+            select(func.count(Message.id)).where(
                 and_(
                     Message.patient_id == patient_id,
                     Message.direction == MessageDirection.INBOUND,
                     Message.created_at >= start_dt,
-                    Message.created_at <= end_dt
+                    Message.created_at <= end_dt,
                 )
             )
         )
@@ -371,7 +361,9 @@ class SummaryDataAggregator:
         if received_count > 0:
             # Estimate based on total period / responses
             total_minutes = (end_dt - start_dt).total_seconds() / 60
-            avg_response_time = total_minutes / received_count if received_count > 0 else 0
+            avg_response_time = (
+                total_minutes / received_count if received_count > 0 else 0
+            )
 
         return {
             "response_rate": response_rate,

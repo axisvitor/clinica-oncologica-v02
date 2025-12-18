@@ -4,10 +4,11 @@ Monthly Quiz Message Integration Service
 Integrates MonthlyQuizService with MessageFactory for seamless link delivery.
 Updated to use UnifiedWhatsAppService for improved reliability and performance.
 """
+
 import asyncio
 from typing import Optional, Dict, Any
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime
 
 
 from app.domain.messaging.core import MessageFactory, MessageTemplate
@@ -34,7 +35,7 @@ class MonthlyQuizMessageIntegration:
         if use_unified_service:
             self.message_sender = UnifiedWhatsAppService(
                 db=db,
-                messaging_mode=MessagingMode.HYBRID  # Hybrid mode for quiz messages
+                messaging_mode=MessagingMode.HYBRID,  # Hybrid mode for quiz messages
             )
         else:
             # Fallback to legacy MessageSender for backward compatibility
@@ -47,7 +48,7 @@ class MonthlyQuizMessageIntegration:
         delivery_method: DeliveryMethod = DeliveryMethod.WHATSAPP,
         expiry_hours: int = 72,
         custom_message: Optional[str] = None,
-        send_immediately: bool = True
+        send_immediately: bool = True,
     ) -> Dict[str, Any]:
         """
         Generate quiz link and send invitation message.
@@ -75,7 +76,7 @@ class MonthlyQuizMessageIntegration:
             delivery_method=delivery_method,
             expiry_hours=expiry_hours,
             custom_message=custom_message,
-            send_immediately=False  # Integration handles delivery manually
+            send_immediately=False,  # Integration handles delivery manually
         )
 
         quiz_link = await self.monthly_quiz_service.create_quiz_link(link_data)
@@ -88,7 +89,7 @@ class MonthlyQuizMessageIntegration:
             quiz_session_id=str(quiz_link.id),
             expiry_hours=expiry_hours,
             delivery_method=delivery_method.value,
-            custom_message=custom_message
+            custom_message=custom_message,
         )
 
         # Send message with quiz-specific context
@@ -99,33 +100,37 @@ class MonthlyQuizMessageIntegration:
         if send_immediately:
             # Add quiz-specific context for unified service
             quiz_context = {
-                'message_type': 'quiz_link',
-                'quiz_session_id': str(quiz_link.id),
-                'priority': 'high',  # Quiz links are high priority
-                'retry_policy': 'quiz_link'
+                "message_type": "quiz_link",
+                "quiz_session_id": str(quiz_link.id),
+                "priority": "high",  # Quiz links are high priority
+                "retry_policy": "quiz_link",
             }
 
             for attempt in range(max_retries):
                 try:
-                    if hasattr(self.message_sender, 'send_flow_message'):
+                    if hasattr(self.message_sender, "send_flow_message"):
                         # Use flow message method if available (UnifiedWhatsAppService or MessageSender)
-                        send_result = await self.message_sender.send_flow_message(message, quiz_context)
+                        send_result = await self.message_sender.send_flow_message(
+                            message, quiz_context
+                        )
                     else:
                         # Fallback to regular send_message
                         send_result = await self.message_sender.send_message(message)
-                    
+
                     if send_result:
                         break
-                    
+
                     # If returned False, retry
                     if attempt < max_retries - 1:
                         await asyncio.sleep(retry_delay * (attempt + 1))
-                        
+
                 except Exception as e:
                     if attempt == max_retries - 1:
-                        # Log error on final attempt but don't crash the whole flow, 
+                        # Log error on final attempt but don't crash the whole flow,
                         # just return the result as is (likely None or False)
-                        print(f"Failed to send quiz link after {max_retries} attempts: {e}")
+                        print(
+                            f"Failed to send quiz link after {max_retries} attempts: {e}"
+                        )
                     else:
                         await asyncio.sleep(retry_delay * (attempt + 1))
 
@@ -136,7 +141,7 @@ class MonthlyQuizMessageIntegration:
             "message_id": str(message.id),
             "message_sent": send_result,
             "expires_at": quiz_link.expires_at.isoformat(),
-            "delivery_method": delivery_method.value
+            "delivery_method": delivery_method.value,
         }
 
     def send_quiz_link_message(
@@ -144,17 +149,23 @@ class MonthlyQuizMessageIntegration:
         patient_id: UUID,
         link_url: str,
         custom_message: Optional[str] = None,
-        delivery_method: str = DeliveryMethod.WHATSAPP.value
+        delivery_method: str = DeliveryMethod.WHATSAPP.value,
     ) -> Dict[str, Any]:
         """Send a quiz link message using the configured messaging service."""
         try:
             try:
                 delivery_enum = DeliveryMethod(delivery_method)
             except ValueError:
-                return {"success": False, "error": f"Unsupported delivery method: {delivery_method}"}
+                return {
+                    "success": False,
+                    "error": f"Unsupported delivery method: {delivery_method}",
+                }
 
             if delivery_enum is not DeliveryMethod.WHATSAPP:
-                return {"success": False, "error": f"Delivery method {delivery_enum.value} not supported"}
+                return {
+                    "success": False,
+                    "error": f"Delivery method {delivery_enum.value} not supported",
+                }
 
             patient = self.db.query(Patient).filter(Patient.id == patient_id).first()
             if not patient:
@@ -168,14 +179,14 @@ class MonthlyQuizMessageIntegration:
             metadata = {
                 "delivery_method": delivery_enum.value,
                 "message_type": "monthly_quiz_link",
-                "link_url": link_url
+                "link_url": link_url,
             }
 
             message = self.message_factory.create_outbound_message(
                 patient_id=patient_id,
                 content=message_text,
                 metadata=metadata,
-                template_type=MessageTemplate.MONTHLY_QUIZ_LINK_REMINDER
+                template_type=MessageTemplate.MONTHLY_QUIZ_LINK_REMINDER,
             )
 
             success = asyncio.run(self.message_sender.send_message(message))
@@ -186,11 +197,8 @@ class MonthlyQuizMessageIntegration:
         except Exception as exc:
             return {"success": False, "error": str(exc)}
 
-
     async def send_quiz_reminder(
-        self,
-        quiz_session_id: UUID,
-        hours_before_expiry: int = 24
+        self, quiz_session_id: UUID, hours_before_expiry: int = 24
     ) -> Dict[str, Any]:
         """
         Send reminder message for pending quiz.
@@ -203,26 +211,32 @@ class MonthlyQuizMessageIntegration:
             Dictionary with reminder status
         """
         # Get quiz link status
-        quiz_link = await self.monthly_quiz_service.get_quiz_link_status(quiz_session_id)
+        quiz_link = await self.monthly_quiz_service.get_quiz_link_status(
+            quiz_session_id
+        )
 
         # Check if reminder is needed
         if quiz_link.status.value != "active":
             return {
                 "reminder_sent": False,
-                "reason": f"Quiz link status is {quiz_link.status.value}"
+                "reason": f"Quiz link status is {quiz_link.status.value}",
             }
 
         # Calculate hours remaining
-        hours_remaining = int((quiz_link.expires_at - datetime.utcnow()).total_seconds() / 3600)
+        hours_remaining = int(
+            (quiz_link.expires_at - datetime.utcnow()).total_seconds() / 3600
+        )
 
         if hours_remaining > hours_before_expiry:
             return {
                 "reminder_sent": False,
-                "reason": f"Quiz link has {hours_remaining} hours remaining"
+                "reason": f"Quiz link has {hours_remaining} hours remaining",
             }
 
         # Get patient
-        patient = self.db.query(Patient).filter(Patient.id == quiz_link.patient_id).first()
+        patient = (
+            self.db.query(Patient).filter(Patient.id == quiz_link.patient_id).first()
+        )
         if not patient:
             raise NotFoundError(f"Patient with ID {quiz_link.patient_id} not found")
 
@@ -231,12 +245,14 @@ class MonthlyQuizMessageIntegration:
             link_data = await self.monthly_quiz_service.regenerate_link(quiz_session_id)
             link_url = link_data.link_url
             # Recalculate hours remaining with new expiry time
-            hours_remaining = int((link_data.expires_at - datetime.utcnow()).total_seconds() / 3600)
+            hours_remaining = int(
+                (link_data.expires_at - datetime.utcnow()).total_seconds() / 3600
+            )
         except Exception as e:
             # If regeneration fails, return error
             return {
                 "reminder_sent": False,
-                "reason": f"Failed to regenerate link: {str(e)}"
+                "reason": f"Failed to regenerate link: {str(e)}",
             }
 
         # Create reminder message
@@ -246,7 +262,7 @@ class MonthlyQuizMessageIntegration:
             link_url=link_url,
             quiz_session_id=str(quiz_session_id),
             hours_remaining=hours_remaining,
-            delivery_method=quiz_link.delivery_method.value
+            delivery_method=quiz_link.delivery_method.value,
         )
 
         # Send message
@@ -255,13 +271,10 @@ class MonthlyQuizMessageIntegration:
         return {
             "reminder_sent": send_result,
             "message_id": str(message.id),
-            "hours_remaining": hours_remaining
+            "hours_remaining": hours_remaining,
         }
 
-    async def send_expiration_notice(
-        self,
-        quiz_session_id: UUID
-    ) -> Dict[str, Any]:
+    async def send_expiration_notice(self, quiz_session_id: UUID) -> Dict[str, Any]:
         """
         Send expiration notice for expired quiz link.
 
@@ -272,10 +285,14 @@ class MonthlyQuizMessageIntegration:
             Dictionary with notice status
         """
         # Get quiz link status
-        quiz_link = await self.monthly_quiz_service.get_quiz_link_status(quiz_session_id)
+        quiz_link = await self.monthly_quiz_service.get_quiz_link_status(
+            quiz_session_id
+        )
 
         # Get patient
-        patient = self.db.query(Patient).filter(Patient.id == quiz_link.patient_id).first()
+        patient = (
+            self.db.query(Patient).filter(Patient.id == quiz_link.patient_id).first()
+        )
         if not patient:
             raise NotFoundError(f"Patient with ID {quiz_link.patient_id} not found")
 
@@ -284,20 +301,16 @@ class MonthlyQuizMessageIntegration:
             patient_id=quiz_link.patient_id,
             patient_name=patient.name,
             quiz_session_id=str(quiz_session_id),
-            delivery_method=quiz_link.delivery_method.value
+            delivery_method=quiz_link.delivery_method.value,
         )
 
         # Send message
         send_result = await self.message_sender.send_message(message)
 
-        return {
-            "expiration_notice_sent": send_result,
-            "message_id": str(message.id)
-        }
+        return {"expiration_notice_sent": send_result, "message_id": str(message.id)}
 
     async def send_completion_confirmation(
-        self,
-        quiz_session_id: UUID
+        self, quiz_session_id: UUID
     ) -> Dict[str, Any]:
         """
         Send completion confirmation message.
@@ -309,10 +322,14 @@ class MonthlyQuizMessageIntegration:
             Dictionary with confirmation status
         """
         # Get quiz link status
-        quiz_link = await self.monthly_quiz_service.get_quiz_link_status(quiz_session_id)
+        quiz_link = await self.monthly_quiz_service.get_quiz_link_status(
+            quiz_session_id
+        )
 
         # Get patient
-        patient = self.db.query(Patient).filter(Patient.id == quiz_link.patient_id).first()
+        patient = (
+            self.db.query(Patient).filter(Patient.id == quiz_link.patient_id).first()
+        )
         if not patient:
             raise NotFoundError(f"Patient with ID {quiz_link.patient_id} not found")
 
@@ -321,23 +338,20 @@ class MonthlyQuizMessageIntegration:
             patient_id=quiz_link.patient_id,
             patient_name=patient.name,
             quiz_session_id=str(quiz_session_id),
-            delivery_method=quiz_link.delivery_method.value
+            delivery_method=quiz_link.delivery_method.value,
         )
 
         # Send message
         send_result = await self.message_sender.send_message(message)
 
-        return {
-            "confirmation_sent": send_result,
-            "message_id": str(message.id)
-        }
+        return {"confirmation_sent": send_result, "message_id": str(message.id)}
 
     async def send_bulk_quiz_links(
         self,
         patient_ids: list[UUID],
         quiz_template_id: UUID,
         delivery_method: DeliveryMethod = DeliveryMethod.WHATSAPP,
-        expiry_hours: int = 72
+        expiry_hours: int = 72,
     ) -> Dict[str, Any]:
         """
         Send quiz links to multiple patients.
@@ -361,19 +375,16 @@ class MonthlyQuizMessageIntegration:
                     quiz_template_id=quiz_template_id,
                     delivery_method=delivery_method,
                     expiry_hours=expiry_hours,
-                    send_immediately=True
+                    send_immediately=True,
                 )
                 results.append(result)
             except Exception as e:
-                failures.append({
-                    "patient_id": str(patient_id),
-                    "error": str(e)
-                })
+                failures.append({"patient_id": str(patient_id), "error": str(e)})
 
         return {
             "total_requested": len(patient_ids),
             "total_sent": len(results),
             "total_failed": len(failures),
             "results": results,
-            "failures": failures
+            "failures": failures,
         }

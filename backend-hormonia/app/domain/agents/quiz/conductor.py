@@ -4,15 +4,18 @@ Quiz Conductor - Main orchestrator for quiz sessions.
 Coordinates quiz flow with adaptive intelligence and multi-agent collaboration.
 """
 
-import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
 from app.agents.base import BaseAgent, MessagePriority
-from app.services.quiz import QuizTemplateService, QuizSessionService, QuizResponseService
+from app.services.quiz import (
+    QuizTemplateService,
+    QuizSessionService,
+    QuizResponseService,
+)
 from app.domain.messaging.delivery import MessageSender
 from app.repositories.patient import PatientRepository
 from app.integrations.gemini_client import get_gemini_client
@@ -44,7 +47,7 @@ class QuizConductor(BaseAgent):
             agent_type="communication",
             specialization="quiz_conductor",
             db_session=db_session,
-            **kwargs
+            **kwargs,
         )
 
         # Service dependencies
@@ -64,7 +67,7 @@ class QuizConductor(BaseAgent):
             quiz_session_service=self.quiz_session_service,
             patient_repo=self.patient_repo,
             agent_id=self.agent_id,
-            logger=self.logger
+            logger=self.logger,
         )
 
         self.question_presenter = QuestionPresenter(
@@ -73,7 +76,7 @@ class QuizConductor(BaseAgent):
             message_sender=self.message_sender,
             agent_id=self.agent_id,
             gemini_client=None,  # Set during initialization
-            logger=self.logger
+            logger=self.logger,
         )
 
         self.response_handler = ResponseHandler(
@@ -83,7 +86,7 @@ class QuizConductor(BaseAgent):
             agent_id=self.agent_id,
             gemini_client=None,  # Set during initialization
             knowledge_graph=None,  # Set during initialization
-            logger=self.logger
+            logger=self.logger,
         )
 
         self.progress_tracker = ProgressTracker(logger=self.logger)
@@ -92,7 +95,7 @@ class QuizConductor(BaseAgent):
             db_session=db_session,
             message_sender=self.message_sender,
             agent_id=self.agent_id,
-            logger=self.logger
+            logger=self.logger,
         )
 
         # Agent capabilities
@@ -103,7 +106,7 @@ class QuizConductor(BaseAgent):
             "mood_detection",
             "engagement_analysis",
             "personalization",
-            "consensus_analysis"
+            "consensus_analysis",
         ]
 
         # Quiz parameters
@@ -125,7 +128,9 @@ class QuizConductor(BaseAgent):
 
             # Initialize knowledge graph
             await self.session_coordinator.initialize_knowledge_graph()
-            self.response_handler.knowledge_graph = self.session_coordinator.knowledge_graph
+            self.response_handler.knowledge_graph = (
+                self.session_coordinator.knowledge_graph
+            )
 
             # Load quiz templates
             await self.question_presenter.load_quiz_templates()
@@ -156,7 +161,7 @@ class QuizConductor(BaseAgent):
             "process_quiz_response",
             "adapt_quiz_questions",
             "analyze_quiz_completion",
-            "trigger_monthly_quiz"
+            "trigger_monthly_quiz",
         ]
 
         if task_type not in compatible_tasks:
@@ -229,18 +234,20 @@ class QuizConductor(BaseAgent):
             "quiz_type": quiz_type,
             "questions_asked": len(context.responses_so_far),
             "adaptations_made": len(context.adaptation_history),
-            "completion_status": conduction_result
+            "completion_status": conduction_result,
         }
 
     async def _conduct_adaptive_quiz(self, context: QuizContext) -> Dict[str, Any]:
         """Conduct quiz with real-time adaptation."""
         completion_status = {
             "completed": False,
-            "total_questions": len(context.template.questions) if context.template else 0,
+            "total_questions": len(context.template.questions)
+            if context.template
+            else 0,
             "questions_asked": 0,
             "adaptations_made": 0,
             "early_completion": False,
-            "intervention_triggered": False
+            "intervention_triggered": False,
         }
 
         try:
@@ -250,19 +257,26 @@ class QuizConductor(BaseAgent):
             )
 
             # Process questions with adaptation
-            while (context.current_question_index < len(context.template.questions) and
-                   context.current_question_index < self.max_questions_per_session):
-
+            while (
+                context.current_question_index < len(context.template.questions)
+                and context.current_question_index < self.max_questions_per_session
+            ):
                 # Check if adaptation is needed
                 if await self._should_adapt_quiz(context):
                     adaptation = await self._determine_adaptation(context)
-                    await self.notification_manager.send_adaptation_message(context, adaptation)
-                    context.adaptation_history.append({
-                        "adaptation_type": adaptation.value,
-                        "question_index": context.current_question_index,
-                        "reason": self.notification_manager.get_adaptation_reason(context, adaptation),
-                        "timestamp": datetime.utcnow().isoformat()
-                    })
+                    await self.notification_manager.send_adaptation_message(
+                        context, adaptation
+                    )
+                    context.adaptation_history.append(
+                        {
+                            "adaptation_type": adaptation.value,
+                            "question_index": context.current_question_index,
+                            "reason": self.notification_manager.get_adaptation_reason(
+                                context, adaptation
+                            ),
+                            "timestamp": datetime.utcnow().isoformat(),
+                        }
+                    )
                     completion_status["adaptations_made"] += 1
 
                 # Send current question
@@ -306,14 +320,17 @@ class QuizConductor(BaseAgent):
         """Process patient response with swarm analysis."""
         return await self.response_handler.process_quiz_response(
             payload,
-            build_context_callback=lambda pid, qt: self.session_coordinator.build_quiz_context(
+            build_context_callback=lambda pid,
+            qt: self.session_coordinator.build_quiz_context(
                 pid, qt, self.progress_tracker
             ),
             send_next_question_callback=lambda ctx: self.question_presenter.send_quiz_question(
                 ctx, self.max_questions_per_session, self.stress_threshold
             ),
-            complete_session_callback=lambda ctx: self._complete_session_with_notification(ctx),
-            send_clarification_callback=self.notification_manager.send_clarification_message
+            complete_session_callback=lambda ctx: self._complete_session_with_notification(
+                ctx
+            ),
+            send_clarification_callback=self.notification_manager.send_clarification_message,
         )
 
     async def _complete_session_with_notification(self, context: QuizContext):
@@ -338,8 +355,11 @@ class QuizConductor(BaseAgent):
         # Check response patterns
         if len(context.responses_so_far) >= 3:
             # Check for pattern of short or unclear responses
-            unclear_responses = sum(1 for r in context.responses_so_far[-3:]
-                                  if r.get("confidence", 1.0) < 0.6)
+            unclear_responses = sum(
+                1
+                for r in context.responses_so_far[-3:]
+                if r.get("confidence", 1.0) < 0.6
+            )
             if unclear_responses >= 2:
                 return True
 
@@ -361,8 +381,11 @@ class QuizConductor(BaseAgent):
 
         # Pattern of unclear responses - add clarification
         if len(context.responses_so_far) >= 2:
-            recent_unclear = [r for r in context.responses_so_far[-2:]
-                            if r.get("confidence", 1.0) < 0.6]
+            recent_unclear = [
+                r
+                for r in context.responses_so_far[-2:]
+                if r.get("confidence", 1.0) < 0.6
+            ]
             if len(recent_unclear) >= 1:
                 return QuizAdaptationType.ADD_CLARIFICATION
 
@@ -379,9 +402,9 @@ class QuizConductor(BaseAgent):
                 "quiz_session_id": str(context.session.id),
                 "trigger_reason": "concerning_quiz_responses",
                 "mood_indicators": context.mood_indicators,
-                "stress_level": context.stress_level
+                "stress_level": context.stress_level,
             },
-            MessagePriority.CRITICAL
+            MessagePriority.CRITICAL,
         )
 
     async def _adapt_quiz_questions(self, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -405,7 +428,9 @@ class QuizConductor(BaseAgent):
         return {
             "success": True,
             "adaptation_applied": adaptation.value,
-            "reason": self.notification_manager.get_adaptation_reason(context, adaptation)
+            "reason": self.notification_manager.get_adaptation_reason(
+                context, adaptation
+            ),
         }
 
     async def _analyze_quiz_completion(self, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -427,14 +452,20 @@ class QuizConductor(BaseAgent):
         analysis = {
             "session_id": str(session_id),
             "patient_id": str(session.patient_id),
-            "completion_quality": await self.progress_tracker.assess_completion_quality(context),
+            "completion_quality": await self.progress_tracker.assess_completion_quality(
+                context
+            ),
             "mood_analysis": context.mood_indicators,
             "engagement_metrics": {
                 "score": context.engagement_score,
-                "adaptations_needed": len(context.adaptation_history)
+                "adaptations_needed": len(context.adaptation_history),
             },
-            "medical_insights": await self.progress_tracker.extract_medical_insights(context),
-            "recommendations": await self.progress_tracker.generate_follow_up_recommendations(context)
+            "medical_insights": await self.progress_tracker.extract_medical_insights(
+                context
+            ),
+            "recommendations": await self.progress_tracker.generate_follow_up_recommendations(
+                context
+            ),
         }
 
         return {"success": True, "analysis": analysis}
@@ -454,13 +485,15 @@ class QuizConductor(BaseAgent):
         # Check if already has active session
         active_session = self.quiz_session_service.get_active_session(patient_id)
         if active_session:
-            return {"success": False, "error": "Patient already has active quiz session"}
+            return {
+                "success": False,
+                "error": "Patient already has active quiz session",
+            }
 
         # Create and start quiz session
-        result = await self._conduct_quiz_session({
-            "patient_id": str(patient_id),
-            "quiz_type": "monthly_checkup"
-        })
+        result = await self._conduct_quiz_session(
+            {"patient_id": str(patient_id), "quiz_type": "monthly_checkup"}
+        )
 
         return result
 

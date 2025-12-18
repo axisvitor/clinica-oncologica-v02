@@ -33,6 +33,7 @@ Usage:
         "data": {"patient_id": "123"}
     })
 """
+
 import asyncio
 import json
 import logging
@@ -59,7 +60,7 @@ class RedisPubSubManager:
         self,
         redis_client: redis.Redis,
         connection_manager: UnifiedWebSocketConnectionManager,
-        instance_id: Optional[str] = None
+        instance_id: Optional[str] = None,
     ):
         """
         Initialize Redis Pub/Sub manager.
@@ -147,8 +148,8 @@ class RedisPubSubManager:
             raise RuntimeError("PubSub not initialized")
 
         channels = [
-            "ws:broadcast",      # Global broadcasts
-            "ws:heartbeat",      # Health checks
+            "ws:broadcast",  # Global broadcasts
+            "ws:heartbeat",  # Health checks
         ]
 
         for channel in channels:
@@ -221,7 +222,7 @@ class RedisPubSubManager:
                 if not self.is_running:
                     break
 
-                if message['type'] == 'message':
+                if message["type"] == "message":
                     await self._handle_pubsub_message(message)
 
         except asyncio.CancelledError:
@@ -241,14 +242,16 @@ class RedisPubSubManager:
             message: Redis pub/sub message
         """
         try:
-            channel = message['channel'].decode('utf-8')
-            data = json.loads(message['data'].decode('utf-8'))
+            channel = message["channel"].decode("utf-8")
+            data = json.loads(message["data"].decode("utf-8"))
 
             # Skip messages from this instance (echo prevention)
-            if data.get('instance_id') == self.instance_id:
+            if data.get("instance_id") == self.instance_id:
                 return
 
-            logger.debug(f"Received pub/sub message on channel {channel}: {data.get('type')}")
+            logger.debug(
+                f"Received pub/sub message on channel {channel}: {data.get('type')}"
+            )
 
             # Route to appropriate handler
             if channel == "ws:broadcast":
@@ -272,7 +275,7 @@ class RedisPubSubManager:
         Args:
             data: Message data
         """
-        payload = data.get('payload', {})
+        payload = data.get("payload", {})
         await self.connection_manager.broadcast(payload)
 
     async def _handle_room_message(self, room_id: str, data: Dict[str, Any]):
@@ -283,7 +286,7 @@ class RedisPubSubManager:
             room_id: Room identifier
             data: Message data
         """
-        payload = data.get('payload', {})
+        payload = data.get("payload", {})
         await self.connection_manager.broadcast_to_room(room_id, payload)
 
     async def _handle_user_message(self, user_id: str, data: Dict[str, Any]):
@@ -294,12 +297,13 @@ class RedisPubSubManager:
             user_id: User identifier
             data: Message data
         """
-        payload = data.get('payload', {})
+        payload = data.get("payload", {})
 
         # Get all connections for this user
         user_connections = [
-            conn_id for conn_id, conn_data in self.connection_manager.connections.items()
-            if conn_data.get('user_id') == user_id
+            conn_id
+            for conn_id, conn_data in self.connection_manager.connections.items()
+            if conn_data.get("user_id") == user_id
         ]
 
         # Send to each connection
@@ -313,7 +317,7 @@ class RedisPubSubManager:
         Args:
             data: Heartbeat data
         """
-        source_instance = data.get('instance_id')
+        source_instance = data.get("instance_id")
         logger.debug(f"Heartbeat received from instance: {source_instance}")
 
     # =========================================================================
@@ -328,15 +332,12 @@ class RedisPubSubManager:
             payload: Message payload to broadcast
         """
         message = {
-            'instance_id': self.instance_id,
-            'timestamp': datetime.utcnow().isoformat(),
-            'payload': payload
+            "instance_id": self.instance_id,
+            "timestamp": datetime.utcnow().isoformat(),
+            "payload": payload,
         }
 
-        await self.redis_client.publish(
-            'ws:broadcast',
-            json.dumps(message)
-        )
+        await self.redis_client.publish("ws:broadcast", json.dumps(message))
 
         logger.debug(f"Published broadcast message: {payload.get('type')}")
 
@@ -349,9 +350,9 @@ class RedisPubSubManager:
             payload: Message payload
         """
         message = {
-            'instance_id': self.instance_id,
-            'timestamp': datetime.utcnow().isoformat(),
-            'payload': payload
+            "instance_id": self.instance_id,
+            "timestamp": datetime.utcnow().isoformat(),
+            "payload": payload,
         }
 
         channel = f"ws:room:{room_id}"
@@ -368,9 +369,9 @@ class RedisPubSubManager:
             payload: Message payload
         """
         message = {
-            'instance_id': self.instance_id,
-            'timestamp': datetime.utcnow().isoformat(),
-            'payload': payload
+            "instance_id": self.instance_id,
+            "timestamp": datetime.utcnow().isoformat(),
+            "payload": payload,
         }
 
         channel = f"ws:user:{user_id}"
@@ -383,12 +384,12 @@ class RedisPubSubManager:
         Send heartbeat to notify other instances this instance is alive.
         """
         message = {
-            'instance_id': self.instance_id,
-            'timestamp': datetime.utcnow().isoformat(),
-            'connections': len(self.connection_manager.connections)
+            "instance_id": self.instance_id,
+            "timestamp": datetime.utcnow().isoformat(),
+            "connections": len(self.connection_manager.connections),
         }
 
-        await self.redis_client.publish('ws:heartbeat', json.dumps(message))
+        await self.redis_client.publish("ws:heartbeat", json.dumps(message))
 
 
 # Singleton instance (will be initialized in lifespan)

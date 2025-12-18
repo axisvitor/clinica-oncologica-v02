@@ -31,7 +31,6 @@ from app.api.v2.dependencies import (
 )
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.utils.rate_limiter import limiter
-from app.core.redis_unified import get_sync_redis
 
 from .base import (
     _extract_user_context,
@@ -46,9 +45,7 @@ logger = logging.getLogger(__name__)
 
 
 def _serialize_physician(
-    physician: User,
-    db: Session,
-    include_statistics: bool = False
+    physician: User, db: Session, include_statistics: bool = False
 ) -> Dict[str, Any]:
     """
     Serialize physician User model to API response dict.
@@ -62,44 +59,51 @@ def _serialize_physician(
         Dictionary with physician data
     """
     # Count assigned patients (optimized single query)
-    patient_counts = db.query(
+    db.query(
         Patient.flow_state,
-        db.query(Patient.id).filter(
+        db.query(Patient.id)
+        .filter(Patient.doctor_id == physician.id, Patient.deleted_at.is_(None))
+        .count(),
+    ).filter(Patient.doctor_id == physician.id, Patient.deleted_at.is_(None)).first()
+
+    total_patients = (
+        db.query(Patient)
+        .filter(Patient.doctor_id == physician.id, Patient.deleted_at.is_(None))
+        .count()
+    )
+
+    active_patients = (
+        db.query(Patient)
+        .filter(
             Patient.doctor_id == physician.id,
-            Patient.deleted_at.is_(None)
-        ).count()
-    ).filter(
-        Patient.doctor_id == physician.id,
-        Patient.deleted_at.is_(None)
-    ).first()
-
-    total_patients = db.query(Patient).filter(
-        Patient.doctor_id == physician.id,
-        Patient.deleted_at.is_(None)
-    ).count()
-
-    active_patients = db.query(Patient).filter(
-        Patient.doctor_id == physician.id,
-        Patient.flow_state == FlowState.ACTIVE,
-        Patient.deleted_at.is_(None)
-    ).count()
+            Patient.flow_state == FlowState.ACTIVE,
+            Patient.deleted_at.is_(None),
+        )
+        .count()
+    )
 
     workload_level = _calculate_workload_level(total_patients)
 
     # Get specialties from Firebase custom claims
     specialties = []
-    if physician.firebase_custom_claims and isinstance(physician.firebase_custom_claims, dict):
+    if physician.firebase_custom_claims and isinstance(
+        physician.firebase_custom_claims, dict
+    ):
         specialties = physician.firebase_custom_claims.get("specialties", [])
 
     # Get status
-    status_value = PhysicianStatus.ACTIVE if physician.is_active else PhysicianStatus.INACTIVE
+    status_value = (
+        PhysicianStatus.ACTIVE if physician.is_active else PhysicianStatus.INACTIVE
+    )
 
     # Base response
     response = {
         "id": str(physician.id),
         "email": physician.email,
         "full_name": physician.full_name or physician.firebase_display_name,
-        "role": physician.role.value if hasattr(physician.role, 'value') else str(physician.role),
+        "role": physician.role.value
+        if hasattr(physician.role, "value")
+        else str(physician.role),
         "is_active": physician.is_active,
         "firebase_uid": physician.firebase_uid,
         "firebase_email_verified": physician.firebase_email_verified,
@@ -107,9 +111,15 @@ def _serialize_physician(
         "firebase_photo_url": physician.firebase_photo_url,
         "specialties": specialties,
         "status": status_value.value,
-        "license_number": physician.firebase_custom_claims.get("license_number") if physician.firebase_custom_claims else None,
-        "phone": physician.firebase_custom_claims.get("phone") if physician.firebase_custom_claims else None,
-        "bio": physician.firebase_custom_claims.get("bio") if physician.firebase_custom_claims else None,
+        "license_number": physician.firebase_custom_claims.get("license_number")
+        if physician.firebase_custom_claims
+        else None,
+        "phone": physician.firebase_custom_claims.get("phone")
+        if physician.firebase_custom_claims
+        else None,
+        "bio": physician.firebase_custom_claims.get("bio")
+        if physician.firebase_custom_claims
+        else None,
         "assigned_patients_count": total_patients,
         "active_patients_count": active_patients,
         "workload_level": workload_level.value,
@@ -131,21 +141,27 @@ def _serialize_physician(
     "/",
     response_model=PhysicianList,
     summary="List physicians with filtering",
-    description="Get paginated list of physicians with optional filtering and statistics."
+    description="Get paginated list of physicians with optional filtering and statistics.",
 )
 @limiter.limit("60/minute")
 async def list_physicians(
     request: Request,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
-    pagination = Depends(get_pagination_params),
+    current_user=Depends(get_current_user_from_session),
+    pagination=Depends(get_pagination_params),
     fields: Optional[List[str]] = Depends(get_field_selection),
     include: Optional[List[str]] = Depends(get_eager_load_params),
     specialty: Optional[Specialty] = Query(None, description="Filter by specialty"),
     status: Optional[PhysicianStatus] = Query(None, description="Filter by status"),
-    workload: Optional[WorkloadLevel] = Query(None, description="Filter by workload level"),
-    min_patients: Optional[int] = Query(None, ge=0, description="Minimum patient count"),
-    max_patients: Optional[int] = Query(None, ge=0, description="Maximum patient count"),
+    workload: Optional[WorkloadLevel] = Query(
+        None, description="Filter by workload level"
+    ),
+    min_patients: Optional[int] = Query(
+        None, ge=0, description="Minimum patient count"
+    ),
+    max_patients: Optional[int] = Query(
+        None, ge=0, description="Maximum patient count"
+    ),
     search: Optional[str] = Query(None, description="Search by name or email"),
 ):
     """List physicians with cursor pagination and filtering."""
@@ -158,16 +174,22 @@ async def list_physicians(
     # Apply RBAC
     role_enum, user_id = _extract_user_context(current_user)
     if role_enum != UserRole.ADMIN:
-        query = query.filter(User.is_active == True)
+        query = query.filter(User.is_active)
 
     # Apply cursor pagination
     if cursor_data and "id" in cursor_data:
-        cursor_id = UUID(cursor_data["id"]) if isinstance(cursor_data["id"], str) else cursor_data["id"]
-        cursor_created_at = datetime.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
+        cursor_id = (
+            UUID(cursor_data["id"])
+            if isinstance(cursor_data["id"], str)
+            else cursor_data["id"]
+        )
+        cursor_created_at = datetime.fromisoformat(
+            cursor_data["created_at"].replace("Z", "+00:00")
+        )
 
         query = query.filter(
-            (User.created_at < cursor_created_at) |
-            ((User.created_at == cursor_created_at) & (User.id > cursor_id))
+            (User.created_at < cursor_created_at)
+            | ((User.created_at == cursor_created_at) & (User.id > cursor_id))
         )
 
     # Apply search filter
@@ -177,15 +199,15 @@ async def list_physicians(
             or_(
                 User.full_name.ilike(search_filter),
                 User.email.ilike(search_filter),
-                User.firebase_display_name.ilike(search_filter)
+                User.firebase_display_name.ilike(search_filter),
             )
         )
 
     # Apply status filter
     if status == PhysicianStatus.INACTIVE:
-        query = query.filter(User.is_active == False)
+        query = query.filter(not User.is_active)
     elif status == PhysicianStatus.ACTIVE:
-        query = query.filter(User.is_active == True)
+        query = query.filter(User.is_active)
 
     # Get total count (only on first page)
     total = None
@@ -205,9 +227,10 @@ async def list_physicians(
     next_cursor = None
     if has_more and physicians:
         import base64
+
         cursor_data = {
             "id": str(physicians[-1].id),
-            "created_at": physicians[-1].created_at.isoformat()
+            "created_at": physicians[-1].created_at.isoformat(),
         }
         next_cursor = base64.b64encode(json.dumps(cursor_data).encode()).decode()
 
@@ -254,14 +277,14 @@ async def list_physicians(
 @router.get(
     "/{physician_id}",
     response_model=PhysicianResponse,
-    summary="Get physician profile by ID"
+    summary="Get physician profile by ID",
 )
 @limiter.limit("60/minute")
 async def get_physician(
     request: Request,
     physician_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
     fields: Optional[List[str]] = Depends(get_field_selection),
     include: Optional[List[str]] = Depends(get_eager_load_params),
 ):
@@ -271,7 +294,7 @@ async def get_physician(
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid physician ID format"
+            detail="Invalid physician ID format",
         )
 
     # Validate access
@@ -293,7 +316,7 @@ async def get_physician(
 @router.patch(
     "/{physician_id}",
     response_model=PhysicianResponse,
-    summary="Update physician information"
+    summary="Update physician information",
 )
 @limiter.limit("60/minute")
 async def update_physician(
@@ -301,14 +324,14 @@ async def update_physician(
     physician_id: str,
     update_data: PhysicianUpdate,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
 ):
     """Update physician information (Admin only)."""
     # RBAC: Admin only
     if not _is_admin(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can update physician information"
+            detail="Only administrators can update physician information",
         )
 
     try:
@@ -316,19 +339,20 @@ async def update_physician(
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid physician ID format"
+            detail="Invalid physician ID format",
         )
 
     # Fetch physician
-    physician = db.query(User).filter(
-        User.id == physician_uuid,
-        User.role == UserRole.DOCTOR
-    ).first()
+    physician = (
+        db.query(User)
+        .filter(User.id == physician_uuid, User.role == UserRole.DOCTOR)
+        .first()
+    )
 
     if not physician:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Physician with id {physician_id} not found"
+            detail=f"Physician with id {physician_id} not found",
         )
 
     # Apply updates
@@ -356,10 +380,12 @@ async def update_physician(
         if isinstance(status_value, PhysicianStatus):
             status_value = status_value.value
         physician.firebase_custom_claims["status"] = status_value
-        physician.is_active = (status_value == PhysicianStatus.ACTIVE.value)
+        physician.is_active = status_value == PhysicianStatus.ACTIVE.value
 
     if "license_number" in update_dict:
-        physician.firebase_custom_claims["license_number"] = update_dict["license_number"]
+        physician.firebase_custom_claims["license_number"] = update_dict[
+            "license_number"
+        ]
 
     if "phone" in update_dict:
         physician.firebase_custom_claims["phone"] = update_dict["phone"]

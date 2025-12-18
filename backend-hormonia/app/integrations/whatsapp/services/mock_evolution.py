@@ -2,17 +2,23 @@
 Mock Evolution API for testing and development.
 Implements the same interface as the real Evolution API client.
 """
+
 import asyncio
-import json
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from uuid import uuid4
 import random
 
+if TYPE_CHECKING:
+    from .evolution_client import EvolutionAPIClient
+
 from ..models.message import (
-    MessageResponse, ContactResponse, InstanceStatus,
-    MessageStatus, MessageType
+    MessageResponse,
+    ContactResponse,
+    InstanceStatus,
+    MessageStatus,
+    MessageType,
 )
 
 logger = logging.getLogger(__name__)
@@ -32,7 +38,7 @@ class MockEvolutionAPIClient:
         max_retries: int = 3,
         timeout_seconds: int = 30,
         rate_limit_requests: int = 100,
-        rate_limit_window: int = 60
+        rate_limit_window: int = 60,
     ):
         self.base_url = base_url
         self.api_key = api_key
@@ -89,7 +95,7 @@ class MockEvolutionAPIClient:
         self,
         instance_name: str,
         webhook_url: Optional[str] = None,
-        webhook_events: Optional[List[str]] = None
+        webhook_events: Optional[List[str]] = None,
     ) -> InstanceStatus:
         """Create a mock WhatsApp instance."""
         await self._simulate_api_call()
@@ -109,7 +115,7 @@ class MockEvolutionAPIClient:
             "webhook_events": webhook_events or [],
             "created_at": datetime.utcnow(),
             "phone_number": None,
-            "profile_name": None
+            "profile_name": None,
         }
 
         # Initialize empty contacts list
@@ -118,10 +124,7 @@ class MockEvolutionAPIClient:
         logger.info(f"Created mock instance: {instance_name}")
 
         return InstanceStatus(
-            name=instance_name,
-            status="created",
-            is_connected=False,
-            qr_code=qr_code
+            name=instance_name, status="created", is_connected=False, qr_code=qr_code
         )
 
     async def get_instance_status(self, instance_name: str) -> InstanceStatus:
@@ -151,7 +154,7 @@ class MockEvolutionAPIClient:
             is_connected=instance["is_connected"],
             phone_number=instance["phone_number"],
             profile_name=instance["profile_name"],
-            qr_code=instance.get("qr_code") if not instance["is_connected"] else None
+            qr_code=instance.get("qr_code") if not instance["is_connected"] else None,
         )
 
     async def get_qr_code(self, instance_name: str) -> Optional[str]:
@@ -172,7 +175,7 @@ class MockEvolutionAPIClient:
         instance_name: str,
         to: str,
         text: str,
-        message_data: Optional[Dict[str, Any]] = None
+        message_data: Optional[Dict[str, Any]] = None,
     ) -> MessageResponse:
         """Send mock text message."""
         await self._simulate_api_call(0.2)
@@ -194,7 +197,7 @@ class MockEvolutionAPIClient:
             "type": "text",
             "status": MessageStatus.SENT,
             "created_at": datetime.utcnow(),
-            "message_data": message_data or {}
+            "message_data": message_data or {},
         }
 
         # Simulate delivery status updates
@@ -208,7 +211,7 @@ class MockEvolutionAPIClient:
             status=MessageStatus.SENT,
             message="Mock message sent successfully",
             timestamp=datetime.utcnow(),
-            message_data=message_data
+            message_data=message_data,
         )
 
     async def send_media_message(
@@ -219,7 +222,7 @@ class MockEvolutionAPIClient:
         media_type: MessageType,
         caption: Optional[str] = None,
         filename: Optional[str] = None,
-        message_data: Optional[Dict[str, Any]] = None
+        message_data: Optional[Dict[str, Any]] = None,
     ) -> MessageResponse:
         """Send mock media message."""
         await self._simulate_api_call(0.3)  # Media takes longer
@@ -244,7 +247,7 @@ class MockEvolutionAPIClient:
             "type": "media",
             "status": MessageStatus.SENT,
             "created_at": datetime.utcnow(),
-            "message_data": message_data or {}
+            "message_data": message_data or {},
         }
 
         # Simulate delivery status updates
@@ -258,7 +261,7 @@ class MockEvolutionAPIClient:
             status=MessageStatus.SENT,
             message="Mock media message sent successfully",
             timestamp=datetime.utcnow(),
-            message_data=message_data
+            message_data=message_data,
         )
 
     async def get_contacts(self, instance_name: str) -> List[ContactResponse]:
@@ -277,15 +280,13 @@ class MockEvolutionAPIClient:
                 formatted_number=contact["formatted_number"],
                 name=contact["name"],
                 profile_picture_url=contact.get("profile_picture_url"),
-                is_whatsapp_user=True
+                is_whatsapp_user=True,
             )
             for contact in contacts
         ]
 
     async def check_whatsapp_number(
-        self,
-        instance_name: str,
-        phone_number: str
+        self, instance_name: str, phone_number: str
     ) -> bool:
         """Mock WhatsApp number check."""
         await self._simulate_api_call(0.1)
@@ -294,9 +295,7 @@ class MockEvolutionAPIClient:
         return random.random() < 0.9
 
     async def get_message_status(
-        self,
-        instance_name: str,
-        message_id: str
+        self, instance_name: str, message_id: str
     ) -> MessageStatus:
         """Get mock message status."""
         await self._simulate_api_call(0.05)
@@ -307,10 +306,7 @@ class MockEvolutionAPIClient:
         return MessageStatus.FAILED
 
     async def set_webhook_url(
-        self,
-        instance_name: str,
-        webhook_url: str,
-        events: Optional[List[str]] = None
+        self, instance_name: str, webhook_url: str, events: Optional[List[str]] = None
     ) -> bool:
         """Set mock webhook URL."""
         await self._simulate_api_call(0.1)
@@ -383,7 +379,7 @@ class MockEvolutionAPIClient:
                 "phone_number": f"5511{random.randint(900000000, 999999999)}",
                 "formatted_number": f"5511{random.randint(900000000, 999999999)}@s.whatsapp.net",
                 "name": f"Contact {i}",
-                "profile_picture_url": f"https://api.dicebear.com/7.x/personas/svg?seed=contact{i}"
+                "profile_picture_url": f"https://api.dicebear.com/7.x/personas/svg?seed=contact{i}",
             }
             for i in range(1, 11)  # Generate 10 mock contacts
         ]
@@ -413,14 +409,12 @@ class MockEvolutionAPIClient:
 
 # Factory function to create the appropriate client
 def create_evolution_client(
-    base_url: str,
-    api_key: str,
-    use_mock: bool = False,
-    **kwargs
+    base_url: str, api_key: str, use_mock: bool = False, **kwargs
 ) -> "EvolutionAPIClient":
     """Create Evolution API client (real or mock)."""
     if use_mock or base_url.startswith("mock://"):
         return MockEvolutionAPIClient(base_url, api_key, **kwargs)
     else:
         from .evolution_client import EvolutionAPIClient
+
         return EvolutionAPIClient(base_url, api_key, **kwargs)

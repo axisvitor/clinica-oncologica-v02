@@ -1,6 +1,7 @@
 """
 Query optimization with eager loading strategies.
 """
+
 import logging
 from typing import List
 

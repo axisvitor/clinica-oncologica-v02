@@ -8,7 +8,6 @@ across multiple channels (email, websocket, webhook, SMS, etc.).
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from uuid import UUID
 
 from ..types import (
     Alert,

@@ -26,7 +26,11 @@ from app.schemas.v2.health import (
 from app.config import settings
 from .utils import APP_START_TIME, calculate_health_score, determine_overall_status
 from .database_health import check_database_health
-from .service_health import check_redis_health, check_worker_health, check_external_services
+from .service_health import (
+    check_redis_health,
+    check_worker_health,
+    check_external_services,
+)
 from .storage_external import check_storage_health
 
 
@@ -56,8 +60,7 @@ async def basic_health_check() -> HealthResponse:
 
 @router.get("/ready", response_model=ReadinessProbe, status_code=status.HTTP_200_OK)
 async def readiness_probe(
-    response: Response,
-    db: Session = Depends(get_db)
+    response: Response, db: Session = Depends(get_db)
 ) -> ReadinessProbe:
     """
     Kubernetes/Railway readiness probe (PUBLIC - no auth required).
@@ -83,6 +86,7 @@ async def readiness_probe(
     # Check workers (non-blocking)
     try:
         from app.celery_app import celery_app
+
         inspect = celery_app.control.inspect(timeout=1.0)
         active = inspect.active()
         checks["workers"] = active is not None and len(active) > 0
@@ -123,7 +127,7 @@ async def liveness_probe() -> LivenessProbe:
 async def detailed_health_check(
     response: Response,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> DetailedHealthResponse:
     """
     Detailed health check with all components (Authenticated).
@@ -149,7 +153,9 @@ async def detailed_health_check(
         "database": database.status,
         "redis": redis_health.status,
         "workers": workers.status,
-        "external_services": external_services[0].status if external_services else HealthStatus.HEALTHY,
+        "external_services": external_services[0].status
+        if external_services
+        else HealthStatus.HEALTHY,
         "storage": storage.status,
     }
     health_score = calculate_health_score(component_statuses)

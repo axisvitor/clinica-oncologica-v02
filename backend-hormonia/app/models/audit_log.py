@@ -10,9 +10,9 @@ Events tracked:
 - Account management (password change, account lock, unlock)
 - Session management (session created, expired, invalidated)
 """
+
 from sqlalchemy import Column, String, Text, Index, Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import JSONB, INET, UUID
-from sqlalchemy.orm import relationship
 import enum
 
 from app.models.base import BaseModel
@@ -20,6 +20,7 @@ from app.models.base import BaseModel
 
 class AuditEventType(str, enum.Enum):
     """Audit event types for security tracking."""
+
     # Authentication events
     LOGIN_SUCCESS = "login_success"
     LOGIN_FAILURE = "login_failure"
@@ -64,20 +65,21 @@ class AuditLog(BaseModel):
     - Network information (IP, user agent)
     - Additional context in metadata
     """
+
     __tablename__ = "audit_logs"
 
     # Event information
     event_type = Column(
-        SQLEnum(AuditEventType, name='audit_event_type', native_enum=True),
+        SQLEnum(AuditEventType, name="audit_event_type", native_enum=True),
         nullable=False,
         index=True,
-        comment="Type of security event"
+        comment="Type of security event",
     )
     event_status = Column(
         String(50),
         nullable=False,
         default="success",
-        comment="Event outcome: success, failure, error"
+        comment="Event outcome: success, failure, error",
     )
 
     # User identification
@@ -85,82 +87,59 @@ class AuditLog(BaseModel):
         UUID(as_uuid=True),
         nullable=True,
         index=True,
-        comment="User ID (may be null for failed login attempts)"
+        comment="User ID (may be null for failed login attempts)",
     )
     user_email = Column(
         String(255),
         nullable=True,
         index=True,
-        comment="User email (for tracking failed login attempts)"
+        comment="User email (for tracking failed login attempts)",
     )
     firebase_uid = Column(
         String(255),
         nullable=True,
         index=True,
-        comment="Firebase UID for Firebase-authenticated users"
+        comment="Firebase UID for Firebase-authenticated users",
     )
 
     # Network information
-    ip_address = Column(
-        INET,
-        nullable=True,
-        index=True,
-        comment="Client IP address"
-    )
-    user_agent = Column(
-        Text,
-        nullable=True,
-        comment="Client user agent string"
-    )
+    ip_address = Column(INET, nullable=True, index=True, comment="Client IP address")
+    user_agent = Column(Text, nullable=True, comment="Client user agent string")
 
     # Event details
     resource = Column(
-        String(255),
-        nullable=True,
-        comment="Resource accessed (endpoint, action)"
+        String(255), nullable=True, comment="Resource accessed (endpoint, action)"
     )
-    action = Column(
-        String(255),
-        nullable=True,
-        comment="Action performed"
-    )
+    action = Column(String(255), nullable=True, comment="Action performed")
 
     # Additional context
     event_metadata = Column(
         JSONB,
         nullable=False,
         default=dict,
-        comment="Additional event metadata (device info, session ID, etc.)"
+        comment="Additional event metadata (device info, session ID, etc.)",
     )
 
     # Result information
-    message = Column(
-        Text,
-        nullable=True,
-        comment="Human-readable event description"
-    )
+    message = Column(Text, nullable=True, comment="Human-readable event description")
     error_details = Column(
-        Text,
-        nullable=True,
-        comment="Error details for failed events"
+        Text, nullable=True, comment="Error details for failed events"
     )
 
     # Performance indexes
     __table_args__ = (
         # Composite index for user activity queries
-        Index('idx_audit_user_event_time', 'user_id', 'event_type', 'created_at'),
-
+        Index("idx_audit_user_event_time", "user_id", "event_type", "created_at"),
         # Index for security monitoring queries
-        Index('idx_audit_ip_time', 'ip_address', 'created_at'),
-
+        Index("idx_audit_ip_time", "ip_address", "created_at"),
         # Index for event type filtering with time range
-        Index('idx_audit_event_status_time', 'event_type', 'event_status', 'created_at'),
-
+        Index(
+            "idx_audit_event_status_time", "event_type", "event_status", "created_at"
+        ),
         # Index for Firebase UID lookups
-        Index('idx_audit_firebase_time', 'firebase_uid', 'created_at'),
-
+        Index("idx_audit_firebase_time", "firebase_uid", "created_at"),
         # Index for email-based queries (failed login tracking)
-        Index('idx_audit_email_time', 'user_email', 'created_at'),
+        Index("idx_audit_email_time", "user_email", "created_at"),
     )
 
     def __repr__(self):
@@ -176,7 +155,7 @@ class AuditLog(BaseModel):
     @property
     def is_failure(self) -> bool:
         """Check if event represents a failure."""
-        return self.event_status in ['failure', 'error']
+        return self.event_status in ["failure", "error"]
 
     @property
     def is_authentication_event(self) -> bool:

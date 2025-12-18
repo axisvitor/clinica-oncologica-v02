@@ -17,7 +17,11 @@ from .cache_utils import (
     set_cached_result,
     CACHE_TTL_SEARCH,
 )
-from .data_providers import extract_openapi_endpoints, get_static_guides, get_static_examples
+from .data_providers import (
+    extract_openapi_endpoints,
+    get_static_guides,
+    get_static_examples,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -34,13 +38,15 @@ RATE_LIMIT_SEARCH = "60/minute"
     responses={
         200: {"description": "Search results"},
         400: {"model": ErrorResponse, "description": "Invalid search query"},
-    }
+    },
 )
 @limiter.limit(RATE_LIMIT_SEARCH)
 async def search_documentation(
     request: Request,
     q: str = Query(..., min_length=2, description="Search query"),
-    type: Optional[str] = Query(None, description="Filter by type (endpoint, guide, example)"),
+    type: Optional[str] = Query(
+        None, description="Filter by type (endpoint, guide, example)"
+    ),
     limit: int = Query(20, ge=1, le=100, description="Results limit"),
 ):
     """
@@ -78,15 +84,17 @@ async def search_documentation(
                     score += 0.5
 
                 if score > 0:
-                    results.append({
-                        "type": "endpoint",
-                        "id": endpoint["id"],
-                        "title": f"{endpoint['method']} {endpoint['path']}",
-                        "description": endpoint["summary"],
-                        "content_preview": endpoint["description"][:200],
-                        "relevance_score": score,
-                        "url": f"/api/v2/docs/endpoints/{endpoint['method']}/{endpoint['path']}",
-                    })
+                    results.append(
+                        {
+                            "type": "endpoint",
+                            "id": endpoint["id"],
+                            "title": f"{endpoint['method']} {endpoint['path']}",
+                            "description": endpoint["summary"],
+                            "content_preview": endpoint["description"][:200],
+                            "relevance_score": score,
+                            "url": f"/api/v2/docs/endpoints/{endpoint['method']}/{endpoint['path']}",
+                        }
+                    )
 
         # Search guides
         if not type or type == "guide":
@@ -103,15 +111,17 @@ async def search_documentation(
                     score += 0.6
 
                 if score > 0:
-                    results.append({
-                        "type": "guide",
-                        "id": guide["id"],
-                        "title": guide["title"],
-                        "description": guide["description"],
-                        "content_preview": guide["content"][:200],
-                        "relevance_score": score,
-                        "url": f"/api/v2/docs/guides/{guide['slug']}",
-                    })
+                    results.append(
+                        {
+                            "type": "guide",
+                            "id": guide["id"],
+                            "title": guide["title"],
+                            "description": guide["description"],
+                            "content_preview": guide["content"][:200],
+                            "relevance_score": score,
+                            "url": f"/api/v2/docs/guides/{guide['slug']}",
+                        }
+                    )
 
         # Search examples
         if not type or type == "example":
@@ -126,15 +136,17 @@ async def search_documentation(
                     score += 0.4
 
                 if score > 0:
-                    results.append({
-                        "type": "example",
-                        "id": example["id"],
-                        "title": example["title"],
-                        "description": example["description"],
-                        "content_preview": example["code"][:200],
-                        "relevance_score": score,
-                        "url": f"/api/v2/docs/examples/{example['id']}",
-                    })
+                    results.append(
+                        {
+                            "type": "example",
+                            "id": example["id"],
+                            "title": example["title"],
+                            "description": example["description"],
+                            "content_preview": example["code"][:200],
+                            "relevance_score": score,
+                            "url": f"/api/v2/docs/examples/{example['id']}",
+                        }
+                    )
 
         # Sort by relevance
         results.sort(key=lambda x: x["relevance_score"], reverse=True)
@@ -159,5 +171,5 @@ async def search_documentation(
         logger.error(f"Error searching documentation: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to search documentation"
+            detail="Failed to search documentation",
         )

@@ -21,13 +21,16 @@ class KeyStrengthResult(BaseModel):
         recommendations: Suggested improvements
         strength_level: Categorization (weak/medium/strong/very_strong)
     """
+
     entropy_bits: float = Field(..., description="Shannon entropy in bits")
     is_valid: bool = Field(..., description="Meets minimum requirements")
     issues: List[str] = Field(default_factory=list, description="Security issues")
     recommendations: List[str] = Field(default_factory=list, description="Improvements")
     strength_level: str = Field(..., description="weak/medium/strong/very_strong")
     key_length: int = Field(..., description="Length of key in characters")
-    has_placeholder: bool = Field(default=False, description="Contains placeholder text")
+    has_placeholder: bool = Field(
+        default=False, description="Contains placeholder text"
+    )
 
 
 # Minimum entropy requirements (in bits)
@@ -53,9 +56,9 @@ PLACEHOLDER_PATTERNS = [
 
 
 __all__ = [
-    'KeyStrengthResult',
-    'MIN_ENTROPY_PRODUCTION',
-    'MIN_ENTROPY_DEVELOPMENT',
-    'MIN_KEY_LENGTH',
-    'PLACEHOLDER_PATTERNS',
+    "KeyStrengthResult",
+    "MIN_ENTROPY_PRODUCTION",
+    "MIN_ENTROPY_DEVELOPMENT",
+    "MIN_KEY_LENGTH",
+    "PLACEHOLDER_PATTERNS",
 ]

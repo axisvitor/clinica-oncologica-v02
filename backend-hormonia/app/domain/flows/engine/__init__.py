@@ -11,6 +11,7 @@ This module provides a comprehensive flow processing engine with the following c
 All components work together to provide a robust, AI-enhanced flow processing system
 for patient daily flows in the oncology clinic management system.
 """
+
 from app.domain.flows.engine.flow_engine import FlowEngine
 from app.domain.flows.engine.context_builder import ContextBuilder
 from app.domain.flows.engine.condition_evaluator import ConditionEvaluator
@@ -22,7 +23,7 @@ __all__ = [
     "ContextBuilder",
     "ConditionEvaluator",
     "StepExecutor",
-    "TransitionManager"
+    "TransitionManager",
 ]
 
 __version__ = "2.0.0"

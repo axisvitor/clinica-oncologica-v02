@@ -15,19 +15,27 @@ patient data, system metrics, and real-time analytics.
 """
 
 from typing import Optional, List, Dict, Any
-from datetime import datetime
-from uuid import UUID
 from enum import Enum
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict, constr, conint, confloat
+from pydantic import (
+    BaseModel,
+    Field,
+    field_validator,
+    ConfigDict,
+    constr,
+    conint,
+    confloat,
+)
 
 
 # ============================================================================
 # Enums and Constants
 # ============================================================================
 
+
 class TimeRangeEnum(str, Enum):
     """Time range options for dashboard metrics."""
+
     TODAY = "today"
     WEEK = "week"
     MONTH = "month"
@@ -38,6 +46,7 @@ class TimeRangeEnum(str, Enum):
 
 class WidgetTypeEnum(str, Enum):
     """Widget types for dashboard customization."""
+
     METRIC_CARD = "metric_card"
     LINE_CHART = "line_chart"
     BAR_CHART = "bar_chart"
@@ -52,6 +61,7 @@ class WidgetTypeEnum(str, Enum):
 
 class WidgetSizeEnum(str, Enum):
     """Widget size options for responsive layouts."""
+
     SMALL = "small"  # 1x1 grid
     MEDIUM = "medium"  # 2x1 grid
     LARGE = "large"  # 2x2 grid
@@ -63,24 +73,25 @@ class WidgetSizeEnum(str, Enum):
 # Base Widget Schemas
 # ============================================================================
 
+
 class WidgetConfig(BaseModel):
     """Configuration for a dashboard widget."""
 
     widget_id: str = Field(description="Unique widget identifier")
     widget_type: WidgetTypeEnum = Field(description="Type of widget")
     title: constr(min_length=1, max_length=200) = Field(description="Widget title")
-    size: WidgetSizeEnum = Field(default=WidgetSizeEnum.MEDIUM, description="Widget size")
+    size: WidgetSizeEnum = Field(
+        default=WidgetSizeEnum.MEDIUM, description="Widget size"
+    )
     position: Dict[str, int] = Field(
         default={"x": 0, "y": 0},
-        description="Widget position in grid (x, y coordinates)"
+        description="Widget position in grid (x, y coordinates)",
     )
     config: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Widget-specific configuration"
+        default_factory=dict, description="Widget-specific configuration"
     )
     refresh_interval: Optional[conint(ge=30, le=3600)] = Field(
-        None,
-        description="Auto-refresh interval in seconds (30-3600)"
+        None, description="Auto-refresh interval in seconds (30-3600)"
     )
 
     @field_validator("position")
@@ -94,9 +105,7 @@ class WidgetConfig(BaseModel):
         return v
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "widget_id": "widget_patients_total",
                 "widget_type": "metric_card",
@@ -104,7 +113,7 @@ class WidgetConfig(BaseModel):
                 "size": "small",
                 "position": {"x": 0, "y": 0},
                 "config": {"metric_key": "total_patients"},
-                "refresh_interval": 120
+                "refresh_interval": 120,
             }
         }
     )
@@ -114,21 +123,28 @@ class WidgetConfig(BaseModel):
 # Widget Data Schemas
 # ============================================================================
 
+
 class MetricWidgetData(BaseModel):
     """Data for metric card widgets (KPIs)."""
 
     value: confloat() = Field(description="Current metric value")
     label: str = Field(description="Metric label")
-    unit: Optional[str] = Field(None, description="Unit of measurement (%, count, etc.)")
-    change: Optional[confloat()] = Field(None, description="Change from previous period")
-    change_percentage: Optional[confloat()] = Field(None, description="Percentage change")
+    unit: Optional[str] = Field(
+        None, description="Unit of measurement (%, count, etc.)"
+    )
+    change: Optional[confloat()] = Field(
+        None, description="Change from previous period"
+    )
+    change_percentage: Optional[confloat()] = Field(
+        None, description="Percentage change"
+    )
     trend: Optional[str] = Field(None, description="Trend direction (up, down, stable)")
-    color: Optional[str] = Field(None, description="Display color (success, warning, danger)")
+    color: Optional[str] = Field(
+        None, description="Display color (success, warning, danger)"
+    )
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "value": 245,
                 "label": "Total Patients",
@@ -136,7 +152,7 @@ class MetricWidgetData(BaseModel):
                 "change": 12,
                 "change_percentage": 5.2,
                 "trend": "up",
-                "color": "success"
+                "color": "success",
             }
         }
     )
@@ -147,7 +163,9 @@ class ChartDataPoint(BaseModel):
 
     label: str = Field(description="Data point label (date, category, etc.)")
     value: confloat() = Field(description="Data point value")
-    category: Optional[str] = Field(None, description="Data category for grouped charts")
+    category: Optional[str] = Field(
+        None, description="Data category for grouped charts"
+    )
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
 
@@ -161,18 +179,16 @@ class ChartWidgetData(BaseModel):
     legend: Optional[List[str]] = Field(None, description="Legend labels")
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "chart_type": "line",
                 "data_points": [
                     {"label": "2025-01-10", "value": 45},
                     {"label": "2025-01-11", "value": 52},
-                    {"label": "2025-01-12", "value": 48}
+                    {"label": "2025-01-12", "value": 48},
                 ],
                 "x_axis_label": "Date",
-                "y_axis_label": "Messages Sent"
+                "y_axis_label": "Messages Sent",
             }
         }
     )
@@ -189,20 +205,22 @@ class TableRow(BaseModel):
 class TableWidgetData(BaseModel):
     """Data for table widgets."""
 
-    columns: List[Dict[str, str]] = Field(description="Column definitions (key, label, type)")
+    columns: List[Dict[str, str]] = Field(
+        description="Column definitions (key, label, type)"
+    )
     rows: List[TableRow] = Field(description="Table rows")
     sortable: bool = Field(default=True, description="Whether table is sortable")
-    total_count: Optional[int] = Field(None, description="Total row count (for pagination)")
+    total_count: Optional[int] = Field(
+        None, description="Total row count (for pagination)"
+    )
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "columns": [
                     {"key": "name", "label": "Patient Name", "type": "string"},
                     {"key": "alerts", "label": "Alerts", "type": "number"},
-                    {"key": "status", "label": "Status", "type": "badge"}
+                    {"key": "status", "label": "Status", "type": "badge"},
                 ],
                 "rows": [
                     {
@@ -210,12 +228,12 @@ class TableWidgetData(BaseModel):
                         "cells": {
                             "name": "Jane Doe",
                             "alerts": 3,
-                            "status": "High Risk"
-                        }
+                            "status": "High Risk",
+                        },
                     }
                 ],
                 "sortable": True,
-                "total_count": 25
+                "total_count": 25,
             }
         }
     )
@@ -227,7 +245,9 @@ class ActivityItem(BaseModel):
     id: str = Field(description="Activity identifier")
     type: str = Field(description="Activity type (message_sent, alert_created, etc.)")
     description: str = Field(description="Activity description")
-    entity_name: Optional[str] = Field(None, description="Related entity name (patient, user)")
+    entity_name: Optional[str] = Field(
+        None, description="Related entity name (patient, user)"
+    )
     timestamp: str = Field(description="Activity timestamp (ISO format)")
     icon: Optional[str] = Field(None, description="Icon identifier")
     link: Optional[str] = Field(None, description="Link to related resource")
@@ -241,9 +261,7 @@ class ActivityFeedData(BaseModel):
     last_updated: str = Field(description="Last update timestamp")
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "activities": [
                     {
@@ -252,11 +270,11 @@ class ActivityFeedData(BaseModel):
                         "description": "Mensagem enviada para Jane Doe",
                         "entity_name": "Jane Doe",
                         "timestamp": "2025-01-17T15:30:00Z",
-                        "icon": "mail"
+                        "icon": "mail",
                     }
                 ],
                 "total_count": 45,
-                "last_updated": "2025-01-17T15:35:00Z"
+                "last_updated": "2025-01-17T15:35:00Z",
             }
         }
     )
@@ -272,14 +290,14 @@ class AlertsSummaryData(BaseModel):
     medium_alerts: conint(ge=0) = Field(description="Medium severity alerts")
     low_alerts: conint(ge=0) = Field(description="Low severity alerts")
     alerts_by_type: List[Dict[str, Any]] = Field(
-        default_factory=list,
-        description="Alert breakdown by type"
+        default_factory=list, description="Alert breakdown by type"
     )
 
 
 # ============================================================================
 # Metric Group Schemas
 # ============================================================================
+
 
 class PatientMetrics(BaseModel):
     """Patient metrics for dashboards."""
@@ -299,7 +317,9 @@ class MessageMetrics(BaseModel):
     delivered_count: conint(ge=0) = Field(description="Delivered messages")
     failed_count: conint(ge=0) = Field(description="Failed messages")
     response_count: conint(ge=0) = Field(description="Messages with patient responses")
-    response_rate: confloat(ge=0, le=100) = Field(description="Response rate percentage")
+    response_rate: confloat(ge=0, le=100) = Field(
+        description="Response rate percentage"
+    )
 
 
 class AlertMetrics(BaseModel):
@@ -322,7 +342,9 @@ class FlowMetrics(BaseModel):
     completed_flows: conint(ge=0) = Field(description="Completed flows")
     paused_flows: conint(ge=0) = Field(description="Paused flows")
     completion_rate: confloat(ge=0, le=100) = Field(description="Flow completion rate")
-    avg_completion_days: confloat(ge=0) = Field(description="Average completion time in days")
+    avg_completion_days: confloat(ge=0) = Field(
+        description="Average completion time in days"
+    )
 
 
 class UserMetrics(BaseModel):
@@ -340,6 +362,7 @@ class UserMetrics(BaseModel):
 # Dashboard Response Schemas
 # ============================================================================
 
+
 class DashboardMainResponse(BaseModel):
     """Main dashboard overview response."""
 
@@ -355,9 +378,7 @@ class DashboardMainResponse(BaseModel):
     generated_at: str = Field(description="Response generation timestamp")
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "user_role": "doctor",
                 "time_range": "week",
@@ -368,7 +389,7 @@ class DashboardMainResponse(BaseModel):
                     "active_patients": 142,
                     "inactive_patients": 8,
                     "new_patients": 5,
-                    "high_risk_patients": 12
+                    "high_risk_patients": 12,
                 },
                 "message_metrics": {
                     "total_messages": 1250,
@@ -376,7 +397,7 @@ class DashboardMainResponse(BaseModel):
                     "delivered_count": 1180,
                     "failed_count": 50,
                     "response_count": 890,
-                    "response_rate": 71.2
+                    "response_rate": 71.2,
                 },
                 "alert_metrics": {
                     "total_alerts": 45,
@@ -385,7 +406,7 @@ class DashboardMainResponse(BaseModel):
                     "critical_alerts": 2,
                     "high_alerts": 12,
                     "medium_alerts": 23,
-                    "low_alerts": 8
+                    "low_alerts": 8,
                 },
                 "flow_metrics": {
                     "total_flows": 85,
@@ -393,10 +414,10 @@ class DashboardMainResponse(BaseModel):
                     "completed_flows": 38,
                     "paused_flows": 5,
                     "completion_rate": 44.7,
-                    "avg_completion_days": 12.5
+                    "avg_completion_days": 12.5,
                 },
                 "recent_activity": [],
-                "generated_at": "2025-01-17T15:00:00Z"
+                "generated_at": "2025-01-17T15:00:00Z",
             }
         }
     )
@@ -427,16 +448,14 @@ class DashboardPatientResponse(BaseModel):
     generated_at: str = Field(description="Response generation timestamp")
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "patient": {
                     "id": "123e4567-e89b-12d3-a456-426614174000",
                     "full_name": "Jane Doe",
                     "email": "jane@example.com",
                     "is_active": True,
-                    "created_at": "2024-01-15T10:00:00Z"
+                    "created_at": "2024-01-15T10:00:00Z",
                 },
                 "time_range": "month",
                 "start_date": "2024-12-17T00:00:00Z",
@@ -447,7 +466,7 @@ class DashboardPatientResponse(BaseModel):
                     "delivered_count": 42,
                     "failed_count": 2,
                     "response_count": 32,
-                    "response_rate": 71.1
+                    "response_rate": 71.1,
                 },
                 "alert_metrics": {
                     "total_alerts": 8,
@@ -456,7 +475,7 @@ class DashboardPatientResponse(BaseModel):
                     "critical_alerts": 0,
                     "high_alerts": 2,
                     "medium_alerts": 4,
-                    "low_alerts": 2
+                    "low_alerts": 2,
                 },
                 "flow_metrics": {
                     "total_flows": 3,
@@ -464,11 +483,11 @@ class DashboardPatientResponse(BaseModel):
                     "completed_flows": 1,
                     "paused_flows": 0,
                     "completion_rate": 33.3,
-                    "avg_completion_days": 15.0
+                    "avg_completion_days": 15.0,
                 },
                 "recent_activity": [],
                 "engagement_chart": [],
-                "generated_at": "2025-01-17T15:00:00Z"
+                "generated_at": "2025-01-17T15:00:00Z",
             }
         }
     )
@@ -509,9 +528,7 @@ class DashboardPhysicianResponse(BaseModel):
     generated_at: str = Field(description="Response generation timestamp")
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "user_id": "223e4567-e89b-12d3-a456-426614174001",
                 "time_range": "week",
@@ -522,7 +539,7 @@ class DashboardPhysicianResponse(BaseModel):
                     "active_patients": 33,
                     "inactive_patients": 2,
                     "new_patients": 2,
-                    "high_risk_patients": 4
+                    "high_risk_patients": 4,
                 },
                 "message_metrics": {
                     "total_messages": 250,
@@ -530,7 +547,7 @@ class DashboardPhysicianResponse(BaseModel):
                     "delivered_count": 240,
                     "failed_count": 5,
                     "response_count": 180,
-                    "response_rate": 72.0
+                    "response_rate": 72.0,
                 },
                 "alert_metrics": {
                     "total_alerts": 18,
@@ -539,7 +556,7 @@ class DashboardPhysicianResponse(BaseModel):
                     "critical_alerts": 1,
                     "high_alerts": 5,
                     "medium_alerts": 9,
-                    "low_alerts": 3
+                    "low_alerts": 3,
                 },
                 "flow_metrics": {
                     "total_flows": 28,
@@ -547,11 +564,11 @@ class DashboardPhysicianResponse(BaseModel):
                     "completed_flows": 12,
                     "paused_flows": 1,
                     "completion_rate": 42.9,
-                    "avg_completion_days": 11.5
+                    "avg_completion_days": 11.5,
                 },
                 "high_priority_alerts": [],
                 "top_risk_patients": [],
-                "generated_at": "2025-01-17T15:00:00Z"
+                "generated_at": "2025-01-17T15:00:00Z",
             }
         }
     )
@@ -564,16 +581,26 @@ class PhysicianPerformance(BaseModel):
     physician_name: str = Field(description="Physician name")
     patient_count: conint(ge=0) = Field(description="Number of patients")
     message_count: conint(ge=0) = Field(description="Messages sent")
-    engagement_rate: confloat(ge=0, le=100) = Field(description="Patient engagement rate")
+    engagement_rate: confloat(ge=0, le=100) = Field(
+        description="Patient engagement rate"
+    )
 
 
 class SystemHealth(BaseModel):
     """System health indicators for admin dashboard."""
 
-    message_success_rate: confloat(ge=0, le=100) = Field(description="Message success rate")
-    alert_response_rate: confloat(ge=0, le=100) = Field(description="Alert response rate")
-    flow_completion_rate: confloat(ge=0, le=100) = Field(description="Flow completion rate")
-    patient_active_rate: confloat(ge=0, le=100) = Field(description="Patient active rate")
+    message_success_rate: confloat(ge=0, le=100) = Field(
+        description="Message success rate"
+    )
+    alert_response_rate: confloat(ge=0, le=100) = Field(
+        description="Alert response rate"
+    )
+    flow_completion_rate: confloat(ge=0, le=100) = Field(
+        description="Flow completion rate"
+    )
+    patient_active_rate: confloat(ge=0, le=100) = Field(
+        description="Patient active rate"
+    )
 
 
 class DashboardAdminResponse(BaseModel):
@@ -587,14 +614,14 @@ class DashboardAdminResponse(BaseModel):
     alert_metrics: AlertMetrics = Field(description="Alert statistics")
     flow_metrics: FlowMetrics = Field(description="Flow statistics")
     user_metrics: UserMetrics = Field(description="User statistics")
-    top_physicians: List[PhysicianPerformance] = Field(description="Top performing physicians")
+    top_physicians: List[PhysicianPerformance] = Field(
+        description="Top performing physicians"
+    )
     system_health: SystemHealth = Field(description="System health indicators")
     generated_at: str = Field(description="Response generation timestamp")
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "time_range": "month",
                 "start_date": "2024-12-17T00:00:00Z",
@@ -604,7 +631,7 @@ class DashboardAdminResponse(BaseModel):
                     "active_patients": 420,
                     "inactive_patients": 30,
                     "new_patients": 25,
-                    "high_risk_patients": 35
+                    "high_risk_patients": 35,
                 },
                 "message_metrics": {
                     "total_messages": 5500,
@@ -612,7 +639,7 @@ class DashboardAdminResponse(BaseModel):
                     "delivered_count": 5300,
                     "failed_count": 100,
                     "response_count": 3900,
-                    "response_rate": 70.9
+                    "response_rate": 70.9,
                 },
                 "alert_metrics": {
                     "total_alerts": 180,
@@ -621,7 +648,7 @@ class DashboardAdminResponse(BaseModel):
                     "critical_alerts": 8,
                     "high_alerts": 45,
                     "medium_alerts": 90,
-                    "low_alerts": 37
+                    "low_alerts": 37,
                 },
                 "flow_metrics": {
                     "total_flows": 320,
@@ -629,7 +656,7 @@ class DashboardAdminResponse(BaseModel):
                     "completed_flows": 160,
                     "paused_flows": 15,
                     "completion_rate": 50.0,
-                    "avg_completion_days": 13.2
+                    "avg_completion_days": 13.2,
                 },
                 "user_metrics": {
                     "total_users": 485,
@@ -637,16 +664,16 @@ class DashboardAdminResponse(BaseModel):
                     "inactive_users": 15,
                     "doctors_count": 25,
                     "patients_count": 450,
-                    "admins_count": 10
+                    "admins_count": 10,
                 },
                 "top_physicians": [],
                 "system_health": {
                     "message_success_rate": 98.2,
                     "alert_response_rate": 86.1,
                     "flow_completion_rate": 50.0,
-                    "patient_active_rate": 93.3
+                    "patient_active_rate": 93.3,
                 },
-                "generated_at": "2025-01-17T15:00:00Z"
+                "generated_at": "2025-01-17T15:00:00Z",
             }
         }
     )
@@ -655,6 +682,7 @@ class DashboardAdminResponse(BaseModel):
 # ============================================================================
 # Custom Dashboard Schemas
 # ============================================================================
+
 
 class CustomDashboardResponse(BaseModel):
     """Custom dashboard configuration response."""
@@ -669,9 +697,7 @@ class CustomDashboardResponse(BaseModel):
     updated_at: Optional[str] = Field(None, description="Last update timestamp")
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "dashboard_id": "323e4567-e89b-12d3-a456-426614174002",
                 "user_id": "223e4567-e89b-12d3-a456-426614174001",
@@ -685,12 +711,12 @@ class CustomDashboardResponse(BaseModel):
                         "size": "small",
                         "position": {"x": 0, "y": 0},
                         "config": {},
-                        "refresh_interval": 120
+                        "refresh_interval": 120,
                     }
                 ],
                 "layout": {"columns": 4, "row_height": 100},
                 "created_at": "2025-01-10T10:00:00Z",
-                "updated_at": "2025-01-17T15:00:00Z"
+                "updated_at": "2025-01-17T15:00:00Z",
             }
         }
     )
@@ -715,9 +741,7 @@ class DashboardLayoutUpdate(BaseModel):
         return v
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "name": "Updated Dashboard",
                 "description": "Modified layout",
@@ -728,10 +752,10 @@ class DashboardLayoutUpdate(BaseModel):
                         "title": "Active Patients",
                         "size": "medium",
                         "position": {"x": 0, "y": 0},
-                        "config": {"metric_key": "active_patients"}
+                        "config": {"metric_key": "active_patients"},
                     }
                 ],
-                "layout": {"columns": 4, "row_height": 120}
+                "layout": {"columns": 4, "row_height": 120},
             }
         }
     )

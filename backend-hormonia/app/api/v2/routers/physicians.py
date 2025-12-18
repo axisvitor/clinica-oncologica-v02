@@ -9,8 +9,7 @@ from uuid import UUID
 import json
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-from sqlalchemy.orm import Session,  joinedload
-from sqlalchemy import and_, func, case, or_
+from sqlalchemy import func, case, or_
 
 from app.database import get_db
 from app.models.user import User, UserRole
@@ -30,7 +29,6 @@ from app.schemas.v2.physicians import (
     AppointmentStats,
     AlertStats,
 )
-from app.schemas.v2.common import ErrorResponse
 from app.api.v2.dependencies import (
     get_pagination_params,
     get_field_selection,
@@ -48,6 +46,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
 
 def _extract_user_context(current_user) -> tuple[Optional[UserRole], Optional[str]]:
     """Extract role and user_id from current_user (dict or model)."""
@@ -98,9 +97,7 @@ def _calculate_workload_level(patient_count: int) -> WorkloadLevel:
 
 
 def _calculate_physician_statistics(
-    db,
-    physician_id: UUID,
-    cache_ttl: int = 600
+    db, physician_id: UUID, cache_ttl: int = 600
 ) -> PhysicianStatistics:
     """Calculate comprehensive physician statistics with caching."""
     # Check Redis cache first
@@ -119,30 +116,45 @@ def _calculate_physician_statistics(
     logger.info(f"Calculating statistics for physician {physician_id}")
 
     # Patient metrics
-    total_patients = db.query(Patient).filter(
-        Patient.doctor_id == physician_id,
-        Patient.deleted_at.is_(None)
-    ).count()
+    total_patients = (
+        db.query(Patient)
+        .filter(Patient.doctor_id == physician_id, Patient.deleted_at.is_(None))
+        .count()
+    )
 
-    active_patients = db.query(Patient).filter(
-        Patient.doctor_id == physician_id,
-        Patient.flow_state == FlowState.ACTIVE,
-        Patient.deleted_at.is_(None)
-    ).count()
+    active_patients = (
+        db.query(Patient)
+        .filter(
+            Patient.doctor_id == physician_id,
+            Patient.flow_state == FlowState.ACTIVE,
+            Patient.deleted_at.is_(None),
+        )
+        .count()
+    )
 
-    inactive_patients = db.query(Patient).filter(
-        Patient.doctor_id == physician_id,
-        Patient.flow_state == FlowState.CANCELLED,
-        Patient.deleted_at.is_(None)
-    ).count()
+    inactive_patients = (
+        db.query(Patient)
+        .filter(
+            Patient.doctor_id == physician_id,
+            Patient.flow_state == FlowState.CANCELLED,
+            Patient.deleted_at.is_(None),
+        )
+        .count()
+    )
 
     # New patients this month
-    start_of_month = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    new_patients_this_month = db.query(Patient).filter(
-        Patient.doctor_id == physician_id,
-        Patient.created_at >= start_of_month,
-        Patient.deleted_at.is_(None)
-    ).count()
+    start_of_month = datetime.utcnow().replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0
+    )
+    new_patients_this_month = (
+        db.query(Patient)
+        .filter(
+            Patient.doctor_id == physician_id,
+            Patient.created_at >= start_of_month,
+            Patient.deleted_at.is_(None),
+        )
+        .count()
+    )
 
     # Workload level
     workload_level = _calculate_workload_level(total_patients)
@@ -152,43 +164,64 @@ def _calculate_physician_statistics(
     today_end = datetime.combine(date.today(), time.max)
     week_ago = datetime.utcnow() - timedelta(days=7)
 
-    patient_ids = db.query(Patient.id).filter(
-        Patient.doctor_id == physician_id,
-        Patient.deleted_at.is_(None)
-    ).subquery()
+    patient_ids = (
+        db.query(Patient.id)
+        .filter(Patient.doctor_id == physician_id, Patient.deleted_at.is_(None))
+        .subquery()
+    )
 
     # Messages sent (outbound)
-    total_sent = db.query(Message).filter(
-        Message.patient_id.in_(patient_ids),
-        Message.direction == MessageDirection.OUTBOUND
-    ).count()
+    total_sent = (
+        db.query(Message)
+        .filter(
+            Message.patient_id.in_(patient_ids),
+            Message.direction == MessageDirection.OUTBOUND,
+        )
+        .count()
+    )
 
     # Messages received (inbound)
-    total_received = db.query(Message).filter(
-        Message.patient_id.in_(patient_ids),
-        Message.direction == MessageDirection.INBOUND
-    ).count()
+    total_received = (
+        db.query(Message)
+        .filter(
+            Message.patient_id.in_(patient_ids),
+            Message.direction == MessageDirection.INBOUND,
+        )
+        .count()
+    )
 
     # Unread messages
-    unread_count = db.query(Message).filter(
-        Message.patient_id.in_(patient_ids),
-        Message.direction == MessageDirection.INBOUND,
-        Message.status.notin_([MessageStatus.READ])
-    ).count()
+    unread_count = (
+        db.query(Message)
+        .filter(
+            Message.patient_id.in_(patient_ids),
+            Message.direction == MessageDirection.INBOUND,
+            Message.status.notin_([MessageStatus.READ]),
+        )
+        .count()
+    )
 
     # Response rate (last 7 days)
-    inbound_count = db.query(Message).filter(
-        Message.patient_id.in_(patient_ids),
-        Message.direction == MessageDirection.INBOUND,
-        Message.created_at >= week_ago
-    ).count()
+    inbound_count = (
+        db.query(Message)
+        .filter(
+            Message.patient_id.in_(patient_ids),
+            Message.direction == MessageDirection.INBOUND,
+            Message.created_at >= week_ago,
+        )
+        .count()
+    )
 
-    read_count = db.query(Message).filter(
-        Message.patient_id.in_(patient_ids),
-        Message.direction == MessageDirection.INBOUND,
-        Message.status == MessageStatus.READ,
-        Message.created_at >= week_ago
-    ).count()
+    read_count = (
+        db.query(Message)
+        .filter(
+            Message.patient_id.in_(patient_ids),
+            Message.direction == MessageDirection.INBOUND,
+            Message.status == MessageStatus.READ,
+            Message.created_at >= week_ago,
+        )
+        .count()
+    )
 
     response_rate = (read_count / inbound_count) if inbound_count > 0 else 0.0
 
@@ -197,28 +230,36 @@ def _calculate_physician_statistics(
     avg_response_time = None
     try:
         from sqlalchemy import func as sqlfunc
+
         # Get messages with their timestamps
-        inbound_messages = db.query(
-            Message.id,
-            Message.created_at.label('inbound_time'),
-            Message.patient_id
-        ).filter(
-            Message.patient_id.in_(patient_ids),
-            Message.direction == MessageDirection.INBOUND,
-            Message.created_at >= week_ago
-        ).subquery()
+        inbound_messages = (
+            db.query(
+                Message.id, Message.created_at.label("inbound_time"), Message.patient_id
+            )
+            .filter(
+                Message.patient_id.in_(patient_ids),
+                Message.direction == MessageDirection.INBOUND,
+                Message.created_at >= week_ago,
+            )
+            .subquery()
+        )
 
         # For each inbound message, find the next outbound response
-        response_times = db.query(
-            sqlfunc.avg(
-                sqlfunc.extract('epoch', Message.created_at) -
-                sqlfunc.extract('epoch', inbound_messages.c.inbound_time)
-            ) / 60  # Convert to minutes
-        ).filter(
-            Message.patient_id == inbound_messages.c.patient_id,
-            Message.direction == MessageDirection.OUTBOUND,
-            Message.created_at > inbound_messages.c.inbound_time
-        ).scalar()
+        response_times = (
+            db.query(
+                sqlfunc.avg(
+                    sqlfunc.extract("epoch", Message.created_at)
+                    - sqlfunc.extract("epoch", inbound_messages.c.inbound_time)
+                )
+                / 60  # Convert to minutes
+            )
+            .filter(
+                Message.patient_id == inbound_messages.c.patient_id,
+                Message.direction == MessageDirection.OUTBOUND,
+                Message.created_at > inbound_messages.c.inbound_time,
+            )
+            .scalar()
+        )
 
         if response_times:
             avg_response_time = round(float(response_times), 1)
@@ -230,7 +271,7 @@ def _calculate_physician_statistics(
         total_received=total_received,
         unread_count=unread_count,
         response_rate=round(response_rate, 2),
-        avg_response_time_minutes=avg_response_time
+        avg_response_time_minutes=avg_response_time,
     )
 
     # Appointment statistics - using real data from appointments table
@@ -247,19 +288,23 @@ def _calculate_physician_statistics(
         ).count()
 
         cancelled = appointments_base.filter(
-            Appointment.status.in_([AppointmentStatus.CANCELLED.value, AppointmentStatus.NO_SHOW.value])
+            Appointment.status.in_(
+                [AppointmentStatus.CANCELLED.value, AppointmentStatus.NO_SHOW.value]
+            )
         ).count()
 
         # Upcoming appointments (scheduled in the future)
         upcoming = appointments_base.filter(
             Appointment.scheduled_at > datetime.utcnow(),
-            Appointment.status.in_([AppointmentStatus.SCHEDULED.value, AppointmentStatus.CONFIRMED.value])
+            Appointment.status.in_(
+                [AppointmentStatus.SCHEDULED.value, AppointmentStatus.CONFIRMED.value]
+            ),
         ).count()
 
         # Today's appointments
         today_appointments = appointments_base.filter(
             Appointment.scheduled_at >= today_start,
-            Appointment.scheduled_at <= today_end
+            Appointment.scheduled_at <= today_end,
         ).count()
 
         appointment_stats = AppointmentStats(
@@ -267,36 +312,44 @@ def _calculate_physician_statistics(
             completed=completed,
             cancelled=cancelled,
             upcoming=upcoming,
-            today=today_appointments
+            today=today_appointments,
         )
     except Exception as e:
         logger.warning(f"Failed to calculate appointment stats: {e}")
         appointment_stats = AppointmentStats(
-            total_scheduled=0,
-            completed=0,
-            cancelled=0,
-            upcoming=0,
-            today=0
+            total_scheduled=0, completed=0, cancelled=0, upcoming=0, today=0
         )
 
     # Alert statistics
-    alert_counts = db.query(
-        func.count(Alert.id).label('total'),
-        func.sum(case((Alert.severity == AlertSeverity.CRITICAL, 1), else_=0)).label('critical'),
-        func.sum(case((Alert.severity == AlertSeverity.HIGH, 1), else_=0)).label('high'),
-        func.sum(case((Alert.severity == AlertSeverity.MEDIUM, 1), else_=0)).label('medium'),
-        func.sum(case((Alert.severity == AlertSeverity.LOW, 1), else_=0)).label('low')
-    ).filter(
-        Alert.patient_id.in_(patient_ids),
-        Alert.status.in_([AlertStatus.PENDING, AlertStatus.ACTIVE])
-    ).first()
+    alert_counts = (
+        db.query(
+            func.count(Alert.id).label("total"),
+            func.sum(
+                case((Alert.severity == AlertSeverity.CRITICAL, 1), else_=0)
+            ).label("critical"),
+            func.sum(case((Alert.severity == AlertSeverity.HIGH, 1), else_=0)).label(
+                "high"
+            ),
+            func.sum(case((Alert.severity == AlertSeverity.MEDIUM, 1), else_=0)).label(
+                "medium"
+            ),
+            func.sum(case((Alert.severity == AlertSeverity.LOW, 1), else_=0)).label(
+                "low"
+            ),
+        )
+        .filter(
+            Alert.patient_id.in_(patient_ids),
+            Alert.status.in_([AlertStatus.PENDING, AlertStatus.ACTIVE]),
+        )
+        .first()
+    )
 
     alert_stats = AlertStats(
         total=alert_counts.total or 0,
         critical=alert_counts.critical or 0,
         high=alert_counts.high or 0,
         medium=alert_counts.medium or 0,
-        low=alert_counts.low or 0
+        low=alert_counts.low or 0,
     )
 
     # Calculate patient satisfaction score
@@ -312,19 +365,29 @@ def _calculate_physician_statistics(
             # Appointment completion rate (40% weight)
             appt_completion_rate = 0.0
             if appointment_stats.total_scheduled > 0:
-                appt_completion_rate = appointment_stats.completed / appointment_stats.total_scheduled
+                appt_completion_rate = (
+                    appointment_stats.completed / appointment_stats.total_scheduled
+                )
 
             # Alert severity score (30% weight) - lower is better
             alert_severity_score = 1.0
             if alert_stats.total > 0:
-                critical_weight = (alert_stats.critical * 4 + alert_stats.high * 2) / alert_stats.total
+                critical_weight = (
+                    alert_stats.critical * 4 + alert_stats.high * 2
+                ) / alert_stats.total
                 alert_severity_score = max(0, 1 - (critical_weight / 4))
 
             # Response rate (30% weight)
-            response_rate_score = message_stats.response_rate if message_stats.response_rate else 0.5
+            response_rate_score = (
+                message_stats.response_rate if message_stats.response_rate else 0.5
+            )
 
             # Weighted average (scale 0-5)
-            raw_score = (appt_completion_rate * 0.4 + alert_severity_score * 0.3 + response_rate_score * 0.3) * 5
+            raw_score = (
+                appt_completion_rate * 0.4
+                + alert_severity_score * 0.3
+                + response_rate_score * 0.3
+            ) * 5
             patient_satisfaction_score = round(min(5.0, max(0.0, raw_score)), 2)
     except Exception as e:
         logger.warning(f"Failed to calculate satisfaction score: {e}")
@@ -333,16 +396,21 @@ def _calculate_physician_statistics(
     avg_treatment_duration_days = None
     try:
         # Get patients who have completed treatment (CANCELLED state with completed_at)
-        completed_patients = db.query(
-            func.avg(
-                func.extract('epoch', Patient.updated_at) -
-                func.extract('epoch', Patient.created_at)
-            ) / 86400  # Convert to days
-        ).filter(
-            Patient.doctor_id == physician_id,
-            Patient.flow_state == FlowState.CANCELLED,
-            Patient.deleted_at.is_(None)
-        ).scalar()
+        completed_patients = (
+            db.query(
+                func.avg(
+                    func.extract("epoch", Patient.updated_at)
+                    - func.extract("epoch", Patient.created_at)
+                )
+                / 86400  # Convert to days
+            )
+            .filter(
+                Patient.doctor_id == physician_id,
+                Patient.flow_state == FlowState.CANCELLED,
+                Patient.deleted_at.is_(None),
+            )
+            .scalar()
+        )
 
         if completed_patients:
             avg_treatment_duration_days = round(float(completed_patients), 1)
@@ -361,19 +429,17 @@ def _calculate_physician_statistics(
         alerts=alert_stats,
         patient_satisfaction_score=patient_satisfaction_score,
         avg_treatment_duration_days=avg_treatment_duration_days,
-        calculated_at=datetime.utcnow()
+        calculated_at=datetime.utcnow(),
     )
 
     # Cache in Redis
     try:
         redis_client = get_sync_redis()
         if redis_client:
-            redis_client.setex(
-                cache_key,
-                cache_ttl,
-                statistics.model_dump_json()
+            redis_client.setex(cache_key, cache_ttl, statistics.model_dump_json())
+            logger.info(
+                f"Cached statistics for physician {physician_id} (TTL: {cache_ttl}s)"
             )
-            logger.info(f"Cached statistics for physician {physician_id} (TTL: {cache_ttl}s)")
     except Exception as e:
         logger.warning(f"Failed to cache statistics: {e}")
 
@@ -381,28 +447,33 @@ def _calculate_physician_statistics(
 
 
 def _serialize_physician(
-    physician: User,
-    db,
-    include_statistics: bool = False
+    physician: User, db, include_statistics: bool = False
 ) -> Dict[str, Any]:
     """Serialize physician User model to API response dict."""
     # Count assigned patients
-    total_patients = db.query(Patient).filter(
-        Patient.doctor_id == physician.id,
-        Patient.deleted_at.is_(None)
-    ).count()
+    total_patients = (
+        db.query(Patient)
+        .filter(Patient.doctor_id == physician.id, Patient.deleted_at.is_(None))
+        .count()
+    )
 
-    active_patients = db.query(Patient).filter(
-        Patient.doctor_id == physician.id,
-        Patient.flow_state == FlowState.ACTIVE,
-        Patient.deleted_at.is_(None)
-    ).count()
+    active_patients = (
+        db.query(Patient)
+        .filter(
+            Patient.doctor_id == physician.id,
+            Patient.flow_state == FlowState.ACTIVE,
+            Patient.deleted_at.is_(None),
+        )
+        .count()
+    )
 
     workload_level = _calculate_workload_level(total_patients)
 
     # Get specialties from Firebase custom claims or metadata
     specialties = []
-    if physician.firebase_custom_claims and isinstance(physician.firebase_custom_claims, dict):
+    if physician.firebase_custom_claims and isinstance(
+        physician.firebase_custom_claims, dict
+    ):
         specialties = physician.firebase_custom_claims.get("specialties", [])
 
     # Get status (default to active if user is active)
@@ -413,7 +484,9 @@ def _serialize_physician(
         "id": str(physician.id),
         "email": physician.email,
         "full_name": physician.full_name or physician.firebase_display_name,
-        "role": physician.role.value if hasattr(physician.role, 'value') else str(physician.role),
+        "role": physician.role.value
+        if hasattr(physician.role, "value")
+        else str(physician.role),
         "is_active": physician.is_active,
         "firebase_uid": physician.firebase_uid,
         "firebase_email_verified": physician.firebase_email_verified,
@@ -421,9 +494,15 @@ def _serialize_physician(
         "firebase_photo_url": physician.firebase_photo_url,
         "specialties": specialties,
         "status": status.value,
-        "license_number": physician.firebase_custom_claims.get("license_number") if physician.firebase_custom_claims else None,
-        "phone": physician.firebase_custom_claims.get("phone") if physician.firebase_custom_claims else None,
-        "bio": physician.firebase_custom_claims.get("bio") if physician.firebase_custom_claims else None,
+        "license_number": physician.firebase_custom_claims.get("license_number")
+        if physician.firebase_custom_claims
+        else None,
+        "phone": physician.firebase_custom_claims.get("phone")
+        if physician.firebase_custom_claims
+        else None,
+        "bio": physician.firebase_custom_claims.get("bio")
+        if physician.firebase_custom_claims
+        else None,
         "assigned_patients_count": total_patients,
         "active_patients_count": active_patients,
         "workload_level": workload_level.value,
@@ -444,26 +523,33 @@ def _serialize_physician(
 # Endpoints
 # ============================================================================
 
+
 @router.get(
     "",
     response_model=PhysicianList,
     summary="List physicians with filtering",
-    description="Paginated physician list with filtering, field selection, and caching (30min TTL)."
+    description="Paginated physician list with filtering, field selection, and caching (30min TTL).",
 )
 @limiter.limit("60/minute")
 async def list_physicians(
     request: Request,
-    db = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
-    pagination = Depends(get_pagination_params),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user_from_session),
+    pagination=Depends(get_pagination_params),
     fields: Optional[List[str]] = Depends(get_field_selection),
     include: Optional[List[str]] = Depends(get_eager_load_params),
     # Filters
     specialty: Optional[Specialty] = Query(None, description="Filter by specialty"),
     status: Optional[PhysicianStatus] = Query(None, description="Filter by status"),
-    workload: Optional[WorkloadLevel] = Query(None, description="Filter by workload level"),
-    min_patients: Optional[int] = Query(None, ge=0, description="Minimum patient count"),
-    max_patients: Optional[int] = Query(None, ge=0, description="Maximum patient count"),
+    workload: Optional[WorkloadLevel] = Query(
+        None, description="Filter by workload level"
+    ),
+    min_patients: Optional[int] = Query(
+        None, ge=0, description="Minimum patient count"
+    ),
+    max_patients: Optional[int] = Query(
+        None, ge=0, description="Maximum patient count"
+    ),
     search: Optional[str] = Query(None, description="Search by name or email"),
 ):
     """List physicians with cursor pagination and filtering."""
@@ -489,16 +575,22 @@ async def list_physicians(
     role_enum, user_id = _extract_user_context(current_user)
     if role_enum != UserRole.ADMIN:
         # Non-admin users can only see active physicians
-        query = query.filter(User.is_active == True)
+        query = query.filter(User.is_active)
 
     # Apply cursor pagination
     if cursor_data and "id" in cursor_data:
-        cursor_id = UUID(cursor_data["id"]) if isinstance(cursor_data["id"], str) else cursor_data["id"]
-        cursor_created_at = datetime.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
+        cursor_id = (
+            UUID(cursor_data["id"])
+            if isinstance(cursor_data["id"], str)
+            else cursor_data["id"]
+        )
+        cursor_created_at = datetime.fromisoformat(
+            cursor_data["created_at"].replace("Z", "+00:00")
+        )
 
         query = query.filter(
-            (User.created_at < cursor_created_at) |
-            ((User.created_at == cursor_created_at) & (User.id > cursor_id))
+            (User.created_at < cursor_created_at)
+            | ((User.created_at == cursor_created_at) & (User.id > cursor_id))
         )
 
     # Apply search filter
@@ -508,15 +600,15 @@ async def list_physicians(
             or_(
                 User.full_name.ilike(search_filter),
                 User.email.ilike(search_filter),
-                User.firebase_display_name.ilike(search_filter)
+                User.firebase_display_name.ilike(search_filter),
             )
         )
 
     # Apply is_active filter for status
     if status == PhysicianStatus.INACTIVE:
-        query = query.filter(User.is_active == False)
+        query = query.filter(not User.is_active)
     elif status == PhysicianStatus.ACTIVE:
-        query = query.filter(User.is_active == True)
+        query = query.filter(User.is_active)
 
     # Get total count (only on first page)
     total = None
@@ -536,9 +628,10 @@ async def list_physicians(
     next_cursor = None
     if has_more and physicians:
         import base64
+
         cursor_data = {
             "id": str(physicians[-1].id),
-            "created_at": physicians[-1].created_at.isoformat()
+            "created_at": physicians[-1].created_at.isoformat(),
         }
         next_cursor = base64.b64encode(json.dumps(cursor_data).encode()).decode()
 
@@ -592,7 +685,7 @@ async def list_physicians(
             redis_client.setex(
                 cache_key,
                 1800,  # 30 minutes
-                json.dumps(response, default=str)
+                json.dumps(response, default=str),
             )
             logger.info("Cached physicians list (TTL: 30min)")
     except Exception as e:
@@ -605,14 +698,14 @@ async def list_physicians(
     "/{physician_id}",
     response_model=PhysicianResponse,
     summary="Get physician profile by ID",
-    description="Detailed physician profile with optional statistics. Cached for 15 minutes."
+    description="Detailed physician profile with optional statistics. Cached for 15 minutes.",
 )
 @limiter.limit("60/minute")
 async def get_physician(
     request: Request,
     physician_id: str,
-    db = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user_from_session),
     fields: Optional[List[str]] = Depends(get_field_selection),
     include: Optional[List[str]] = Depends(get_eager_load_params),
 ):
@@ -622,7 +715,7 @@ async def get_physician(
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid physician ID format"
+            detail="Invalid physician ID format",
         )
 
     # Check cache
@@ -638,15 +731,16 @@ async def get_physician(
         logger.warning(f"Redis cache error: {e}")
 
     # Fetch physician
-    physician = db.query(User).filter(
-        User.id == physician_uuid,
-        User.role == UserRole.DOCTOR
-    ).first()
+    physician = (
+        db.query(User)
+        .filter(User.id == physician_uuid, User.role == UserRole.DOCTOR)
+        .first()
+    )
 
     if not physician:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Physician with id {physician_id} not found"
+            detail=f"Physician with id {physician_id} not found",
         )
 
     # RBAC: Check access
@@ -657,23 +751,29 @@ async def get_physician(
             # Patients can view their assigned physician
             if role_enum == UserRole.PATIENT:
                 # Check if this patient is assigned to the physician
-                patient_assigned = db.query(Patient).filter(
-                    Patient.doctor_id == physician_uuid,
-                    Patient.id == UUID(user_id) if user_id else None,
-                    Patient.deleted_at.is_(None)
-                ).first()
+                patient_assigned = (
+                    db.query(Patient)
+                    .filter(
+                        Patient.doctor_id == physician_uuid,
+                        Patient.id == UUID(user_id) if user_id else None,
+                        Patient.deleted_at.is_(None),
+                    )
+                    .first()
+                )
 
                 if patient_assigned:
-                    logger.debug(f"Patient {user_id} authorized to view assigned physician {physician_id}")
+                    logger.debug(
+                        f"Patient {user_id} authorized to view assigned physician {physician_id}"
+                    )
                 else:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Not authorized to view this physician"
+                        detail="Not authorized to view this physician",
                     )
             else:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Not authorized to view this physician"
+                    detail="Not authorized to view this physician",
                 )
 
     # Serialize physician
@@ -691,7 +791,7 @@ async def get_physician(
             redis_client.setex(
                 cache_key,
                 900,  # 15 minutes
-                json.dumps(physician_dict, default=str)
+                json.dumps(physician_dict, default=str),
             )
             logger.info(f"Cached physician {physician_id} (TTL: 15min)")
     except Exception as e:
@@ -704,22 +804,22 @@ async def get_physician(
     "/{physician_id}",
     response_model=PhysicianResponse,
     summary="Update physician information",
-    description="Update physician profile (Admin only). Automatic cache invalidation."
+    description="Update physician profile (Admin only). Automatic cache invalidation.",
 )
 @limiter.limit("60/minute")
 async def update_physician(
     request: Request,
     physician_id: str,
     update_data: PhysicianUpdate,
-    db = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user_from_session),
 ):
     """Update physician information (Admin only)."""
     # RBAC: Admin only
     if not _is_admin(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can update physician information"
+            detail="Only administrators can update physician information",
         )
 
     try:
@@ -727,19 +827,20 @@ async def update_physician(
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid physician ID format"
+            detail="Invalid physician ID format",
         )
 
     # Fetch physician
-    physician = db.query(User).filter(
-        User.id == physician_uuid,
-        User.role == UserRole.DOCTOR
-    ).first()
+    physician = (
+        db.query(User)
+        .filter(User.id == physician_uuid, User.role == UserRole.DOCTOR)
+        .first()
+    )
 
     if not physician:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Physician with id {physician_id} not found"
+            detail=f"Physician with id {physician_id} not found",
         )
 
     # Apply updates
@@ -769,10 +870,12 @@ async def update_physician(
         physician.firebase_custom_claims["status"] = status_value
 
         # Sync is_active with status
-        physician.is_active = (status_value == PhysicianStatus.ACTIVE.value)
+        physician.is_active = status_value == PhysicianStatus.ACTIVE.value
 
     if "license_number" in update_dict:
-        physician.firebase_custom_claims["license_number"] = update_dict["license_number"]
+        physician.firebase_custom_claims["license_number"] = update_dict[
+            "license_number"
+        ]
 
     if "phone" in update_dict:
         physician.firebase_custom_claims["phone"] = update_dict["phone"]

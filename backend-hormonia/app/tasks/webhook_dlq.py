@@ -9,6 +9,7 @@ Tasks:
 - monitor_dlq_health: Monitor DLQ metrics every 5 minutes
 """
 
+import asyncio
 import logging
 from typing import Any, Dict
 
@@ -19,7 +20,6 @@ from app.database import get_db
 from app.utils.async_helpers import run_async
 from app.services.webhook_dlq import get_webhook_dlq
 from app.config.settings.tasks import (
-    get_task_config,
     QUIZ_DLQ_BATCH_SIZE,
 )
 
@@ -72,7 +72,7 @@ def process_webhook_dlq(self, batch_size: int = QUIZ_DLQ_BATCH_SIZE) -> Dict[str
                 "processed_count": processed_count,
                 "batch_size": batch_size,
                 "execution_time_ms": int(execution_time),
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
             logger.info(
@@ -95,7 +95,7 @@ def process_webhook_dlq(self, batch_size: int = QUIZ_DLQ_BATCH_SIZE) -> Dict[str
             "error": str(e),
             "error_type": type(e).__name__,
             "execution_time_ms": int(execution_time),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
 
@@ -136,6 +136,7 @@ def cleanup_old_dlq_events(self, days_old: int = 7) -> Dict[str, Any]:
             async def _run_cleanup():
                 # Get Redis client
                 from app.core.redis_unified import get_async_redis
+
                 redis_client = await get_async_redis()
 
                 # Get all DLQ keys
@@ -152,6 +153,7 @@ def cleanup_old_dlq_events(self, days_old: int = 7) -> Dict[str, Any]:
                     for event_json in events:
                         try:
                             import json
+
                             event = json.loads(event_json)
 
                             # Check if event is too old
@@ -178,7 +180,7 @@ def cleanup_old_dlq_events(self, days_old: int = 7) -> Dict[str, Any]:
                 "days_old": days_old,
                 "cutoff_date": cutoff_date.isoformat(),
                 "execution_time_ms": int(execution_time),
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
             logger.info(
@@ -200,7 +202,7 @@ def cleanup_old_dlq_events(self, days_old: int = 7) -> Dict[str, Any]:
             "error": str(e),
             "error_type": type(e).__name__,
             "execution_time_ms": int(execution_time),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
 
@@ -245,11 +247,13 @@ def monitor_dlq_health(self) -> Dict[str, Any]:
             alerts = []
 
             if stats.get("overflow_alert"):
-                alerts.append({
-                    "type": "dlq_overflow",
-                    "message": f"DLQ size ({stats['total_pending']}) exceeds threshold ({stats['max_dlq_size']})",
-                    "severity": "critical"
-                })
+                alerts.append(
+                    {
+                        "type": "dlq_overflow",
+                        "message": f"DLQ size ({stats['total_pending']}) exceeds threshold ({stats['max_dlq_size']})",
+                        "severity": "critical",
+                    }
+                )
 
             # Check dead letter rate
             for event_type, metrics in stats.get("by_event_type", {}).items():
@@ -260,13 +264,15 @@ def monitor_dlq_health(self) -> Dict[str, Any]:
                     dead_letter_rate = (total_dead_letter / total_processed) * 100
 
                     if dead_letter_rate > 10:  # >10% dead letter rate
-                        alerts.append({
-                            "type": "high_dead_letter_rate",
-                            "message": f"High dead letter rate for {event_type}: {dead_letter_rate:.1f}%",
-                            "severity": "warning",
-                            "event_type": event_type,
-                            "dead_letter_rate": dead_letter_rate
-                        })
+                        alerts.append(
+                            {
+                                "type": "high_dead_letter_rate",
+                                "message": f"High dead letter rate for {event_type}: {dead_letter_rate:.1f}%",
+                                "severity": "warning",
+                                "event_type": event_type,
+                                "dead_letter_rate": dead_letter_rate,
+                            }
+                        )
 
             execution_time = (datetime.utcnow() - start_time).total_seconds() * 1000
 
@@ -276,7 +282,7 @@ def monitor_dlq_health(self) -> Dict[str, Any]:
                 "alerts": alerts,
                 "alert_count": len(alerts),
                 "execution_time_ms": int(execution_time),
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
             # Log alerts
@@ -303,7 +309,7 @@ def monitor_dlq_health(self) -> Dict[str, Any]:
             "error": str(e),
             "error_type": type(e).__name__,
             "execution_time_ms": int(execution_time),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
 

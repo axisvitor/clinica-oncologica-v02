@@ -27,7 +27,7 @@ import logging
 from typing import Callable, Any, Optional, Dict, TypeVar, Generic
 from datetime import datetime, timedelta
 from enum import Enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import functools
 from aiobreaker import CircuitBreaker as AIOCircuitBreaker, CircuitBreakerError
 
@@ -37,12 +37,12 @@ from app.core.metrics import (
     circuit_breaker_failures_total,
     circuit_breaker_successes_total,
     circuit_breaker_fallback_total,
-    circuit_breaker_call_duration_seconds
+    circuit_breaker_call_duration_seconds,
 )
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class ServiceType(str, Enum):
@@ -58,7 +58,9 @@ class CircuitBreakerConfig:
     """Circuit breaker configuration per service."""
 
     fail_max: int  # Number of failures before opening circuit
-    timeout_duration: int  # Seconds to wait in OPEN state before transitioning to HALF_OPEN
+    timeout_duration: (
+        int  # Seconds to wait in OPEN state before transitioning to HALF_OPEN
+    )
     expected_exception: tuple = (Exception,)  # Exceptions to count as failures
     name: str = "default"
 
@@ -78,7 +80,7 @@ CIRCUIT_CONFIGS: Dict[ServiceType, CircuitBreakerConfig] = {
         expected_exception=(Exception,),  # Catch all exceptions
         name=ServiceType.WHATSAPP.value,
         enable_fallback=True,
-        fallback_queue_enabled=True  # Queue messages for retry
+        fallback_queue_enabled=True,  # Queue messages for retry
     ),
     ServiceType.FIREBASE: CircuitBreakerConfig(
         fail_max=3,  # Open after 3 failures (auth is critical)
@@ -86,7 +88,7 @@ CIRCUIT_CONFIGS: Dict[ServiceType, CircuitBreakerConfig] = {
         expected_exception=(Exception,),
         name=ServiceType.FIREBASE.value,
         enable_fallback=True,
-        fallback_queue_enabled=False  # Don't queue auth requests
+        fallback_queue_enabled=False,  # Don't queue auth requests
     ),
     ServiceType.GEMINI_AI: CircuitBreakerConfig(
         fail_max=5,  # Open after 5 failures
@@ -94,7 +96,7 @@ CIRCUIT_CONFIGS: Dict[ServiceType, CircuitBreakerConfig] = {
         expected_exception=(Exception,),
         name=ServiceType.GEMINI_AI.value,
         enable_fallback=True,
-        fallback_queue_enabled=False  # Use cached/template responses
+        fallback_queue_enabled=False,  # Use cached/template responses
     ),
 }
 
@@ -121,7 +123,7 @@ class EnhancedCircuitBreaker(Generic[T]):
             fail_max=config.fail_max,
             timeout_duration=timedelta(seconds=config.timeout_duration),
             expected_exception=config.expected_exception,
-            name=config.name
+            name=config.name,
         )
 
         # Register state change listeners for metrics
@@ -147,7 +149,9 @@ class EnhancedCircuitBreaker(Generic[T]):
         )
 
         # Update Prometheus gauge (0=closed, 1=open, 2=half_open)
-        state_value = {"closed": 0, "open": 1, "half_open": 2}.get(str(new_state).lower(), 0)
+        state_value = {"closed": 0, "open": 1, "half_open": 2}.get(
+            str(new_state).lower(), 0
+        )
         circuit_breaker_state_gauge.labels(service=self.name).set(state_value)
 
     async def call(
@@ -155,7 +159,7 @@ class EnhancedCircuitBreaker(Generic[T]):
         func: Callable[..., T],
         *args,
         fallback: Optional[Callable[..., T]] = None,
-        **kwargs
+        **kwargs,
     ) -> T:
         """
         Execute function with circuit breaker protection.
@@ -182,8 +186,7 @@ class EnhancedCircuitBreaker(Generic[T]):
             duration = (datetime.utcnow() - start_time).total_seconds()
             circuit_breaker_successes_total.labels(service=self.name).inc()
             circuit_breaker_call_duration_seconds.labels(
-                service=self.name,
-                status="success"
+                service=self.name, status="success"
             ).observe(duration)
 
             return result
@@ -195,8 +198,7 @@ class EnhancedCircuitBreaker(Generic[T]):
             duration = (datetime.utcnow() - start_time).total_seconds()
             circuit_breaker_failures_total.labels(service=self.name).inc()
             circuit_breaker_call_duration_seconds.labels(
-                service=self.name,
-                status="circuit_open"
+                service=self.name, status="circuit_open"
             ).observe(duration)
 
             if fallback:
@@ -216,8 +218,7 @@ class EnhancedCircuitBreaker(Generic[T]):
             duration = (datetime.utcnow() - start_time).total_seconds()
             circuit_breaker_failures_total.labels(service=self.name).inc()
             circuit_breaker_call_duration_seconds.labels(
-                service=self.name,
-                status="failure"
+                service=self.name, status="failure"
             ).observe(duration)
 
             if fallback:
@@ -226,12 +227,7 @@ class EnhancedCircuitBreaker(Generic[T]):
 
             raise
 
-    async def _execute_fallback(
-        self,
-        fallback: Callable[..., T],
-        *args,
-        **kwargs
-    ) -> T:
+    async def _execute_fallback(self, fallback: Callable[..., T], *args, **kwargs) -> T:
         """Execute fallback function."""
         try:
             if asyncio.iscoroutinefunction(fallback):
@@ -242,12 +238,7 @@ class EnhancedCircuitBreaker(Generic[T]):
             logger.error(f"Fallback failed for {self.name}: {e}")
             raise
 
-    async def _queue_for_retry(
-        self,
-        func: Callable,
-        args: tuple,
-        kwargs: dict
-    ):
+    async def _queue_for_retry(self, func: Callable, args: tuple, kwargs: dict):
         """Queue failed request for retry (WhatsApp messages)."""
         try:
             await self._ensure_redis()
@@ -259,7 +250,7 @@ class EnhancedCircuitBreaker(Generic[T]):
                     "args": str(args),  # Simplified - production should use pickle/json
                     "kwargs": str(kwargs),
                     "timestamp": datetime.utcnow().isoformat(),
-                    "service": self.name
+                    "service": self.name,
                 }
 
                 # Push to Redis list for retry processing
@@ -284,7 +275,9 @@ class EnhancedCircuitBreaker(Generic[T]):
             "timeout_duration": self.config.timeout_duration,
             "failure_count": self._breaker.fail_counter,
             "fallback_enabled": self.config.enable_fallback,
-            "last_failure": self._breaker.last_failure.isoformat() if self._breaker.last_failure else None
+            "last_failure": self._breaker.last_failure.isoformat()
+            if self._breaker.last_failure
+            else None,
         }
 
 
@@ -295,7 +288,7 @@ class CircuitBreakerManager:
     Provides easy access to circuit breakers and centralized monitoring.
     """
 
-    _instance: Optional['CircuitBreakerManager'] = None
+    _instance: Optional["CircuitBreakerManager"] = None
     _initialized = False
 
     def __init__(self):
@@ -313,7 +306,7 @@ class CircuitBreakerManager:
         logger.info("Circuit Breaker Manager initialized with all services")
 
     @classmethod
-    def get_instance(cls) -> 'CircuitBreakerManager':
+    def get_instance(cls) -> "CircuitBreakerManager":
         """Get singleton instance."""
         if cls._instance is None:
             cls._instance = CircuitBreakerManager()
@@ -338,13 +331,14 @@ class CircuitBreakerManager:
         queued requests when circuits close.
         """
         for service, breaker in self.breakers.items():
-            if breaker.config.fallback_queue_enabled and breaker.get_state() == "closed":
+            if (
+                breaker.config.fallback_queue_enabled
+                and breaker.get_state() == "closed"
+            ):
                 await self._process_service_retry_queue(service, breaker)
 
     async def _process_service_retry_queue(
-        self,
-        service: ServiceType,
-        breaker: EnhancedCircuitBreaker
+        self, service: ServiceType, breaker: EnhancedCircuitBreaker
     ):
         """Process retry queue for a specific service."""
         try:
@@ -386,6 +380,7 @@ def with_circuit_breaker(service: ServiceType, fallback: Optional[Callable] = No
             # Implementation
             pass
     """
+
     def decorator(func: Callable):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):

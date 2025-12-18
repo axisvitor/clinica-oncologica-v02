@@ -8,6 +8,7 @@ from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
+
 class TokenLimiter:
     """
     Utility to limit tokens in AI context for cost and latency control.
@@ -53,14 +54,15 @@ class TokenLimiter:
             return text
 
         # Truncate and add ellipsis
-        truncated = text[:max_chars - 3] + "..."
-        logger.debug(f"Truncated text from {len(text)} to {len(truncated)} chars (~{max_tokens} tokens)")
+        truncated = text[: max_chars - 3] + "..."
+        logger.debug(
+            f"Truncated text from {len(text)} to {len(truncated)} chars (~{max_tokens} tokens)"
+        )
         return truncated
 
     @staticmethod
     def limit_messages_history(
-        messages: List[Dict[str, Any]],
-        max_tokens: int = 200
+        messages: List[Dict[str, Any]], max_tokens: int = 200
     ) -> List[Dict[str, Any]]:
         """
         Limit message history to fit within token budget.
@@ -81,7 +83,7 @@ class TokenLimiter:
 
         # Process messages in reverse (most recent first)
         for msg in reversed(messages):
-            msg_text = msg.get('content', '') or msg.get('message', '')
+            msg_text = msg.get("content", "") or msg.get("message", "")
             msg_tokens = TokenLimiter.estimate_tokens(msg_text)
 
             if token_count + msg_tokens > max_tokens:
@@ -89,7 +91,7 @@ class TokenLimiter:
                 remaining_tokens = max_tokens - token_count
                 if remaining_tokens > 20:  # Only add if meaningful content
                     truncated_msg = msg.copy()
-                    truncated_msg['content'] = TokenLimiter.truncate_to_tokens(
+                    truncated_msg["content"] = TokenLimiter.truncate_to_tokens(
                         msg_text, remaining_tokens
                     )
                     limited_messages.insert(0, truncated_msg)
@@ -98,13 +100,14 @@ class TokenLimiter:
             limited_messages.insert(0, msg)
             token_count += msg_tokens
 
-        logger.info(f"Limited {len(messages)} messages to {len(limited_messages)} (≈{token_count} tokens)")
+        logger.info(
+            f"Limited {len(messages)} messages to {len(limited_messages)} (≈{token_count} tokens)"
+        )
         return limited_messages
 
     @staticmethod
     def limit_patient_context(
-        context: Dict[str, Any],
-        max_tokens: int = DEFAULT_MAX_TOKENS
+        context: Dict[str, Any], max_tokens: int = DEFAULT_MAX_TOKENS
     ) -> Dict[str, Any]:
         """
         Limit entire patient context to fit within token budget.
@@ -119,37 +122,39 @@ class TokenLimiter:
         limited_context = context.copy()
 
         # Allocate token budget
-        metadata_tokens = 100  # For patient data, dates, etc.
         messages_tokens = 200  # For message history
-        quiz_tokens = 100      # For quiz responses
-        flow_tokens = 100      # For flow data
+        flow_tokens = 100  # For flow data
 
         # Limit each section
-        if 'recent_messages' in limited_context:
-            limited_context['recent_messages'] = TokenLimiter.limit_messages_history(
-                limited_context['recent_messages'],
-                max_tokens=messages_tokens
+        if "recent_messages" in limited_context:
+            limited_context["recent_messages"] = TokenLimiter.limit_messages_history(
+                limited_context["recent_messages"], max_tokens=messages_tokens
             )
 
-        if 'quiz_responses' in limited_context:
+        if "quiz_responses" in limited_context:
             # Limit quiz responses to recent ones
-            quiz_data = limited_context['quiz_responses']
+            quiz_data = limited_context["quiz_responses"]
             if isinstance(quiz_data, dict):
                 # Keep only last 5 responses
                 sorted_keys = sorted(quiz_data.keys())[-5:]
-                limited_context['quiz_responses'] = {
+                limited_context["quiz_responses"] = {
                     k: quiz_data[k] for k in sorted_keys
                 }
 
-        if 'flow_data' in limited_context and isinstance(limited_context['flow_data'], dict):
+        if "flow_data" in limited_context and isinstance(
+            limited_context["flow_data"], dict
+        ):
             # Limit flow data keys
-            flow_data = limited_context['flow_data']
+            flow_data = limited_context["flow_data"]
             if len(str(flow_data)) > flow_tokens * TokenLimiter.CHARS_PER_TOKEN:
                 # Keep only essential keys
-                essential_keys = ['current_step', 'last_response', 'completion_percentage']
-                limited_context['flow_data'] = {
-                    k: v for k, v in flow_data.items()
-                    if k in essential_keys
+                essential_keys = [
+                    "current_step",
+                    "last_response",
+                    "completion_percentage",
+                ]
+                limited_context["flow_data"] = {
+                    k: v for k, v in flow_data.items() if k in essential_keys
                 }
 
         # Estimate total tokens
@@ -157,20 +162,22 @@ class TokenLimiter:
         total_tokens = TokenLimiter.estimate_tokens(total_text)
 
         if total_tokens > max_tokens:
-            logger.warning(f"Context still exceeds limit: {total_tokens} > {max_tokens} tokens")
+            logger.warning(
+                f"Context still exceeds limit: {total_tokens} > {max_tokens} tokens"
+            )
             # Further truncation if needed
-            if 'recent_messages' in limited_context:
+            if "recent_messages" in limited_context:
                 # Reduce message history further
-                limited_context['recent_messages'] = limited_context['recent_messages'][-3:]
+                limited_context["recent_messages"] = limited_context["recent_messages"][
+                    -3:
+                ]
 
         logger.info(f"Limited context to approximately {total_tokens} tokens")
         return limited_context
 
     @staticmethod
     def prepare_ai_prompt(
-        base_prompt: str,
-        context: Dict[str, Any],
-        max_tokens: int = DEFAULT_MAX_TOKENS
+        base_prompt: str, context: Dict[str, Any], max_tokens: int = DEFAULT_MAX_TOKENS
     ) -> str:
         """
         Prepare AI prompt with limited context.
@@ -193,8 +200,7 @@ class TokenLimiter:
 
         # Limit context
         limited_context = TokenLimiter.limit_patient_context(
-            context,
-            max_tokens=context_budget
+            context, max_tokens=context_budget
         )
 
         # Format prompt with limited context
@@ -212,6 +218,7 @@ class TokenLimiter:
 
 # Singleton instance
 _token_limiter = TokenLimiter()
+
 
 def get_token_limiter() -> TokenLimiter:
     """Get token limiter instance."""

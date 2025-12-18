@@ -6,10 +6,10 @@ the existing rate limiting functionality for compatibility with test imports.
 """
 
 import time
-from typing import Dict, Tuple, Optional
+from typing import Dict
 from fastapi import Request, HTTPException, status
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp
 import logging
 
 logger = logging.getLogger(__name__)
@@ -24,10 +24,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     """
 
     def __init__(
-        self,
-        app: ASGIApp,
-        requests_per_minute: int = 60,
-        window_seconds: int = 60
+        self, app: ASGIApp, requests_per_minute: int = 60, window_seconds: int = 60
     ):
         """
         Initialize rate limiting middleware.
@@ -55,7 +52,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=f"Rate limit exceeded. Maximum {self.requests_per_minute} requests per minute.",
-                headers={"Retry-After": "60"}
+                headers={"Retry-After": "60"},
             )
 
         # Record this request
@@ -65,10 +62,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
 
         # Add rate limit headers
-        remaining = max(0, self.requests_per_minute - len(self.request_store.get(client_ip, [])))
+        remaining = max(
+            0, self.requests_per_minute - len(self.request_store.get(client_ip, []))
+        )
         response.headers["X-RateLimit-Limit"] = str(self.requests_per_minute)
         response.headers["X-RateLimit-Remaining"] = str(remaining)
-        response.headers["X-RateLimit-Reset"] = str(int(time.time() + self.window_seconds))
+        response.headers["X-RateLimit-Reset"] = str(
+            int(time.time() + self.window_seconds)
+        )
 
         return response
 
@@ -95,8 +96,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         cutoff_time = current_time - self.window_seconds
 
         self.request_store[ip] = [
-            req_time for req_time in self.request_store[ip]
-            if req_time > cutoff_time
+            req_time for req_time in self.request_store[ip] if req_time > cutoff_time
         ]
 
         # Remove empty entries

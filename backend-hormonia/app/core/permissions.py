@@ -4,6 +4,7 @@ Comprehensive RBAC (Role-Based Access Control) Module for Hormonia Backend.
 This module provides centralized permission management with secure role definitions,
 domain-based auto-provisioning, and fine-grained access control.
 """
+
 import logging
 from typing import Dict, List, Set, Optional, Tuple, Union, Any
 from enum import Enum
@@ -12,14 +13,15 @@ from pydantic import BaseModel, field_validator
 from functools import wraps
 import re
 
-from app.models.user import UserRole
-from app.config import settings
+from fastapi import HTTPException, status
+from app.models.user import User, UserRole
 
 logger = logging.getLogger(__name__)
 
 # =============================================================================
 # PERMISSION DEFINITIONS
 # =============================================================================
+
 
 class Permission(Enum):
     """Comprehensive permission enumeration for RBAC system."""
@@ -95,6 +97,7 @@ class Permission(Enum):
 
 class SecurityLevel(Enum):
     """Security levels for permission validation."""
+
     PUBLIC = "public"
     AUTHENTICATED = "authenticated"
     VERIFIED = "verified"
@@ -105,6 +108,7 @@ class SecurityLevel(Enum):
 # =============================================================================
 # ROLE DEFINITIONS WITH SECURE DEFAULTS
 # =============================================================================
+
 
 class RoleDefinition(BaseModel):
     """Secure role definition with permissions and constraints."""
@@ -119,7 +123,7 @@ class RoleDefinition(BaseModel):
     allowed_domains: Optional[List[str]] = None
     restricted_domains: Optional[List[str]] = None
 
-    @field_validator('permissions')
+    @field_validator("permissions")
     @classmethod
     def validate_permissions(cls, v):
         """Ensure permissions are valid."""
@@ -143,23 +147,47 @@ ROLE_DEFINITIONS: Dict[UserRole, RoleDefinition] = {
     UserRole.ADMIN: RoleDefinition(
         name="Administrator",
         permissions={
-            Permission.USER_CREATE, Permission.USER_READ, Permission.USER_UPDATE,
+            Permission.USER_CREATE,
+            Permission.USER_READ,
+            Permission.USER_UPDATE,
             Permission.USER_LIST,
-            Permission.PATIENT_CREATE, Permission.PATIENT_READ, Permission.PATIENT_UPDATE,
-            Permission.PATIENT_LIST, Permission.PATIENT_MEDICAL_RECORDS,
-            Permission.QUIZ_CREATE, Permission.QUIZ_READ, Permission.QUIZ_UPDATE,
-            Permission.QUIZ_DELETE, Permission.QUIZ_PUBLISH, Permission.QUIZ_RESULTS_VIEW,
+            Permission.PATIENT_CREATE,
+            Permission.PATIENT_READ,
+            Permission.PATIENT_UPDATE,
+            Permission.PATIENT_LIST,
+            Permission.PATIENT_MEDICAL_RECORDS,
+            Permission.QUIZ_CREATE,
+            Permission.QUIZ_READ,
+            Permission.QUIZ_UPDATE,
+            Permission.QUIZ_DELETE,
+            Permission.QUIZ_PUBLISH,
+            Permission.QUIZ_RESULTS_VIEW,
             Permission.QUIZ_ANALYTICS,
-            Permission.REPORT_CREATE, Permission.REPORT_READ, Permission.REPORT_UPDATE,
-            Permission.REPORT_EXPORT, Permission.ANALYTICS_VIEW, Permission.ANALYTICS_ADVANCED,
-            Permission.ADMIN_PANEL, Permission.ADMIN_SETTINGS, Permission.ADMIN_LOGS,
-            Permission.AI_ACCESS, Permission.AI_CONFIGURE,
-            Permission.FLOW_CREATE, Permission.FLOW_EXECUTE, Permission.FLOW_MANAGE,
-            Permission.TEMPLATE_CREATE, Permission.TEMPLATE_READ, Permission.TEMPLATE_UPDATE,
-            Permission.TEMPLATE_DELETE, Permission.TEMPLATE_PUBLISH,
-            Permission.MESSAGE_SEND, Permission.MESSAGE_BROADCAST,
+            Permission.REPORT_CREATE,
+            Permission.REPORT_READ,
+            Permission.REPORT_UPDATE,
+            Permission.REPORT_EXPORT,
+            Permission.ANALYTICS_VIEW,
+            Permission.ANALYTICS_ADVANCED,
+            Permission.ADMIN_PANEL,
+            Permission.ADMIN_SETTINGS,
+            Permission.ADMIN_LOGS,
+            Permission.AI_ACCESS,
+            Permission.AI_CONFIGURE,
+            Permission.FLOW_CREATE,
+            Permission.FLOW_EXECUTE,
+            Permission.FLOW_MANAGE,
+            Permission.TEMPLATE_CREATE,
+            Permission.TEMPLATE_READ,
+            Permission.TEMPLATE_UPDATE,
+            Permission.TEMPLATE_DELETE,
+            Permission.TEMPLATE_PUBLISH,
+            Permission.MESSAGE_SEND,
+            Permission.MESSAGE_BROADCAST,
             Permission.NOTIFICATION_MANAGE,
-            Permission.API_ACCESS, Permission.WEBHOOK_MANAGE, Permission.INTEGRATION_MANAGE,
+            Permission.API_ACCESS,
+            Permission.WEBHOOK_MANAGE,
+            Permission.INTEGRATION_MANAGE,
         },
         security_level=SecurityLevel.PRIVILEGED,
         description="Administrative access with management capabilities",
@@ -167,21 +195,29 @@ ROLE_DEFINITIONS: Dict[UserRole, RoleDefinition] = {
         allowed_domains=["hormonia.io", "admin.local", "clinica.med.br"],
         max_auto_grant_duration=timedelta(hours=24),  # Require re-verification
     ),
-
     UserRole.DOCTOR: RoleDefinition(
         name="Doctor",
         permissions={
             Permission.USER_READ,
-            Permission.PATIENT_CREATE, Permission.PATIENT_READ, Permission.PATIENT_UPDATE,
-            Permission.PATIENT_LIST, Permission.PATIENT_MEDICAL_RECORDS,
+            Permission.PATIENT_CREATE,
+            Permission.PATIENT_READ,
+            Permission.PATIENT_UPDATE,
+            Permission.PATIENT_LIST,
+            Permission.PATIENT_MEDICAL_RECORDS,
             Permission.PATIENT_SENSITIVE_DATA,
-            Permission.QUIZ_CREATE, Permission.QUIZ_READ, Permission.QUIZ_UPDATE,
-            Permission.QUIZ_RESULTS_VIEW, Permission.QUIZ_ANALYTICS,
-            Permission.REPORT_CREATE, Permission.REPORT_READ, Permission.REPORT_EXPORT,
+            Permission.QUIZ_CREATE,
+            Permission.QUIZ_READ,
+            Permission.QUIZ_UPDATE,
+            Permission.QUIZ_RESULTS_VIEW,
+            Permission.QUIZ_ANALYTICS,
+            Permission.REPORT_CREATE,
+            Permission.REPORT_READ,
+            Permission.REPORT_EXPORT,
             Permission.ANALYTICS_VIEW,
             Permission.AI_ACCESS,
             Permission.FLOW_EXECUTE,
-            Permission.TEMPLATE_READ, Permission.TEMPLATE_CREATE,
+            Permission.TEMPLATE_READ,
+            Permission.TEMPLATE_CREATE,
             Permission.MESSAGE_SEND,
             Permission.API_ACCESS,
         },
@@ -197,6 +233,7 @@ ROLE_DEFINITIONS: Dict[UserRole, RoleDefinition] = {
 # SECURE ROLE DETERMINATION
 # =============================================================================
 
+
 class SecureRoleDeterminer:
     """Secure role determination with domain validation and audit logging."""
 
@@ -207,7 +244,7 @@ class SecureRoleDeterminer:
         self,
         email: str,
         identity_claims: Optional[Dict[str, Any]] = None,
-        request_context: Optional[Dict[str, Any]] = None
+        request_context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[UserRole, str]:
         """
         Securely determine user role based on email domain and custom identity claims.
@@ -236,44 +273,54 @@ class SecureRoleDeterminer:
             if identity_claims:
                 explicit_role = self._get_role_from_claims(identity_claims)
                 if explicit_role:
-                    audit_entry.update({
-                        "role_assigned": explicit_role,
-                        "assignment_reason": "identity_explicit_claim",
-                        "security_level": "high"
-                    })
+                    audit_entry.update(
+                        {
+                            "role_assigned": explicit_role,
+                            "assignment_reason": "identity_explicit_claim",
+                            "security_level": "high",
+                        }
+                    )
                     self.audit_log.append(audit_entry)
                     return explicit_role, "Assigned from identity provider claims"
 
             # Priority 2: Domain-based assignment with restrictions
             domain_role = self._get_role_from_domain(domain, email)
             if domain_role:
-                audit_entry.update({
-                    "role_assigned": domain_role,
-                    "assignment_reason": "domain_based",
-                    "security_level": "medium"
-                })
+                audit_entry.update(
+                    {
+                        "role_assigned": domain_role,
+                        "assignment_reason": "domain_based",
+                        "security_level": "medium",
+                    }
+                )
                 self.audit_log.append(audit_entry)
                 return domain_role, f"Auto-assigned based on domain: {domain}"
 
             # Priority 3: Default role (most restrictive)
             default_role = UserRole.DOCTOR
-            audit_entry.update({
-                "role_assigned": default_role,
-                "assignment_reason": "default_fallback",
-                "security_level": "low"
-            })
+            audit_entry.update(
+                {
+                    "role_assigned": default_role,
+                    "assignment_reason": "default_fallback",
+                    "security_level": "low",
+                }
+            )
             self.audit_log.append(audit_entry)
 
-            logger.warning(f"User {email} assigned default role due to unrecognized domain: {domain}")
+            logger.warning(
+                f"User {email} assigned default role due to unrecognized domain: {domain}"
+            )
             return default_role, "Default role assigned - domain not recognized"
 
         except Exception as e:
-            audit_entry.update({
-                "role_assigned": UserRole.DOCTOR,
-                "assignment_reason": "error_fallback",
-                "error": str(e),
-                "security_level": "critical"
-            })
+            audit_entry.update(
+                {
+                    "role_assigned": UserRole.DOCTOR,
+                    "assignment_reason": "error_fallback",
+                    "error": str(e),
+                    "security_level": "critical",
+                }
+            )
             self.audit_log.append(audit_entry)
 
             logger.error(f"Error determining role for {email}: {e}")
@@ -288,7 +335,7 @@ class SecureRoleDeterminer:
         domain = domain.lower()
 
         # Validate domain format
-        if not re.match(r'^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', domain):
+        if not re.match(r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", domain):
             raise ValueError(f"Invalid domain format: {domain}")
 
         return domain
@@ -319,7 +366,9 @@ class SecureRoleDeterminer:
                                 try:
                                     return UserRole[role_value.strip().upper()]
                                 except KeyError:
-                                    logger.warning(f"Invalid role in identity claims: {role_value}")
+                                    logger.warning(
+                                        f"Invalid role in identity claims: {role_value}"
+                                    )
                                     continue
                         elif isinstance(role_value, UserRole):
                             return role_value
@@ -339,7 +388,10 @@ class SecureRoleDeterminer:
         for role, definition in ROLE_DEFINITIONS.items():
             if definition.can_auto_grant(domain):
                 # Additional security checks for privileged roles
-                if definition.security_level in [SecurityLevel.PRIVILEGED, SecurityLevel.RESTRICTED]:
+                if definition.security_level in [
+                    SecurityLevel.PRIVILEGED,
+                    SecurityLevel.RESTRICTED,
+                ]:
                     # Log privileged role auto-assignment
                     logger.warning(
                         f"Privileged role {role} auto-assigned to {email} "
@@ -354,7 +406,7 @@ class SecureRoleDeterminer:
         self,
         user_email: str,
         proposed_role: UserRole,
-        current_user_role: Optional[UserRole] = None
+        current_user_role: Optional[UserRole] = None,
     ) -> Tuple[bool, str]:
         """
         Validate if a role assignment is allowed.
@@ -377,7 +429,10 @@ class SecureRoleDeterminer:
             # Check if current user has permission to assign this role
             if current_user_role:
                 if not self._can_assign_role(current_user_role, proposed_role):
-                    return False, f"Insufficient permissions to assign role {proposed_role}"
+                    return (
+                        False,
+                        f"Insufficient permissions to assign role {proposed_role}",
+                    )
 
             # Check domain restrictions
             if role_def.restricted_domains and domain in role_def.restricted_domains:
@@ -385,9 +440,17 @@ class SecureRoleDeterminer:
 
             # Check if domain is allowed for auto-assignment
             if role_def.allowed_domains and domain not in role_def.allowed_domains:
-                if role_def.security_level in {SecurityLevel.PRIVILEGED, SecurityLevel.RESTRICTED}:
-                    return False, f"Domain {domain} is not approved for restricted role {proposed_role.value}"
-                logger.warning(f"Manual role assignment for {user_email}: domain {domain} not in allowed list")
+                if role_def.security_level in {
+                    SecurityLevel.PRIVILEGED,
+                    SecurityLevel.RESTRICTED,
+                }:
+                    return (
+                        False,
+                        f"Domain {domain} is not approved for restricted role {proposed_role.value}",
+                    )
+                logger.warning(
+                    f"Manual role assignment for {user_email}: domain {domain} not in allowed list"
+                )
 
             return True, "Role assignment valid"
 
@@ -417,6 +480,7 @@ class SecureRoleDeterminer:
 # PERMISSION CHECKER
 # =============================================================================
 
+
 class PermissionChecker:
     """Centralized permission checking with context awareness."""
 
@@ -436,7 +500,6 @@ class PermissionChecker:
                 logger.warning("Unknown permission value: %s", perm)
         return normalized
 
-
     @staticmethod
     def has_permission(user_role: UserRole, permission: Permission) -> bool:
         """Check if a role has a specific permission."""
@@ -448,12 +511,16 @@ class PermissionChecker:
     @staticmethod
     def has_any_permission(user_role: UserRole, permissions: List[Permission]) -> bool:
         """Check if a role has any of the specified permissions."""
-        return any(PermissionChecker.has_permission(user_role, perm) for perm in permissions)
+        return any(
+            PermissionChecker.has_permission(user_role, perm) for perm in permissions
+        )
 
     @staticmethod
     def has_all_permissions(user_role: UserRole, permissions: List[Permission]) -> bool:
         """Check if a role has all of the specified permissions."""
-        return all(PermissionChecker.has_permission(user_role, perm) for perm in permissions)
+        return all(
+            PermissionChecker.has_permission(user_role, perm) for perm in permissions
+        )
 
     @staticmethod
     def get_user_permissions(user_role: UserRole) -> Set[Permission]:
@@ -466,7 +533,7 @@ class PermissionChecker:
         user_role: UserRole,
         resource_type: str,
         action: str,
-        resource_owner_role: Optional[UserRole] = None
+        resource_owner_role: Optional[UserRole] = None,
     ) -> bool:
         """
         Check if user can access a specific resource with context.
@@ -499,7 +566,9 @@ class PermissionChecker:
             logger.warning(f"Unknown resource action: {resource_type}:{action}")
             return False
 
-        has_base_permission = PermissionChecker.has_permission(user_role, required_permission)
+        has_base_permission = PermissionChecker.has_permission(
+            user_role, required_permission
+        )
 
         # Additional hierarchical checks
         if resource_owner_role and has_base_permission:
@@ -507,7 +576,9 @@ class PermissionChecker:
             user_def = ROLE_DEFINITIONS.get(user_role)
             owner_def = ROLE_DEFINITIONS.get(resource_owner_role)
             user_level = user_def.security_level if user_def else SecurityLevel.PUBLIC
-            owner_level = owner_def.security_level if owner_def else SecurityLevel.PUBLIC
+            owner_level = (
+                owner_def.security_level if owner_def else SecurityLevel.PUBLIC
+            )
 
             level_hierarchy = {
                 SecurityLevel.PUBLIC: 0,
@@ -527,8 +598,10 @@ class PermissionChecker:
 # DECORATORS FOR PERMISSION CHECKING
 # =============================================================================
 
+
 def require_permission(permission: Permission):
     """Decorator to require specific permission for endpoint access."""
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -541,27 +614,30 @@ def require_permission(permission: Permission):
 
             # Check kwargs for user
             if not user:
-                user = kwargs.get('current_user') or kwargs.get('user')
+                user = kwargs.get("current_user") or kwargs.get("user")
 
-            if not user or not hasattr(user, 'role'):
+            if not user or not hasattr(user, "role"):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required"
+                    detail="Authentication required",
                 )
 
             if not PermissionChecker.has_permission(user.role, permission):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Permission required: {permission.value}"
+                    detail=f"Permission required: {permission.value}",
                 )
 
             return await func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
 def require_any_permission(permissions: List[Permission]):
     """Decorator to require any of the specified permissions."""
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -573,23 +649,25 @@ def require_any_permission(permissions: List[Permission]):
                     break
 
             if not user:
-                user = kwargs.get('current_user') or kwargs.get('user')
+                user = kwargs.get("current_user") or kwargs.get("user")
 
-            if not user or not hasattr(user, 'role'):
+            if not user or not hasattr(user, "role"):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required"
+                    detail="Authentication required",
                 )
 
             if not PermissionChecker.has_any_permission(user.role, permissions):
                 permission_names = [p.value for p in permissions]
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"One of these permissions required: {', '.join(permission_names)}"
+                    detail=f"One of these permissions required: {', '.join(permission_names)}",
                 )
 
             return await func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
@@ -601,10 +679,14 @@ def require_any_permission(permissions: List[Permission]):
 role_determiner = SecureRoleDeterminer()
 permission_checker = PermissionChecker()
 
+
 # Export key functions for backward compatibility
-def determine_user_role(email: str, identity_claims: Optional[Dict[str, Any]] = None) -> Tuple[UserRole, str]:
+def determine_user_role(
+    email: str, identity_claims: Optional[Dict[str, Any]] = None
+) -> Tuple[UserRole, str]:
     """Backward compatible function for role determination."""
     return role_determiner.determine_role_from_email(email, identity_claims)
+
 
 def has_permission(user_role: UserRole, permission: Permission) -> bool:
     """Backward compatible function for permission checking."""
@@ -614,6 +696,7 @@ def has_permission(user_role: UserRole, permission: Permission) -> bool:
 # =============================================================================
 # BACKWARD COMPATIBILITY WRAPPER
 # =============================================================================
+
 
 class RolePermissions:
     """
@@ -648,7 +731,9 @@ class RolePermissions:
         return permission_checker.has_permission(user_role, permission)
 
     @staticmethod
-    def has_any_permission(user_role: Union[str, UserRole], permissions: List[Permission]) -> bool:
+    def has_any_permission(
+        user_role: Union[str, UserRole], permissions: List[Permission]
+    ) -> bool:
         """
         Check if a role has any of the specified permissions.
 
@@ -669,7 +754,9 @@ class RolePermissions:
         return permission_checker.has_any_permission(user_role, permissions)
 
     @staticmethod
-    def has_all_permissions(user_role: Union[str, UserRole], permissions: List[Permission]) -> bool:
+    def has_all_permissions(
+        user_role: Union[str, UserRole], permissions: List[Permission]
+    ) -> bool:
         """
         Check if a role has all of the specified permissions.
 

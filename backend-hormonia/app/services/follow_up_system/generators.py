@@ -2,6 +2,7 @@
 Response generators for the Follow-up Action System.
 Handles generation of empathetic messages, clarifications, and support responses.
 """
+
 import logging
 from typing import Optional, List
 from datetime import datetime, timedelta
@@ -29,11 +30,13 @@ class ResponseGenerator:
         """
         self._ai_service = ai_service
 
-    async def create_empathetic_follow_up(self,
-                                         patient_id: UUID,
-                                         patient: Patient,
-                                         structured_response: StructuredResponse,
-                                         patient_context: PatientContext) -> Optional[FollowUpAction]:
+    async def create_empathetic_follow_up(
+        self,
+        patient_id: UUID,
+        patient: Patient,
+        structured_response: StructuredResponse,
+        patient_context: PatientContext,
+    ) -> Optional[FollowUpAction]:
         """
         Create empathetic follow-up message based on patient response.
 
@@ -56,7 +59,9 @@ class ResponseGenerator:
                 return None
 
             # Determine scheduling delay based on concern level
-            delay_minutes = self._calculate_response_delay(structured_response.concern_level)
+            delay_minutes = self._calculate_response_delay(
+                structured_response.concern_level
+            )
             scheduled_for = datetime.utcnow() + timedelta(minutes=delay_minutes)
 
             # Create follow-up action
@@ -64,14 +69,18 @@ class ResponseGenerator:
                 action_id=uuid4(),
                 patient_id=patient_id,
                 follow_up_type=FollowUpType.EMPATHETIC_RESPONSE,
-                priority="normal" if structured_response.concern_level == ConcernLevel.LOW else "high",
+                priority="normal"
+                if structured_response.concern_level == ConcernLevel.LOW
+                else "high",
                 scheduled_for=scheduled_for,
                 parameters={
                     "message_content": empathetic_message,
                     "original_message": structured_response.original_message,
-                    "sentiment": structured_response.sentiment_analysis.get("sentiment"),
-                    "concern_level": structured_response.concern_level.value
-                }
+                    "sentiment": structured_response.sentiment_analysis.get(
+                        "sentiment"
+                    ),
+                    "concern_level": structured_response.concern_level.value,
+                },
             )
 
             return action
@@ -80,9 +89,9 @@ class ResponseGenerator:
             logger.error(f"Failed to create empathetic follow-up: {e}")
             return None
 
-    async def _generate_empathetic_message(self,
-                                          structured_response: StructuredResponse,
-                                          patient_context: PatientContext) -> Optional[str]:
+    async def _generate_empathetic_message(
+        self, structured_response: StructuredResponse, patient_context: PatientContext
+    ) -> Optional[str]:
         """
         Generate empathetic message using AI.
 
@@ -95,19 +104,21 @@ class ResponseGenerator:
         """
         try:
             # Build context for AI humanizer
-            message_context = {
+            {
                 "patient_message": structured_response.original_message,
                 "sentiment": structured_response.sentiment_analysis.get("sentiment"),
                 "concern_level": structured_response.concern_level.value,
                 "medical_concerns": structured_response.medical_concerns,
-                "emotional_indicators": structured_response.sentiment_analysis.get("emotional_indicators", [])
+                "emotional_indicators": structured_response.sentiment_analysis.get(
+                    "emotional_indicators", []
+                ),
             }
 
             # Generate empathetic response
             empathetic_response = await self._ai_service.humanize_message(
                 template_message="Acknowledge and respond empathetically to the patient's message",
                 patient_context=patient_context,
-                message_type="empathetic_response"
+                message_type="empathetic_response",
             )
 
             return empathetic_response.humanized_message
@@ -127,10 +138,10 @@ class ResponseGenerator:
             Delay in minutes
         """
         delay_mapping = {
-            ConcernLevel.CRITICAL: 0,      # Immediate
-            ConcernLevel.HIGH: 5,          # 5 minutes
-            ConcernLevel.MEDIUM: 15,       # 15 minutes
-            ConcernLevel.LOW: 30           # 30 minutes
+            ConcernLevel.CRITICAL: 0,  # Immediate
+            ConcernLevel.HIGH: 5,  # 5 minutes
+            ConcernLevel.MEDIUM: 15,  # 15 minutes
+            ConcernLevel.LOW: 30,  # 30 minutes
         }
         return delay_mapping.get(concern_level, 30)
 
@@ -148,33 +159,41 @@ class ResponseGenerator:
         questions = []
 
         if "pain" in concern_lower:
-            questions.extend([
-                "Em uma escala de 1 a 10, como você classificaria sua dor?",
-                "A dor é constante ou vem e vai?",
-                "Quando a dor começou?"
-            ])
+            questions.extend(
+                [
+                    "Em uma escala de 1 a 10, como você classificaria sua dor?",
+                    "A dor é constante ou vem e vai?",
+                    "Quando a dor começou?",
+                ]
+            )
 
         if "nausea" in concern_lower or "vomit" in concern_lower:
-            questions.extend([
-                "A náusea está relacionada às refeições?",
-                "Você conseguiu manter líquidos?",
-                "Isso começou após tomar algum medicamento?"
-            ])
+            questions.extend(
+                [
+                    "A náusea está relacionada às refeições?",
+                    "Você conseguiu manter líquidos?",
+                    "Isso começou após tomar algum medicamento?",
+                ]
+            )
 
         if "medication" in concern_lower:
-            questions.extend([
-                "Qual medicamento está causando preocupação?",
-                "Você tomou a dose correta?",
-                "Quando foi a última vez que tomou?"
-            ])
+            questions.extend(
+                [
+                    "Qual medicamento está causando preocupação?",
+                    "Você tomou a dose correta?",
+                    "Quando foi a última vez que tomou?",
+                ]
+            )
 
         # Default questions if no specific type identified
         if not questions:
-            questions.extend([
-                "Pode me contar mais detalhes sobre isso?",
-                "Quando isso começou?",
-                "Isso está afetando suas atividades diárias?"
-            ])
+            questions.extend(
+                [
+                    "Pode me contar mais detalhes sobre isso?",
+                    "Quando isso começou?",
+                    "Isso está afetando suas atividades diárias?",
+                ]
+            )
 
         return questions[:3]  # Return max 3 questions
 
@@ -192,13 +211,19 @@ class ResponseGenerator:
 
         if any(word in concern_lower for word in ["pain", "hurt", "ache"]):
             return MedicalConcernType.PAIN
-        elif any(word in concern_lower for word in ["nausea", "vomit", "dizzy", "rash"]):
+        elif any(
+            word in concern_lower for word in ["nausea", "vomit", "dizzy", "rash"]
+        ):
             return MedicalConcernType.SIDE_EFFECT
-        elif any(word in concern_lower for word in ["worse", "worsening", "deteriorating"]):
+        elif any(
+            word in concern_lower for word in ["worse", "worsening", "deteriorating"]
+        ):
             return MedicalConcernType.SYMPTOM_WORSENING
         elif any(word in concern_lower for word in ["medication", "medicine", "dose"]):
             return MedicalConcernType.MEDICATION_ISSUE
-        elif any(word in concern_lower for word in ["sad", "anxious", "depressed", "worried"]):
+        elif any(
+            word in concern_lower for word in ["sad", "anxious", "depressed", "worried"]
+        ):
             return MedicalConcernType.EMOTIONAL_DISTRESS
         elif any(word in concern_lower for word in ["emergency", "urgent", "severe"]):
             return MedicalConcernType.EMERGENCY
@@ -219,20 +244,36 @@ class ResponseGenerator:
 
         # Critical keywords
         critical_keywords = [
-            "emergency", "can't breathe", "chest pain", "severe bleeding",
-            "unconscious", "suicide", "overdose"
+            "emergency",
+            "can't breathe",
+            "chest pain",
+            "severe bleeding",
+            "unconscious",
+            "suicide",
+            "overdose",
         ]
 
         # High severity keywords
         high_keywords = [
-            "severe", "unbearable", "getting worse", "can't sleep",
-            "vomiting", "fever", "dizzy", "confused"
+            "severe",
+            "unbearable",
+            "getting worse",
+            "can't sleep",
+            "vomiting",
+            "fever",
+            "dizzy",
+            "confused",
         ]
 
         # Medium severity keywords
         medium_keywords = [
-            "pain", "headache", "nausea", "tired", "worried",
-            "side effect", "uncomfortable"
+            "pain",
+            "headache",
+            "nausea",
+            "tired",
+            "worried",
+            "side effect",
+            "uncomfortable",
         ]
 
         if any(keyword in concern_lower for keyword in critical_keywords):

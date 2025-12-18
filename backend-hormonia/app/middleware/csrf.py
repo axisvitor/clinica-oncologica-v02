@@ -63,7 +63,7 @@ Usage:
 from fastapi import Request, HTTPException, status
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional, Union, Tuple, Any, Generator
+from typing import Optional, Tuple, Any, Generator
 import logging
 import hmac
 import hashlib
@@ -74,6 +74,7 @@ import inspect
 import os
 import sys
 from collections import defaultdict
+
 
 def _is_pytest_running() -> bool:
     if os.getenv("PYTEST_CURRENT_TEST") is not None:
@@ -90,7 +91,9 @@ if _is_pytest_running():
         _fastapi_csrf_exceptions = None
 
     if _fastapi_csrf_exceptions is not None:
-        _csrf_err_sig = inspect.signature(_fastapi_csrf_exceptions.CsrfProtectError.__init__)
+        _csrf_err_sig = inspect.signature(
+            _fastapi_csrf_exceptions.CsrfProtectError.__init__
+        )
         if len(_csrf_err_sig.parameters) == 3:
             _orig_csrf_err_init = _fastapi_csrf_exceptions.CsrfProtectError.__init__
 
@@ -113,41 +116,37 @@ class CsrfSettings(BaseSettings):
     """
     CSRF protection configuration.
     """
+
     secret_key: str = Field(
         ...,
-        description="Secret key for CSRF token generation (from CSRF_SECRET_KEY env var)"
+        description="Secret key for CSRF token generation (from CSRF_SECRET_KEY env var)",
     )
     cookie_name: str = Field(
-        default="fastapi-csrf-token",
-        description="Name of the CSRF cookie"
+        default="fastapi-csrf-token", description="Name of the CSRF cookie"
     )
     cookie_samesite: str = Field(
         default="strict",
-        description="SameSite cookie policy: strict (recommended), lax, or none"
+        description="SameSite cookie policy: strict (recommended), lax, or none",
     )
     cookie_secure: bool = Field(
         default=True,
-        description="Require HTTPS for cookie transmission (must be True in production)"
+        description="Require HTTPS for cookie transmission (must be True in production)",
     )
     cookie_httponly: bool = Field(
-        default=True,
-        description="Prevent JavaScript access to CSRF cookie"
+        default=True, description="Prevent JavaScript access to CSRF cookie"
     )
-    cookie_path: str = Field(
-        default="/",
-        description="Cookie path scope"
-    )
+    cookie_path: str = Field(default="/", description="Cookie path scope")
     cookie_domain: Optional[str] = Field(
         default=None,
-        description="Cookie domain scope (None = auto-detect from request)"
+        description="Cookie domain scope (None = auto-detect from request)",
     )
     token_header_name: str = Field(
         default="X-CSRF-Token",
-        description="HTTP header name for CSRF token in requests"
+        description="HTTP header name for CSRF token in requests",
     )
     token_expires_in: int = Field(
         default=3600,
-        description="CSRF token expiration time in seconds (1 hour default)"
+        description="CSRF token expiration time in seconds (1 hour default)",
     )
 
     model_config = SettingsConfigDict(extra="ignore")
@@ -186,9 +185,11 @@ def get_csrf_settings() -> CsrfSettings:
     from app.config import settings
 
     # Validate secret key exists
-    csrf_secret = _extract_secret_str(getattr(settings, 'SECURITY_CSRF_SECRET_KEY', None))
+    csrf_secret = _extract_secret_str(
+        getattr(settings, "SECURITY_CSRF_SECRET_KEY", None)
+    )
     if csrf_secret is None:
-        csrf_secret = _extract_secret_str(getattr(settings, 'CSRF_SECRET_KEY', None))
+        csrf_secret = _extract_secret_str(getattr(settings, "CSRF_SECRET_KEY", None))
 
     if not csrf_secret:
         raise ValueError("CSRF secret key is required")
@@ -198,19 +199,17 @@ def get_csrf_settings() -> CsrfSettings:
 
     # Use secure cookies only in production
     environment = getattr(
-        settings,
-        'APP_ENVIRONMENT',
-        getattr(settings, 'ENVIRONMENT', 'development')
+        settings, "APP_ENVIRONMENT", getattr(settings, "ENVIRONMENT", "development")
     )
-    is_production = str(environment).lower() == 'production'
+    is_production = str(environment).lower() == "production"
     cookie_secure = is_production or bool(
         getattr(
             settings,
-            'SESSION_ENABLE_COOKIE_SECURE',
-            getattr(settings, 'SESSION_COOKIE_SECURE', False)
+            "SESSION_ENABLE_COOKIE_SECURE",
+            getattr(settings, "SESSION_COOKIE_SECURE", False),
         )
     )
-    
+
     # SECURITY FIX: Use 'strict' for maximum CSRF protection
     cookie_samesite = "strict"
 
@@ -218,7 +217,7 @@ def get_csrf_settings() -> CsrfSettings:
         secret_key=csrf_secret,
         cookie_secure=cookie_secure,
         cookie_samesite=cookie_samesite,
-        cookie_httponly=True
+        cookie_httponly=True,
     )
 
 
@@ -283,20 +282,17 @@ def _cookies_get(cookies: Any, key: str) -> Optional[str]:
 def _generate_token_signature(data: str, secret_key: str) -> str:
     """Generate HMAC-SHA256 signature for data."""
     return hmac.new(
-        secret_key.encode('utf-8'),
-        data.encode('utf-8'),
-        hashlib.sha256
+        secret_key.encode("utf-8"), data.encode("utf-8"), hashlib.sha256
     ).hexdigest()
 
 
 def generate_csrf_token(secret_key: Optional[str] = None) -> str:
     """
     Generate a new signed CSRF token in base64url format.
-    
+
     Internal format (before encoding): {timestamp}.{random_data}.{hmac_signature}
     Output: URL-safe base64 encoded string matching ^[A-Za-z0-9_-]+$
     """
-    import base64
     if secret_key is None:
         secret_key = get_csrf_settings().secret_key
     timestamp = str(int(time.time()))
@@ -305,8 +301,8 @@ def generate_csrf_token(secret_key: Optional[str] = None) -> str:
     signature = _generate_token_signature(data, secret_key)
     token_raw = f"{data}.{signature}"
     # Base64url encode for URL-safe transport (matches CSRFMiddleware format)
-    encoded = base64.urlsafe_b64encode(token_raw.encode('utf-8')).decode('utf-8')
-    return encoded.rstrip('=')
+    encoded = base64.urlsafe_b64encode(token_raw.encode("utf-8")).decode("utf-8")
+    return encoded.rstrip("=")
 
 
 def set_csrf_cookie(request: Request, response, token: str = None):
@@ -315,11 +311,13 @@ def set_csrf_cookie(request: Request, response, token: str = None):
     """
     try:
         settings = get_csrf_settings()
-        
+
         if token is None:
             token = generate_csrf_token(settings.secret_key)
-            
-        if not _is_default_bound_method(csrf_protect, "set_csrf_cookie", MockCsrfProtect.set_csrf_cookie):
+
+        if not _is_default_bound_method(
+            csrf_protect, "set_csrf_cookie", MockCsrfProtect.set_csrf_cookie
+        ):
             csrf_protect.set_csrf_cookie(token, response)
         else:
             response.set_cookie(
@@ -330,7 +328,7 @@ def set_csrf_cookie(request: Request, response, token: str = None):
                 domain=settings.cookie_domain,
                 secure=settings.cookie_secure,
                 httponly=settings.cookie_httponly,
-                samesite=settings.cookie_samesite
+                samesite=settings.cookie_samesite,
             )
         logger.debug("CSRF cookie set successfully")
     except Exception as e:
@@ -340,7 +338,9 @@ def set_csrf_cookie(request: Request, response, token: str = None):
 
 def get_csrf_token(request: Request) -> str:
     """Generate and return CSRF token for the current request."""
-    if not _is_default_bound_method(csrf_protect, "generate_csrf", MockCsrfProtect.generate_csrf):
+    if not _is_default_bound_method(
+        csrf_protect, "generate_csrf", MockCsrfProtect.generate_csrf
+    ):
         _, signed = csrf_protect.generate_csrf()
         return signed
     settings = get_csrf_settings()
@@ -352,50 +352,50 @@ def _validate_token_signature(token: str, secret_key: str, max_age: int = 3600) 
     Validate CSRF token format, expiration and signature.
     Handles base64url encoded tokens.
     """
-    import base64
     try:
         # Decode base64url token (add padding if needed)
-        padded = token + '=' * (4 - len(token) % 4) if len(token) % 4 else token
+        padded = token + "=" * (4 - len(token) % 4) if len(token) % 4 else token
         try:
-            decoded = base64.urlsafe_b64decode(padded.encode('utf-8')).decode('utf-8')
+            decoded = base64.urlsafe_b64decode(padded.encode("utf-8")).decode("utf-8")
         except Exception:
             # Fallback: try as raw token for backward compatibility
             decoded = token
-        
-        parts = decoded.split('.')
+
+        parts = decoded.split(".")
         if len(parts) < 3:
             return False
 
         signature = parts[-1]
-        data = '.'.join(parts[:-1])
-        
+        data = ".".join(parts[:-1])
+
         expected_signature = _generate_token_signature(data, secret_key)
-        
+
         # Constant-time comparison
         if not hmac.compare_digest(signature, expected_signature):
             return False
-            
+
         timestamp = int(parts[0])
         current_time = int(time.time())
         token_age = current_time - timestamp
-        
+
         if token_age > max_age or token_age < -60:
             return False
-            
+
         return True
     except (ValueError, IndexError):
         return False
 
 
-def _check_rate_limit(client_ip: str, max_failures: int = 10, window: int = 300) -> bool:
+def _check_rate_limit(
+    client_ip: str, max_failures: int = 10, window: int = 300
+) -> bool:
     """Rate limitation for failed validations."""
     current_time = time.time()
     # Clean old entries
     _csrf_validation_failures[client_ip] = [
-        t for t in _csrf_validation_failures[client_ip]
-        if current_time - t < window
+        t for t in _csrf_validation_failures[client_ip] if current_time - t < window
     ]
-    
+
     if len(_csrf_validation_failures[client_ip]) >= max_failures:
         logger.warning(f"CSRF rate limit exceeded for IP {client_ip}")
         return True
@@ -433,8 +433,12 @@ def validate_csrf_token(request: Request):
         if _check_rate_limit(rate_limit_key):
             raise CsrfProtectError("Too many failed CSRF validation attempts.")
 
-    token_header_name = _extract_str(getattr(settings, "token_header_name", None), "X-CSRF-Token")
-    cookie_name = _extract_str(getattr(settings, "cookie_name", None), "fastapi-csrf-token")
+    token_header_name = _extract_str(
+        getattr(settings, "token_header_name", None), "X-CSRF-Token"
+    )
+    cookie_name = _extract_str(
+        getattr(settings, "cookie_name", None), "fastapi-csrf-token"
+    )
     token_expires_in = _extract_int(getattr(settings, "token_expires_in", None), 3600)
 
     # Get token from header
@@ -456,13 +460,17 @@ def validate_csrf_token(request: Request):
             raise CsrfProtectError("Missing CSRF token in headers")
 
     # Validate signature of header token
-    if not _validate_token_signature(csrf_header, settings.secret_key, token_expires_in):
+    if not _validate_token_signature(
+        csrf_header, settings.secret_key, token_expires_in
+    ):
         if use_external_validator:
             result = csrf_protect.validate_csrf(request)
             if inspect.isawaitable(result) or hasattr(result, "__await__"):
                 return _ValidationAwaitable(result)
             return _ValidationAwaitable(None)
-        logger.warning(f"CSRF token invalid signature or expired for {request.url.path}")
+        logger.warning(
+            f"CSRF token invalid signature or expired for {request.url.path}"
+        )
         _record_validation_failure(rate_limit_key)
         raise CsrfProtectError("Invalid CSRF token")
 
@@ -482,8 +490,12 @@ def validate_csrf_token(request: Request):
         raise CsrfProtectError("Missing CSRF cookie")
 
     # Validate cookie signature
-    if not _validate_token_signature(csrf_cookie, settings.secret_key, token_expires_in):
-        logger.warning(f"CSRF cookie has invalid signature or is expired for {request.url.path}")
+    if not _validate_token_signature(
+        csrf_cookie, settings.secret_key, token_expires_in
+    ):
+        logger.warning(
+            f"CSRF cookie has invalid signature or is expired for {request.url.path}"
+        )
         _record_validation_failure(rate_limit_key)
         raise CsrfProtectError("Invalid CSRF cookie")
 
@@ -505,7 +517,7 @@ def is_csrf_exempt(path: str) -> bool:
         "/session/stats",
         "/api/v2/auth/csrf-token",
         "/docs",
-        "/redoc", 
+        "/redoc",
         "/openapi.json",
         "/health",
         "/webhooks/",
@@ -516,6 +528,7 @@ def is_csrf_exempt(path: str) -> bool:
         "/api/v2/monthly-quiz/monthly/public",
     ]
     return any(path.startswith(exempt) for exempt in exempt_paths)
+
 
 # Backward compatibility (dummy object for load_config decorator if used elsewhere)
 class MockCsrfProtect:
@@ -544,15 +557,16 @@ class MockCsrfProtect:
     def validate_csrf(self, request: Request) -> None:
         validate_csrf_token(request)
 
+
 csrf_protect = MockCsrfProtect()
 
 __all__ = [
-    'CsrfSettings',
-    'get_csrf_settings',
-    'set_csrf_cookie',
-    'get_csrf_token',
-    'validate_csrf_token',
-    'is_csrf_exempt',
-    'CsrfProtectError',
-    'csrf_protect'
+    "CsrfSettings",
+    "get_csrf_settings",
+    "set_csrf_cookie",
+    "get_csrf_token",
+    "validate_csrf_token",
+    "is_csrf_exempt",
+    "CsrfProtectError",
+    "csrf_protect",
 ]

@@ -9,4 +9,4 @@ Re-exports AuditService for backward compatibility.
 
 from app.services.audit_service.service import AuditService
 
-__all__ = ['AuditService']
+__all__ = ["AuditService"]

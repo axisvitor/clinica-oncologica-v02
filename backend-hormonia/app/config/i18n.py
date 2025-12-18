@@ -14,29 +14,29 @@ Features:
 
 import i18n
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 import logging
 
 logger = logging.getLogger(__name__)
 
 # Setup i18n library
-i18n.set('filename_format', '{locale}.{format}')
-i18n.set('file_format', 'json')
-i18n.set('fallback', 'pt-BR')  # Default to Portuguese
-i18n.set('locale', 'pt-BR')
-i18n.set('enable_memoization', True)  # Cache translations for performance
-i18n.set('skip_locale_root_data', True)  # Allow nested keys
+i18n.set("filename_format", "{locale}.{format}")
+i18n.set("file_format", "json")
+i18n.set("fallback", "pt-BR")  # Default to Portuguese
+i18n.set("locale", "pt-BR")
+i18n.set("enable_memoization", True)  # Cache translations for performance
+i18n.set("skip_locale_root_data", True)  # Allow nested keys
 
 # Load translation files from app/locales directory
-LOCALES_DIR = Path(__file__).parent.parent / 'locales'
+LOCALES_DIR = Path(__file__).parent.parent / "locales"
 i18n.load_path.append(str(LOCALES_DIR))
 
 # Available locales
-SUPPORTED_LOCALES = ['pt-BR', 'en-US']
-DEFAULT_LOCALE = 'pt-BR'
+SUPPORTED_LOCALES = ["pt-BR", "en-US"]
+DEFAULT_LOCALE = "pt-BR"
 
 # Translation namespaces (top-level keys in translation files)
-NAMESPACES = ['errors', 'success', 'validation', 'common']
+NAMESPACES = ["errors", "success", "validation", "common"]
 
 
 def get_locale_from_request(request) -> str:
@@ -54,23 +54,23 @@ def get_locale_from_request(request) -> str:
         Locale code (e.g., 'pt-BR', 'en-US')
     """
     # 1. Query parameter (highest priority for explicit choice)
-    if hasattr(request, 'query_params'):
-        lang = request.query_params.get('lang')
+    if hasattr(request, "query_params"):
+        lang = request.query_params.get("lang")
         if lang and lang in SUPPORTED_LOCALES:
             return lang
 
     # 2. Accept-Language header
-    if hasattr(request, 'headers'):
-        accept_lang = request.headers.get('Accept-Language', '')
+    if hasattr(request, "headers"):
+        accept_lang = request.headers.get("Accept-Language", "")
         # Simple parsing: check if 'en' or 'pt' is in header
-        if 'en' in accept_lang.lower():
-            return 'en-US'
-        if 'pt' in accept_lang.lower():
-            return 'pt-BR'
+        if "en" in accept_lang.lower():
+            return "en-US"
+        if "pt" in accept_lang.lower():
+            return "pt-BR"
 
     # 3. Cookie
-    if hasattr(request, 'cookies'):
-        locale_cookie = request.cookies.get('locale')
+    if hasattr(request, "cookies"):
+        locale_cookie = request.cookies.get("locale")
         if locale_cookie and locale_cookie in SUPPORTED_LOCALES:
             return locale_cookie
 
@@ -86,11 +86,11 @@ def set_locale(locale: str) -> None:
         locale: Locale code (e.g., 'pt-BR', 'en-US')
     """
     if locale in SUPPORTED_LOCALES:
-        i18n.set('locale', locale)
+        i18n.set("locale", locale)
         logger.debug(f"Locale set to: {locale}")
     else:
         logger.warning(f"Invalid locale '{locale}', using default: {DEFAULT_LOCALE}")
-        i18n.set('locale', DEFAULT_LOCALE)
+        i18n.set("locale", DEFAULT_LOCALE)
 
 
 def get_current_locale() -> str:
@@ -100,7 +100,7 @@ def get_current_locale() -> str:
     Returns:
         Current locale code
     """
-    return i18n.get('locale')
+    return i18n.get("locale")
 
 
 def t(key: str, **kwargs) -> str:
@@ -128,7 +128,9 @@ def t(key: str, **kwargs) -> str:
         # If translation key not found, i18n returns the key itself
         # Log warning for missing translations
         if translated == key:
-            logger.warning(f"Missing translation for key: {key} (locale: {get_current_locale()})")
+            logger.warning(
+                f"Missing translation for key: {key} (locale: {get_current_locale()})"
+            )
 
         return translated
     except Exception as e:
@@ -167,17 +169,17 @@ def get_available_locales() -> list:
     """
     return [
         {
-            'code': 'pt-BR',
-            'name': 'Português (Brasil)',
-            'native_name': 'Português (Brasil)',
-            'is_default': True
+            "code": "pt-BR",
+            "name": "Português (Brasil)",
+            "native_name": "Português (Brasil)",
+            "is_default": True,
         },
         {
-            'code': 'en-US',
-            'name': 'English (United States)',
-            'native_name': 'English (United States)',
-            'is_default': False
-        }
+            "code": "en-US",
+            "name": "English (United States)",
+            "native_name": "English (United States)",
+            "is_default": False,
+        },
     ]
 
 
@@ -195,4 +197,6 @@ def validate_locale(locale: str) -> bool:
 
 
 # Initialize i18n on module load
-logger.info(f"i18n initialized with locales: {SUPPORTED_LOCALES}, default: {DEFAULT_LOCALE}")
+logger.info(
+    f"i18n initialized with locales: {SUPPORTED_LOCALES}, default: {DEFAULT_LOCALE}"
+)

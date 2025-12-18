@@ -41,4 +41,5 @@ class AuditService(QuizAuditMixin, AIAuditMixin, AuditReportsMixin, AuditService
         report = audit_service.get_ai_audit_report(...)
         export = audit_service.export_ai_audit_data(...)
     """
+
     pass

@@ -6,7 +6,6 @@ Production-ready backoff strategies with jitter and customization.
 
 import random
 import time
-import math
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Iterator
@@ -18,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 class BackoffStrategy(Enum):
     """Backoff strategy types"""
+
     EXPONENTIAL = "exponential"
     LINEAR = "linear"
     FIXED = "fixed"
@@ -27,11 +27,12 @@ class BackoffStrategy(Enum):
 @dataclass
 class BackoffConfig:
     """Backoff configuration"""
-    base_delay: float = 1.0          # Base delay in seconds
-    max_delay: float = 60.0          # Maximum delay in seconds
-    multiplier: float = 2.0          # Exponential multiplier
-    jitter: bool = True              # Add random jitter
-    jitter_ratio: float = 0.1        # Jitter ratio (0.0 - 1.0)
+
+    base_delay: float = 1.0  # Base delay in seconds
+    max_delay: float = 60.0  # Maximum delay in seconds
+    multiplier: float = 2.0  # Exponential multiplier
+    jitter: bool = True  # Add random jitter
+    jitter_ratio: float = 0.1  # Jitter ratio (0.0 - 1.0)
     strategy: BackoffStrategy = BackoffStrategy.EXPONENTIAL
 
 
@@ -65,7 +66,7 @@ class ExponentialBackoffCalculator(BackoffCalculator):
 
     def calculate_delay(self, attempt: int) -> float:
         """Calculate exponential delay"""
-        delay = self.config.base_delay * (self.config.multiplier ** attempt)
+        delay = self.config.base_delay * (self.config.multiplier**attempt)
         delay = self.clamp_delay(delay)
         return self.add_jitter(delay)
 
@@ -101,7 +102,7 @@ class FibonacciBackoffCalculator(BackoffCalculator):
         if n in self._fib_cache:
             return self._fib_cache[n]
 
-        self._fib_cache[n] = self._fibonacci(n-1) + self._fibonacci(n-2)
+        self._fib_cache[n] = self._fibonacci(n - 1) + self._fibonacci(n - 2)
         return self._fib_cache[n]
 
     def calculate_delay(self, attempt: int) -> float:
@@ -195,12 +196,12 @@ class ExponentialBackoff:
     def get_config(self) -> dict:
         """Get backoff configuration"""
         return {
-            'strategy': self.config.strategy.value,
-            'base_delay': self.config.base_delay,
-            'max_delay': self.config.max_delay,
-            'multiplier': self.config.multiplier,
-            'jitter': self.config.jitter,
-            'jitter_ratio': self.config.jitter_ratio
+            "strategy": self.config.strategy.value,
+            "base_delay": self.config.base_delay,
+            "max_delay": self.config.max_delay,
+            "multiplier": self.config.multiplier,
+            "jitter": self.config.jitter,
+            "jitter_ratio": self.config.jitter_ratio,
         }
 
 
@@ -209,7 +210,7 @@ def create_exponential_backoff(
     max_delay: float = 60.0,
     multiplier: float = 2.0,
     jitter: bool = True,
-    jitter_ratio: float = 0.1
+    jitter_ratio: float = 0.1,
 ) -> ExponentialBackoff:
     """Create exponential backoff with common configuration"""
     config = BackoffConfig(
@@ -218,7 +219,7 @@ def create_exponential_backoff(
         multiplier=multiplier,
         jitter=jitter,
         jitter_ratio=jitter_ratio,
-        strategy=BackoffStrategy.EXPONENTIAL
+        strategy=BackoffStrategy.EXPONENTIAL,
     )
     return ExponentialBackoff(config)
 
@@ -227,7 +228,7 @@ def create_linear_backoff(
     base_delay: float = 1.0,
     max_delay: float = 30.0,
     jitter: bool = True,
-    jitter_ratio: float = 0.1
+    jitter_ratio: float = 0.1,
 ) -> ExponentialBackoff:
     """Create linear backoff with common configuration"""
     config = BackoffConfig(
@@ -235,7 +236,7 @@ def create_linear_backoff(
         max_delay=max_delay,
         jitter=jitter,
         jitter_ratio=jitter_ratio,
-        strategy=BackoffStrategy.LINEAR
+        strategy=BackoffStrategy.LINEAR,
     )
     return ExponentialBackoff(config)
 
@@ -244,7 +245,7 @@ def create_fibonacci_backoff(
     base_delay: float = 1.0,
     max_delay: float = 60.0,
     jitter: bool = True,
-    jitter_ratio: float = 0.1
+    jitter_ratio: float = 0.1,
 ) -> ExponentialBackoff:
     """Create fibonacci backoff with common configuration"""
     config = BackoffConfig(
@@ -252,6 +253,6 @@ def create_fibonacci_backoff(
         max_delay=max_delay,
         jitter=jitter,
         jitter_ratio=jitter_ratio,
-        strategy=BackoffStrategy.FIBONACCI
+        strategy=BackoffStrategy.FIBONACCI,
     )
     return ExponentialBackoff(config)

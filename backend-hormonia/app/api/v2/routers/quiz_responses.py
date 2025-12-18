@@ -16,7 +16,7 @@ Features:
 Migrated from V1: quiz_responses.py (3 endpoints)
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional
 from datetime import datetime
 from uuid import UUID
 import logging
@@ -43,8 +43,6 @@ from app.utils.rate_limiter import limiter
 from app.api.v2._quiz_shared import (
     _get_current_user_simple,
     _check_patient_access,
-    CACHE_TTL_RESPONSES,
-    CACHE_TTL_STATISTICS,
 )
 
 router = APIRouter()
@@ -55,7 +53,7 @@ logger = logging.getLogger(__name__)
     "/responses",
     response_model=QuizResponseV2List,
     summary="List quiz responses",
-    description="List patient quiz responses with cursor pagination and filtering"
+    description="List patient quiz responses with cursor pagination and filtering",
 )
 @limiter.limit("30/minute")  # Patient limit
 async def list_quiz_responses(
@@ -66,9 +64,9 @@ async def list_quiz_responses(
     start_date: Optional[datetime] = Query(None, description="Filter from date"),
     end_date: Optional[datetime] = Query(None, description="Filter to date"),
     pagination: dict = Depends(get_pagination_params),
-    db = Depends(get_db),
+    db=Depends(get_db),
     current_user: User = Depends(_get_current_user_simple),
-    redis_cache = Depends(get_redis_cache)
+    redis_cache=Depends(get_redis_cache),
 ):
     """
     List quiz responses with filtering and pagination.
@@ -90,7 +88,9 @@ async def list_quiz_responses(
     # Apply RBAC filtering
     if current_user.role == UserRole.DOCTOR:
         # Doctors see assigned patients' responses
-        patient_ids = db.query(Patient.id).filter(Patient.doctor_id == current_user.id).all()
+        patient_ids = (
+            db.query(Patient.id).filter(Patient.doctor_id == current_user.id).all()
+        )
         patient_ids = [p[0] for p in patient_ids]
         query = query.filter(QuizResponse.patient_id.in_(patient_ids))
 
@@ -134,16 +134,20 @@ async def list_quiz_responses(
     enriched_responses = []
     for response in responses:
         # Get template info
-        template = db.query(QuizTemplate).filter(
-            QuizTemplate.id == response.quiz_template_id
-        ).first()
+        template = (
+            db.query(QuizTemplate)
+            .filter(QuizTemplate.id == response.quiz_template_id)
+            .first()
+        )
 
         # Get session info
         session = None
         if response.quiz_session_id:
-            session = db.query(QuizSession).filter(
-                QuizSession.id == response.quiz_session_id
-            ).first()
+            session = (
+                db.query(QuizSession)
+                .filter(QuizSession.id == response.quiz_session_id)
+                .first()
+            )
 
         enriched = QuizResponseV2Detail(
             id=response.id,
@@ -160,7 +164,7 @@ async def list_quiz_responses(
             created_at=response.created_at,
             template_name=template.name if template else None,
             template_version=template.version if template else None,
-            session_status=session.status if session else None
+            session_status=session.status if session else None,
         )
         enriched_responses.append(enriched)
 
@@ -173,13 +177,12 @@ async def list_quiz_responses(
     # Get total count (cached)
     total = query.count()
 
-    logger.info(f"Listed {len(enriched_responses)} quiz responses for user {current_user.id}")
+    logger.info(
+        f"Listed {len(enriched_responses)} quiz responses for user {current_user.id}"
+    )
 
     return QuizResponseV2List(
-        data=enriched_responses,
-        next_cursor=next_cursor,
-        has_more=has_more,
-        total=total
+        data=enriched_responses, next_cursor=next_cursor, has_more=has_more, total=total
     )
 
 
@@ -187,14 +190,14 @@ async def list_quiz_responses(
     "/responses/{response_id}",
     response_model=QuizResponseV2Detail,
     summary="Get quiz response details",
-    description="Get detailed information about a specific quiz response"
+    description="Get detailed information about a specific quiz response",
 )
 @limiter.limit("50/minute")
 async def get_quiz_response_detail(
     request: Request,
     response_id: UUID,
-    db = Depends(get_db),
-    current_user: User = Depends(_get_current_user_simple)
+    db=Depends(get_db),
+    current_user: User = Depends(_get_current_user_simple),
 ):
     """
     Get detailed quiz response information.
@@ -207,23 +210,26 @@ async def get_quiz_response_detail(
     response = db.query(QuizResponse).filter(QuizResponse.id == response_id).first()
     if not response:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Quiz response not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Quiz response not found"
         )
 
     # Check access
     _check_patient_access(db, current_user, response.patient_id)
 
     # Get template and session info
-    template = db.query(QuizTemplate).filter(
-        QuizTemplate.id == response.quiz_template_id
-    ).first()
+    template = (
+        db.query(QuizTemplate)
+        .filter(QuizTemplate.id == response.quiz_template_id)
+        .first()
+    )
 
     session = None
     if response.quiz_session_id:
-        session = db.query(QuizSession).filter(
-            QuizSession.id == response.quiz_session_id
-        ).first()
+        session = (
+            db.query(QuizSession)
+            .filter(QuizSession.id == response.quiz_session_id)
+            .first()
+        )
 
     return QuizResponseV2Detail(
         id=response.id,
@@ -240,7 +246,7 @@ async def get_quiz_response_detail(
         created_at=response.created_at,
         template_name=template.name if template else None,
         template_version=template.version if template else None,
-        session_status=session.status if session else None
+        session_status=session.status if session else None,
     )
 
 
@@ -248,7 +254,7 @@ async def get_quiz_response_detail(
     "/responses/analytics",
     response_model=ResponseAnalyticsV2,
     summary="Get response analytics",
-    description="Get aggregate analytics for quiz responses"
+    description="Get aggregate analytics for quiz responses",
 )
 @limiter.limit("30/minute")
 async def get_response_analytics(
@@ -257,9 +263,9 @@ async def get_response_analytics(
     template_id: Optional[UUID] = Query(None, description="Filter by template"),
     start_date: Optional[datetime] = Query(None, description="Start date"),
     end_date: Optional[datetime] = Query(None, description="End date"),
-    db = Depends(get_db),
+    db=Depends(get_db),
     current_user: User = Depends(_get_current_user_simple),
-    redis_cache = Depends(get_redis_cache)
+    redis_cache=Depends(get_redis_cache),
 ):
     """
     Get analytics for quiz responses.
@@ -277,7 +283,9 @@ async def get_response_analytics(
     # FIXED: Removed UserRole.PATIENT check - only ADMIN and DOCTOR roles exist
     # Apply RBAC
     if current_user.role == UserRole.DOCTOR:
-        patient_ids = db.query(Patient.id).filter(Patient.doctor_id == current_user.id).all()
+        patient_ids = (
+            db.query(Patient.id).filter(Patient.doctor_id == current_user.id).all()
+        )
         patient_ids = [p[0] for p in patient_ids]
         query = query.filter(QuizResponse.patient_id.in_(patient_ids))
 
@@ -310,7 +318,9 @@ async def get_response_analytics(
 
     total_sessions = session_query.count()
     completed_sessions = session_query.filter(QuizSession.status == "completed").count()
-    completion_rate = (completed_sessions / total_sessions * 100) if total_sessions > 0 else 0.0
+    completion_rate = (
+        (completed_sessions / total_sessions * 100) if total_sessions > 0 else 0.0
+    )
 
     # Calculate average score
     sessions_with_scores = session_query.filter(QuizSession.score.isnot(None)).all()
@@ -327,9 +337,11 @@ async def get_response_analytics(
             month_key = resp.responded_at.strftime("%Y-%m")
             # Get session score if available
             if resp.quiz_session_id:
-                session = db.query(QuizSession).filter(
-                    QuizSession.id == resp.quiz_session_id
-                ).first()
+                session = (
+                    db.query(QuizSession)
+                    .filter(QuizSession.id == resp.quiz_session_id)
+                    .first()
+                )
                 if session and session.score:
                     monthly_data[month_key].append(float(session.score))
 
@@ -342,19 +354,21 @@ async def get_response_analytics(
     if len(sessions_with_scores) >= 3:
         scores = [float(s.score) for s in sessions_with_scores[-5:]]  # Last 5 sessions
         if len(scores) >= 2:
-            if all(scores[i] < scores[i+1] for i in range(len(scores)-1)):
+            if all(scores[i] < scores[i + 1] for i in range(len(scores) - 1)):
                 patterns.append("improving")
-            elif all(scores[i] > scores[i+1] for i in range(len(scores)-1)):
+            elif all(scores[i] > scores[i + 1] for i in range(len(scores) - 1)):
                 patterns.append("declining")
             elif max(scores) - min(scores) < 10:
                 patterns.append("consistent")
 
     # Count flagged responses
     flagged_count = sum(
-        1 for r in responses
-        if r.response_metadata and (
-            r.response_metadata.get("flagged", False) or
-            r.response_metadata.get("requires_review", False)
+        1
+        for r in responses
+        if r.response_metadata
+        and (
+            r.response_metadata.get("flagged", False)
+            or r.response_metadata.get("requires_review", False)
         )
     )
 
@@ -364,5 +378,5 @@ async def get_response_analytics(
         average_score=round(average_score, 2) if average_score else None,
         response_trends=trends[:12],  # Last 12 months
         common_patterns=patterns,
-        flagged_count=flagged_count
+        flagged_count=flagged_count,
     )

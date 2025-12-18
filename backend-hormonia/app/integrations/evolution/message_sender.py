@@ -1,6 +1,7 @@
 """
 Message sending functionality for different message types.
 """
+
 from typing import Dict, List, Optional, Any
 
 import structlog
@@ -25,10 +26,7 @@ class MessageSender:
         self.instance_name = instance_name
 
     async def send_text_message(
-        self,
-        phone_number: str,
-        message: str,
-        delay: Optional[int] = None
+        self, phone_number: str, message: str, delay: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Send text message via WhatsApp.
@@ -48,10 +46,7 @@ class MessageSender:
         clean_number = format_phone_number(phone_number)
 
         # Evolution sendText endpoint requires a top-level "text" field
-        payload = {
-            "number": clean_number,
-            "text": message
-        }
+        payload = {"number": clean_number, "text": message}
 
         if delay:
             payload["delay"] = delay
@@ -60,7 +55,7 @@ class MessageSender:
             "Sending text message",
             phone_number=clean_number,
             message_length=len(message),
-            has_delay=bool(delay)
+            has_delay=bool(delay),
         )
 
         endpoint = f"message/sendText/{self.instance_name}"
@@ -69,8 +64,8 @@ class MessageSender:
         logger.info(
             "Text message sent",
             phone_number=clean_number,
-            message_id=response.get('data', {}).get('id'),
-            status=response.get('status')
+            message_id=response.get("data", {}).get("id"),
+            status=response.get("status"),
         )
 
         return response
@@ -80,7 +75,7 @@ class MessageSender:
         phone_number: str,
         text: str,
         buttons: List[Dict[str, str]],
-        delay: Optional[int] = None
+        delay: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Send button message via WhatsApp.
@@ -101,28 +96,33 @@ class MessageSender:
         formatted_buttons = []
         for i, button in enumerate(buttons):
             if isinstance(button, dict):
-                formatted_buttons.append({
-                    "index": i + 1,
-                    "urlButton": {
-                        "displayText": button.get("displayText", button.get("text", f"Opção {i+1}")),
-                        "url": button.get("url", f"payload:{button.get('id', f'btn_{i+1}')}")
+                formatted_buttons.append(
+                    {
+                        "index": i + 1,
+                        "urlButton": {
+                            "displayText": button.get(
+                                "displayText", button.get("text", f"Opção {i + 1}")
+                            ),
+                            "url": button.get(
+                                "url", f"payload:{button.get('id', f'btn_{i + 1}')}"
+                            ),
+                        },
                     }
-                })
+                )
             else:
-                formatted_buttons.append({
-                    "index": i + 1,
-                    "urlButton": {
-                        "displayText": str(button),
-                        "url": f"payload:btn_{i+1}"
+                formatted_buttons.append(
+                    {
+                        "index": i + 1,
+                        "urlButton": {
+                            "displayText": str(button),
+                            "url": f"payload:btn_{i + 1}",
+                        },
                     }
-                })
+                )
 
         payload = {
             "number": clean_number,
-            "buttonMessage": {
-                "text": text,
-                "buttons": formatted_buttons
-            }
+            "buttonMessage": {"text": text, "buttons": formatted_buttons},
         }
 
         if delay:
@@ -131,7 +131,7 @@ class MessageSender:
         logger.info(
             "Sending button message",
             phone_number=clean_number,
-            button_count=len(formatted_buttons)
+            button_count=len(formatted_buttons),
         )
 
         endpoint = f"message/sendButtons/{self.instance_name}"
@@ -140,7 +140,7 @@ class MessageSender:
         logger.info(
             "Button message sent",
             phone_number=clean_number,
-            message_id=response.get('data', {}).get('id')
+            message_id=response.get("data", {}).get("id"),
         )
 
         return response
@@ -151,7 +151,7 @@ class MessageSender:
         text: str,
         title: str,
         sections: List[Dict[str, Any]],
-        delay: Optional[int] = None
+        delay: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Send list message via WhatsApp.
@@ -171,11 +171,7 @@ class MessageSender:
 
         payload = {
             "number": clean_number,
-            "listMessage": {
-                "text": text,
-                "title": title,
-                "sections": sections
-            }
+            "listMessage": {"text": text, "title": title, "sections": sections},
         }
 
         if delay:
@@ -190,7 +186,7 @@ class MessageSender:
         media_url: str,
         media_type: str,
         caption: Optional[str] = None,
-        delay: Optional[int] = None
+        delay: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Send media message via WhatsApp.
@@ -210,10 +206,7 @@ class MessageSender:
 
         payload = {
             "number": clean_number,
-            "mediaMessage": {
-                "mediatype": media_type,
-                "media": media_url
-            }
+            "mediaMessage": {"mediatype": media_type, "media": media_url},
         }
 
         if caption:

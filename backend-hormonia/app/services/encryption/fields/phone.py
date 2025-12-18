@@ -41,7 +41,7 @@ class PhoneEncryptor(BaseFieldEncryptor):
 
             # Encrypt
             encrypted_phone = self.encrypt_func(normalized_phone, FieldType.PHONE)
-            encrypted_bytes = encrypted_phone.encode('utf-8')
+            encrypted_bytes = encrypted_phone.encode("utf-8")
 
             # Generate searchable hash
             phone_hash = self.hash_func(normalized_phone, FieldType.PHONE)
@@ -69,7 +69,7 @@ class PhoneEncryptor(BaseFieldEncryptor):
         try:
             # Convert bytes to string
             encrypted_str = (
-                encrypted_phone.decode('utf-8')
+                encrypted_phone.decode("utf-8")
                 if isinstance(encrypted_phone, bytes)
                 else encrypted_phone
             )
@@ -92,7 +92,7 @@ class PhoneEncryptor(BaseFieldEncryptor):
         """
         if not phone:
             return phone
-        return ''.join(c for c in phone if c.isdigit() or c == '+')
+        return "".join(c for c in phone if c.isdigit() or c == "+")
 
     def validate(self, phone: str) -> bool:
         """

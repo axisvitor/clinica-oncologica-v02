@@ -42,7 +42,7 @@ class MetricsCollector:
             lambda: {
                 "count": 0,
                 "total_duration_ms": 0.0,
-                "min_duration_ms": float('inf'),
+                "min_duration_ms": float("inf"),
                 "max_duration_ms": 0.0,
                 "error_count": 0,
             }
@@ -113,9 +113,7 @@ class MetricsCollector:
 
         cache_total = self.cache_hits + self.cache_misses
         cache_hit_rate = (
-            (self.cache_hits / cache_total * 100)
-            if cache_total > 0
-            else 0.0
+            (self.cache_hits / cache_total * 100) if cache_total > 0 else 0.0
         )
 
         # Process memory info
@@ -123,7 +121,7 @@ class MetricsCollector:
         memory_info = process.memory_info()
 
         return {
-            "timestamp": datetime.utcnow().isoformat() + 'Z',
+            "timestamp": datetime.utcnow().isoformat() + "Z",
             "requests": {
                 "total": self.request_count,
                 "avg_duration_ms": round(avg_duration, 2),
@@ -138,7 +136,7 @@ class MetricsCollector:
                     if metrics["count"] > 0
                     else 0.0,
                     "min_duration_ms": round(metrics["min_duration_ms"], 2)
-                    if metrics["min_duration_ms"] != float('inf')
+                    if metrics["min_duration_ms"] != float("inf")
                     else 0.0,
                     "max_duration_ms": round(metrics["max_duration_ms"], 2),
                     "error_count": metrics["error_count"],
@@ -201,11 +199,7 @@ class PerformanceMetricsMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.process = psutil.Process()
 
-    async def dispatch(
-        self,
-        request: Request,
-        call_next: Callable
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """
         Process request and track metrics.
 
@@ -218,14 +212,16 @@ class PerformanceMetricsMiddleware(BaseHTTPMiddleware):
         """
         # Set up request context
         request_id_value = str(uuid.uuid4())
-        correlation_id_value = request.headers.get('X-Correlation-ID', str(uuid.uuid4()))
+        correlation_id_value = request.headers.get(
+            "X-Correlation-ID", str(uuid.uuid4())
+        )
 
         set_request_id(request_id_value)
         set_correlation_id(correlation_id_value)
         set_request_path(request.url.path)
 
         # Extract user ID if available (from auth middleware)
-        user_id_value = getattr(request.state, 'user_id', None)
+        user_id_value = getattr(request.state, "user_id", None)
         if user_id_value:
             set_user_id(user_id_value)
 
@@ -248,7 +244,7 @@ class PerformanceMetricsMiddleware(BaseHTTPMiddleware):
             memory_delta_mb = (memory_after - memory_before) / 1024 / 1024
 
             # Get query count from request state
-            query_count = getattr(request.state, 'query_count', 0)
+            query_count = getattr(request.state, "query_count", 0)
 
             # Record metrics
             metrics_collector.record_request(
@@ -271,10 +267,10 @@ class PerformanceMetricsMiddleware(BaseHTTPMiddleware):
             )
 
             # Add metrics headers to response
-            response.headers['X-Request-ID'] = request_id_value
-            response.headers['X-Correlation-ID'] = correlation_id_value
-            response.headers['X-Response-Time-Ms'] = str(round(duration_ms, 2))
-            response.headers['X-Query-Count'] = str(query_count)
+            response.headers["X-Request-ID"] = request_id_value
+            response.headers["X-Correlation-ID"] = correlation_id_value
+            response.headers["X-Response-Time-Ms"] = str(round(duration_ms, 2))
+            response.headers["X-Query-Count"] = str(query_count)
 
             return response
 
@@ -288,7 +284,7 @@ class PerformanceMetricsMiddleware(BaseHTTPMiddleware):
                 method=request.method,
                 status_code=500,
                 duration_ms=duration_ms,
-                query_count=getattr(request.state, 'query_count', 0),
+                query_count=getattr(request.state, "query_count", 0),
             )
 
             # Log error
@@ -339,5 +335,5 @@ def increment_query_count(request: Optional[Request] = None, count: int = 1):
         request: Current request (optional)
         count: Number of queries to add
     """
-    if request and hasattr(request.state, 'query_count'):
+    if request and hasattr(request.state, "query_count"):
         request.state.query_count += count

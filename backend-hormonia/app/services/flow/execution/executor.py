@@ -46,7 +46,10 @@ class FlowStepExecutor:
         self.condition_evaluator = condition_evaluator or ConditionEvaluator()
         self.config = get_flow_config().execution
 
-        self._handlers: Dict[FlowStepType, Callable[[FlowContext, Dict[str, Any]], Awaitable[Dict[str, Any]]]] = {  # type: ignore
+        self._handlers: Dict[
+            FlowStepType,
+            Callable[[FlowContext, Dict[str, Any]], Awaitable[Dict[str, Any]]],
+        ] = {  # type: ignore
             FlowStepType.MESSAGE: self._execute_message_step,
             FlowStepType.QUESTION: self._execute_question_step,
             FlowStepType.DECISION: self._execute_decision_step,
@@ -116,9 +119,7 @@ class FlowStepExecutor:
         self, context: FlowContext, step_def: Dict[str, Any]
     ) -> Dict[str, Any]:
         message_content = step_def.get("content", "")
-        message_content = self._substitute_variables(
-            message_content, context.variables
-        )
+        message_content = self._substitute_variables(message_content, context.variables)
 
         return {
             "message_sent": True,

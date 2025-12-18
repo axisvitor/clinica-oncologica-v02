@@ -7,13 +7,17 @@ coordinating alert evaluation, processing, notification, and lifecycle managemen
 
 import asyncio
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 from uuid import UUID
 from datetime import datetime, timedelta
 
+if TYPE_CHECKING:
+    from .rule_engine import RuleEngine
+    from .notification_dispatcher import NotificationDispatcher
+    from .processor import AlertProcessor
+
 from .types import (
     Alert,
-    AlertRule,
     AlertRuleType,
     AlertSeverity,
     AlertStatus,
@@ -495,7 +499,6 @@ class AlertManager:
         Returns:
             List of NotificationTarget with user_id and channels
         """
-        from uuid import uuid4
 
         targets: List[NotificationTarget] = []
 
@@ -537,13 +540,16 @@ class AlertManager:
                         "alert_id": str(alert.id),
                         "severity": alert.severity.value,
                         "rule_type": alert.rule_type.value,
-                    }
+                    },
                 )
             )
 
         logger.info(
             f"Resolved {len(targets)} notification targets for alert {alert.id}",
-            extra={"severity": alert.severity.value, "channels": [c.value for c in channels]}
+            extra={
+                "severity": alert.severity.value,
+                "channels": [c.value for c in channels],
+            },
         )
 
         return targets
@@ -561,7 +567,6 @@ class AlertManager:
         Returns:
             List of user UUIDs to notify
         """
-        from uuid import uuid4
 
         target_user_ids: List[UUID] = []
 
@@ -583,8 +588,14 @@ class AlertManager:
 
                 async for db in get_db_session():
                     patient_repo = PatientRepository(db)
-                    patient = await patient_repo.get_by_id(UUID(patient_id) if isinstance(patient_id, str) else patient_id)
-                    if patient and hasattr(patient, 'assigned_doctor_id') and patient.assigned_doctor_id:
+                    patient = await patient_repo.get_by_id(
+                        UUID(patient_id) if isinstance(patient_id, str) else patient_id
+                    )
+                    if (
+                        patient
+                        and hasattr(patient, "assigned_doctor_id")
+                        and patient.assigned_doctor_id
+                    ):
                         target_user_ids.append(patient.assigned_doctor_id)
                     break
             except Exception as e:
@@ -638,8 +649,8 @@ class AlertManager:
             extra={
                 "severity": alert.severity.value,
                 "current_level": alert.escalation_level,
-                "max_level": self.config.max_escalation_level
-            }
+                "max_level": self.config.max_escalation_level,
+            },
         )
 
         # Check if max escalation level reached
@@ -652,19 +663,23 @@ class AlertManager:
         # Get escalation delay from config or rule config
         escalation_delay_seconds = self.config.metadata.get(
             "escalation_delay_seconds",
-            3600  # Default: 1 hour
+            3600,  # Default: 1 hour
         )
 
         # For critical/fatal alerts, use shorter escalation time
         if alert.severity == AlertSeverity.FATAL:
-            escalation_delay_seconds = min(escalation_delay_seconds, 900)  # 15 minutes max
+            escalation_delay_seconds = min(
+                escalation_delay_seconds, 900
+            )  # 15 minutes max
         elif alert.severity == AlertSeverity.CRITICAL:
-            escalation_delay_seconds = min(escalation_delay_seconds, 1800)  # 30 minutes max
+            escalation_delay_seconds = min(
+                escalation_delay_seconds, 1800
+            )  # 30 minutes max
 
         # Schedule the escalation as a background task
         asyncio.create_task(
             self._execute_escalation(alert.id, escalation_delay_seconds),
-            name=f"escalation_{alert.id}"
+            name=f"escalation_{alert.id}",
         )
 
         logger.info(
@@ -691,7 +706,11 @@ class AlertManager:
                 return
 
             # Check if alert was acknowledged or resolved
-            if alert.status in [AlertStatus.ACKNOWLEDGED, AlertStatus.RESOLVED, AlertStatus.EXPIRED]:
+            if alert.status in [
+                AlertStatus.ACKNOWLEDGED,
+                AlertStatus.RESOLVED,
+                AlertStatus.EXPIRED,
+            ]:
                 logger.info(
                     f"Alert {alert_id} already {alert.status.value}, skipping escalation"
                 )
@@ -707,8 +726,8 @@ class AlertManager:
                 extra={
                     "alert_id": str(alert_id),
                     "severity": alert.severity.value,
-                    "level": alert.escalation_level
-                }
+                    "level": alert.escalation_level,
+                },
             )
 
             # Get escalation targets (higher level gets more targets)
@@ -740,8 +759,7 @@ class AlertManager:
 
         except Exception as e:
             logger.error(
-                f"Error executing escalation for alert {alert_id}: {e}",
-                exc_info=True
+                f"Error executing escalation for alert {alert_id}: {e}", exc_info=True
             )
 
     async def _get_escalation_targets(self, alert: Alert) -> List[NotificationTarget]:
@@ -790,7 +808,7 @@ class AlertManager:
                             "alert_id": str(alert.id),
                             "escalation_level": alert.escalation_level,
                             "is_escalation": True,
-                        }
+                        },
                     )
                 )
             except (ValueError, TypeError) as e:

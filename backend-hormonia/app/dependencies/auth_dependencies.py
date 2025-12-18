@@ -6,12 +6,15 @@ Dual authentication system:
 
 All Supabase fallback code has been removed.
 """
+
 from fastapi import Depends, HTTPException, status, Header, Cookie
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, TYPE_CHECKING
 import logging
 import asyncio
-from datetime import datetime
+
+if TYPE_CHECKING:
+    from app.core.redis_manager import FirebaseRedisCache
 
 from app.models.user import User, UserRole
 from app.services import ServiceProvider
@@ -30,20 +33,21 @@ try:
     from app.services.firebase_auth_service import get_firebase_auth_service
 
     # Check if Firebase credentials are configured
-    firebase_project_id = getattr(settings, 'FIREBASE_ADMIN_PROJECT_ID', None)
-    firebase_private_key = getattr(settings, 'FIREBASE_ADMIN_PRIVATE_KEY', None)
-    firebase_client_email = getattr(settings, 'FIREBASE_ADMIN_CLIENT_EMAIL', None)
-
+    firebase_project_id = getattr(settings, "FIREBASE_ADMIN_PROJECT_ID", None)
+    firebase_private_key = getattr(settings, "FIREBASE_ADMIN_PRIVATE_KEY", None)
+    firebase_client_email = getattr(settings, "FIREBASE_ADMIN_CLIENT_EMAIL", None)
 
     if firebase_project_id and firebase_private_key and firebase_client_email:
         _firebase_service = get_firebase_auth_service(
             project_id=firebase_project_id,
             private_key=firebase_private_key,
-            client_email=firebase_client_email
+            client_email=firebase_client_email,
         )
         logger.info("Firebase Authentication enabled")
     else:
-        logger.error("Firebase credentials not configured - authentication will not work")
+        logger.error(
+            "Firebase credentials not configured - authentication will not work"
+        )
         _firebase_service = None
 except Exception as e:
     logger.error(f"Failed to initialize Firebase Auth: {str(e)}")
@@ -53,9 +57,11 @@ except Exception as e:
 # CORE AUTHENTICATION DEPENDENCIES
 # =============================================================================
 
+
 def _get_service_provider():
     """Lazy loader for ServiceProvider to avoid circular imports."""
     from app.dependencies import get_thread_safe_service_provider
+
     # Yield from the actual generator function
     yield from get_thread_safe_service_provider()
 
@@ -76,45 +82,60 @@ def get_permissions_for_role(role: str) -> List[str]:
     if role == "ADMIN":
         return [
             # Core admin permissions
-            "admin.read", "admin.write", "admin.delete",
-            "admin.templates.read", "admin.templates.write",
-            
+            "admin.read",
+            "admin.write",
+            "admin.delete",
+            "admin.templates.read",
+            "admin.templates.write",
             # User management
-            "users.read", "users.write", "users.delete",
-            
+            "users.read",
+            "users.write",
+            "users.delete",
             # Security and monitoring
-            "security.read", "security.write",
-            
+            "security.read",
+            "security.write",
             # Reports and analytics
-            "reports.read", "reports.write", "reports.delete",
-            "analytics.read", "analytics.write",
-            
+            "reports.read",
+            "reports.write",
+            "reports.delete",
+            "analytics.read",
+            "analytics.write",
             # Settings and configuration
-            "settings.read", "settings.write",
-            
+            "settings.read",
+            "settings.write",
             # Clinical data
-            "patients.read", "patients.write", "patients.delete",
-            "appointments.read", "appointments.write", "appointments.delete",
-            "treatments.read", "treatments.write", "treatments.delete",
-            
+            "patients.read",
+            "patients.write",
+            "patients.delete",
+            "appointments.read",
+            "appointments.write",
+            "appointments.delete",
+            "treatments.read",
+            "treatments.write",
+            "treatments.delete",
             # Billing
-            "billing.read", "billing.write"
+            "billing.read",
+            "billing.write",
         ]
 
     # Doctor has clinical permissions
     elif role == "DOCTOR":
         return [
-            "patients.read", "patients.write",
-            "appointments.read", "appointments.write",
-            "treatments.read", "treatments.write",
-            "reports.read", "reports.write"
+            "patients.read",
+            "patients.write",
+            "appointments.read",
+            "appointments.write",
+            "treatments.read",
+            "treatments.write",
+            "reports.read",
+            "reports.write",
         ]
 
     # Default: minimal read permissions
     return ["patients.read", "appointments.read"]
 
 
-async def get_redis_cache() -> 'FirebaseRedisCache':
+async def get_redis_cache() -> "FirebaseRedisCache":
     """
     Dependency injection for FirebaseRedisCache with Redis client.
 
@@ -123,15 +144,19 @@ async def get_redis_cache() -> 'FirebaseRedisCache':
     """
     try:
         from app.core.redis_manager import get_redis_manager, FirebaseRedisCache
+
         redis_manager = get_redis_manager()
         # Use sync client for FirebaseRedisCache as it mostly uses run_in_executor/to_thread
-        redis_client = redis_manager.get_compatible_client('sync')
+        redis_client = redis_manager.get_compatible_client("sync")
         return FirebaseRedisCache(redis_client)
     except Exception as e:
         import traceback
         import logging
+
         logger = logging.getLogger(__name__)
-        logger.error(f"❌ Failed to initialize Redis cache dependency: {e}\n{traceback.format_exc()}")
+        logger.error(
+            f"❌ Failed to initialize Redis cache dependency: {e}\n{traceback.format_exc()}"
+        )
         raise
 
 
@@ -151,7 +176,7 @@ async def verify_firebase_token(id_token: str) -> Optional[Dict[str, Any]]:
     if _firebase_service is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Firebase authentication is not configured"
+            detail="Firebase authentication is not configured",
         )
 
     try:
@@ -162,11 +187,8 @@ async def verify_firebase_token(id_token: str) -> Optional[Dict[str, Any]]:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Invalid Firebase token: {str(e)}",
-            headers={"WWW-Authenticate": "Bearer"}
+            headers={"WWW-Authenticate": "Bearer"},
         )
-
-
-import asyncio
 
 
 def _get_user_from_db(firebase_uid: str) -> Optional[User]:
@@ -177,6 +199,7 @@ def _get_user_from_db(firebase_uid: str) -> Optional[User]:
     with SessionLocal() as db:
         from app.models.user import User
         from sqlalchemy import select
+
         stmt = select(User).where(User.firebase_uid == firebase_uid)
         result = db.execute(stmt)
         return result.scalar_one_or_none()
@@ -186,7 +209,7 @@ async def get_current_user_from_session(
     session_cookie_id: str = Cookie(None, alias="session_id"),
     x_session_id: str = Header(None, alias="X-Session-ID"),
     services: Any = Depends(_get_service_provider),
-    redis_cache: 'FirebaseRedisCache' = Depends(get_redis_cache)
+    redis_cache: "FirebaseRedisCache" = Depends(get_redis_cache),
 ) -> Dict:
     """
     Get current authenticated user by validating Redis session (RECOMMENDED).
@@ -221,9 +244,9 @@ async def get_current_user_from_session(
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Session ID not provided",
-                headers={"WWW-Authenticate": "Session"}
+                headers={"WWW-Authenticate": "Session"},
             )
-        
+
         # Layer 1: Get session from Redis (~2-5ms)
         session_data = await redis_cache.get_session(final_session_id)
 
@@ -232,14 +255,14 @@ async def get_current_user_from_session(
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or expired session. Please login again.",
-                headers={"WWW-Authenticate": "Session"}
+                headers={"WWW-Authenticate": "Session"},
             )
 
         # Update session activity to prevent expiration during active use
         # This extends the TTL and updates last_activity timestamp
         await redis_cache.update_session_activity(
             session_id=final_session_id,
-            extend_ttl=True  # Reset Redis TTL to keep active users logged in
+            extend_ttl=True,  # Reset Redis TTL to keep active users logged in
         )
 
         firebase_uid = session_data.get("firebase_uid")
@@ -248,7 +271,7 @@ async def get_current_user_from_session(
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid session data",
-                headers={"WWW-Authenticate": "Session"}
+                headers={"WWW-Authenticate": "Session"},
             )
 
         # Layer 2: Get user from cache (~2-5ms on hit, ~50-100ms on miss)
@@ -256,7 +279,9 @@ async def get_current_user_from_session(
 
         if not user_data:
             # Cache miss: Query PostgreSQL and cache result
-            logger.info(f"Cache miss for user: {firebase_uid[:8]}... Querying database.")
+            logger.info(
+                f"Cache miss for user: {firebase_uid[:8]}... Querying database."
+            )
 
             # THREAD-SAFE FIX: Use asyncio.to_thread to run sync DB operation
             # _get_user_from_db creates its own session to avoid thread-safety issues
@@ -267,7 +292,7 @@ async def get_current_user_from_session(
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="User not found",
-                    headers={"WWW-Authenticate": "Session"}
+                    headers={"WWW-Authenticate": "Session"},
                 )
 
             # Convert SQLAlchemy model to dict and cache
@@ -276,13 +301,17 @@ async def get_current_user_from_session(
                 "firebase_uid": user.firebase_uid,
                 "email": user.email,
                 "full_name": user.full_name,
-                "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
+                "role": user.role.value
+                if hasattr(user.role, "value")
+                else str(user.role),
                 "is_active": user.is_active,
                 "id": str(user.id),
                 # Add timestamps for UserV2Response schema compatibility
                 "created_at": user.created_at.isoformat() if user.created_at else None,
                 "updated_at": user.updated_at.isoformat() if user.updated_at else None,
-                "last_login": user.firebase_last_sign_in.isoformat() if user.firebase_last_sign_in else None
+                "last_login": user.firebase_last_sign_in.isoformat()
+                if user.firebase_last_sign_in
+                else None,
             }
 
             # Cache for 15 minutes
@@ -293,15 +322,16 @@ async def get_current_user_from_session(
         if not user_data.get("is_active", False):
             logger.warning(f"Inactive user attempted access: {user_data.get('email')}")
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User account is inactive"
+                status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive"
             )
 
         # Add permissions to user data
         role = user_data.get("role", "doctor")
         user_data["permissions"] = get_permissions_for_role(role)
 
-        logger.debug(f"Session validated for user: {user_data.get('email')} (role: {role})")
+        logger.debug(
+            f"Session validated for user: {user_data.get('email')} (role: {role})"
+        )
         return user_data
 
     except HTTPException:
@@ -312,27 +342,27 @@ async def get_current_user_from_session(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Session validation failed: {str(e)}",
-            headers={"WWW-Authenticate": "Session"}
+            headers={"WWW-Authenticate": "Session"},
         )
 
 
 async def get_current_user_object_from_session(
-    user_data: Dict = Depends(get_current_user_from_session)
+    user_data: Dict = Depends(get_current_user_from_session),
 ) -> User:
     """
     Get current authenticated user as a User model object from session.
-    
-    Useful for endpoints that require a User object (like upload.py) 
+
+    Useful for endpoints that require a User object (like upload.py)
     but need to support session-based authentication.
     """
     try:
         # Create a copy to avoid modifying the cached dict
         user_dict = user_data.copy()
-        
+
         # Remove non-model fields
-        user_dict.pop('permissions', None)
-        user_dict.pop('cached_at', None)
-        
+        user_dict.pop("permissions", None)
+        user_dict.pop("cached_at", None)
+
         # Handle role conversion
         role_value = user_dict.get("role")
         if isinstance(role_value, str):
@@ -340,19 +370,19 @@ async def get_current_user_object_from_session(
                 user_dict["role"] = UserRole(role_value.lower())
             except ValueError:
                 user_dict["role"] = UserRole.DOCTOR
-                
+
         return User(**user_dict)
     except Exception as e:
         logger.error(f"Failed to convert session data to User object: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Session data error"
+            detail="Session data error",
         )
 
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    services: ServiceProvider = Depends(_get_service_provider)
+    services: ServiceProvider = Depends(_get_service_provider),
 ) -> User:
     """
     Get current authenticated user by validating Firebase Auth token with Redis cache.
@@ -383,8 +413,7 @@ async def get_current_user(
     """
     if credentials is None:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
         )
 
     token_value = credentials.credentials
@@ -402,19 +431,20 @@ async def get_current_user(
     if allow_test_tokens and token_value.startswith(("admin_token_", "test_token_")):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unregistered test token. Use TEST_TOKEN_REGISTRY in tests."
+            detail="Unregistered test token. Use TEST_TOKEN_REGISTRY in tests.",
         )
 
     # Check if Firebase is configured
     if _firebase_service is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Firebase authentication is not configured"
+            detail="Firebase authentication is not configured",
         )
 
     try:
         # Initialize 3-layer Redis cache
         from app.core.redis_manager import FirebaseRedisCache, get_redis_manager
+
         redis_manager = get_redis_manager()
         redis_client = redis_manager.get_compatible_client("sync")
         firebase_cache = FirebaseRedisCache(redis_client)
@@ -443,7 +473,7 @@ async def get_current_user(
             logger.debug(f"✅ User cache HIT for {firebase_uid}")
             # Convert dict to User model
             # FIX: Remove 'cached_at' before creating User model to prevent TypeError
-            cached_user.pop('cached_at', None)
+            cached_user.pop("cached_at", None)
             role_value = cached_user.get("role")
             if isinstance(role_value, str):
                 normalized_role = role_value.lower()
@@ -452,7 +482,7 @@ async def get_current_user(
                 except ValueError:
                     logger.warning(
                         "Unexpected cached user role '%s'. Falling back to doctor role.",
-                        role_value
+                        role_value,
                     )
                     cached_user["role"] = UserRole.DOCTOR
             user = User(**cached_user)
@@ -476,12 +506,16 @@ async def get_current_user(
                 "firebase_uid": user.firebase_uid,
                 "email": user.email,
                 "full_name": user.full_name,
-                "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
+                "role": user.role.value
+                if hasattr(user.role, "value")
+                else str(user.role),
                 "is_active": user.is_active,
                 # Add timestamps for UserV2Response schema compatibility
                 "created_at": user.created_at.isoformat() if user.created_at else None,
                 "updated_at": user.updated_at.isoformat() if user.updated_at else None,
-                "last_login": user.firebase_last_sign_in.isoformat() if user.firebase_last_sign_in else None
+                "last_login": user.firebase_last_sign_in.isoformat()
+                if user.firebase_last_sign_in
+                else None,
             }
             firebase_cache.cache_user(firebase_uid, user_dict)
             logger.info(f"💾 User cached for {firebase_uid}")
@@ -490,13 +524,15 @@ async def get_current_user(
             if not user.is_active:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="User account is inactive"
+                    detail="User account is inactive",
                 )
 
             return user
 
         # User doesn't exist - create minimal record
-        logger.info(f"User not found in database, creating minimal record for: {user_data.get('email')}")
+        logger.info(
+            f"User not found in database, creating minimal record for: {user_data.get('email')}"
+        )
 
         # Extract role from Firebase custom claims or default to DOCTOR
         firebase_role = user_data.get("role", "doctor").lower()
@@ -507,7 +543,7 @@ async def get_current_user(
             email=user_data.get("email"),
             full_name=user_data.get("name", user_data.get("email", "").split("@")[0]),
             is_active=True,
-            role=user_role  # From Firebase custom claims
+            role=user_role,  # From Firebase custom claims
         )
         services.db.add(user)
         services.db.commit()
@@ -520,12 +556,14 @@ async def get_current_user(
             "firebase_uid": user.firebase_uid,
             "email": user.email,
             "full_name": user.full_name,
-            "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
+            "role": user.role.value if hasattr(user.role, "value") else str(user.role),
             "is_active": user.is_active,
             # Add timestamps for UserV2Response schema compatibility
             "created_at": user.created_at.isoformat() if user.created_at else None,
             "updated_at": user.updated_at.isoformat() if user.updated_at else None,
-            "last_login": user.firebase_last_sign_in.isoformat() if user.firebase_last_sign_in else None
+            "last_login": user.firebase_last_sign_in.isoformat()
+            if user.firebase_last_sign_in
+            else None,
         }
         firebase_cache.cache_user(firebase_uid, user_dict)
 
@@ -541,25 +579,26 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Firebase authentication failed: {str(e)}",
-            headers={"WWW-Authenticate": "Bearer"}
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
 
 async def get_current_active_user(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> User:
     """Get current active user (additional validation)"""
     if not current_user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user"
         )
     return current_user
 
 
 async def get_optional_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
-    services: ServiceProvider = Depends(_get_service_provider)
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        HTTPBearer(auto_error=False)
+    ),
+    services: ServiceProvider = Depends(_get_service_provider),
 ) -> Optional[User]:
     """Get current user if authenticated, otherwise return None"""
     if credentials is None:
@@ -570,40 +609,39 @@ async def get_optional_user(
     except HTTPException:
         return None
 
+
 # =============================================================================
 # ROLE-BASED DEPENDENCIES
 # =============================================================================
 
-async def get_admin_user(
-    current_user: User = Depends(get_current_active_user)
-) -> User:
+
+async def get_admin_user(current_user: User = Depends(get_current_active_user)) -> User:
     """Get current user with admin privileges"""
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
         )
     return current_user
 
 
 async def get_doctor_user(
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ) -> User:
     """Get current user with doctor privileges"""
     if current_user.role not in [UserRole.DOCTOR, UserRole.ADMIN]:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
         )
     return current_user
+
 
 # =============================================================================
 # WEBSOCKET AUTHENTICATION
 # =============================================================================
 
+
 async def get_current_user_websocket(
-    websocket,
-    services: ServiceProvider = Depends(_get_service_provider)
+    websocket, services: ServiceProvider = Depends(_get_service_provider)
 ) -> Optional[User]:
     """Get current user from WebSocket connection validating Firebase token only"""
     try:
@@ -614,16 +652,16 @@ async def get_current_user_websocket(
 
         # Get token from query parameters or headers
         token = None
-        if hasattr(websocket, 'query_params') and 'token' in websocket.query_params:
-            token = websocket.query_params['token']
-        elif hasattr(websocket, 'headers'):
+        if hasattr(websocket, "query_params") and "token" in websocket.query_params:
+            token = websocket.query_params["token"]
+        elif hasattr(websocket, "headers"):
             auth_header = None
             try:
-                auth_header = websocket.headers.get('authorization')
+                auth_header = websocket.headers.get("authorization")
             except Exception:
-                if 'authorization' in getattr(websocket, 'headers', {}):
-                    auth_header = websocket.headers['authorization']
-            if auth_header and auth_header.startswith('Bearer '):
+                if "authorization" in getattr(websocket, "headers", {}):
+                    auth_header = websocket.headers["authorization"]
+            if auth_header and auth_header.startswith("Bearer "):
                 token = auth_header[7:]
 
         if not token:
@@ -649,17 +687,16 @@ async def get_current_user_websocket(
 
 
 async def get_current_active_admin(
-    current_user: Dict = Depends(get_current_user_from_session)
+    current_user: Dict = Depends(get_current_user_from_session),
 ) -> Dict:
     """
     Get current active admin user from session.
-    
+
     Validates that the session belongs to an active user with ADMIN role.
     """
     role = current_user.get("role", "").upper()
     if role != "ADMIN":
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
         )
     return current_user

@@ -41,10 +41,7 @@ class QuizScheduler:
         logger.info("QuizScheduler initialized")
 
     async def should_trigger_quiz(
-        self,
-        flow_type: str,
-        current_day: int,
-        flow_state: PatientFlowState
+        self, flow_type: str, current_day: int, flow_state: PatientFlowState
     ) -> bool:
         """
         Determine if quiz should be triggered for current flow step.
@@ -62,19 +59,21 @@ class QuizScheduler:
             from app.utils.constants import QUIZ_FLOW_CONSTANTS
 
             # Check if this is a monthly flow on quiz day
-            if (flow_type == 'monthly' and
-                current_day % QUIZ_FLOW_CONSTANTS.get('MONTHLY_QUIZ_DAY', 30) == 0):
+            if (
+                flow_type == "monthly"
+                and current_day % QUIZ_FLOW_CONSTANTS.get("MONTHLY_QUIZ_DAY", 30) == 0
+            ):
                 logger.info(f"Quiz triggered for monthly flow day {current_day}")
                 return True
 
             # Check for initial assessment quiz (day 15)
-            if flow_type == 'day_1_15' and current_day == 15:
-                logger.info(f"Quiz triggered for initial assessment (day 15)")
+            if flow_type == "day_1_15" and current_day == 15:
+                logger.info("Quiz triggered for initial assessment (day 15)")
                 return True
 
             # Check for mid-treatment assessment (day 45)
-            if flow_type == 'day_16_45' and current_day == 45:
-                logger.info(f"Quiz triggered for mid-treatment assessment (day 45)")
+            if flow_type == "day_16_45" and current_day == 45:
+                logger.info("Quiz triggered for mid-treatment assessment (day 45)")
                 return True
 
             return False
@@ -88,7 +87,7 @@ class QuizScheduler:
         patient_id: UUID,
         flow_state: PatientFlowState,
         flow_type: str,
-        current_day: int
+        current_day: int,
     ) -> Dict[str, Any]:
         """
         Execute quiz-specific flow step.
@@ -104,7 +103,9 @@ class QuizScheduler:
         """
         try:
             # Import quiz-specific services
-            from app.domain.quizzes.integration.flow_integration import QuizTriggerService
+            from app.domain.quizzes.integration.flow_integration import (
+                QuizTriggerService,
+            )
             from app.repositories.patient import PatientRepository
 
             quiz_trigger_service = QuizTriggerService(self.db)
@@ -114,9 +115,9 @@ class QuizScheduler:
             patient = patient_repo.get(patient_id)
             if not patient:
                 return {
-                    'success': False,
-                    'message': 'Patient not found',
-                    'error': 'Patient not found'
+                    "success": False,
+                    "message": "Patient not found",
+                    "error": "Patient not found",
                 }
 
             # Calculate monthly cycle for quiz
@@ -133,36 +134,37 @@ class QuizScheduler:
                 quiz_type = "monthly_assessment"
 
             quiz_info = {
-                'monthly_cycle': monthly_cycle,
-                'template_name': f'{quiz_type}_cycle_{monthly_cycle}',
-                'trigger_reason': f'Scheduled quiz for day {current_day}',
-                'quiz_type': quiz_type
+                "monthly_cycle": monthly_cycle,
+                "template_name": f"{quiz_type}_cycle_{monthly_cycle}",
+                "trigger_reason": f"Scheduled quiz for day {current_day}",
+                "quiz_type": quiz_type,
             }
 
             # Trigger quiz
             result = await quiz_trigger_service._trigger_patient_quiz(
-                flow_state=flow_state,
-                quiz_info=quiz_info
+                flow_state=flow_state, quiz_info=quiz_info
             )
 
-            logger.info(f"Quiz executed for patient {patient_id}: {quiz_type} cycle {monthly_cycle}")
+            logger.info(
+                f"Quiz executed for patient {patient_id}: {quiz_type} cycle {monthly_cycle}"
+            )
 
             return {
-                'success': result.get('success', False),
-                'message': 'Quiz step executed',
-                'quiz_triggered': True,
-                'quiz_session_id': result.get('session_id'),
-                'delivery_method': result.get('delivery_method'),
-                'quiz_type': quiz_type,
-                'monthly_cycle': monthly_cycle
+                "success": result.get("success", False),
+                "message": "Quiz step executed",
+                "quiz_triggered": True,
+                "quiz_session_id": result.get("session_id"),
+                "delivery_method": result.get("delivery_method"),
+                "quiz_type": quiz_type,
+                "monthly_cycle": monthly_cycle,
             }
 
         except Exception as e:
             logger.error(f"Error executing quiz step: {e}", exc_info=True)
             return {
-                'success': False,
-                'message': f'Quiz step execution failed: {str(e)}',
-                'error': str(e)
+                "success": False,
+                "message": f"Quiz step execution failed: {str(e)}",
+                "error": str(e),
             }
 
     async def schedule_monthly_assessment(
@@ -170,7 +172,7 @@ class QuizScheduler:
         patient: Patient,
         assessment_date: datetime,
         flow_state_creator: callable,
-        analytics_callback: Optional[callable] = None
+        analytics_callback: Optional[callable] = None,
     ) -> Dict[str, Any]:
         """
         Schedule monthly assessment for patient.
@@ -187,9 +189,9 @@ class QuizScheduler:
         try:
             # Create quiz-specific flow context
             metadata = {
-                'assessment_type': 'monthly',
-                'scheduled_for': assessment_date.isoformat(),
-                'auto_scheduled': True
+                "assessment_type": "monthly",
+                "scheduled_for": assessment_date.isoformat(),
+                "auto_scheduled": True,
             }
 
             # Create flow state for quiz
@@ -198,7 +200,7 @@ class QuizScheduler:
                 flow_type="quiz_monthly",
                 current_day=1,
                 operation="START",
-                metadata=metadata
+                metadata=metadata,
             )
 
             # Execute quiz step
@@ -206,7 +208,7 @@ class QuizScheduler:
                 patient_id=patient.id,
                 flow_state=quiz_flow_state,
                 flow_type="quiz_monthly",
-                current_day=1
+                current_day=1,
             )
 
             # Track analytics if callback provided
@@ -217,25 +219,27 @@ class QuizScheduler:
                     flow_type="quiz_monthly",
                     current_day=1,
                     metadata={
-                        'assessment_date': assessment_date.isoformat(),
-                        'quiz_result': quiz_result
-                    }
+                        "assessment_date": assessment_date.isoformat(),
+                        "quiz_result": quiz_result,
+                    },
                 )
 
-            logger.info(f"Monthly assessment scheduled for patient {patient.id} on {assessment_date}")
+            logger.info(
+                f"Monthly assessment scheduled for patient {patient.id} on {assessment_date}"
+            )
 
             return {
-                'success': quiz_result.get('success', False),
-                'message': 'Monthly assessment scheduled',
-                'assessment_date': assessment_date.isoformat(),
-                'quiz_session_id': quiz_result.get('quiz_session_id'),
-                'delivery_method': quiz_result.get('delivery_method')
+                "success": quiz_result.get("success", False),
+                "message": "Monthly assessment scheduled",
+                "assessment_date": assessment_date.isoformat(),
+                "quiz_session_id": quiz_result.get("quiz_session_id"),
+                "delivery_method": quiz_result.get("delivery_method"),
             }
 
         except Exception as e:
             logger.error(f"Error scheduling monthly assessment: {e}", exc_info=True)
             return {
-                'success': False,
-                'message': f'Monthly assessment scheduling failed: {str(e)}',
-                'error': str(e)
+                "success": False,
+                "message": f"Monthly assessment scheduling failed: {str(e)}",
+                "error": str(e),
             }

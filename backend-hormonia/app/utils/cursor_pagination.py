@@ -41,7 +41,7 @@ from sqlalchemy import select, and_, or_, Select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import DeclarativeMeta
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class CursorPage(BaseModel, Generic[T]):
@@ -56,6 +56,7 @@ class CursorPage(BaseModel, Generic[T]):
         has_prev: Boolean indicating if previous pages exist
         total_count: Optional total count (expensive, only computed on first page)
     """
+
     items: List[T] = Field(default_factory=list)
     next_cursor: Optional[str] = None
     prev_cursor: Optional[str] = None
@@ -107,12 +108,9 @@ class CursorPaginator:
             >>> cursor
             'eyJpZCI6IjEyM2U0NTY3LWU4OWItMTJkMy1hNDU2LTQyNjYxNDE3NDAwMCIsImNyZWF0ZWRfYXQiOiIyMDI1LTAxLTAxVDEyOjAwOjAwIn0='
         """
-        cursor_data = {
-            'id': str(id),
-            'created_at': created_at.isoformat()
-        }
+        cursor_data = {"id": str(id), "created_at": created_at.isoformat()}
         json_str = json.dumps(cursor_data)
-        return base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
+        return base64.b64encode(json_str.encode("utf-8")).decode("utf-8")
 
     @staticmethod
     def decode_cursor(cursor: str) -> tuple[UUID, datetime]:
@@ -136,12 +134,12 @@ class CursorPaginator:
             datetime(2025, 1, 1, 12, 0, 0)
         """
         try:
-            json_str = base64.b64decode(cursor.encode('utf-8')).decode('utf-8')
+            json_str = base64.b64decode(cursor.encode("utf-8")).decode("utf-8")
             cursor_data = json.loads(json_str)
 
             return (
-                UUID(cursor_data['id']),
-                datetime.fromisoformat(cursor_data['created_at'])
+                UUID(cursor_data["id"]),
+                datetime.fromisoformat(cursor_data["created_at"]),
             )
         except (KeyError, ValueError, json.JSONDecodeError) as e:
             raise ValueError(f"Invalid cursor format: {e}")
@@ -153,7 +151,7 @@ class CursorPaginator:
         db: AsyncSession,
         cursor: Optional[str] = None,
         limit: int = 50,
-        direction: str = 'next'
+        direction: str = "next",
     ) -> CursorPage:
         """
         Paginate query using cursor (keyset pagination).
@@ -207,13 +205,13 @@ class CursorPaginator:
         if cursor:
             try:
                 cursor_id, cursor_timestamp = CursorPaginator.decode_cursor(cursor)
-            except ValueError as e:
+            except ValueError:
                 # Invalid cursor - start from beginning
                 cursor_id = None
                 cursor_timestamp = None
 
         # Build keyset pagination filter
-        if direction == 'next':
+        if direction == "next":
             if cursor_id and cursor_timestamp:
                 # For descending order: WHERE (created_at, id) < (cursor_timestamp, cursor_id)
                 # This gives us records BEFORE the cursor (older records)
@@ -221,17 +219,13 @@ class CursorPaginator:
                     or_(
                         model.created_at < cursor_timestamp,
                         and_(
-                            model.created_at == cursor_timestamp,
-                            model.id < cursor_id
-                        )
+                            model.created_at == cursor_timestamp, model.id < cursor_id
+                        ),
                     )
                 )
 
             # Order by created_at DESC, id DESC for consistent ordering
-            query = query.order_by(
-                model.created_at.desc(),
-                model.id.desc()
-            )
+            query = query.order_by(model.created_at.desc(), model.id.desc())
 
         else:  # direction == 'prev'
             if cursor_id and cursor_timestamp:
@@ -240,17 +234,13 @@ class CursorPaginator:
                     or_(
                         model.created_at > cursor_timestamp,
                         and_(
-                            model.created_at == cursor_timestamp,
-                            model.id > cursor_id
-                        )
+                            model.created_at == cursor_timestamp, model.id > cursor_id
+                        ),
                     )
                 )
 
             # Order by created_at ASC, id ASC for backward pagination
-            query = query.order_by(
-                model.created_at.asc(),
-                model.id.asc()
-            )
+            query = query.order_by(model.created_at.asc(), model.id.asc())
 
         # Fetch limit + 1 to check if there are more pages
         query = query.limit(limit + 1)
@@ -266,7 +256,7 @@ class CursorPaginator:
             items = items[:limit]
 
         # If backward pagination, reverse items to maintain chronological order
-        if direction == 'prev':
+        if direction == "prev":
             items = list(reversed(items))
 
         # Generate cursors
@@ -274,33 +264,31 @@ class CursorPaginator:
         prev_cursor = None
 
         if items:
-            if direction == 'next' and has_more:
+            if direction == "next" and has_more:
                 # Create next cursor from last item
                 last_item = items[-1]
                 next_cursor = CursorPaginator.encode_cursor(
-                    last_item.id,
-                    last_item.created_at
+                    last_item.id, last_item.created_at
                 )
 
-            if direction == 'next' and cursor:
+            if direction == "next" and cursor:
                 # Current cursor becomes prev cursor
                 prev_cursor = cursor
 
-            elif direction == 'prev':
+            elif direction == "prev":
                 # Create prev cursor from first item
                 first_item = items[0]
                 prev_cursor = CursorPaginator.encode_cursor(
-                    first_item.id,
-                    first_item.created_at
+                    first_item.id, first_item.created_at
                 )
 
         return CursorPage(
             items=items,
             next_cursor=next_cursor,
             prev_cursor=prev_cursor,
-            has_next=has_more if direction == 'next' else bool(prev_cursor),
-            has_prev=bool(cursor) if direction == 'next' else has_more,
-            total_count=None  # Computing total is expensive - only do on first page if needed
+            has_next=has_more if direction == "next" else bool(prev_cursor),
+            has_prev=bool(cursor) if direction == "next" else has_more,
+            total_count=None,  # Computing total is expensive - only do on first page if needed
         )
 
     @staticmethod
@@ -309,7 +297,7 @@ class CursorPaginator:
         model: DeclarativeMeta,
         db: AsyncSession,
         cursor: Optional[str] = None,
-        limit: int = 50
+        limit: int = 50,
     ) -> CursorPage:
         """
         Paginate with total count (expensive - only use for first page).
@@ -329,11 +317,7 @@ class CursorPaginator:
         """
         # Get regular paginated results
         page = await CursorPaginator.paginate(
-            query=query,
-            model=model,
-            db=db,
-            cursor=cursor,
-            limit=limit
+            query=query, model=model, db=db, cursor=cursor, limit=limit
         )
 
         # Only compute total on first page (no cursor)
@@ -361,7 +345,7 @@ async def paginate_model(
     cursor: Optional[str] = None,
     limit: int = 50,
     filters: Optional[list] = None,
-    eager_load: Optional[list] = None
+    eager_load: Optional[list] = None,
 ) -> CursorPage:
     """
     Convenience function to paginate a model with filters and eager loading.
@@ -400,9 +384,5 @@ async def paginate_model(
             query = query.options(option)
 
     return await CursorPaginator.paginate(
-        query=query,
-        model=model,
-        db=db,
-        cursor=cursor,
-        limit=limit
+        query=query, model=model, db=db, cursor=cursor, limit=limit
     )

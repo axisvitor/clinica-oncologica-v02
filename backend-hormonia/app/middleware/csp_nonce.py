@@ -12,14 +12,12 @@ Features:
 """
 
 import secrets
-import hashlib
 from typing import Callable, Optional
 from datetime import datetime
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
-from starlette.datastructures import MutableHeaders
 
 from app.utils.logging import get_logger
 
@@ -78,12 +76,12 @@ class CSPNonceMiddleware(BaseHTTPMiddleware):
             "'self'",
             "https://www.gstatic.com",  # Firebase/Google services
             "https://identitytoolkit.googleapis.com",
-            "https://securetoken.googleapis.com"
+            "https://securetoken.googleapis.com",
         ]
 
         self.allowed_style_domains = allowed_style_domains or [
             "'self'",
-            "https://fonts.googleapis.com"
+            "https://fonts.googleapis.com",
         ]
 
         self.allowed_connect_domains = allowed_connect_domains or [
@@ -91,7 +89,7 @@ class CSPNonceMiddleware(BaseHTTPMiddleware):
             "https://identitytoolkit.googleapis.com",
             "https://securetoken.googleapis.com",
             "wss://*.railway.app",
-            "https://*.railway.app"
+            "https://*.railway.app",
         ]
 
     def _generate_nonce(self) -> str:
@@ -108,12 +106,12 @@ class CSPNonceMiddleware(BaseHTTPMiddleware):
 
         # Log nonce generation for security audit
         logger.debug(
-            f"Generated CSP nonce",
+            "Generated CSP nonce",
             extra={
                 "event_type": "csp_nonce_generated",
                 "nonce_length": len(nonce),
-                "timestamp": datetime.utcnow().isoformat() + 'Z'
-            }
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+            },
         )
 
         return nonce
@@ -136,27 +134,25 @@ class CSPNonceMiddleware(BaseHTTPMiddleware):
         # Build script-src directive with nonce and strict-dynamic
         script_src = [
             f"'nonce-{nonce}'",
-            "'strict-dynamic'"
+            "'strict-dynamic'",
         ] + self.allowed_script_domains
 
         # Build style-src directive with nonce
-        style_src = [
-            f"'nonce-{nonce}'"
-        ] + self.allowed_style_domains
+        style_src = [f"'nonce-{nonce}'"] + self.allowed_style_domains
 
         # Build complete CSP policy
         csp_directives = [
-            f"default-src 'self'",
+            "default-src 'self'",
             f"script-src {' '.join(script_src)}",
             f"style-src {' '.join(style_src)}",
-            f"img-src 'self' data: https:",
-            f"font-src 'self' data: https://fonts.gstatic.com",
+            "img-src 'self' data: https:",
+            "font-src 'self' data: https://fonts.gstatic.com",
             f"connect-src {' '.join(self.allowed_connect_domains)}",
             "object-src 'none'",
             "base-uri 'self'",
             "form-action 'self'",
             "frame-ancestors 'none'",
-            "block-all-mixed-content"
+            "block-all-mixed-content",
         ]
 
         # Add upgrade-insecure-requests if enabled
@@ -170,20 +166,18 @@ class CSPNonceMiddleware(BaseHTTPMiddleware):
         policy = "; ".join(csp_directives)
 
         logger.debug(
-            f"Built CSP policy",
+            "Built CSP policy",
             extra={
                 "event_type": "csp_policy_built",
                 "policy_length": len(policy),
                 "nonce_present": f"nonce-{nonce}" in policy,
-                "strict_dynamic": "'strict-dynamic'" in policy
-            }
+                "strict_dynamic": "'strict-dynamic'" in policy,
+            },
         )
 
         return policy
 
-    async def dispatch(
-        self, request: Request, call_next: Callable
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """
         Process request and inject CSP nonce.
 
@@ -219,14 +213,14 @@ class CSPNonceMiddleware(BaseHTTPMiddleware):
             response.headers["X-CSP-Nonce"] = nonce
 
         logger.info(
-            f"CSP nonce applied",
+            "CSP nonce applied",
             extra={
                 "event_type": "csp_applied",
                 "path": request.url.path,
                 "method": request.method,
                 "nonce_length": len(nonce),
-                "policy_length": len(csp_policy)
-            }
+                "policy_length": len(csp_policy),
+            },
         )
 
         return response
@@ -261,7 +255,7 @@ class CSPReportHandler:
             csp_report = report.get("csp-report", {})
 
             violation = {
-                "timestamp": datetime.utcnow().isoformat() + 'Z',
+                "timestamp": datetime.utcnow().isoformat() + "Z",
                 "document_uri": csp_report.get("document-uri"),
                 "violated_directive": csp_report.get("violated-directive"),
                 "effective_directive": csp_report.get("effective-directive"),
@@ -270,7 +264,7 @@ class CSPReportHandler:
                 "status_code": csp_report.get("status-code"),
                 "source_file": csp_report.get("source-file"),
                 "line_number": csp_report.get("line-number"),
-                "column_number": csp_report.get("column-number")
+                "column_number": csp_report.get("column-number"),
             }
 
             # Store violation
@@ -278,35 +272,29 @@ class CSPReportHandler:
 
             # Keep only recent violations
             if len(self.violations) > self.max_violations:
-                self.violations = self.violations[-self.max_violations:]
+                self.violations = self.violations[-self.max_violations :]
 
             # Log violation
             logger.warning(
                 f"CSP violation: {violation['violated_directive']}",
-                extra={
-                    "event_type": "csp_violation",
-                    **violation
-                }
+                extra={"event_type": "csp_violation", **violation},
             )
 
             # Alert on suspicious patterns
             if self._is_suspicious(violation):
                 logger.error(
-                    f"Suspicious CSP violation detected",
+                    "Suspicious CSP violation detected",
                     extra={
                         "event_type": "csp_suspicious_violation",
                         "severity": "HIGH",
-                        **violation
-                    }
+                        **violation,
+                    },
                 )
 
             return {"status": "accepted", "violation_id": len(self.violations)}
 
         except Exception as e:
-            logger.error(
-                f"Failed to process CSP report: {str(e)}",
-                exc_info=True
-            )
+            logger.error(f"Failed to process CSP report: {str(e)}", exc_info=True)
             return {"status": "error", "message": str(e)}
 
     def _is_suspicious(self, violation: dict) -> bool:
@@ -326,7 +314,7 @@ class CSPReportHandler:
             "javascript:",
             "vbscript:",
             "blob:",
-            "filesystem:"
+            "filesystem:",
         ]
 
         blocked_uri = violation.get("blocked_uri", "").lower()
@@ -338,9 +326,7 @@ class CSPReportHandler:
         )
 
     def get_violations(
-        self,
-        limit: int = 100,
-        severity: Optional[str] = None
+        self, limit: int = 100, severity: Optional[str] = None
     ) -> list[dict]:
         """
         Get recent CSP violations.
@@ -356,8 +342,7 @@ class CSPReportHandler:
 
         if severity:
             violations = [
-                v for v in violations
-                if self._is_suspicious(v) == (severity == "HIGH")
+                v for v in violations if self._is_suspicious(v) == (severity == "HIGH")
             ]
 
         return violations
@@ -367,10 +352,7 @@ class CSPReportHandler:
 csp_report_handler = CSPReportHandler()
 
 
-def create_csp_middleware(
-    app: ASGIApp,
-    **kwargs
-) -> CSPNonceMiddleware:
+def create_csp_middleware(app: ASGIApp, **kwargs) -> CSPNonceMiddleware:
     """
     Create CSP nonce middleware with production-ready defaults.
 
@@ -386,5 +368,5 @@ def create_csp_middleware(
         nonce_length=16,  # 128-bit security
         enable_report_uri=True,
         enable_upgrade_insecure=True,
-        **kwargs
+        **kwargs,
     )

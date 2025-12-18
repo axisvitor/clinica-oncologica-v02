@@ -1,6 +1,7 @@
 """
 AI Services - Humanize Endpoints
 """
+
 import logging
 from datetime import datetime
 
@@ -56,7 +57,7 @@ async def humanize_message(
     request: HumanizeRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(verify_physician_or_admin),
-    db = Depends(get_db),
+    db=Depends(get_db),
 ) -> HumanizeResponse:
     """
     Humanize a message using AI with caching and cost tracking.
@@ -105,9 +106,7 @@ async def humanize_message(
         if request.patient_id:
             try:
                 patient = await validate_patient_access(
-                    request.patient_id,
-                    current_user,
-                    get_patient_service(db)
+                    request.patient_id, current_user, get_patient_service(db)
                 )
                 patient_context = {
                     "name": patient.name,
@@ -119,7 +118,10 @@ async def humanize_message(
 
         # ===== AI SERVICE CALL WOULD GO HERE =====
         # For now, simulate AI response
-        humanized = f"Hi{' ' + patient_context['name'] if patient_context else ''}! " + request.message
+        humanized = (
+            f"Hi{' ' + patient_context['name'] if patient_context else ''}! "
+            + request.message
+        )
         if request.tone == "empathetic":
             humanized += " We're here to support you every step of the way."
         elif request.tone == "encouraging":
@@ -138,7 +140,7 @@ async def humanize_message(
                     completion_tokens=completion_tokens,
                     total_tokens=prompt_tokens + completion_tokens,
                 ),
-                AIModelType.GEMINI_PRO
+                AIModelType.GEMINI_PRO,
             ),
             model=AIModelType.GEMINI_PRO,
         )
@@ -170,10 +172,7 @@ async def humanize_message(
         # Cache response
         response_dict = response.dict()
         await set_cached_response(
-            redis_client,
-            cache_key,
-            response_dict,
-            CACHE_TTL_AI_RESPONSE
+            redis_client, cache_key, response_dict, CACHE_TTL_AI_RESPONSE
         )
 
         # Track usage in background
@@ -228,7 +227,7 @@ async def batch_humanize_messages(
     request: BatchHumanizeRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(verify_physician_or_admin),
-    db = Depends(get_db),
+    db=Depends(get_db),
 ) -> BatchHumanizeResponse:
     """
     Batch humanize multiple messages with parallel processing.
@@ -242,10 +241,7 @@ async def batch_humanize_messages(
         try:
             # Process each message
             response = await humanize_message(
-                msg_request,
-                background_tasks,
-                current_user,
-                db
+                msg_request, background_tasks, current_user, db
             )
             results.append(response)
 
@@ -310,7 +306,7 @@ async def get_humanize_cache_stats(
     if not redis_client:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Redis cache unavailable"
+            detail="Redis cache unavailable",
         )
 
     try:
@@ -321,9 +317,7 @@ async def get_humanize_cache_stats(
 
         while True:
             cursor, batch = await redis_client.scan(
-                cursor=cursor,
-                match="ai:humanize:v2:*",
-                count=100
+                cursor=cursor, match="ai:humanize:v2:*", count=100
             )
             keys.extend(batch)
             total_keys += len(batch)
@@ -357,7 +351,8 @@ async def get_humanize_cache_stats(
     except Exception as e:
         logger.error(f"Failed to get cache stats: {e}")
         from fastapi import HTTPException
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve cache statistics: {str(e)}"
+            detail=f"Failed to retrieve cache statistics: {str(e)}",
         )

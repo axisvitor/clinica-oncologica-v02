@@ -1,4 +1,3 @@
-from typing import Any
 """Monitoring facade over the analytics module."""
 
 from ..analytics.analytics import FlowAnalytics

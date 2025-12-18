@@ -32,23 +32,23 @@ async def health_check() -> Dict[str, Any]:
         health_summary = await infrastructure_monitor.get_health_summary()
 
         return {
-            "status": "healthy" if health_summary["status"] == "healthy" else "degraded",
+            "status": "healthy"
+            if health_summary["status"] == "healthy"
+            else "degraded",
             "timestamp": datetime.utcnow().isoformat(),
             "service": "oncology-platform",
-            "version": "1.0.0"
+            "version": "1.0.0",
         }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Health check failed"
+            detail="Health check failed",
         )
 
 
 @router.get("/health/detailed")
-async def detailed_health_check(
-    db: AsyncSession = Depends(get_db)
-) -> Dict[str, Any]:
+async def detailed_health_check(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
     """
     Detailed health check with all subsystems
     """
@@ -60,13 +60,15 @@ async def detailed_health_check(
         api_endpoints = [
             f"{settings.API_V2_STR}/monitoring/health",
             f"{settings.API_V2_STR}/patients",
-            f"{settings.API_V2_STR}/monthly-quiz"
+            f"{settings.API_V2_STR}/monthly-quiz",
         ]
 
         service_results = await service_health_monitor.check_all_services(
             api_endpoints=api_endpoints,
             db_session=db,
-            redis_url=str(settings.REDIS_URL) if hasattr(settings, 'REDIS_URL') else None
+            redis_url=str(settings.REDIS_URL)
+            if hasattr(settings, "REDIS_URL")
+            else None,
         )
 
         # Alert summary
@@ -79,24 +81,23 @@ async def detailed_health_check(
                 "cpu": infrastructure_health["resources"]["cpu"],
                 "memory": infrastructure_health["resources"]["memory"],
                 "disk": infrastructure_health["resources"]["disk"],
-                "trends": infrastructure_health.get("trends", {})
+                "trends": infrastructure_health.get("trends", {}),
             },
             "services": {
                 name: {
                     "status": result.status.value,
                     "response_time_ms": result.response_time_ms,
-                    "last_check": result.checked_at.isoformat()
+                    "last_check": result.checked_at.isoformat(),
                 }
                 for name, result in service_results.items()
             },
-            "alerts": alert_summary
+            "alerts": alert_summary,
         }
 
     except Exception as e:
         logger.error(f"Detailed health check failed: {e}")
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(e)
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)
         )
 
 
@@ -113,13 +114,13 @@ async def get_infrastructure_metrics() -> Dict[str, Any]:
             "cpu": {
                 "percent": metrics.cpu_percent,
                 "count": metrics.cpu_count,
-                "per_core": metrics.cpu_per_core
+                "per_core": metrics.cpu_per_core,
             },
             "memory": {
                 "total_mb": metrics.memory_total / 1024 / 1024,
                 "used_mb": metrics.memory_used / 1024 / 1024,
                 "percent": metrics.memory_percent,
-                "available_mb": metrics.memory_available / 1024 / 1024
+                "available_mb": metrics.memory_available / 1024 / 1024,
             },
             "disk": {
                 "total_gb": metrics.disk_total / 1024 / 1024 / 1024,
@@ -127,23 +128,22 @@ async def get_infrastructure_metrics() -> Dict[str, Any]:
                 "percent": metrics.disk_percent,
                 "io": {
                     "read_bytes": metrics.disk_io_read_bytes,
-                    "write_bytes": metrics.disk_io_write_bytes
-                }
+                    "write_bytes": metrics.disk_io_write_bytes,
+                },
             },
             "network": {
                 "bytes_sent": metrics.network_bytes_sent,
                 "bytes_recv": metrics.network_bytes_recv,
                 "packets_sent": metrics.network_packets_sent,
-                "packets_recv": metrics.network_packets_recv
+                "packets_recv": metrics.network_packets_recv,
             },
-            "status": metrics.status.value
+            "status": metrics.status.value,
         }
 
     except Exception as e:
         logger.error(f"Failed to get infrastructure metrics: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
 
 
@@ -158,21 +158,18 @@ async def get_resource_trends(minutes: int = 30) -> Dict[str, Any]:
         return {
             "period_minutes": minutes,
             "timestamp": datetime.utcnow().isoformat(),
-            "trends": trends
+            "trends": trends,
         }
 
     except Exception as e:
         logger.error(f"Failed to get resource trends: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
 
 
 @router.get("/capacity/forecast")
-async def get_capacity_forecast(
-    resource_type: str = "cpu"
-) -> Dict[str, Any]:
+async def get_capacity_forecast(resource_type: str = "cpu") -> Dict[str, Any]:
     """
     Get capacity forecast for a resource
     """
@@ -182,7 +179,7 @@ async def get_capacity_forecast(
         if not forecast:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No data available for resource: {resource_type}"
+                detail=f"No data available for resource: {resource_type}",
             )
 
         return {
@@ -192,11 +189,11 @@ async def get_capacity_forecast(
                 "1_hour": forecast.forecast_1h,
                 "6_hours": forecast.forecast_6h,
                 "24_hours": forecast.forecast_24h,
-                "7_days": forecast.forecast_7d
+                "7_days": forecast.forecast_7d,
             },
             "trend": forecast.trend.value,
             "confidence_score": forecast.confidence_score,
-            "timestamp": forecast.forecast_timestamp.isoformat()
+            "timestamp": forecast.forecast_timestamp.isoformat(),
         }
 
     except HTTPException:
@@ -204,15 +201,12 @@ async def get_capacity_forecast(
     except Exception as e:
         logger.error(f"Failed to generate forecast: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
 
 
 @router.get("/capacity/analysis")
-async def get_capacity_analysis(
-    resource_type: str = "cpu"
-) -> Dict[str, Any]:
+async def get_capacity_analysis(resource_type: str = "cpu") -> Dict[str, Any]:
     """
     Get capacity analysis and recommendations
     """
@@ -222,7 +216,7 @@ async def get_capacity_analysis(
         if not analysis:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No data available for resource: {resource_type}"
+                detail=f"No data available for resource: {resource_type}",
             )
 
         return {
@@ -230,11 +224,13 @@ async def get_capacity_analysis(
             "current_usage": analysis.current_usage,
             "current_capacity": analysis.current_capacity,
             "utilization_percent": analysis.utilization_percent,
-            "projected_exhaustion": analysis.projected_exhaustion.isoformat() if analysis.projected_exhaustion else None,
+            "projected_exhaustion": analysis.projected_exhaustion.isoformat()
+            if analysis.projected_exhaustion
+            else None,
             "days_until_exhaustion": analysis.days_until_exhaustion,
             "growth_rate_per_day": analysis.growth_rate_per_day,
             "recommendation": analysis.recommendation.value,
-            "details": analysis.details
+            "details": analysis.details,
         }
 
     except HTTPException:
@@ -242,8 +238,7 @@ async def get_capacity_analysis(
     except Exception as e:
         logger.error(f"Failed to analyze capacity: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
 
 
@@ -259,15 +254,13 @@ async def get_capacity_report() -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Failed to generate capacity report: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
 
 
 @router.get("/alerts")
 async def get_alerts(
-    severity: Optional[str] = None,
-    status_filter: Optional[str] = None
+    severity: Optional[str] = None, status_filter: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Get alerts with optional filtering
@@ -275,9 +268,7 @@ async def get_alerts(
     try:
         # Get alerts
         if severity:
-            alerts = alert_manager.get_active_alerts(
-                AlertSeverity(severity)
-            )
+            alerts = alert_manager.get_active_alerts(AlertSeverity(severity))
         else:
             alerts = list(alert_manager.alerts.values())
 
@@ -298,7 +289,7 @@ async def get_alerts(
                 "threshold_value": a.threshold_value,
                 "created_at": a.created_at.isoformat(),
                 "status": a.status.value,
-                "escalation_level": a.escalation_level
+                "escalation_level": a.escalation_level,
             }
             for a in alerts
         ]
@@ -306,22 +297,18 @@ async def get_alerts(
         return {
             "alerts": alert_data,
             "total": len(alert_data),
-            "summary": alert_manager.get_alert_summary()
+            "summary": alert_manager.get_alert_summary(),
         }
 
     except Exception as e:
         logger.error(f"Failed to get alerts: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
 
 
 @router.post("/alerts/{alert_id}/acknowledge")
-async def acknowledge_alert(
-    alert_id: str,
-    acknowledged_by: str
-) -> Dict[str, Any]:
+async def acknowledge_alert(alert_id: str, acknowledged_by: str) -> Dict[str, Any]:
     """
     Acknowledge an alert
     """
@@ -331,14 +318,14 @@ async def acknowledge_alert(
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Alert not found: {alert_id}"
+                detail=f"Alert not found: {alert_id}",
             )
 
         return {
             "success": True,
             "alert_id": alert_id,
             "acknowledged_by": acknowledged_by,
-            "acknowledged_at": datetime.utcnow().isoformat()
+            "acknowledged_at": datetime.utcnow().isoformat(),
         }
 
     except HTTPException:
@@ -346,31 +333,26 @@ async def acknowledge_alert(
     except Exception as e:
         logger.error(f"Failed to acknowledge alert: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
 
 
 @router.post("/alerts/{alert_id}/resolve")
 async def resolve_alert(
-    alert_id: str,
-    resolved_by: str,
-    resolution_note: Optional[str] = None
+    alert_id: str, resolved_by: str, resolution_note: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Resolve an alert
     """
     try:
         success = await alert_manager.resolve_alert(
-            alert_id,
-            resolved_by,
-            resolution_note
+            alert_id, resolved_by, resolution_note
         )
 
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Alert not found: {alert_id}"
+                detail=f"Alert not found: {alert_id}",
             )
 
         return {
@@ -378,7 +360,7 @@ async def resolve_alert(
             "alert_id": alert_id,
             "resolved_by": resolved_by,
             "resolved_at": datetime.utcnow().isoformat(),
-            "resolution_note": resolution_note
+            "resolution_note": resolution_note,
         }
 
     except HTTPException:
@@ -386,8 +368,7 @@ async def resolve_alert(
     except Exception as e:
         logger.error(f"Failed to resolve alert: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
 
 
@@ -402,35 +383,30 @@ async def get_service_uptime(hours: int = 24) -> Dict[str, Any]:
         return {
             "period_hours": hours,
             "timestamp": datetime.utcnow().isoformat(),
-            "services": uptime_report
+            "services": uptime_report,
         }
 
     except Exception as e:
         logger.error(f"Failed to get uptime report: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
 
 
 @router.get("/services/sla")
-async def get_sla_metrics(
-    service_name: str,
-    hours: int = 24
-) -> Dict[str, Any]:
+async def get_sla_metrics(service_name: str, hours: int = 24) -> Dict[str, Any]:
     """
     Get SLA metrics for a service
     """
     try:
         sla_metrics = await service_health_monitor.calculate_sla_metrics(
-            service_name,
-            hours
+            service_name, hours
         )
 
         if not sla_metrics:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No SLA data available for service: {service_name}"
+                detail=f"No SLA data available for service: {service_name}",
             )
 
         return {
@@ -439,23 +415,25 @@ async def get_sla_metrics(
             "availability": {
                 "target": sla_metrics.availability_target,
                 "current": sla_metrics.current_availability,
-                "met": sla_metrics.current_availability >= sla_metrics.availability_target
+                "met": sla_metrics.current_availability
+                >= sla_metrics.availability_target,
             },
             "response_time": {
                 "target_ms": sla_metrics.response_time_target_ms,
                 "current_ms": sla_metrics.current_response_time,
-                "met": sla_metrics.current_response_time <= sla_metrics.response_time_target_ms
+                "met": sla_metrics.current_response_time
+                <= sla_metrics.response_time_target_ms,
             },
             "error_rate": {
                 "target": sla_metrics.error_rate_target,
                 "current": sla_metrics.current_error_rate,
-                "met": sla_metrics.current_error_rate <= sla_metrics.error_rate_target
+                "met": sla_metrics.current_error_rate <= sla_metrics.error_rate_target,
             },
             "sla_met": sla_metrics.sla_met,
             "period": {
                 "start": sla_metrics.period_start.isoformat(),
-                "end": sla_metrics.period_end.isoformat()
-            }
+                "end": sla_metrics.period_end.isoformat(),
+            },
         }
 
     except HTTPException:
@@ -463,9 +441,9 @@ async def get_sla_metrics(
     except Exception as e:
         logger.error(f"Failed to get SLA metrics: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
+
 
 @router.post("/circuit-breaker/reset")
 async def reset_database_circuit_breaker() -> Dict[str, Any]:
@@ -477,26 +455,27 @@ async def reset_database_circuit_breaker() -> Dict[str, Any]:
         # Get current state before reset
         current_state = db_circuit_breaker.state
         failure_count = db_circuit_breaker.failure_count
-        
+
         # Reset the circuit breaker
         reset_circuit_breaker()
-        
-        logger.info(f"Circuit breaker reset from {current_state} state with {failure_count} failures")
-        
+
+        logger.info(
+            f"Circuit breaker reset from {current_state} state with {failure_count} failures"
+        )
+
         return {
             "success": True,
             "message": "Database circuit breaker has been reset",
             "previous_state": current_state,
             "previous_failure_count": failure_count,
             "current_state": "closed",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
-        
+
     except Exception as e:
         logger.error(f"Failed to reset circuit breaker: {e}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to reset circuit breaker: {str(e)}"
+            status_code=500, detail=f"Failed to reset circuit breaker: {str(e)}"
         )
 
 
@@ -513,12 +492,11 @@ async def get_circuit_breaker_status() -> Dict[str, Any]:
             "recovery_timeout": db_circuit_breaker.recovery_timeout,
             "last_failure_time": db_circuit_breaker.last_failure_time,
             "is_healthy": db_circuit_breaker.state == "closed",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
-        
+
     except Exception as e:
         logger.error(f"Failed to get circuit breaker status: {e}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get circuit breaker status: {str(e)}"
+            status_code=500, detail=f"Failed to get circuit breaker status: {str(e)}"
         )

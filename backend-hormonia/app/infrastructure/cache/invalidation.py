@@ -6,7 +6,6 @@ namespace invalidation, and backward compatibility functions for user/patient ca
 """
 
 import re
-import logging
 from typing import Any, Optional, List
 
 from app.utils.logging import get_logger
@@ -54,12 +53,15 @@ class CacheInvalidator:
                 for key in keys:
                     self.cache_manager._backend.redis_delete(key)
                     deleted_count += 1
-                logger.debug(f"Deleted {deleted_count} keys from Redis matching: {full_pattern}")
+                logger.debug(
+                    f"Deleted {deleted_count} keys from Redis matching: {full_pattern}"
+                )
 
             # Delete from local cache
-            pattern_regex = re.compile(full_pattern.replace('*', '.*'))
+            pattern_regex = re.compile(full_pattern.replace("*", ".*"))
             keys_to_remove = [
-                key for key in self.cache_manager._backend._local_cache.keys()
+                key
+                for key in self.cache_manager._backend._local_cache.keys()
                 if pattern_regex.match(key)
             ]
             for key in keys_to_remove:
@@ -67,7 +69,9 @@ class CacheInvalidator:
                 deleted_count += 1
 
             self.cache_manager._update_stats(CacheOperation.INVALIDATE, True)
-            logger.info(f"Invalidated {deleted_count} cache keys matching: {full_pattern}")
+            logger.info(
+                f"Invalidated {deleted_count} cache keys matching: {full_pattern}"
+            )
             return deleted_count
 
         except Exception as e:
@@ -75,7 +79,9 @@ class CacheInvalidator:
             self.cache_manager._update_stats(CacheOperation.INVALIDATE, False)
             return 0
 
-    async def invalidate_pattern_async(self, pattern: str, namespace: Optional[str] = None) -> int:
+    async def invalidate_pattern_async(
+        self, pattern: str, namespace: Optional[str] = None
+    ) -> int:
         """
         Invalidate all cache keys matching a pattern (asynchronous).
 
@@ -100,12 +106,15 @@ class CacheInvalidator:
                 for key in keys:
                     await self.cache_manager._backend.redis_delete_async(key)
                     deleted_count += 1
-                logger.debug(f"Deleted {deleted_count} keys from Redis (Async) matching: {full_pattern}")
+                logger.debug(
+                    f"Deleted {deleted_count} keys from Redis (Async) matching: {full_pattern}"
+                )
 
             # Delete from local cache
-            pattern_regex = re.compile(full_pattern.replace('*', '.*'))
+            pattern_regex = re.compile(full_pattern.replace("*", ".*"))
             keys_to_remove = [
-                key for key in self.cache_manager._backend._local_cache.keys()
+                key
+                for key in self.cache_manager._backend._local_cache.keys()
                 if pattern_regex.match(key)
             ]
             for key in keys_to_remove:
@@ -113,11 +122,15 @@ class CacheInvalidator:
                 deleted_count += 1
 
             self.cache_manager._update_stats(CacheOperation.INVALIDATE, True)
-            logger.info(f"Invalidated {deleted_count} cache keys (Async) matching: {full_pattern}")
+            logger.info(
+                f"Invalidated {deleted_count} cache keys (Async) matching: {full_pattern}"
+            )
             return deleted_count
 
         except Exception as e:
-            logger.error(f"Async cache invalidation error for pattern {full_pattern}: {e}")
+            logger.error(
+                f"Async cache invalidation error for pattern {full_pattern}: {e}"
+            )
             self.cache_manager._update_stats(CacheOperation.INVALIDATE, False)
             return 0
 
@@ -253,6 +266,7 @@ async def invalidate_patient_cache_async(patient_id: str) -> bool:
 
 def invalidate_cache(cache_type: str, key_parts: List[str]):
     """Invalidate specific cache entry (backward compatibility)."""
+
     async def _invalidate():
         cache_manager = get_unified_cache_manager()
         await cache_manager.delete_async(cache_type, key_parts)
@@ -281,5 +295,5 @@ __all__ = [
     "get_cached_patient_data_async",
     "invalidate_patient_cache_async",
     "invalidate_cache",
-    "get_cache_manager"
+    "get_cache_manager",
 ]

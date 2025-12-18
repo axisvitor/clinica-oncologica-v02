@@ -18,7 +18,16 @@ Performance:
 - Full request (warm): ~5ms (95-98% cache hit rate)
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Header, status, Cookie, Response, Request
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Header,
+    status,
+    Cookie,
+    Response,
+    Request,
+)
 from sqlalchemy.orm import Session
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
@@ -35,7 +44,6 @@ from app.dependencies.auth_dependencies import (
     _get_service_provider,
     get_permissions_for_role,
 )
-from app.dependencies.simple_service_provider import get_simple_service_provider
 from app.database import get_db
 from app.middleware.csrf import validate_csrf_token
 from app.utils.rate_limiter import limiter
@@ -48,6 +56,7 @@ security = HTTPBearer()
 # =============================================================================
 # SECURITY UTILITIES
 # =============================================================================
+
 
 def generate_session_id() -> str:
     """
@@ -74,7 +83,7 @@ async def regenerate_session(
     old_session_id: Optional[str],
     user_id: str,
     firebase_uid: str,
-    metadata: Dict[str, Any]
+    metadata: Dict[str, Any],
 ) -> str:
     """
     Regenerate session ID after authentication to prevent session fixation.
@@ -103,7 +112,9 @@ async def regenerate_session(
     if old_session_id:
         try:
             await firebase_cache.invalidate_session(old_session_id)
-            logger.info(f"Invalidated old session: {old_session_id[:8]}... during regeneration")
+            logger.info(
+                f"Invalidated old session: {old_session_id[:8]}... during regeneration"
+            )
         except Exception as e:
             logger.warning(f"Failed to invalidate old session: {str(e)}")
 
@@ -112,13 +123,13 @@ async def regenerate_session(
         session_id=new_session_id,
         user_id=user_id,
         firebase_uid=firebase_uid,
-        metadata=metadata
+        metadata=metadata,
     )
 
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to regenerate session"
+            detail="Failed to regenerate session",
         )
 
     logger.info(f"✅ Session regenerated: {new_session_id[:8]}... for user {user_id}")
@@ -129,17 +140,20 @@ async def regenerate_session(
 # REQUEST/RESPONSE MODELS
 # =============================================================================
 
+
 class SessionCreateRequest(BaseModel):
     """Request to create session from Firebase token."""
+
     firebase_token: str = Field(..., description="Firebase ID token")
     device_info: Optional[Dict[str, str]] = Field(
         default=None,
-        description="Optional device metadata (device_type, os, browser, etc.)"
+        description="Optional device metadata (device_type, os, browser, etc.)",
     )
 
 
 class SessionResponse(BaseModel):
     """Session creation response."""
+
     status: str = Field(..., description="Authentication status")
     expires_at: str = Field(..., description="Session expiration timestamp (ISO 8601)")
     user: Dict[str, Any] = Field(..., description="User data")
@@ -147,6 +161,7 @@ class SessionResponse(BaseModel):
 
 class SessionValidationResponse(BaseModel):
     """Session validation response."""
+
     valid: bool
     user: Optional[Dict[str, Any]] = None
     session_data: Optional[Dict[str, Any]] = None
@@ -154,6 +169,7 @@ class SessionValidationResponse(BaseModel):
 
 class LogoutResponse(BaseModel):
     """Logout response."""
+
     success: bool
     sessions_deleted: int = Field(..., description="Number of sessions deleted")
     message: str
@@ -161,18 +177,21 @@ class LogoutResponse(BaseModel):
 
 class SessionListResponse(BaseModel):
     """List of active sessions."""
+
     sessions: List[Dict[str, Any]]
     total: int
 
 
 class CacheStatsResponse(BaseModel):
     """Cache performance statistics."""
+
     stats: Dict[str, Any]
 
 
 # =============================================================================
 # SESSION MANAGEMENT ENDPOINTS
 # =============================================================================
+
 
 @router.post("/test-simple")
 async def test_simple_session():
@@ -182,22 +201,23 @@ async def test_simple_session():
     return {
         "status": "success",
         "message": "Simple session test working!",
-        "timestamp": "2025-10-10T19:32:00Z"
+        "timestamp": "2025-10-10T19:32:00Z",
     }
+
 
 @router.post(
     "",
     response_model=SessionResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(validate_csrf_token)],
-    include_in_schema=False
+    include_in_schema=False,
 )
 @limiter.limit("20/minute")  # Rate limit: 20 session creations per minute per IP
 async def create_session(
     session_data: SessionCreateRequest,
     response: Response,
     request: Request,
-    services: ServiceProvider = Depends(_get_service_provider)
+    services: ServiceProvider = Depends(_get_service_provider),
 ):
     """
     Create new Redis session from Firebase token.
@@ -231,19 +251,21 @@ async def create_session(
     if _firebase_service is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Firebase authentication is not configured"
+            detail="Firebase authentication is not configured",
         )
 
     try:
         # Validate Firebase token (200ms)
         try:
-            user_data = await _firebase_service.verify_token(session_data.firebase_token)
+            user_data = await _firebase_service.verify_token(
+                session_data.firebase_token
+            )
         except Exception as e:
             logger.error(f"Firebase token verification failed: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=f"Invalid Firebase token: {str(e)}",
-                headers={"WWW-Authenticate": "Bearer"}
+                headers={"WWW-Authenticate": "Bearer"},
             )
 
         firebase_uid = user_data["uid"]
@@ -262,6 +284,7 @@ async def create_session(
         if not user:
             # Create minimal user record
             from app.models.user import UserRole
+
             firebase_role = user_data.get("role", "doctor").lower()
             user_role = UserRole.ADMIN if firebase_role == "admin" else UserRole.DOCTOR
 
@@ -270,7 +293,7 @@ async def create_session(
                 email=email,
                 full_name=user_data.get("name", email.split("@")[0]),
                 is_active=True,
-                role=user_role
+                role=user_role,
             )
             services.db.add(user)
             services.db.commit()
@@ -280,12 +303,12 @@ async def create_session(
         # Check if user is active
         if not user.is_active:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User account is inactive"
+                status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive"
             )
 
         # Create Redis session (Layer 3)
         from app.core.redis_manager import FirebaseRedisCache, get_redis_manager
+
         redis_manager = get_redis_manager()
         redis_client = redis_manager.get_compatible_client("sync")
         firebase_cache = FirebaseRedisCache(redis_client)
@@ -293,8 +316,8 @@ async def create_session(
         # Session metadata
         metadata = {
             "email": user.email,
-            "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
-            **(session_data.device_info or {})
+            "role": user.role.value if hasattr(user.role, "value") else str(user.role),
+            **(session_data.device_info or {}),
         }
 
         # SECURITY: Regenerate session ID after authentication to prevent session fixation
@@ -305,7 +328,7 @@ async def create_session(
             old_session_id=None,  # No old session for new login
             user_id=str(user.id),
             firebase_uid=firebase_uid,
-            metadata=metadata
+            metadata=metadata,
         )
 
         # Cache user object (Layer 2) - async to avoid blocking
@@ -314,7 +337,7 @@ async def create_session(
             "firebase_uid": user.firebase_uid,
             "email": user.email,
             "full_name": user.full_name,
-            "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
+            "role": user.role.value if hasattr(user.role, "value") else str(user.role),
             "is_active": user.is_active,
         }
         try:
@@ -325,7 +348,8 @@ async def create_session(
         # Calculate expiration
         from datetime import timedelta
         from app.config import settings
-        ttl = getattr(settings, 'FIREBASE_SESSION_TTL', 86400)
+
+        ttl = getattr(settings, "FIREBASE_SESSION_TTL", 86400)
         expires_at = datetime.utcnow() + timedelta(seconds=ttl)
 
         logger.info(f"✅ Session created: {session_id[:8]}... for {email}")
@@ -333,7 +357,9 @@ async def create_session(
         # Log audit event (async to avoid blocking)
         try:
             audit_service = AuditLogService(services.db)
-            audit_service.log_session_created(user, session_id, request=request, metadata=metadata)
+            audit_service.log_session_created(
+                user, session_id, request=request, metadata=metadata
+            )
         except Exception as audit_error:
             logger.warning(f"Failed to log audit event: {audit_error}")
 
@@ -342,17 +368,17 @@ async def create_session(
         response.set_cookie(
             key="session_id",
             value=session_id,
-            httponly=True,      # JavaScript cannot access (XSS protection)
+            httponly=True,  # JavaScript cannot access (XSS protection)
             secure=settings.SESSION_ENABLE_COOKIE_SECURE,  # HTTPS only in production
-            samesite=("none" if settings.APP_ENVIRONMENT.lower() == "production" else "lax"),
-            max_age=ttl,        # Cookie expiration (seconds)
-            path="/"            # Available for all paths
+            samesite=(
+                "none" if settings.APP_ENVIRONMENT.lower() == "production" else "lax"
+            ),
+            max_age=ttl,  # Cookie expiration (seconds)
+            path="/",  # Available for all paths
         )
 
         return SessionResponse(
-            status="authenticated",
-            expires_at=expires_at.isoformat(),
-            user=user_dict
+            status="authenticated", expires_at=expires_at.isoformat(), user=user_dict
         )
 
     except HTTPException:
@@ -361,7 +387,7 @@ async def create_session(
         logger.error(f"Session creation failed: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Session creation failed: {str(e)}"
+            detail=f"Session creation failed: {str(e)}",
         )
 
 
@@ -400,6 +426,7 @@ async def validate_session(
 
     try:
         from app.core.redis_manager import FirebaseRedisCache, get_redis_manager
+
         redis_manager = get_redis_manager()
         redis_client = redis_manager.get_compatible_client("sync")
         firebase_cache = FirebaseRedisCache(redis_client)
@@ -433,7 +460,9 @@ async def validate_session(
                 "firebase_uid": user.firebase_uid,
                 "email": user.email,
                 "full_name": user.full_name,
-                "role": user.role.value if isinstance(user.role, UserRole) else str(user.role),
+                "role": user.role.value
+                if isinstance(user.role, UserRole)
+                else str(user.role),
                 "is_active": user.is_active,
             }
 
@@ -453,9 +482,7 @@ async def validate_session(
             user_data["id"] = str(user_data["id"])
 
         return SessionValidationResponse(
-            valid=True,
-            user=user_data,
-            session_data=session_data
+            valid=True, user=user_data, session_data=session_data
         )
 
     except Exception as e:
@@ -466,7 +493,7 @@ async def validate_session(
 @router.delete(
     "/logout",
     response_model=LogoutResponse,
-    dependencies=[Depends(validate_csrf_token)]
+    dependencies=[Depends(validate_csrf_token)],
 )
 @limiter.limit("100/minute")  # Rate limit: 100 logout attempts per minute per IP
 async def logout_session(
@@ -474,7 +501,7 @@ async def logout_session(
     response: Response,
     session_id: Optional[str] = Cookie(None),
     x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Logout - invalidate current session.
@@ -496,13 +523,12 @@ async def logout_session(
 
     if not final_session_id:
         return LogoutResponse(
-            success=False,
-            sessions_deleted=0,
-            message="No active session found"
+            success=False, sessions_deleted=0, message="No active session found"
         )
 
     try:
         from app.core.redis_manager import FirebaseRedisCache, get_redis_manager
+
         redis_manager = get_redis_manager()
         redis_client = redis_manager.get_compatible_client("sync")
         firebase_cache = FirebaseRedisCache(redis_client)
@@ -518,23 +544,22 @@ async def logout_session(
         if user_id:
             try:
                 audit_service = AuditLogService(db)
-                from fastapi import Request
+
                 class MockRequest:
                     def __init__(self):
                         self.headers = {}
                         self.client = None
+
                 mock_request = MockRequest()
-                audit_service.log_session_invalidated(user_id, final_session_id, reason="logout", request=mock_request)
+                audit_service.log_session_invalidated(
+                    user_id, final_session_id, reason="logout", request=mock_request
+                )
             except Exception as audit_error:
                 logger.warning(f"Failed to log audit event: {audit_error}")
 
         # SECURITY: Clear httpOnly cookie regardless of Redis result
         response.delete_cookie(
-            key="session_id",
-            path="/",
-            httponly=True,
-            secure=True,
-            samesite="strict"
+            key="session_id", path="/", httponly=True, secure=True, samesite="strict"
         )
 
         if deleted:
@@ -542,33 +567,33 @@ async def logout_session(
             return LogoutResponse(
                 success=True,
                 sessions_deleted=1,
-                message="Session logged out successfully"
+                message="Session logged out successfully",
             )
         else:
             return LogoutResponse(
                 success=False,
                 sessions_deleted=0,
-                message="Session already expired or invalid"
+                message="Session already expired or invalid",
             )
 
     except Exception as e:
         logger.error(f"Logout error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Logout failed: {str(e)}"
+            detail=f"Logout failed: {str(e)}",
         )
 
 
 @router.delete(
     "/logout-all",
     response_model=LogoutResponse,
-    dependencies=[Depends(validate_csrf_token)]
+    dependencies=[Depends(validate_csrf_token)],
 )
 @limiter.limit("10/hour")  # Rate limit: 10 global logout attempts per hour per IP
 async def logout_all_sessions(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    services: ServiceProvider = Depends(_get_service_provider)
+    services: ServiceProvider = Depends(_get_service_provider),
 ):
     """
     Global logout - invalidate ALL sessions for current user.
@@ -589,7 +614,7 @@ async def logout_all_sessions(
     if _firebase_service is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Firebase authentication is not configured"
+            detail="Firebase authentication is not configured",
         )
 
     try:
@@ -598,6 +623,7 @@ async def logout_all_sessions(
         firebase_uid = user_data["uid"]
 
         from app.core.redis_manager import FirebaseRedisCache, get_redis_manager
+
         redis_manager = get_redis_manager()
         redis_client = redis_manager.get_compatible_client("sync")
         firebase_cache = FirebaseRedisCache(redis_client)
@@ -605,19 +631,21 @@ async def logout_all_sessions(
         # Delete ALL user sessions
         deleted = await firebase_cache.invalidate_all_user_sessions(firebase_uid)
 
-        logger.info(f"Global logout: {deleted} sessions deleted for {user_data.get('email')}")
+        logger.info(
+            f"Global logout: {deleted} sessions deleted for {user_data.get('email')}"
+        )
 
         return LogoutResponse(
             success=True,
             sessions_deleted=deleted,
-            message=f"All {deleted} sessions logged out successfully"
+            message=f"All {deleted} sessions logged out successfully",
         )
 
     except Exception as e:
         logger.error(f"Global logout error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Global logout failed: {str(e)}"
+            detail=f"Global logout failed: {str(e)}",
         )
 
 
@@ -626,7 +654,7 @@ async def logout_all_sessions(
 async def list_active_sessions(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    services: ServiceProvider = Depends(_get_service_provider)
+    services: ServiceProvider = Depends(_get_service_provider),
 ):
     """
     List all active sessions for current user.
@@ -646,7 +674,7 @@ async def list_active_sessions(
     if _firebase_service is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Firebase authentication is not configured"
+            detail="Firebase authentication is not configured",
         )
 
     try:
@@ -655,6 +683,7 @@ async def list_active_sessions(
         firebase_uid = user_data["uid"]
 
         from app.core.redis_manager import FirebaseRedisCache, get_redis_manager
+
         redis_manager = get_redis_manager()
         redis_client = redis_manager.get_compatible_client("sync")
         firebase_cache = FirebaseRedisCache(redis_client)
@@ -662,24 +691,20 @@ async def list_active_sessions(
         # Get all active sessions
         sessions = firebase_cache.list_user_sessions(firebase_uid)
 
-        return SessionListResponse(
-            sessions=sessions,
-            total=len(sessions)
-        )
+        return SessionListResponse(sessions=sessions, total=len(sessions))
 
     except Exception as e:
         logger.error(f"List sessions error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list sessions: {str(e)}"
+            detail=f"Failed to list sessions: {str(e)}",
         )
 
 
 @router.get("/stats", response_model=CacheStatsResponse)
 @limiter.limit("60/minute")  # Rate limit: 60 cache stats requests per minute per IP
 async def get_cache_stats(
-    request: Request,
-    services: ServiceProvider = Depends(_get_service_provider)
+    request: Request, services: ServiceProvider = Depends(_get_service_provider)
 ):
     """
     Get Redis cache performance statistics.
@@ -689,6 +714,7 @@ async def get_cache_stats(
     """
     try:
         from app.core.redis_manager import FirebaseRedisCache, get_redis_manager
+
         redis_manager = get_redis_manager()
         redis_client = redis_manager.get_compatible_client("sync")
         firebase_cache = FirebaseRedisCache(redis_client)
@@ -701,5 +727,5 @@ async def get_cache_stats(
         logger.error(f"Cache stats error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve cache stats: {str(e)}"
+            detail=f"Failed to retrieve cache stats: {str(e)}",
         )

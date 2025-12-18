@@ -2,15 +2,17 @@
 Pydantic schema validators for JSONB fields across the system.
 Provides centralized validation for patient metadata, flow data, and quiz data.
 """
+
 import re
-from typing import Dict, Any, List, Optional, Union
-from pydantic import BaseModel, Field, field_validator, model_validator
-from datetime import datetime, date
+from typing import Dict, Any, List, Optional
+from pydantic import BaseModel, Field, field_validator
+from datetime import datetime
 from enum import Enum
 
 
 class TreatmentPhase(str, Enum):
     """Valid treatment phases."""
+
     INITIAL = "initial"
     MAINTENANCE = "maintenance"
     FOLLOWUP = "followup"
@@ -19,6 +21,7 @@ class TreatmentPhase(str, Enum):
 
 class ResponseType(str, Enum):
     """Valid quiz response types."""
+
     MULTIPLE_CHOICE = "multiple_choice"
     SINGLE_CHOICE = "single_choice"
     OPEN_TEXT = "open_text"
@@ -32,6 +35,7 @@ class ResponseType(str, Enum):
 
 class SentimentType(str, Enum):
     """Valid sentiment analysis types."""
+
     POSITIVE = "positive"
     NEGATIVE = "negative"
     NEUTRAL = "neutral"
@@ -45,21 +49,35 @@ class PatientMetadataValidator(BaseModel):
     # Brazilian healthcare fields
     cpf: Optional[str] = Field(None, description="Brazilian CPF number")
     diagnosis: Optional[str] = Field(None, description="Patient diagnosis")
-    treatment_phase: Optional[TreatmentPhase] = Field(None, description="Current treatment phase")
-    doctor_name: Optional[str] = Field(None, description="Attending doctor name (cached)")
+    treatment_phase: Optional[TreatmentPhase] = Field(
+        None, description="Current treatment phase"
+    )
+    doctor_name: Optional[str] = Field(
+        None, description="Attending doctor name (cached)"
+    )
 
     # Additional metadata fields
     insurance_number: Optional[str] = Field(None, description="Health insurance number")
     emergency_contact: Optional[str] = Field(None, description="Emergency contact info")
-    allergies: Optional[List[str]] = Field(default_factory=list, description="Known allergies")
-    medications: Optional[List[str]] = Field(default_factory=list, description="Current medications")
+    allergies: Optional[List[str]] = Field(
+        default_factory=list, description="Known allergies"
+    )
+    medications: Optional[List[str]] = Field(
+        default_factory=list, description="Current medications"
+    )
 
     # System metadata
-    onboarding_completed: Optional[bool] = Field(False, description="Onboarding completion status")
-    last_engagement: Optional[datetime] = Field(None, description="Last patient engagement timestamp")
-    preferences: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Patient preferences")
+    onboarding_completed: Optional[bool] = Field(
+        False, description="Onboarding completion status"
+    )
+    last_engagement: Optional[datetime] = Field(
+        None, description="Last patient engagement timestamp"
+    )
+    preferences: Optional[Dict[str, Any]] = Field(
+        default_factory=dict, description="Patient preferences"
+    )
 
-    @field_validator('cpf')
+    @field_validator("cpf")
     @classmethod
     def validate_cpf(cls, v):
         """Validate Brazilian CPF format."""
@@ -67,7 +85,7 @@ class PatientMetadataValidator(BaseModel):
             return v
 
         # Remove non-digits
-        cpf_digits = re.sub(r'\D', '', v)
+        cpf_digits = re.sub(r"\D", "", v)
 
         # Check length
         if len(cpf_digits) != 11:
@@ -79,9 +97,11 @@ class PatientMetadataValidator(BaseModel):
 
         # CPF validation algorithm
         def calculate_digit(cpf_partial, weights):
-            total = sum(int(digit) * weight for digit, weight in zip(cpf_partial, weights))
+            total = sum(
+                int(digit) * weight for digit, weight in zip(cpf_partial, weights)
+            )
             remainder = total % 11
-            return '0' if remainder < 2 else str(11 - remainder)
+            return "0" if remainder < 2 else str(11 - remainder)
 
         # Validate first check digit
         first_digit = calculate_digit(cpf_digits[:9], range(10, 1, -1))
@@ -96,7 +116,7 @@ class PatientMetadataValidator(BaseModel):
         # Return formatted CPF
         return f"{cpf_digits[:3]}.{cpf_digits[3:6]}.{cpf_digits[6:9]}-{cpf_digits[9:]}"
 
-    @field_validator('diagnosis')
+    @field_validator("diagnosis")
     @classmethod
     def validate_diagnosis(cls, v):
         """Validate diagnosis field."""
@@ -104,7 +124,7 @@ class PatientMetadataValidator(BaseModel):
             raise ValueError("Diagnosis cannot be empty string")
         return v.strip() if v else None
 
-    @field_validator('doctor_name')
+    @field_validator("doctor_name")
     @classmethod
     def validate_doctor_name(cls, v):
         """Validate doctor name field."""
@@ -112,7 +132,7 @@ class PatientMetadataValidator(BaseModel):
             raise ValueError("Doctor name cannot be empty string")
         return v.strip() if v else None
 
-    @field_validator('emergency_contact')
+    @field_validator("emergency_contact")
     @classmethod
     def validate_emergency_contact(cls, v):
         """Validate emergency contact format."""
@@ -120,8 +140,8 @@ class PatientMetadataValidator(BaseModel):
             return v
 
         # Allow phone numbers or emails
-        phone_pattern = r'^\+?[\d\s\-\(\)]{10,}$'
-        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        phone_pattern = r"^\+?[\d\s\-\(\)]{10,}$"
+        email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
         if not (re.match(phone_pattern, v) or re.match(email_pattern, v)):
             raise ValueError("Emergency contact must be a valid phone number or email")
@@ -139,14 +159,22 @@ class FlowTemplateDataValidator(BaseModel):
     duration_days: int = Field(..., gt=0, description="Flow duration in days")
 
     # Message templates
-    messages: List[Dict[str, Any]] = Field(default_factory=list, description="Message templates")
-    conditions: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Flow conditions")
+    messages: List[Dict[str, Any]] = Field(
+        default_factory=list, description="Message templates"
+    )
+    conditions: Optional[Dict[str, Any]] = Field(
+        default_factory=dict, description="Flow conditions"
+    )
 
     # AI optimization
-    ai_optimization: Optional[Dict[str, Any]] = Field(default_factory=dict, description="AI optimization settings")
-    personalization_rules: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Personalization rules")
+    ai_optimization: Optional[Dict[str, Any]] = Field(
+        default_factory=dict, description="AI optimization settings"
+    )
+    personalization_rules: Optional[Dict[str, Any]] = Field(
+        default_factory=dict, description="Personalization rules"
+    )
 
-    @field_validator('name')
+    @field_validator("name")
     @classmethod
     def validate_name(cls, v):
         """Validate template name."""
@@ -154,16 +182,16 @@ class FlowTemplateDataValidator(BaseModel):
             raise ValueError("Template name cannot be empty")
         return v.strip()
 
-    @field_validator('version')
+    @field_validator("version")
     @classmethod
     def validate_version(cls, v):
         """Validate version format (semantic versioning)."""
-        version_pattern = r'^\d+\.\d+\.\d+$'
+        version_pattern = r"^\d+\.\d+\.\d+$"
         if not re.match(version_pattern, v):
             raise ValueError("Version must follow semantic versioning (x.y.z)")
         return v
 
-    @field_validator('messages')
+    @field_validator("messages")
     @classmethod
     def validate_messages(cls, v):
         """Validate message templates structure."""
@@ -175,10 +203,12 @@ class FlowTemplateDataValidator(BaseModel):
                 raise ValueError(f"Message {idx} must be a dictionary")
 
             # Required fields
-            if 'id' not in message:
+            if "id" not in message:
                 raise ValueError(f"Message {idx} missing required 'id' field")
-            if 'content' not in message and 'template' not in message:
-                raise ValueError(f"Message {idx} missing required 'content' or 'template' field")
+            if "content" not in message and "template" not in message:
+                raise ValueError(
+                    f"Message {idx} missing required 'content' or 'template' field"
+                )
 
         return v
 
@@ -189,15 +219,25 @@ class FlowStateDataValidator(BaseModel):
 
     # Current state information
     current_step: int = Field(default=0, ge=0, description="Current flow step")
-    completed_steps: List[int] = Field(default_factory=list, description="Completed step indices")
+    completed_steps: List[int] = Field(
+        default_factory=list, description="Completed step indices"
+    )
 
     # Progress tracking
-    progress_percentage: Optional[float] = Field(None, ge=0, le=100, description="Flow completion percentage")
-    last_interaction: Optional[datetime] = Field(None, description="Last patient interaction")
+    progress_percentage: Optional[float] = Field(
+        None, ge=0, le=100, description="Flow completion percentage"
+    )
+    last_interaction: Optional[datetime] = Field(
+        None, description="Last patient interaction"
+    )
 
     # Step-specific data
-    step_data: Dict[str, Any] = Field(default_factory=dict, description="Data for each step")
-    user_responses: Dict[str, Any] = Field(default_factory=dict, description="User responses by step")
+    step_data: Dict[str, Any] = Field(
+        default_factory=dict, description="Data for each step"
+    )
+    user_responses: Dict[str, Any] = Field(
+        default_factory=dict, description="User responses by step"
+    )
 
     # Flow control
     paused: bool = Field(default=False, description="Flow is paused")
@@ -205,10 +245,14 @@ class FlowStateDataValidator(BaseModel):
     auto_advance: bool = Field(default=True, description="Auto-advance to next step")
 
     # Personalization
-    personalization_data: Dict[str, Any] = Field(default_factory=dict, description="Personalization metadata")
-    ai_insights: Dict[str, Any] = Field(default_factory=dict, description="AI-generated insights")
+    personalization_data: Dict[str, Any] = Field(
+        default_factory=dict, description="Personalization metadata"
+    )
+    ai_insights: Dict[str, Any] = Field(
+        default_factory=dict, description="AI-generated insights"
+    )
 
-    @field_validator('completed_steps')
+    @field_validator("completed_steps")
     @classmethod
     def validate_completed_steps(cls, v):
         """Validate completed steps list."""
@@ -223,11 +267,11 @@ class FlowStateDataValidator(BaseModel):
         # Remove duplicates and sort
         return sorted(list(set(v)))
 
-    @field_validator('pause_reason')
+    @field_validator("pause_reason")
     @classmethod
     def validate_pause_reason(cls, v, info):
         """Validate pause reason when paused."""
-        if info.data.get('paused') and not v:
+        if info.data.get("paused") and not v:
             raise ValueError("Pause reason is required when flow is paused")
         return v
 
@@ -249,17 +293,21 @@ class QuizQuestionValidator(BaseModel):
 
     # Metadata
     category: Optional[str] = Field(None, description="Question category")
-    weight: Optional[float] = Field(None, ge=0, description="Question weight for scoring")
+    weight: Optional[float] = Field(
+        None, ge=0, description="Question weight for scoring"
+    )
 
-    @field_validator('id')
+    @field_validator("id")
     @classmethod
     def validate_id(cls, v):
         """Validate question ID format."""
-        if not re.match(r'^[a-zA-Z0-9_-]+$', v):
-            raise ValueError("Question ID must contain only alphanumeric characters, hyphens, and underscores")
+        if not re.match(r"^[a-zA-Z0-9_-]+$", v):
+            raise ValueError(
+                "Question ID must contain only alphanumeric characters, hyphens, and underscores"
+            )
         return v
 
-    @field_validator('text')
+    @field_validator("text")
     @classmethod
     def validate_text(cls, v):
         """Validate question text."""
@@ -267,11 +315,11 @@ class QuizQuestionValidator(BaseModel):
             raise ValueError("Question text cannot be empty")
         return v.strip()
 
-    @field_validator('options')
+    @field_validator("options")
     @classmethod
     def validate_options(cls, v, info):
         """Validate options for choice-based questions."""
-        question_type = info.data.get('type')
+        question_type = info.data.get("type")
 
         if question_type in [ResponseType.MULTIPLE_CHOICE, ResponseType.SINGLE_CHOICE]:
             if not v or len(v) < 2:
@@ -280,8 +328,10 @@ class QuizQuestionValidator(BaseModel):
             for idx, option in enumerate(v):
                 if not isinstance(option, dict):
                     raise ValueError(f"Option {idx} must be a dictionary")
-                if 'value' not in option or 'label' not in option:
-                    raise ValueError(f"Option {idx} must have 'value' and 'label' fields")
+                if "value" not in option or "label" not in option:
+                    raise ValueError(
+                        f"Option {idx} must have 'value' and 'label' fields"
+                    )
 
         return v
 
@@ -290,26 +340,46 @@ class QuizResponseMetadataValidator(BaseModel):
     """Validator for quiz response metadata JSONB field."""
 
     # Response analysis
-    sentiment: Optional[SentimentType] = Field(None, description="Sentiment analysis result")
-    confidence: Optional[float] = Field(None, ge=0, le=1, description="Confidence score")
+    sentiment: Optional[SentimentType] = Field(
+        None, description="Sentiment analysis result"
+    )
+    confidence: Optional[float] = Field(
+        None, ge=0, le=1, description="Confidence score"
+    )
 
     # Text analysis (for open text responses)
-    entities: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="Named entities extracted")
-    keywords: Optional[List[str]] = Field(default_factory=list, description="Key terms identified")
+    entities: Optional[List[Dict[str, Any]]] = Field(
+        default_factory=list, description="Named entities extracted"
+    )
+    keywords: Optional[List[str]] = Field(
+        default_factory=list, description="Key terms identified"
+    )
 
     # Response quality metrics
-    response_time_seconds: Optional[float] = Field(None, ge=0, description="Time taken to respond")
-    word_count: Optional[int] = Field(None, ge=0, description="Word count for text responses")
+    response_time_seconds: Optional[float] = Field(
+        None, ge=0, description="Time taken to respond"
+    )
+    word_count: Optional[int] = Field(
+        None, ge=0, description="Word count for text responses"
+    )
 
     # Clinical relevance
-    clinical_flags: Optional[List[str]] = Field(default_factory=list, description="Clinical attention flags")
-    risk_indicators: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Risk assessment indicators")
+    clinical_flags: Optional[List[str]] = Field(
+        default_factory=list, description="Clinical attention flags"
+    )
+    risk_indicators: Optional[Dict[str, Any]] = Field(
+        default_factory=dict, description="Risk assessment indicators"
+    )
 
     # Follow-up triggers
-    requires_followup: bool = Field(default=False, description="Response requires follow-up")
-    followup_priority: Optional[str] = Field(None, description="Follow-up priority level")
+    requires_followup: bool = Field(
+        default=False, description="Response requires follow-up"
+    )
+    followup_priority: Optional[str] = Field(
+        None, description="Follow-up priority level"
+    )
 
-    @field_validator('entities')
+    @field_validator("entities")
     @classmethod
     def validate_entities(cls, v):
         """Validate entities structure."""
@@ -320,21 +390,23 @@ class QuizResponseMetadataValidator(BaseModel):
             if not isinstance(entity, dict):
                 raise ValueError(f"Entity {idx} must be a dictionary")
 
-            required_fields = ['text', 'label', 'start', 'end']
+            required_fields = ["text", "label", "start", "end"]
             for field in required_fields:
                 if field not in entity:
                     raise ValueError(f"Entity {idx} missing required field: {field}")
 
         return v
 
-    @field_validator('followup_priority')
+    @field_validator("followup_priority")
     @classmethod
     def validate_followup_priority(cls, v, info):
         """Validate follow-up priority."""
         if v is not None:
-            valid_priorities = ['low', 'medium', 'high', 'urgent']
+            valid_priorities = ["low", "medium", "high", "urgent"]
             if v.lower() not in valid_priorities:
-                raise ValueError(f"Follow-up priority must be one of: {valid_priorities}")
+                raise ValueError(
+                    f"Follow-up priority must be one of: {valid_priorities}"
+                )
             return v.lower()
         return v
 

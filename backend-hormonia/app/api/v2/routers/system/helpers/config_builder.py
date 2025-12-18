@@ -75,7 +75,11 @@ def _build_api_urls() -> Dict[str, str]:
         railway_static = os.getenv("RAILWAY_STATIC_URL")
 
         if railway_domain:
-            api_url = railway_domain if railway_domain.startswith("http") else f"https://{railway_domain}"
+            api_url = (
+                railway_domain
+                if railway_domain.startswith("http")
+                else f"https://{railway_domain}"
+            )
         elif railway_static:
             api_url = railway_static
         else:
@@ -88,12 +92,14 @@ def _build_api_urls() -> Dict[str, str]:
 
     # Build derivative URLs
     api_base_url = f"{api_url}/api/v2"
-    ws_base_url = api_url.replace("https://", "wss://").replace("http://", "ws://") + "/ws"
+    ws_base_url = (
+        api_url.replace("https://", "wss://").replace("http://", "ws://") + "/ws"
+    )
 
     return {
         "API_URL": api_url,
         "API_BASE_URL": api_base_url,
-        "WS_BASE_URL": ws_base_url
+        "WS_BASE_URL": ws_base_url,
     }
 
 

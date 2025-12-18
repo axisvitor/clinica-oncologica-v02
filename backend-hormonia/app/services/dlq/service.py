@@ -124,9 +124,7 @@ class DLQService:
         return failed_message
 
     def retry_message(
-        self,
-        dlq_id: UUID,
-        manual: bool = False
+        self, dlq_id: UUID, manual: bool = False
     ) -> Tuple[bool, Optional[str]]:
         """
         Retry processing a DLQ message.
@@ -141,9 +139,7 @@ class DLQService:
         start_time = time.time()
 
         failed_message = (
-            self.db.query(FailedMessage)
-            .filter(FailedMessage.id == dlq_id)
-            .first()
+            self.db.query(FailedMessage).filter(FailedMessage.id == dlq_id).first()
         )
 
         if not failed_message:
@@ -191,7 +187,9 @@ class DLQService:
                 self.retry_handler.mark_retry_failed(failed_message)
 
                 # Record metrics
-                error_category = failed_message.metadata.get("error_category", "unknown")
+                error_category = failed_message.metadata.get(
+                    "error_category", "unknown"
+                )
                 self.metrics_collector.record_retry_failure(
                     failure_reason=failed_message.failure_reason,
                     duration_seconds=duration,
@@ -236,9 +234,7 @@ class DLQService:
         """
         # Get message first for metrics
         failed_message = (
-            self.db.query(FailedMessage)
-            .filter(FailedMessage.id == dlq_id)
-            .first()
+            self.db.query(FailedMessage).filter(FailedMessage.id == dlq_id).first()
         )
 
         if not failed_message:

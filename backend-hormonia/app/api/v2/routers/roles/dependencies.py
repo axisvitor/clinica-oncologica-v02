@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 async def get_admin_user(
     current_user: dict = Depends(get_current_user_from_session),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> User:
     """
     Dependency to verify admin access using session-based authentication.
@@ -40,27 +40,24 @@ async def get_admin_user(
     role = current_user.get("role", "").upper()
     if role != "ADMIN":
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
         )
 
     # Get full User object from database for operations that need it
     firebase_uid = current_user.get("firebase_uid")
     if not firebase_uid:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid session data"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session data"
         )
 
-    user = db.query(User).filter(
-        User.firebase_uid == firebase_uid,
-        User.is_active == True
-    ).first()
+    user = (
+        db.query(User).filter(User.firebase_uid == firebase_uid, User.is_active).first()
+    )
 
     if not user:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin user not found or inactive"
+            detail="Admin user not found or inactive",
         )
 
     return user

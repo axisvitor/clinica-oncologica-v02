@@ -54,6 +54,7 @@ def get_unified_encryption_service() -> UnifiedEncryptionService:
 # BACKWARD COMPATIBILITY ALIASES
 # =========================================================================
 
+
 # Alias for PHI encryption service
 def get_phi_encryption_service() -> UnifiedEncryptionService:
     """Get PHI encryption service (backward compatibility)."""
@@ -80,16 +81,14 @@ def get_encryption_service() -> UnifiedEncryptionService:
 
 __all__ = [
     # Types
-    'EncryptionAlgorithm',
-    'FieldType',
-
+    "EncryptionAlgorithm",
+    "FieldType",
     # Service
-    'UnifiedEncryptionService',
-    'get_unified_encryption_service',
-
+    "UnifiedEncryptionService",
+    "get_unified_encryption_service",
     # Backward compatibility
-    'get_phi_encryption_service',
-    'get_lgpd_encryption_service',
-    'get_cpf_encryption_service',
-    'get_encryption_service',
+    "get_phi_encryption_service",
+    "get_lgpd_encryption_service",
+    "get_cpf_encryption_service",
+    "get_encryption_service",
 ]

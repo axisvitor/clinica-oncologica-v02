@@ -3,8 +3,8 @@ Physicians schemas for API v2
 Enhanced physician models with statistics, workload tracking, and patient assignments.
 """
 
-from typing import Optional, List, Dict, Any
-from datetime import datetime, date
+from typing import Optional, List
+from datetime import datetime
 from pydantic import BaseModel, Field, EmailStr, field_validator, ConfigDict
 from enum import Enum
 
@@ -13,6 +13,7 @@ from .common import CursorPaginatedResponse
 
 class PhysicianStatus(str, Enum):
     """Physician availability status"""
+
     ACTIVE = "active"
     INACTIVE = "inactive"
     ON_LEAVE = "on_leave"
@@ -21,14 +22,16 @@ class PhysicianStatus(str, Enum):
 
 class WorkloadLevel(str, Enum):
     """Physician workload classification"""
-    LOW = "low"          # 0-20 patients
-    MEDIUM = "medium"    # 21-50 patients
-    HIGH = "high"        # 51-100 patients
+
+    LOW = "low"  # 0-20 patients
+    MEDIUM = "medium"  # 21-50 patients
+    HIGH = "high"  # 51-100 patients
     OVERLOADED = "overloaded"  # 100+ patients
 
 
 class Specialty(str, Enum):
     """Medical specialties"""
+
     ONCOLOGY = "oncology"
     CARDIOLOGY = "cardiology"
     ENDOCRINOLOGY = "endocrinology"
@@ -42,6 +45,7 @@ class Specialty(str, Enum):
 # Statistics Models
 # ============================================================================
 
+
 class MessageStats(BaseModel):
     """Message statistics for physician"""
 
@@ -49,17 +53,21 @@ class MessageStats(BaseModel):
     total_received: int = Field(0, description="Total messages received")
     unread_count: int = Field(0, description="Unread messages")
     response_rate: float = Field(0.0, ge=0.0, le=1.0, description="Response rate (0-1)")
-    avg_response_time_minutes: Optional[float] = Field(None, description="Average response time in minutes")
+    avg_response_time_minutes: Optional[float] = Field(
+        None, description="Average response time in minutes"
+    )
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "total_sent": 245,
                 "total_received": 312,
                 "unread_count": 8,
                 "response_rate": 0.87,
-                "avg_response_time_minutes": 45.2
+                "avg_response_time_minutes": 45.2,
             }
-        })
+        }
+    )
 
 
 class AppointmentStats(BaseModel):
@@ -71,15 +79,17 @@ class AppointmentStats(BaseModel):
     upcoming: int = Field(0, description="Upcoming appointments")
     today: int = Field(0, description="Appointments today")
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "total_scheduled": 156,
                 "completed": 142,
                 "cancelled": 8,
                 "upcoming": 6,
-                "today": 3
+                "today": 3,
             }
-        })
+        }
+    )
 
 
 class AlertStats(BaseModel):
@@ -91,15 +101,11 @@ class AlertStats(BaseModel):
     medium: int = Field(0, description="Medium severity alerts")
     low: int = Field(0, description="Low severity alerts")
 
-    model_config = ConfigDict(json_schema_extra={
-            "example": {
-                "total": 15,
-                "critical": 2,
-                "high": 5,
-                "medium": 6,
-                "low": 2
-            }
-        })
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {"total": 15, "critical": 2, "high": 5, "medium": 6, "low": 2}
+        }
+    )
 
 
 class PhysicianStatistics(BaseModel):
@@ -112,25 +118,40 @@ class PhysicianStatistics(BaseModel):
     new_patients_this_month: int = Field(0, description="New patients this month")
 
     # Workload
-    workload_level: WorkloadLevel = Field(WorkloadLevel.LOW, description="Current workload level")
+    workload_level: WorkloadLevel = Field(
+        WorkloadLevel.LOW, description="Current workload level"
+    )
 
     # Communication
-    messages: MessageStats = Field(default_factory=MessageStats, description="Message statistics")
+    messages: MessageStats = Field(
+        default_factory=MessageStats, description="Message statistics"
+    )
 
     # Appointments
-    appointments: AppointmentStats = Field(default_factory=AppointmentStats, description="Appointment statistics")
+    appointments: AppointmentStats = Field(
+        default_factory=AppointmentStats, description="Appointment statistics"
+    )
 
     # Alerts
-    alerts: AlertStats = Field(default_factory=AlertStats, description="Alert statistics")
+    alerts: AlertStats = Field(
+        default_factory=AlertStats, description="Alert statistics"
+    )
 
     # Performance
-    patient_satisfaction_score: Optional[float] = Field(None, ge=0.0, le=5.0, description="Patient satisfaction (0-5)")
-    avg_treatment_duration_days: Optional[float] = Field(None, description="Average treatment duration")
+    patient_satisfaction_score: Optional[float] = Field(
+        None, ge=0.0, le=5.0, description="Patient satisfaction (0-5)"
+    )
+    avg_treatment_duration_days: Optional[float] = Field(
+        None, description="Average treatment duration"
+    )
 
     # Timestamps
-    calculated_at: datetime = Field(default_factory=datetime.utcnow, description="When stats were calculated")
+    calculated_at: datetime = Field(
+        default_factory=datetime.utcnow, description="When stats were calculated"
+    )
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "total_patients": 45,
                 "active_patients": 38,
@@ -142,50 +163,64 @@ class PhysicianStatistics(BaseModel):
                     "total_received": 312,
                     "unread_count": 8,
                     "response_rate": 0.87,
-                    "avg_response_time_minutes": 45.2
+                    "avg_response_time_minutes": 45.2,
                 },
                 "appointments": {
                     "total_scheduled": 156,
                     "completed": 142,
                     "cancelled": 8,
                     "upcoming": 6,
-                    "today": 3
+                    "today": 3,
                 },
                 "alerts": {
                     "total": 15,
                     "critical": 2,
                     "high": 5,
                     "medium": 6,
-                    "low": 2
+                    "low": 2,
                 },
                 "patient_satisfaction_score": 4.5,
                 "avg_treatment_duration_days": 87.3,
-                "calculated_at": "2025-11-07T12:00:00Z"
+                "calculated_at": "2025-11-07T12:00:00Z",
             }
-        })
+        }
+    )
 
 
 # ============================================================================
 # Physician Models
 # ============================================================================
 
+
 class PhysicianBase(BaseModel):
     """Base physician schema"""
 
-    full_name: Optional[str] = Field(None, min_length=1, max_length=255, description="Full name")
+    full_name: Optional[str] = Field(
+        None, min_length=1, max_length=255, description="Full name"
+    )
     email: Optional[EmailStr] = Field(None, description="Email address")
-    specialties: Optional[List[Specialty]] = Field(None, description="Medical specialties")
-    status: Optional[PhysicianStatus] = Field(PhysicianStatus.ACTIVE, description="Current status")
-    license_number: Optional[str] = Field(None, max_length=50, description="Medical license number (CRM)")
+    specialties: Optional[List[Specialty]] = Field(
+        None, description="Medical specialties"
+    )
+    status: Optional[PhysicianStatus] = Field(
+        PhysicianStatus.ACTIVE, description="Current status"
+    )
+    license_number: Optional[str] = Field(
+        None, max_length=50, description="Medical license number (CRM)"
+    )
     phone: Optional[str] = Field(None, max_length=20, description="Contact phone")
-    bio: Optional[str] = Field(None, max_length=1000, description="Professional biography")
+    bio: Optional[str] = Field(
+        None, max_length=1000, description="Professional biography"
+    )
 
     @field_validator("license_number")
     @classmethod
     def validate_license_number(cls, v):
         """Validate CRM format (Brazilian medical license)"""
         if v and not v.replace("-", "").replace("/", "").isalnum():
-            raise ValueError("License number must contain only letters, numbers, dashes, and slashes")
+            raise ValueError(
+                "License number must contain only letters, numbers, dashes, and slashes"
+            )
         return v
 
 
@@ -201,12 +236,18 @@ class PhysicianResponse(BaseModel):
     # Firebase fields
     firebase_uid: Optional[str] = Field(None, description="Firebase UID")
     firebase_email_verified: bool = Field(False, description="Email verified status")
-    firebase_display_name: Optional[str] = Field(None, description="Firebase display name")
+    firebase_display_name: Optional[str] = Field(
+        None, description="Firebase display name"
+    )
     firebase_photo_url: Optional[str] = Field(None, description="Profile photo URL")
 
     # Professional info
-    specialties: List[Specialty] = Field(default_factory=list, description="Medical specialties")
-    status: PhysicianStatus = Field(PhysicianStatus.ACTIVE, description="Current status")
+    specialties: List[Specialty] = Field(
+        default_factory=list, description="Medical specialties"
+    )
+    status: PhysicianStatus = Field(
+        PhysicianStatus.ACTIVE, description="Current status"
+    )
     license_number: Optional[str] = Field(None, description="Medical license (CRM)")
     phone: Optional[str] = Field(None, description="Contact phone")
     bio: Optional[str] = Field(None, description="Professional bio")
@@ -214,10 +255,14 @@ class PhysicianResponse(BaseModel):
     # Patient assignment
     assigned_patients_count: int = Field(0, description="Number of assigned patients")
     active_patients_count: int = Field(0, description="Number of active patients")
-    workload_level: WorkloadLevel = Field(WorkloadLevel.LOW, description="Current workload")
+    workload_level: WorkloadLevel = Field(
+        WorkloadLevel.LOW, description="Current workload"
+    )
 
     # Statistics (optional, included when ?include=statistics)
-    statistics: Optional[PhysicianStatistics] = Field(None, description="Detailed statistics")
+    statistics: Optional[PhysicianStatistics] = Field(
+        None, description="Detailed statistics"
+    )
 
     # Timestamps
     created_at: datetime = Field(..., description="Account creation timestamp")
@@ -243,9 +288,9 @@ class PhysicianResponse(BaseModel):
                 "workload_level": "medium",
                 "created_at": "2024-01-15T10:00:00Z",
                 "updated_at": "2025-11-07T12:00:00Z",
-                "last_login": "2025-11-07T08:30:00Z"
+                "last_login": "2025-11-07T08:30:00Z",
             }
-        }
+        },
     )
 
 
@@ -260,20 +305,23 @@ class PhysicianUpdate(BaseModel):
     bio: Optional[str] = Field(None, max_length=1000)
     is_active: Optional[bool] = None
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "full_name": "Dr. Maria Santos Silva",
                 "specialties": ["oncology", "endocrinology"],
                 "phone": "+55 11 98765-4321",
-                "bio": "Especialista em oncologia com 15 anos de experiência"
+                "bio": "Especialista em oncologia com 15 anos de experiência",
             }
-        })
+        }
+    )
 
 
 class PhysicianList(CursorPaginatedResponse[PhysicianResponse]):
     """Paginated list of physicians"""
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "data": [
                     {
@@ -288,32 +336,39 @@ class PhysicianList(CursorPaginatedResponse[PhysicianResponse]):
                         "active_patients_count": 38,
                         "workload_level": "medium",
                         "created_at": "2024-01-15T10:00:00Z",
-                        "updated_at": "2025-11-07T12:00:00Z"
+                        "updated_at": "2025-11-07T12:00:00Z",
                     }
                 ],
                 "next_cursor": "eyJpZCI6IjEyM2U0NTY3LWU4OWItMTJkMy1hNDU2LTQyNjYxNDE3NDAwMCJ9",
                 "has_more": True,
-                "total": 12
+                "total": 12,
             }
-        })
+        }
+    )
 
 
 # ============================================================================
 # Filter Models
 # ============================================================================
 
+
 class PhysicianFilter(BaseModel):
     """Physician filtering parameters"""
 
     specialty: Optional[Specialty] = Field(None, description="Filter by specialty")
     status: Optional[PhysicianStatus] = Field(None, description="Filter by status")
-    workload: Optional[WorkloadLevel] = Field(None, description="Filter by workload level")
+    workload: Optional[WorkloadLevel] = Field(
+        None, description="Filter by workload level"
+    )
     min_patients: Optional[int] = Field(None, ge=0, description="Minimum patient count")
     max_patients: Optional[int] = Field(None, ge=0, description="Maximum patient count")
     is_active: Optional[bool] = Field(None, description="Filter by active status")
-    search: Optional[str] = Field(None, min_length=1, description="Search by name or email")
+    search: Optional[str] = Field(
+        None, min_length=1, description="Search by name or email"
+    )
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "specialty": "oncology",
                 "status": "active",
@@ -321,14 +376,16 @@ class PhysicianFilter(BaseModel):
                 "min_patients": 10,
                 "max_patients": 50,
                 "is_active": True,
-                "search": "maria"
+                "search": "maria",
             }
-        })
+        }
+    )
 
 
 # ============================================================================
 # Brief Models (for relationships)
 # ============================================================================
+
 
 class PhysicianBrief(BaseModel):
     """Brief physician information for use in other resources"""
@@ -347,7 +404,7 @@ class PhysicianBrief(BaseModel):
                 "full_name": "Dr. Maria Santos",
                 "email": "dr.maria@clinic.com",
                 "specialties": ["oncology"],
-                "license_number": "CRM/SP-123456"
+                "license_number": "CRM/SP-123456",
             }
-        }
+        },
     )

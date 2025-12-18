@@ -1,11 +1,10 @@
 """
 Appointment model for patient appointments.
 """
-from datetime import datetime
-from typing import TYPE_CHECKING, Optional
-from uuid import UUID
 
-from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Boolean, Enum as SQLEnum, Integer
+from typing import TYPE_CHECKING
+
+from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Boolean, Integer
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import relationship
 import enum
@@ -13,12 +12,12 @@ import enum
 from app.models.base import BaseModel
 
 if TYPE_CHECKING:
-    from app.models.patient import Patient
-    from app.models.user import User
+    pass
 
 
 class AppointmentStatus(str, enum.Enum):
     """Appointment status enumeration."""
+
     SCHEDULED = "scheduled"
     CONFIRMED = "confirmed"
     IN_PROGRESS = "in_progress"
@@ -29,6 +28,7 @@ class AppointmentStatus(str, enum.Enum):
 
 class AppointmentType(str, enum.Enum):
     """Appointment type enumeration."""
+
     CONSULTATION = "consultation"
     FOLLOWUP = "followup"
     TREATMENT = "treatment"
@@ -46,15 +46,31 @@ class Appointment(BaseModel):
     - practitioner: Many-to-one with User (joinedload)
     - location: Many-to-one with Location (selectinload)
     """
+
     __tablename__ = "appointments"
 
     # Foreign Keys
-    patient_id = Column(PGUUID(as_uuid=True), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
-    practitioner_id = Column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    patient_id = Column(
+        PGUUID(as_uuid=True),
+        ForeignKey("patients.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    practitioner_id = Column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     # Appointment Details
     appointment_type = Column(String(50), nullable=False, index=True)
-    status = Column(String(50), nullable=False, default=AppointmentStatus.SCHEDULED.value, index=True)
+    status = Column(
+        String(50),
+        nullable=False,
+        default=AppointmentStatus.SCHEDULED.value,
+        index=True,
+    )
 
     # Date and Time
     scheduled_at = Column(DateTime(timezone=True), nullable=True, index=True)
@@ -74,7 +90,12 @@ class Appointment(BaseModel):
 
     # Relationships (optimized for eager loading)
     patient = relationship("Patient", back_populates="appointments", lazy="select")
-    practitioner = relationship("User", back_populates="appointments_managed", foreign_keys=[practitioner_id], lazy="select")
+    practitioner = relationship(
+        "User",
+        back_populates="appointments_managed",
+        foreign_keys=[practitioner_id],
+        lazy="select",
+    )
     # location relationship will be added when Location model is implemented
 
     def __repr__(self) -> str:

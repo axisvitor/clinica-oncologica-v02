@@ -9,6 +9,7 @@ See .env.example for complete documentation of all available settings.
 
 ENV Variable Naming Convention: TASK_{SUBCATEGORY}_{ATTRIBUTE}_{UNIT}
 """
+
 import os
 from typing import Dict
 
@@ -95,16 +96,22 @@ QUIZ_MAX_RETRIES = int(os.getenv("TASK_QUIZ_MAX_RETRIES", "3"))
 QUIZ_RETRY_DELAY = int(os.getenv("TASK_QUIZ_RETRY_DELAY_SECONDS", "60"))
 
 # Quiz question task retry delay (seconds)
-QUIZ_QUESTION_RETRY_DELAY = int(os.getenv("TASK_QUIZ_QUESTION_RETRY_DELAY_SECONDS", "60"))
+QUIZ_QUESTION_RETRY_DELAY = int(
+    os.getenv("TASK_QUIZ_QUESTION_RETRY_DELAY_SECONDS", "60")
+)
 
 # Quiz response task retry delay (seconds)
-QUIZ_RESPONSE_RETRY_DELAY = int(os.getenv("TASK_QUIZ_RESPONSE_RETRY_DELAY_SECONDS", "30"))
+QUIZ_RESPONSE_RETRY_DELAY = int(
+    os.getenv("TASK_QUIZ_RESPONSE_RETRY_DELAY_SECONDS", "30")
+)
 
 # Quiz response max retries
 QUIZ_RESPONSE_MAX_RETRIES = int(os.getenv("TASK_QUIZ_RESPONSE_MAX_RETRIES", "2"))
 
 # Quiz trigger check retry delay (seconds)
-QUIZ_TRIGGER_RETRY_DELAY = int(os.getenv("TASK_QUIZ_TRIGGER_RETRY_DELAY_SECONDS", "120"))
+QUIZ_TRIGGER_RETRY_DELAY = int(
+    os.getenv("TASK_QUIZ_TRIGGER_RETRY_DELAY_SECONDS", "120")
+)
 
 # Quiz cleanup retry delay (seconds)
 QUIZ_CLEANUP_RETRY_DELAY = int(os.getenv("TASK_QUIZ_CLEANUP_RETRY_DELAY_SECONDS", "60"))
@@ -113,16 +120,22 @@ QUIZ_CLEANUP_RETRY_DELAY = int(os.getenv("TASK_QUIZ_CLEANUP_RETRY_DELAY_SECONDS"
 QUIZ_CLEANUP_MAX_RETRIES = int(os.getenv("TASK_QUIZ_CLEANUP_MAX_RETRIES", "2"))
 
 # Quiz progress update retry delay (seconds)
-QUIZ_PROGRESS_RETRY_DELAY = int(os.getenv("TASK_QUIZ_PROGRESS_RETRY_DELAY_SECONDS", "30"))
+QUIZ_PROGRESS_RETRY_DELAY = int(
+    os.getenv("TASK_QUIZ_PROGRESS_RETRY_DELAY_SECONDS", "30")
+)
 
 # Quiz report generation retry delay (seconds)
 QUIZ_REPORT_RETRY_DELAY = int(os.getenv("TASK_QUIZ_REPORT_RETRY_DELAY_SECONDS", "120"))
 
 # Quiz reminder retry delay (seconds)
-QUIZ_REMINDER_RETRY_DELAY = int(os.getenv("TASK_QUIZ_REMINDER_RETRY_DELAY_SECONDS", "60"))
+QUIZ_REMINDER_RETRY_DELAY = int(
+    os.getenv("TASK_QUIZ_REMINDER_RETRY_DELAY_SECONDS", "60")
+)
 
 # Quiz link monitoring retry delay (seconds)
-QUIZ_LINK_MONITORING_RETRY_DELAY = int(os.getenv("TASK_QUIZ_LINK_MONITORING_RETRY_DELAY_SECONDS", "120"))
+QUIZ_LINK_MONITORING_RETRY_DELAY = int(
+    os.getenv("TASK_QUIZ_LINK_MONITORING_RETRY_DELAY_SECONDS", "120")
+)
 
 # Maximum quiz triggers to check per batch
 QUIZ_TRIGGER_BATCH_SIZE = int(os.getenv("TASK_QUIZ_TRIGGER_BATCH_SIZE", "100"))
@@ -131,7 +144,9 @@ QUIZ_TRIGGER_BATCH_SIZE = int(os.getenv("TASK_QUIZ_TRIGGER_BATCH_SIZE", "100"))
 QUIZ_SESSION_TIMEOUT_HOURS = int(os.getenv("TASK_QUIZ_SESSION_TIMEOUT_HOURS", "48"))
 
 # Maximum expired links to process per batch
-QUIZ_EXPIRED_LINKS_BATCH_SIZE = int(os.getenv("TASK_QUIZ_EXPIRED_LINKS_BATCH_SIZE", "100"))
+QUIZ_EXPIRED_LINKS_BATCH_SIZE = int(
+    os.getenv("TASK_QUIZ_EXPIRED_LINKS_BATCH_SIZE", "100")
+)
 
 # Maximum DLQ items to process per batch
 QUIZ_DLQ_BATCH_SIZE = int(os.getenv("TASK_QUIZ_DLQ_BATCH_SIZE", "50"))
@@ -190,13 +205,17 @@ SAGA_STEP_TIMEOUT_SECONDS = int(os.getenv("TASK_SAGA_STEP_TIMEOUT_SECONDS", "60"
 SAGA_STEP_MAX_RETRIES = int(os.getenv("TASK_SAGA_STEP_MAX_RETRIES", "3"))
 
 # Initial delay for saga step retries (seconds)
-SAGA_RETRY_INITIAL_DELAY_SECONDS = int(os.getenv("TASK_SAGA_RETRY_INITIAL_DELAY_SECONDS", "1"))
+SAGA_RETRY_INITIAL_DELAY_SECONDS = int(
+    os.getenv("TASK_SAGA_RETRY_INITIAL_DELAY_SECONDS", "1")
+)
 
 # Maximum delay for saga step retries with exponential backoff (seconds)
 SAGA_RETRY_MAX_DELAY_SECONDS = int(os.getenv("TASK_SAGA_RETRY_MAX_DELAY_SECONDS", "30"))
 
 # TTL for persisted saga state in Redis (seconds) - 7 days default
-SAGA_PERSISTENCE_TTL_SECONDS = int(os.getenv("TASK_SAGA_PERSISTENCE_TTL_SECONDS", "604800"))
+SAGA_PERSISTENCE_TTL_SECONDS = int(
+    os.getenv("TASK_SAGA_PERSISTENCE_TTL_SECONDS", "604800")
+)
 
 # Maximum retries for saga operations (backward compatibility)
 SAGA_MAX_RETRIES = int(os.getenv("TASK_SAGA_MAX_RETRIES", "3"))
@@ -235,7 +254,9 @@ REDIS_TASK_RESULT_EXPIRY = int(os.getenv("TASK_REDIS_RESULT_EXPIRY_SECONDS", "36
 REDIS_SOCKET_TIMEOUT = int(os.getenv("TASK_REDIS_SOCKET_TIMEOUT_SECONDS", "5"))
 
 # Socket connect timeout for Redis operations (seconds)
-REDIS_SOCKET_CONNECT_TIMEOUT = int(os.getenv("TASK_REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS", "5"))
+REDIS_SOCKET_CONNECT_TIMEOUT = int(
+    os.getenv("TASK_REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS", "5")
+)
 
 
 # ============================================================================
@@ -243,10 +264,14 @@ REDIS_SOCKET_CONNECT_TIMEOUT = int(os.getenv("TASK_REDIS_SOCKET_CONNECT_TIMEOUT_
 # ============================================================================
 
 # Use async database operations
-USE_ASYNC_DB = bool(os.getenv("TASK_ENABLE_ASYNC_DB", "False").lower() in ("true", "1", "yes"))
+USE_ASYNC_DB = bool(
+    os.getenv("TASK_ENABLE_ASYNC_DB", "False").lower() in ("true", "1", "yes")
+)
 
 # Enable parallel processing for batches
-ENABLE_PARALLEL_PROCESSING = bool(os.getenv("TASK_ENABLE_PARALLEL_PROCESSING", "True").lower() in ("true", "1", "yes"))
+ENABLE_PARALLEL_PROCESSING = bool(
+    os.getenv("TASK_ENABLE_PARALLEL_PROCESSING", "True").lower() in ("true", "1", "yes")
+)
 
 # Thread pool size for concurrent operations
 THREAD_POOL_SIZE = int(os.getenv("TASK_THREAD_POOL_SIZE", "5"))
@@ -260,19 +285,29 @@ CONNECTION_POOL_SIZE = int(os.getenv("TASK_CONNECTION_POOL_SIZE", "10"))
 # ============================================================================
 
 # Enable admin alerts for critical failures
-ENABLE_ADMIN_ALERTS = bool(os.getenv("TASK_ENABLE_ADMIN_ALERTS", "True").lower() in ("true", "1", "yes"))
+ENABLE_ADMIN_ALERTS = bool(
+    os.getenv("TASK_ENABLE_ADMIN_ALERTS", "True").lower() in ("true", "1", "yes")
+)
 
 # Admin email for alerts
 ADMIN_ALERT_EMAIL = os.getenv("TASK_ADMIN_ALERT_EMAIL", "admin@example.com")
 
 # Enable saga pattern for distributed transactions
-ENABLE_SAGA_PATTERN = bool(os.getenv("TASK_SAGA_ENABLE_PATTERN", "True").lower() in ("true", "1", "yes"))
+ENABLE_SAGA_PATTERN = bool(
+    os.getenv("TASK_SAGA_ENABLE_PATTERN", "True").lower() in ("true", "1", "yes")
+)
 
 # Enable Redis caching
-ENABLE_REDIS_CACHING = bool(os.getenv("TASK_ENABLE_REDIS_CACHING", "True").lower() in ("true", "1", "yes"))
+ENABLE_REDIS_CACHING = bool(
+    os.getenv("TASK_ENABLE_REDIS_CACHING", "True").lower() in ("true", "1", "yes")
+)
 
 
-def get_retry_countdown(retry_count: int, base_delay: int = RETRY_BACKOFF_BASE, backoff_factor: int = RETRY_BACKOFF_FACTOR) -> int:
+def get_retry_countdown(
+    retry_count: int,
+    base_delay: int = RETRY_BACKOFF_BASE,
+    backoff_factor: int = RETRY_BACKOFF_FACTOR,
+) -> int:
     """
     Calculate retry countdown with exponential backoff.
 
@@ -292,7 +327,7 @@ def get_retry_countdown(retry_count: int, base_delay: int = RETRY_BACKOFF_BASE, 
         >>> get_retry_countdown(2, 60, 2)  # Third retry: 60 * 2^2 = 240s
         240
     """
-    return base_delay * (backoff_factor ** retry_count)
+    return base_delay * (backoff_factor**retry_count)
 
 
 def get_task_config(task_type: str) -> Dict[str, int]:

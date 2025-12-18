@@ -4,8 +4,8 @@ Plugin interface for Flow integrations.
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from abc import ABC
+from typing import Any, Dict
 
 from ..types import FlowContext, FlowStepData
 

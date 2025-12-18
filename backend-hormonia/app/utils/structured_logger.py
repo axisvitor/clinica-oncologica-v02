@@ -16,10 +16,10 @@ from functools import wraps
 import time
 
 # Context variables for request tracking
-correlation_id: ContextVar[str] = ContextVar('correlation_id', default='')
-request_id: ContextVar[str] = ContextVar('request_id', default='')
-user_id: ContextVar[Optional[str]] = ContextVar('user_id', default=None)
-request_path: ContextVar[str] = ContextVar('request_path', default='')
+correlation_id: ContextVar[str] = ContextVar("correlation_id", default="")
+request_id: ContextVar[str] = ContextVar("request_id", default="")
+user_id: ContextVar[Optional[str]] = ContextVar("user_id", default=None)
+request_path: ContextVar[str] = ContextVar("request_path", default="")
 
 
 class StructuredLogger:
@@ -39,11 +39,7 @@ class StructuredLogger:
         self.name = name
 
     def _format_message(
-        self,
-        level: str,
-        message: str,
-        exc_info: Optional[Exception] = None,
-        **kwargs
+        self, level: str, message: str, exc_info: Optional[Exception] = None, **kwargs
     ) -> str:
         """
         Format log message as JSON with context.
@@ -58,25 +54,25 @@ class StructuredLogger:
             JSON-formatted log string
         """
         log_data: Dict[str, Any] = {
-            'timestamp': datetime.utcnow().isoformat() + 'Z',
-            'level': level,
-            'logger': self.name,
-            'message': message,
-            'correlation_id': correlation_id.get() or str(uuid.uuid4()),
-            'request_id': request_id.get() or '',
-            'request_path': request_path.get() or '',
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "level": level,
+            "logger": self.name,
+            "message": message,
+            "correlation_id": correlation_id.get() or str(uuid.uuid4()),
+            "request_id": request_id.get() or "",
+            "request_path": request_path.get() or "",
         }
 
         # Add user ID if available
         if user_id.get():
-            log_data['user_id'] = user_id.get()
+            log_data["user_id"] = user_id.get()
 
         # Add exception information
         if exc_info:
-            log_data['exception'] = {
-                'type': type(exc_info).__name__,
-                'message': str(exc_info),
-                'traceback': traceback.format_exc()
+            log_data["exception"] = {
+                "type": type(exc_info).__name__,
+                "message": str(exc_info),
+                "traceback": traceback.format_exc(),
             }
 
         # Add additional context
@@ -86,34 +82,29 @@ class StructuredLogger:
 
     def debug(self, message: str, **kwargs):
         """Log debug message."""
-        self.logger.debug(self._format_message('DEBUG', message, **kwargs))
+        self.logger.debug(self._format_message("DEBUG", message, **kwargs))
 
     def info(self, message: str, **kwargs):
         """Log info message."""
-        self.logger.info(self._format_message('INFO', message, **kwargs))
+        self.logger.info(self._format_message("INFO", message, **kwargs))
 
     def warning(self, message: str, **kwargs):
         """Log warning message."""
-        self.logger.warning(self._format_message('WARNING', message, **kwargs))
+        self.logger.warning(self._format_message("WARNING", message, **kwargs))
 
     def error(self, message: str, exc_info: Optional[Exception] = None, **kwargs):
         """Log error message with optional exception info."""
         self.logger.error(
-            self._format_message('ERROR', message, exc_info=exc_info, **kwargs)
+            self._format_message("ERROR", message, exc_info=exc_info, **kwargs)
         )
 
     def critical(self, message: str, exc_info: Optional[Exception] = None, **kwargs):
         """Log critical message with optional exception info."""
         self.logger.critical(
-            self._format_message('CRITICAL', message, exc_info=exc_info, **kwargs)
+            self._format_message("CRITICAL", message, exc_info=exc_info, **kwargs)
         )
 
-    def log_performance(
-        self,
-        operation: str,
-        duration_ms: float,
-        **kwargs
-    ):
+    def log_performance(self, operation: str, duration_ms: float, **kwargs):
         """
         Log performance metrics.
 
@@ -126,17 +117,11 @@ class StructuredLogger:
             f"Performance metric: {operation}",
             operation=operation,
             duration_ms=round(duration_ms, 2),
-            metric_type='performance',
-            **kwargs
+            metric_type="performance",
+            **kwargs,
         )
 
-    def log_query(
-        self,
-        query_type: str,
-        table: str,
-        duration_ms: float,
-        **kwargs
-    ):
+    def log_query(self, query_type: str, table: str, duration_ms: float, **kwargs):
         """
         Log database query metrics.
 
@@ -151,17 +136,11 @@ class StructuredLogger:
             query_type=query_type,
             table=table,
             duration_ms=round(duration_ms, 2),
-            metric_type='database_query',
-            **kwargs
+            metric_type="database_query",
+            **kwargs,
         )
 
-    def log_cache_operation(
-        self,
-        operation: str,
-        hit: bool,
-        key: str,
-        **kwargs
-    ):
+    def log_cache_operation(self, operation: str, hit: bool, key: str, **kwargs):
         """
         Log cache operation.
 
@@ -176,17 +155,12 @@ class StructuredLogger:
             operation=operation,
             cache_hit=hit,
             cache_key=key,
-            metric_type='cache_operation',
-            **kwargs
+            metric_type="cache_operation",
+            **kwargs,
         )
 
     def log_api_call(
-        self,
-        endpoint: str,
-        method: str,
-        status_code: int,
-        duration_ms: float,
-        **kwargs
+        self, endpoint: str, method: str, status_code: int, duration_ms: float, **kwargs
     ):
         """
         Log API call metrics.
@@ -204,8 +178,8 @@ class StructuredLogger:
             method=method,
             status_code=status_code,
             duration_ms=round(duration_ms, 2),
-            metric_type='api_call',
-            **kwargs
+            metric_type="api_call",
+            **kwargs,
         )
 
 
@@ -236,10 +210,10 @@ def set_request_path(path: str):
 
 def clear_context():
     """Clear all context variables."""
-    correlation_id.set('')
-    request_id.set('')
+    correlation_id.set("")
+    request_id.set("")
     user_id.set(None)
-    request_path.set('')
+    request_path.set("")
 
 
 def log_execution_time(logger: StructuredLogger, operation: str):
@@ -250,6 +224,7 @@ def log_execution_time(logger: StructuredLogger, operation: str):
         logger: Structured logger instance
         operation: Operation name for logging
     """
+
     def decorator(func):
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
@@ -257,15 +232,12 @@ def log_execution_time(logger: StructuredLogger, operation: str):
             try:
                 result = await func(*args, **kwargs)
                 duration_ms = (time.perf_counter() - start_time) * 1000
-                logger.log_performance(operation, duration_ms, status='success')
+                logger.log_performance(operation, duration_ms, status="success")
                 return result
             except Exception as e:
                 duration_ms = (time.perf_counter() - start_time) * 1000
                 logger.log_performance(
-                    operation,
-                    duration_ms,
-                    status='error',
-                    error=str(e)
+                    operation, duration_ms, status="error", error=str(e)
                 )
                 raise
 
@@ -275,27 +247,24 @@ def log_execution_time(logger: StructuredLogger, operation: str):
             try:
                 result = func(*args, **kwargs)
                 duration_ms = (time.perf_counter() - start_time) * 1000
-                logger.log_performance(operation, duration_ms, status='success')
+                logger.log_performance(operation, duration_ms, status="success")
                 return result
             except Exception as e:
                 duration_ms = (time.perf_counter() - start_time) * 1000
                 logger.log_performance(
-                    operation,
-                    duration_ms,
-                    status='error',
-                    error=str(e)
+                    operation, duration_ms, status="error", error=str(e)
                 )
                 raise
 
         # Return appropriate wrapper based on function type
-        if hasattr(func, '__await__'):
+        if hasattr(func, "__await__"):
             return async_wrapper
         return sync_wrapper
 
     return decorator
 
 
-def configure_logging(log_level: str = 'INFO', log_file: Optional[str] = None):
+def configure_logging(log_level: str = "INFO", log_file: Optional[str] = None):
     """
     Configure structured logging for the application.
 
@@ -316,20 +285,20 @@ def configure_logging(log_level: str = 'INFO', log_file: Optional[str] = None):
     # Console handler
     console_handler = logging.StreamHandler()
     console_handler.setLevel(level)
-    console_handler.setFormatter(logging.Formatter('%(message)s'))
+    console_handler.setFormatter(logging.Formatter("%(message)s"))
     root_logger.addHandler(console_handler)
 
     # File handler if specified
     if log_file:
         file_handler = logging.FileHandler(log_file)
         file_handler.setLevel(level)
-        file_handler.setFormatter(logging.Formatter('%(message)s'))
+        file_handler.setFormatter(logging.Formatter("%(message)s"))
         root_logger.addHandler(file_handler)
 
     # Reduce noise from third-party libraries
-    logging.getLogger('uvicorn').setLevel(logging.WARNING)
-    logging.getLogger('uvicorn.access').setLevel(logging.WARNING)
-    logging.getLogger('fastapi').setLevel(logging.WARNING)
+    logging.getLogger("uvicorn").setLevel(logging.WARNING)
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("fastapi").setLevel(logging.WARNING)
 
 
 # Create default logger

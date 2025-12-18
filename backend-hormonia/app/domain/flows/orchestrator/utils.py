@@ -12,9 +12,7 @@ from app.utils.date_helpers import _calculate_treatment_day
 
 
 def calculate_treatment_day(
-    patient: Patient,
-    reference_date: Optional[datetime] = None,
-    logger=None
+    patient: Patient, reference_date: Optional[datetime] = None, logger=None
 ) -> int:
     """
     Calculate current treatment day for patient.
@@ -32,9 +30,11 @@ def calculate_treatment_day(
         return _calculate_treatment_day(
             treatment_start_date=treatment_start,
             reference_date=reference_date,
-            timezone=getattr(patient, 'timezone', 'America/Sao_Paulo')
+            timezone=getattr(patient, "timezone", "America/Sao_Paulo"),
         )
     except Exception as e:
         if logger:
-            logger.error(f"Error calculating treatment day for patient {patient.id}: {e}")
+            logger.error(
+                f"Error calculating treatment day for patient {patient.id}: {e}"
+            )
         return 1  # Safe default

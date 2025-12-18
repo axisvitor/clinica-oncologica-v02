@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional
 from uuid import UUID
 from datetime import datetime, timedelta
 
-from sqlalchemy import desc, and_, func
+from sqlalchemy import desc, and_
 
 from app.models.failed_message import FailedMessage, FailureReason, DLQStatus
 from app.schemas.dlq import DLQMessageResponse, DLQMessageList, DLQStats
@@ -88,9 +88,7 @@ class DeadLetterHandler:
         self.db.commit()
         self.db.refresh(failed_message)
 
-        logger.info(
-            f"Message added to DLQ: {message_id} (category: {category.value})"
-        )
+        logger.info(f"Message added to DLQ: {message_id} (category: {category.value})")
 
         # Schedule automatic retry for transient errors
         if category == ErrorCategory.TRANSIENT:
@@ -98,11 +96,7 @@ class DeadLetterHandler:
 
         return failed_message
 
-    def discard_message(
-        self,
-        dlq_id: UUID,
-        reason: str = "manual"
-    ) -> bool:
+    def discard_message(self, dlq_id: UUID, reason: str = "manual") -> bool:
         """
         Discard message from DLQ (will not be processed again).
 
@@ -114,9 +108,7 @@ class DeadLetterHandler:
             True if successful
         """
         failed_message = (
-            self.db.query(FailedMessage)
-            .filter(FailedMessage.id == dlq_id)
-            .first()
+            self.db.query(FailedMessage).filter(FailedMessage.id == dlq_id).first()
         )
 
         if not failed_message:
@@ -268,9 +260,7 @@ class DeadLetterHandler:
 
         # Retry success rate
         total_retries = (
-            self.db.query(FailedMessage)
-            .filter(FailedMessage.retry_count > 0)
-            .count()
+            self.db.query(FailedMessage).filter(FailedMessage.retry_count > 0).count()
         )
 
         successful_retries = resolved
@@ -307,10 +297,7 @@ class DeadLetterHandler:
         )
 
         # Filter by those that are due
-        due_messages = [
-            msg for msg in messages
-            if self.retry_handler.is_retry_due(msg)
-        ]
+        due_messages = [msg for msg in messages if self.retry_handler.is_retry_due(msg)]
 
         return due_messages
 

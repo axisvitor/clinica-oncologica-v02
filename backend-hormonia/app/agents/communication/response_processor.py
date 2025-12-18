@@ -9,8 +9,7 @@ for handling inbound patient messages, including:
 - Interactive response handling
 """
 
-import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from datetime import datetime
 from uuid import UUID
 
@@ -27,27 +26,32 @@ from app.services.response_processor import (
 from app.models.message import MessageType
 from app.repositories.patient import PatientRepository
 
+
 # Re-export for agent package
 class ResponseAnalysis:
     """
     Container for analysis results.
     """
-    def __init__(self, sentiment: float = 0.0, intent: str = "unknown", entities: dict = None):
+
+    def __init__(
+        self, sentiment: float = 0.0, intent: str = "unknown", entities: dict = None
+    ):
         self.sentiment = sentiment
         self.intent = intent
         self.entities = entities or {}
 
+
 class ResponseProcessorAgent(BaseAgent):
     """
     Agent responsible for processing inbound messages and coordinating responses.
-    
+
     Key responsibilities:
     - Analyze inbound messages (text, media, interactive)
     - Route messages to appropriate flows
     - Extract structured data from responses
     - Coordinate with other agents (e.g., QuizConductor)
     """
-    
+
     def __init__(self, db_session: Session, **kwargs):
         """Initialize ResponseProcessorAgent."""
         super().__init__(
@@ -55,26 +59,25 @@ class ResponseProcessorAgent(BaseAgent):
             agent_type="processing",
             specialization="message_processing",
             db_session=db_session,
-            **kwargs
+            **kwargs,
         )
-        
+
         # Initialize ResponseProcessor service
         self.processor = ResponseProcessor(
             db=db_session,
             config=ResponseProcessorConfig(
-                enable_ai_processing=True,
-                enable_sentiment_analysis=True
-            )
+                enable_ai_processing=True, enable_sentiment_analysis=True
+            ),
         )
-        
+
         self.patient_repo = PatientRepository(db_session)
-        
+
         # Agent capabilities
         self.capabilities = [
             "process_inbound_message",
             "handle_interactive_response",
             "analyze_sentiment",
-            "route_message"
+            "route_message",
         ]
 
     async def _initialize(self):
@@ -93,30 +96,32 @@ class ResponseProcessorAgent(BaseAgent):
         """Validate if agent can handle the task."""
         task_type = task_data.get("type", "")
         payload = task_data.get("payload", {})
-        
-        compatible_tasks = [
-            "process_inbound_message",
-            "handle_interactive_response"
-        ]
-        
+
+        compatible_tasks = ["process_inbound_message", "handle_interactive_response"]
+
         if task_type not in compatible_tasks:
             return False
-            
+
         if task_type == "process_inbound_message":
-            return all(key in payload for key in ["patient_phone", "content", "whatsapp_id"])
-            
+            return all(
+                key in payload for key in ["patient_phone", "content", "whatsapp_id"]
+            )
+
         if task_type == "handle_interactive_response":
-            return all(key in payload for key in ["patient_id", "response_value", "response_type"])
-            
+            return all(
+                key in payload
+                for key in ["patient_id", "response_value", "response_type"]
+            )
+
         return True
 
     async def process_task(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         """Process assigned task."""
         task_type = task_data.get("type")
         payload = task_data.get("payload", {})
-        
+
         self.logger.info(f"Processing task: {task_type}")
-        
+
         try:
             if task_type == "process_inbound_message":
                 return await self._process_inbound_message(payload)
@@ -124,7 +129,7 @@ class ResponseProcessorAgent(BaseAgent):
                 return await self._handle_interactive_response(payload)
             else:
                 return {"success": False, "error": f"Unknown task type: {task_type}"}
-                
+
         except Exception as e:
             self.logger.error(f"Task processing failed: {e}")
             return {"success": False, "error": str(e)}
@@ -137,18 +142,18 @@ class ResponseProcessorAgent(BaseAgent):
             message_type = MessageType[message_type_str]
         except KeyError:
             message_type = MessageType.TEXT
-            
+
         inbound_message = InboundMessage(
             patient_phone=payload["patient_phone"],
             content=payload["content"],
             whatsapp_id=payload["whatsapp_id"],
             message_type=message_type,
-            metadata=payload.get("metadata", {})
+            metadata=payload.get("metadata", {}),
         )
-        
+
         # Process message using service
         result = await self.processor.process_inbound_message(inbound_message)
-        
+
         # If escalation required, notify appropriate agent
         if result.escalation_required:
             await self.send_message(
@@ -157,20 +162,22 @@ class ResponseProcessorAgent(BaseAgent):
                 {
                     "patient_id": str(result.patient_id),
                     "reason": "escalation_required_by_processor",
-                    "structured_response": result.structured_response.extracted_data
+                    "structured_response": result.structured_response.extracted_data,
                 },
-                MessagePriority.HIGH
+                MessagePriority.HIGH,
             )
-            
+
         return {
             "success": True,
             "patient_id": str(result.patient_id),
             "processed_at": result.processed_at.isoformat(),
             "escalation_required": result.escalation_required,
-            "flow_actions_count": len(result.flow_actions)
+            "flow_actions_count": len(result.flow_actions),
         }
 
-    async def _handle_interactive_response(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_interactive_response(
+        self, payload: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Handle interactive response task."""
         # Convert payload to InteractiveResponse
         response_type_str = payload.get("response_type", "text").upper()
@@ -178,21 +185,23 @@ class ResponseProcessorAgent(BaseAgent):
             response_type = ResponseType[response_type_str]
         except KeyError:
             response_type = ResponseType.TEXT
-            
+
         interactive_response = InteractiveResponse(
             patient_id=UUID(payload["patient_id"]),
             response_value=payload["response_value"],
             response_type=response_type,
-            original_message_id=UUID(payload["original_message_id"]) if payload.get("original_message_id") else None,
-            metadata=payload.get("metadata", {})
+            original_message_id=UUID(payload["original_message_id"])
+            if payload.get("original_message_id")
+            else None,
+            metadata=payload.get("metadata", {}),
         )
-        
+
         # Process response using service
         result = await self.processor.handle_interactive_response(interactive_response)
-        
+
         return {
             "success": True,
             "patient_id": str(result.patient_id),
             "processed_at": result.processed_at.isoformat(),
-            "escalation_required": result.escalation_required
+            "escalation_required": result.escalation_required,
         }

@@ -21,14 +21,11 @@ from .cache_manager import (
     CacheStats,
     CacheOperation,
     DEFAULT_CACHE_CONFIGS,
-    get_unified_cache_manager
+    get_unified_cache_manager,
 )
 
 # Redis backend
-from .redis_backend import (
-    RedisBackend,
-    SerializationMethod
-)
+from .redis_backend import RedisBackend, SerializationMethod
 
 # Cache decorators and utilities
 from .cache_decorators import (
@@ -39,7 +36,7 @@ from .cache_decorators import (
     cache_response,
     cache_context,
     generate_request_cache_key,
-    generate_user_cache_key
+    generate_user_cache_key,
 )
 
 # Cache invalidation
@@ -58,7 +55,7 @@ from .invalidation import (
     get_cached_patient_data_async,
     invalidate_patient_cache_async,
     invalidate_cache,
-    get_cache_manager
+    get_cache_manager,
 )
 
 __all__ = [
@@ -71,11 +68,9 @@ __all__ = [
     "CacheOperation",
     "DEFAULT_CACHE_CONFIGS",
     "get_unified_cache_manager",
-
     # Redis backend
     "RedisBackend",
     "SerializationMethod",
-
     # Decorators
     "cache",
     "cached",
@@ -83,11 +78,9 @@ __all__ = [
     "cache_result",
     "cache_response",
     "cache_context",
-
     # Invalidation
     "CacheInvalidator",
     "invalidate_cache",
-
     # User cache operations (backward compatibility)
     "cache_user_data",
     "get_cached_user_data",
@@ -95,7 +88,6 @@ __all__ = [
     "cache_user_data_async",
     "get_cached_user_data_async",
     "invalidate_user_cache_async",
-
     # Patient cache operations (backward compatibility)
     "cache_patient_data",
     "get_cached_patient_data",
@@ -103,9 +95,8 @@ __all__ = [
     "cache_patient_data_async",
     "get_cached_patient_data_async",
     "invalidate_patient_cache_async",
-
     # Utilities
     "generate_request_cache_key",
     "generate_user_cache_key",
-    "get_cache_manager"
+    "get_cache_manager",
 ]

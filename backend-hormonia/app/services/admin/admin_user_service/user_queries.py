@@ -3,6 +3,7 @@ User query and statistics operations.
 
 Handles user search, filtering, summaries, and statistics generation.
 """
+
 import logging
 from typing import Optional
 from uuid import UUID
@@ -11,7 +12,10 @@ from sqlalchemy import desc
 
 from app.models.user import User, UserRole
 from .schemas import (
-    UserSearchFilters, UserSummary, PaginatedUsersResponse, UserStatistics
+    UserSearchFilters,
+    UserSummary,
+    PaginatedUsersResponse,
+    UserStatistics,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,7 +58,7 @@ class UserQueriesMixin:
             updated_at=user.updated_at,
             total_patients=total_patients,
             last_login=last_login,
-            failed_login_attempts=failed_login_attempts
+            failed_login_attempts=failed_login_attempts,
         )
 
     async def search_users(
@@ -63,7 +67,7 @@ class UserQueriesMixin:
         page: int = 1,
         per_page: int = 20,
         sort_by: str = "created_at",
-        sort_order: str = "desc"
+        sort_order: str = "desc",
     ) -> PaginatedUsersResponse:
         """
         Search users with enhanced filters and pagination.
@@ -125,7 +129,7 @@ class UserQueriesMixin:
             total=total,
             page=page,
             per_page=per_page,
-            total_pages=total_pages
+            total_pages=total_pages,
         )
 
     async def get_user_statistics(self) -> UserStatistics:
@@ -137,7 +141,7 @@ class UserQueriesMixin:
         """
         # Basic counts
         total_users = self.db.query(User).count()
-        active_users = self.db.query(User).filter(User.is_active == True).count()
+        active_users = self.db.query(User).filter(User.is_active).count()
         inactive_users = total_users - active_users
 
         # Users by role
@@ -148,9 +152,9 @@ class UserQueriesMixin:
 
         # Recent registrations (last 30 days)
         thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-        recent_registrations = self.db.query(User).filter(
-            User.created_at >= thirty_days_ago
-        ).count()
+        recent_registrations = (
+            self.db.query(User).filter(User.created_at >= thirty_days_ago).count()
+        )
 
         # TODO: Get recent logins from audit logs
         # For now, we'll use 0 as placeholder
@@ -162,5 +166,5 @@ class UserQueriesMixin:
             inactive_users=inactive_users,
             users_by_role=users_by_role,
             recent_registrations=recent_registrations,
-            recent_logins=recent_logins
+            recent_logins=recent_logins,
         )

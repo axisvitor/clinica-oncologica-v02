@@ -23,7 +23,9 @@ class APMGlobalStatsResponse(BaseModel):
     total_requests: int = Field(..., ge=0, description="Total request count")
     total_errors: int = Field(..., ge=0, description="Total error count")
     error_rate: float = Field(..., ge=0, le=100, description="Error rate percentage")
-    avg_response_time: float = Field(..., ge=0, description="Average response time (ms)")
+    avg_response_time: float = Field(
+        ..., ge=0, description="Average response time (ms)"
+    )
     p50: float = Field(..., ge=0, description="50th percentile latency (ms)")
     p95: float = Field(..., ge=0, description="95th percentile latency (ms)")
     p99: float = Field(..., ge=0, description="99th percentile latency (ms)")
@@ -53,7 +55,9 @@ class APMEndpointStatsResponse(BaseModel):
     total_requests: int = Field(..., ge=0, description="Total request count")
     total_errors: int = Field(..., ge=0, description="Total error count")
     error_rate: float = Field(..., ge=0, le=100, description="Error rate percentage")
-    avg_response_time: float = Field(..., ge=0, description="Average response time (ms)")
+    avg_response_time: float = Field(
+        ..., ge=0, description="Average response time (ms)"
+    )
     p95: float = Field(..., ge=0, description="95th percentile latency (ms)")
 
     model_config = ConfigDict(
@@ -78,9 +82,15 @@ class APMEndpointDetailResponse(BaseModel):
     total_requests: int = Field(..., ge=0, description="Total request count")
     total_errors: int = Field(..., ge=0, description="Total error count")
     error_rate: float = Field(..., ge=0, le=100, description="Error rate percentage")
-    avg_response_time: float = Field(..., ge=0, description="Average response time (ms)")
-    min_response_time: float = Field(..., ge=0, description="Minimum response time (ms)")
-    max_response_time: float = Field(..., ge=0, description="Maximum response time (ms)")
+    avg_response_time: float = Field(
+        ..., ge=0, description="Average response time (ms)"
+    )
+    min_response_time: float = Field(
+        ..., ge=0, description="Minimum response time (ms)"
+    )
+    max_response_time: float = Field(
+        ..., ge=0, description="Maximum response time (ms)"
+    )
     p50: float = Field(..., ge=0, description="50th percentile latency (ms)")
     p95: float = Field(..., ge=0, description="95th percentile latency (ms)")
     p99: float = Field(..., ge=0, description="99th percentile latency (ms)")

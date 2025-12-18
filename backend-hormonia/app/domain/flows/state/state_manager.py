@@ -74,7 +74,9 @@ class FlowStateManager:
         flow_state = self.flow_state_repo.get_active_flow(patient_id)
         if flow_state:
             self._flow_state_cache[patient_id] = flow_state
-            logger.debug(f"Flow state loaded from DB and cached for patient {patient_id}")
+            logger.debug(
+                f"Flow state loaded from DB and cached for patient {patient_id}"
+            )
 
         return flow_state
 
@@ -95,7 +97,7 @@ class FlowStateManager:
         flow_type: str,
         current_day: int,
         operation: str,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> PatientFlowState:
         """
         Create new flow state for patient.
@@ -116,12 +118,12 @@ class FlowStateManager:
             current_step=current_day,
             started_at=datetime.utcnow(),
             state_data={
-                'status': 'active',
-                'created_by': 'flow_orchestrator',
-                'operation': operation,
-                'metadata': metadata or {},
-                'created_at': datetime.utcnow().isoformat()
-            }
+                "status": "active",
+                "created_by": "flow_orchestrator",
+                "operation": operation,
+                "metadata": metadata or {},
+                "created_at": datetime.utcnow().isoformat(),
+            },
         )
 
         self.db.add(flow_state)
@@ -131,7 +133,9 @@ class FlowStateManager:
         # Cache the new flow state
         self._flow_state_cache[patient.id] = flow_state
 
-        logger.info(f"Created flow state {flow_state.id} for patient {patient.id} (type: {flow_type})")
+        logger.info(
+            f"Created flow state {flow_state.id} for patient {patient.id} (type: {flow_type})"
+        )
         return flow_state
 
     async def transition_flow_type(
@@ -140,7 +144,7 @@ class FlowStateManager:
         new_flow_type: str,
         patient_id: UUID,
         current_day: int,
-        analytics_callback: Optional[callable] = None
+        analytics_callback: Optional[callable] = None,
     ) -> Dict[str, Any]:
         """
         Transition flow to new type.
@@ -161,12 +165,14 @@ class FlowStateManager:
             # Update flow state
             flow_state.flow_type = new_flow_type
             flow_state.state_data = flow_state.state_data or {}
-            flow_state.state_data.update({
-                'transitioned_from': old_flow_type,
-                'transitioned_to': new_flow_type,
-                'transition_date': datetime.utcnow().isoformat(),
-                'status': 'active'
-            })
+            flow_state.state_data.update(
+                {
+                    "transitioned_from": old_flow_type,
+                    "transitioned_to": new_flow_type,
+                    "transition_date": datetime.utcnow().isoformat(),
+                    "status": "active",
+                }
+            )
 
             self.db.commit()
             self.invalidate_flow_cache(patient_id)
@@ -179,32 +185,31 @@ class FlowStateManager:
                     flow_type=new_flow_type,
                     current_day=current_day,
                     metadata={
-                        'from_flow_type': old_flow_type,
-                        'to_flow_type': new_flow_type
-                    }
+                        "from_flow_type": old_flow_type,
+                        "to_flow_type": new_flow_type,
+                    },
                 )
 
-            logger.info(f"Flow transitioned from {old_flow_type} to {new_flow_type} for patient {patient_id}")
+            logger.info(
+                f"Flow transitioned from {old_flow_type} to {new_flow_type} for patient {patient_id}"
+            )
 
             return {
-                'success': True,
-                'from_flow_type': old_flow_type,
-                'to_flow_type': new_flow_type
+                "success": True,
+                "from_flow_type": old_flow_type,
+                "to_flow_type": new_flow_type,
             }
 
         except Exception as e:
             logger.error(f"Error transitioning flow type: {e}", exc_info=True)
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def update_flow_state_status(
         self,
         flow_state: PatientFlowState,
         status: str,
         reason: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
         Update flow state status.
@@ -220,17 +225,21 @@ class FlowStateManager:
         """
         try:
             flow_state.state_data = flow_state.state_data or {}
-            flow_state.state_data.update({
-                'status': status,
-                f'{status}_at': datetime.utcnow().isoformat(),
-                f'{status}_reason': reason,
-                f'{status}_metadata': metadata or {}
-            })
+            flow_state.state_data.update(
+                {
+                    "status": status,
+                    f"{status}_at": datetime.utcnow().isoformat(),
+                    f"{status}_reason": reason,
+                    f"{status}_metadata": metadata or {},
+                }
+            )
 
             self.db.commit()
             self.invalidate_flow_cache(flow_state.patient_id)
 
-            logger.info(f"Flow state updated to {status} for patient {flow_state.patient_id}")
+            logger.info(
+                f"Flow state updated to {status} for patient {flow_state.patient_id}"
+            )
             return True
 
         except Exception as e:
@@ -246,7 +255,7 @@ class FlowStateManager:
             Dictionary with cache statistics
         """
         return {
-            'flow_state_cache_size': len(self._flow_state_cache),
-            'cache_ttl_minutes': self._cache_ttl.total_seconds() / 60,
-            'last_cache_clear': self._last_cache_clear.isoformat()
+            "flow_state_cache_size": len(self._flow_state_cache),
+            "cache_ttl_minutes": self._cache_ttl.total_seconds() / 60,
+            "last_cache_clear": self._last_cache_clear.isoformat(),
         }

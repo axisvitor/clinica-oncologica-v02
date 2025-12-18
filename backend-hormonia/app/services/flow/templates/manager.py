@@ -12,7 +12,6 @@ Migration Note:
 
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from uuid import UUID
 import logging
 
 from ..types import (

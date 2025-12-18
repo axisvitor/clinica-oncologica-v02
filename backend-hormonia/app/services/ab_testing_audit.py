@@ -5,17 +5,15 @@ Comprehensive audit logging system for A/B testing activities with HIPAA
 compliance, GDPR support, and detailed tracking for regulatory requirements.
 """
 
-import json
 import logging
 import hashlib
-from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any, Union
+from datetime import datetime, timezone, timedelta
+from typing import Dict, List, Optional, Any
 from uuid import UUID
 
-from sqlalchemy import and_, or_, func, desc
+from sqlalchemy import desc
 
 from app.models.ab_experiment import ABExperimentAudit, ABExperiment
-from app.models.user import User
 from app.services.encryption import UnifiedEncryptionService as EncryptionService
 from app.services.privacy_service import PrivacyService
 
@@ -90,7 +88,7 @@ class ABTestingAuditService:
         self,
         db: Any,
         encryption_service: Optional[EncryptionService] = None,
-        privacy_service: Optional[PrivacyService] = None
+        privacy_service: Optional[PrivacyService] = None,
     ):
         """Initialize audit service."""
         self.db = db
@@ -114,7 +112,7 @@ class ABTestingAuditService:
         additional_data: Optional[Dict[str, Any]] = None,
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
     ) -> str:
         """
         Log experiment lifecycle events.
@@ -140,7 +138,7 @@ class ABTestingAuditService:
             action_details = {
                 "action": action,
                 "reason": reason,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             if additional_data:
@@ -166,13 +164,15 @@ class ABTestingAuditService:
                 session_id=session_id,
                 hipaa_logged=True,
                 gdpr_compliant=True,
-                timestamp=datetime.now(timezone.utc)
+                timestamp=datetime.now(timezone.utc),
             )
 
             self.db.add(audit_entry)
             self.db.commit()
 
-            logger.info(f"Audit logged: {action} for experiment {experiment_id} by {actor}")
+            logger.info(
+                f"Audit logged: {action} for experiment {experiment_id} by {actor}"
+            )
             return str(audit_entry.id)
 
         except Exception as e:
@@ -190,7 +190,7 @@ class ABTestingAuditService:
         safety_level: Optional[str] = None,
         assignment_reason: Optional[str] = None,
         actor: str = "system",
-        additional_data: Optional[Dict[str, Any]] = None
+        additional_data: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Log patient-related A/B testing interactions.
@@ -210,7 +210,9 @@ class ABTestingAuditService:
         """
         try:
             # Create anonymous patient identifier
-            anonymous_patient_id = self._create_anonymous_patient_id(patient_id, experiment_id)
+            anonymous_patient_id = self._create_anonymous_patient_id(
+                patient_id, experiment_id
+            )
 
             action_details = {
                 "action": action,
@@ -218,7 +220,7 @@ class ABTestingAuditService:
                 "variant": variant,
                 "safety_level": safety_level,
                 "assignment_reason": assignment_reason,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             if additional_data:
@@ -233,13 +235,15 @@ class ABTestingAuditService:
                 action_details=action_details,
                 hipaa_logged=True,
                 gdpr_compliant=True,
-                timestamp=datetime.now(timezone.utc)
+                timestamp=datetime.now(timezone.utc),
             )
 
             self.db.add(audit_entry)
             self.db.commit()
 
-            logger.info(f"Patient interaction logged: {action} for experiment {experiment_id}")
+            logger.info(
+                f"Patient interaction logged: {action} for experiment {experiment_id}"
+            )
             return str(audit_entry.id)
 
         except Exception as e:
@@ -257,7 +261,7 @@ class ABTestingAuditService:
         ai_processing: Optional[Dict[str, Any]] = None,
         safety_checks: Optional[Dict[str, Any]] = None,
         performance_data: Optional[Dict[str, Any]] = None,
-        error_details: Optional[str] = None
+        error_details: Optional[str] = None,
     ) -> str:
         """
         Log message-related A/B testing activities.
@@ -277,40 +281,52 @@ class ABTestingAuditService:
             Audit log entry ID
         """
         try:
-            anonymous_patient_id = self._create_anonymous_patient_id(patient_id, experiment_id)
+            anonymous_patient_id = self._create_anonymous_patient_id(
+                patient_id, experiment_id
+            )
 
             action_details = {
                 "action": action,
                 "message_id": message_id,
                 "variant": variant,
                 "anonymous_patient_id": anonymous_patient_id,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             # Add AI processing details
             if ai_processing:
                 action_details["ai_processing"] = {
-                    "humanization_applied": ai_processing.get("humanization_applied", False),
-                    "safety_checks_passed": ai_processing.get("safety_checks_passed", True),
+                    "humanization_applied": ai_processing.get(
+                        "humanization_applied", False
+                    ),
+                    "safety_checks_passed": ai_processing.get(
+                        "safety_checks_passed", True
+                    ),
                     "processing_time_ms": ai_processing.get("processing_time_ms"),
                     "model_version": ai_processing.get("model_version"),
-                    "fallback_reason": ai_processing.get("fallback_reason")
+                    "fallback_reason": ai_processing.get("fallback_reason"),
                 }
 
             # Add safety check results
             if safety_checks:
                 action_details["safety_checks"] = {
-                    "medical_keywords_found": safety_checks.get("medical_keywords_found", []),
+                    "medical_keywords_found": safety_checks.get(
+                        "medical_keywords_found", []
+                    ),
                     "risk_level": safety_checks.get("risk_level", "low"),
-                    "manual_review_required": safety_checks.get("manual_review_required", False)
+                    "manual_review_required": safety_checks.get(
+                        "manual_review_required", False
+                    ),
                 }
 
             # Add performance data
             if performance_data:
                 action_details["performance"] = {
-                    "response_time_seconds": performance_data.get("response_time_seconds"),
+                    "response_time_seconds": performance_data.get(
+                        "response_time_seconds"
+                    ),
                     "engagement_score": performance_data.get("engagement_score"),
-                    "delivery_status": performance_data.get("delivery_status")
+                    "delivery_status": performance_data.get("delivery_status"),
                 }
 
             # Add error details
@@ -326,7 +342,7 @@ class ABTestingAuditService:
                 action_details=action_details,
                 hipaa_logged=True,
                 gdpr_compliant=True,
-                timestamp=datetime.now(timezone.utc)
+                timestamp=datetime.now(timezone.utc),
             )
 
             self.db.add(audit_entry)
@@ -349,7 +365,7 @@ class ABTestingAuditService:
         message_id: Optional[int] = None,
         automated_response: Optional[str] = None,
         stakeholder_notified: bool = False,
-        additional_data: Optional[Dict[str, Any]] = None
+        additional_data: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Log safety-related events in A/B testing.
@@ -375,12 +391,12 @@ class ABTestingAuditService:
                 "description": description,
                 "automated_response": automated_response,
                 "stakeholder_notified": stakeholder_notified,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             if patient_id:
-                action_details["anonymous_patient_id"] = self._create_anonymous_patient_id(
-                    patient_id, experiment_id
+                action_details["anonymous_patient_id"] = (
+                    self._create_anonymous_patient_id(patient_id, experiment_id)
                 )
 
             if message_id:
@@ -398,7 +414,7 @@ class ABTestingAuditService:
                 action_details=action_details,
                 hipaa_logged=True,
                 gdpr_compliant=True,
-                timestamp=datetime.now(timezone.utc)
+                timestamp=datetime.now(timezone.utc),
             )
 
             self.db.add(audit_entry)
@@ -406,9 +422,13 @@ class ABTestingAuditService:
 
             # Log to application logger for immediate visibility
             if severity in ["high", "critical"]:
-                logger.critical(f"SAFETY EVENT: {description} in experiment {experiment_id}")
+                logger.critical(
+                    f"SAFETY EVENT: {description} in experiment {experiment_id}"
+                )
             else:
-                logger.warning(f"Safety event: {description} in experiment {experiment_id}")
+                logger.warning(
+                    f"Safety event: {description} in experiment {experiment_id}"
+                )
 
             return str(audit_entry.id)
 
@@ -425,7 +445,7 @@ class ABTestingAuditService:
         access_granted: bool,
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
-        denial_reason: Optional[str] = None
+        denial_reason: Optional[str] = None,
     ) -> str:
         """
         Log access attempts to A/B testing data.
@@ -443,13 +463,17 @@ class ABTestingAuditService:
             Audit log entry ID
         """
         try:
-            event_type = AuditEventType.ACCESS_GRANTED if access_granted else AuditEventType.ACCESS_DENIED
+            event_type = (
+                AuditEventType.ACCESS_GRANTED
+                if access_granted
+                else AuditEventType.ACCESS_DENIED
+            )
 
             action_details = {
                 "action_attempted": action,
                 "access_granted": access_granted,
                 "denial_reason": denial_reason,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             audit_entry = ABExperimentAudit(
@@ -462,14 +486,16 @@ class ABTestingAuditService:
                 user_agent=user_agent,
                 hipaa_logged=True,
                 gdpr_compliant=True,
-                timestamp=datetime.now(timezone.utc)
+                timestamp=datetime.now(timezone.utc),
             )
 
             self.db.add(audit_entry)
             self.db.commit()
 
             if not access_granted:
-                logger.warning(f"Access denied: {actor} attempted {action} on experiment {experiment_id}")
+                logger.warning(
+                    f"Access denied: {actor} attempted {action} on experiment {experiment_id}"
+                )
 
             return str(audit_entry.id)
 
@@ -484,7 +510,7 @@ class ABTestingAuditService:
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
         action_types: Optional[List[str]] = None,
-        actor: Optional[str] = None
+        actor: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Retrieve audit trail for an experiment.
@@ -520,20 +546,22 @@ class ABTestingAuditService:
             # Convert to dict format
             audit_trail = []
             for entry in entries:
-                audit_trail.append({
-                    "id": str(entry.id),
-                    "experiment_id": str(entry.experiment_id),
-                    "action": entry.action,
-                    "actor": entry.actor,
-                    "actor_type": entry.actor_type,
-                    "timestamp": entry.timestamp.isoformat(),
-                    "action_details": entry.action_details,
-                    "previous_state": entry.previous_state,
-                    "new_state": entry.new_state,
-                    "ip_address": entry.ip_address,
-                    "hipaa_logged": entry.hipaa_logged,
-                    "gdpr_compliant": entry.gdpr_compliant
-                })
+                audit_trail.append(
+                    {
+                        "id": str(entry.id),
+                        "experiment_id": str(entry.experiment_id),
+                        "action": entry.action,
+                        "actor": entry.actor,
+                        "actor_type": entry.actor_type,
+                        "timestamp": entry.timestamp.isoformat(),
+                        "action_details": entry.action_details,
+                        "previous_state": entry.previous_state,
+                        "new_state": entry.new_state,
+                        "ip_address": entry.ip_address,
+                        "hipaa_logged": entry.hipaa_logged,
+                        "gdpr_compliant": entry.gdpr_compliant,
+                    }
+                )
 
             return audit_trail
 
@@ -542,9 +570,7 @@ class ABTestingAuditService:
             return []
 
     def generate_compliance_report(
-        self,
-        experiment_id: str,
-        report_type: str = "full"
+        self, experiment_id: str, report_type: str = "full"
     ) -> Dict[str, Any]:
         """
         Generate compliance report for an experiment.
@@ -558,9 +584,11 @@ class ABTestingAuditService:
         """
         try:
             # Get experiment details
-            experiment = self.db.query(ABExperiment).filter(
-                ABExperiment.id == experiment_id
-            ).first()
+            experiment = (
+                self.db.query(ABExperiment)
+                .filter(ABExperiment.id == experiment_id)
+                .first()
+            )
 
             if not experiment:
                 return {"error": "Experiment not found"}
@@ -577,14 +605,18 @@ class ABTestingAuditService:
                 "experiment_name": experiment.name,
                 "report_type": report_type,
                 "generated_at": datetime.now(timezone.utc).isoformat(),
-                "compliance_status": "compliant" if compliance_metrics["is_compliant"] else "non_compliant",
+                "compliance_status": "compliant"
+                if compliance_metrics["is_compliant"]
+                else "non_compliant",
                 "hipaa_compliance": compliance_metrics["hipaa_compliant"],
                 "gdpr_compliance": compliance_metrics["gdpr_compliant"],
                 "total_audit_entries": len(audit_trail),
                 "audit_coverage": compliance_metrics["audit_coverage"],
                 "safety_events": compliance_metrics["safety_events"],
                 "access_violations": compliance_metrics["access_violations"],
-                "data_retention_compliant": compliance_metrics["data_retention_compliant"]
+                "data_retention_compliant": compliance_metrics[
+                    "data_retention_compliant"
+                ],
             }
 
             if report_type == "full":
@@ -592,11 +624,13 @@ class ABTestingAuditService:
                 report["compliance_analysis"] = compliance_metrics
             elif report_type == "safety_only":
                 safety_entries = [
-                    entry for entry in audit_trail
-                    if entry["action"] in [
+                    entry
+                    for entry in audit_trail
+                    if entry["action"]
+                    in [
                         AuditEventType.SAFETY_VIOLATION,
                         AuditEventType.EMERGENCY_STOP,
-                        AuditEventType.MEDICAL_CONTENT_DETECTED
+                        AuditEventType.MEDICAL_CONTENT_DETECTED,
                     ]
                 ]
                 report["safety_audit_trail"] = safety_entries
@@ -622,9 +656,11 @@ class ABTestingAuditService:
             cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_period)
 
             # Count entries to be deleted
-            count = self.db.query(ABExperimentAudit).filter(
-                ABExperimentAudit.timestamp < cutoff_date
-            ).count()
+            count = (
+                self.db.query(ABExperimentAudit)
+                .filter(ABExperimentAudit.timestamp < cutoff_date)
+                .count()
+            )
 
             # Delete old entries
             self.db.query(ABExperimentAudit).filter(
@@ -686,8 +722,13 @@ class ABTestingAuditService:
 
         # Remove or hash sensitive fields
         sensitive_fields = [
-            "patient_id", "phone", "email", "address", "name",
-            "patient_name", "contact_info"
+            "patient_id",
+            "phone",
+            "email",
+            "address",
+            "name",
+            "patient_name",
+            "contact_info",
         ]
 
         for field in sensitive_fields:
@@ -701,44 +742,48 @@ class ABTestingAuditService:
 
         return anonymized_data
 
-    def _analyze_compliance_metrics(self, audit_trail: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _analyze_compliance_metrics(
+        self, audit_trail: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Analyze audit trail for compliance metrics."""
         total_entries = len(audit_trail)
 
         # Check HIPAA and GDPR compliance
         hipaa_compliant_count = sum(
-            1 for entry in audit_trail
-            if entry.get("hipaa_logged", False)
+            1 for entry in audit_trail if entry.get("hipaa_logged", False)
         )
         gdpr_compliant_count = sum(
-            1 for entry in audit_trail
-            if entry.get("gdpr_compliant", False)
+            1 for entry in audit_trail if entry.get("gdpr_compliant", False)
         )
 
         # Count safety events
         safety_events = [
-            entry for entry in audit_trail
-            if entry["action"] in [
+            entry
+            for entry in audit_trail
+            if entry["action"]
+            in [
                 AuditEventType.SAFETY_VIOLATION,
                 AuditEventType.EMERGENCY_STOP,
-                AuditEventType.MEDICAL_CONTENT_DETECTED
+                AuditEventType.MEDICAL_CONTENT_DETECTED,
             ]
         ]
 
         # Count access violations
         access_violations = [
-            entry for entry in audit_trail
+            entry
+            for entry in audit_trail
             if entry["action"] == AuditEventType.ACCESS_DENIED
         ]
 
         return {
-            "is_compliant": hipaa_compliant_count == total_entries and gdpr_compliant_count == total_entries,
+            "is_compliant": hipaa_compliant_count == total_entries
+            and gdpr_compliant_count == total_entries,
             "hipaa_compliant": hipaa_compliant_count == total_entries,
             "gdpr_compliant": gdpr_compliant_count == total_entries,
             "audit_coverage": (hipaa_compliant_count / max(1, total_entries)) * 100,
             "safety_events": len(safety_events),
             "access_violations": len(access_violations),
-            "data_retention_compliant": True  # Implement based on your retention policy
+            "data_retention_compliant": True,  # Implement based on your retention policy
         }
 
 

@@ -7,7 +7,6 @@ This module provides common functionality used across all patient routers.
 
 from typing import Optional, Tuple, List, Any, Dict
 from uuid import UUID
-from datetime import datetime
 import re
 import logging
 
@@ -27,25 +26,30 @@ logger = logging.getLogger(__name__)
 # Pydantic Models - Shared Schemas
 # ============================================================================
 
+
 class CPFValidationRequest(BaseModel):
     """Request model for CPF validation."""
+
     cpf: str
 
 
 class EmailCheckResponse(BaseModel):
     """Response model for email existence check."""
+
     email: EmailStr
     exists: bool
 
 
 class ImportError(BaseModel):
     """Error details for CSV import failures."""
+
     row: int
     message: str
 
 
 class ImportResponse(BaseModel):
     """Response model for CSV import operations."""
+
     success: int
     failed: int
     errors: List[ImportError]
@@ -53,6 +57,7 @@ class ImportResponse(BaseModel):
 
 class PatientStatsResponse(BaseModel):
     """Response model for patient statistics."""
+
     total_patients: int
     active_patients: int
     inactive_patients: int
@@ -64,11 +69,12 @@ class PatientStatsResponse(BaseModel):
 # User Context Utilities
 # ============================================================================
 
+
 async def get_current_user_simple(
     session_cookie_id: str = Cookie(None, alias="session_id"),
     x_session_id: str = Header(None, alias="X-Session-ID"),
     db: Session = Depends(get_db),
-    redis_cache = Depends(get_redis_cache)
+    redis_cache=Depends(get_redis_cache),
 ) -> Dict[str, Any]:
     """
     Simplified session validation without ServiceProvider.
@@ -78,22 +84,20 @@ async def get_current_user_simple(
     final_session_id = session_cookie_id or x_session_id
     if not final_session_id:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session ID not provided"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Session ID not provided"
         )
 
     session_data = await redis_cache.get_session(final_session_id)
     if not session_data:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session"
+            detail="Invalid or expired session",
         )
 
     firebase_uid = session_data.get("firebase_uid")
     if not firebase_uid:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid session data"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session data"
         )
 
     # Get user from cache or DB
@@ -102,23 +106,21 @@ async def get_current_user_simple(
         user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found"
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
             )
         user_data = {
             "id": str(user.id),
             "firebase_uid": user.firebase_uid,
             "email": user.email,
             "full_name": user.full_name,
-            "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
-            "is_active": user.is_active
+            "role": user.role.value if hasattr(user.role, "value") else str(user.role),
+            "is_active": user.is_active,
         }
         await redis_cache.cache_user_data(firebase_uid, user_data, ttl=900)
 
     if not user_data.get("is_active", False):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is inactive"
+            status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive"
         )
 
     return user_data
@@ -167,6 +169,7 @@ def is_admin(current_user: Any) -> bool:
 # UUID and Access Control Utilities
 # ============================================================================
 
+
 def ensure_uuid(value: Optional[str]) -> Optional[UUID]:
     """
     Convert string to UUID safely.
@@ -208,6 +211,7 @@ def ensure_patient_access(current_user: Any, patient_doctor_id: UUID) -> None:
 # Data Normalization Utilities
 # ============================================================================
 
+
 def normalize_cpf(cpf: Optional[str]) -> Optional[str]:
     """
     Normalize CPF by removing non-digit characters.
@@ -220,7 +224,7 @@ def normalize_cpf(cpf: Optional[str]) -> Optional[str]:
     """
     if not cpf:
         return None
-    normalized = re.sub(r'[^0-9]', '', cpf)
+    normalized = re.sub(r"[^0-9]", "", cpf)
     return normalized[:11] if normalized else None
 
 
@@ -239,7 +243,7 @@ def normalize_phone(phone: Optional[str]) -> Optional[str]:
     """
     if not phone:
         return None
-    normalized = re.sub(r'[^0-9+]', '', phone)
+    normalized = re.sub(r"[^0-9+]", "", phone)
     return normalized if normalized else None
 
 
@@ -257,20 +261,21 @@ def validate_and_format_phone(phone: str, strict: bool = True) -> Optional[str]:
     Raises:
         HTTPException: If phone is invalid and strict=True
     """
-    from app.utils.phone_validator import validate_and_format_phone as validate_phone, PhoneValidationError
+    from app.utils.phone_validator import (
+        validate_and_format_phone as validate_phone,
+        PhoneValidationError,
+    )
 
     try:
         is_valid, formatted, error = validate_phone(
-            phone,
-            default_region="BR",
-            strict=False
+            phone, default_region="BR", strict=False
         )
 
         if not is_valid:
             if strict:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid phone number: {error}"
+                    detail=f"Invalid phone number: {error}",
                 )
             return None
 
@@ -278,16 +283,14 @@ def validate_and_format_phone(phone: str, strict: bool = True) -> Optional[str]:
 
     except PhoneValidationError as e:
         if strict:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(e)
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
         return None
 
 
 # ============================================================================
 # Serialization Utilities
 # ============================================================================
+
 
 def serialize_patient(patient: Optional[Patient]) -> Optional[Dict[str, Any]]:
     """
@@ -315,7 +318,9 @@ def serialize_patient(patient: Optional[Patient]) -> Optional[Dict[str, Any]]:
         "phone": getattr(patient, "phone"),
         "birth_date": getattr(patient, "birth_date"),
         "cpf": getattr(patient, "cpf"),
-        "doctor_id": str(getattr(patient, "doctor_id")) if getattr(patient, "doctor_id", None) else None,
+        "doctor_id": str(getattr(patient, "doctor_id"))
+        if getattr(patient, "doctor_id", None)
+        else None,
         "treatment_type": getattr(patient, "treatment_type", None),
         "treatment_start_date": getattr(patient, "treatment_start_date", None),
         "doctor_notes": getattr(patient, "doctor_notes", None),
@@ -329,8 +334,7 @@ def serialize_patient(patient: Optional[Patient]) -> Optional[Dict[str, Any]]:
 
 
 def serialize_patient_with_includes(
-    patient: Optional[Patient],
-    include: Optional[List[str]] = None
+    patient: Optional[Patient], include: Optional[List[str]] = None
 ) -> Optional[Dict[str, Any]]:
     """
     Serialize patient with optional eager loaded relations.
@@ -355,7 +359,9 @@ def serialize_patient_with_includes(
                 "email": patient.doctor.email,
             }
 
-        if ("quiz_sessions" in include or "quizzes" in include) and hasattr(patient, "quiz_sessions"):
+        if ("quiz_sessions" in include or "quizzes" in include) and hasattr(
+            patient, "quiz_sessions"
+        ):
             sessions = getattr(patient, "quiz_sessions", [])
             patient_dict["quiz_sessions"] = [
                 {
@@ -375,6 +381,7 @@ def serialize_patient_with_includes(
 # ============================================================================
 # Flow State Utilities
 # ============================================================================
+
 
 def parse_flow_state_filter(status_filter: str) -> FlowState:
     """
@@ -405,7 +412,7 @@ def parse_flow_state_filter(status_filter: str) -> FlowState:
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid status filter. Use active, paused, completed, cancelled or inactive."
+                detail="Invalid status filter. Use active, paused, completed, cancelled or inactive.",
             )
 
     return target_state

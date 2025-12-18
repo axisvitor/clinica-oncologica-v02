@@ -20,7 +20,6 @@ from app.schemas.v2.physicians import (
     MessageStats,
     AppointmentStats,
     AlertStats,
-    WorkloadLevel,
 )
 from app.core.redis_unified import get_sync_redis
 from ..base import _calculate_workload_level
@@ -52,9 +51,7 @@ class PhysicianStatisticsService:
         self.redis_client = get_sync_redis()
 
     def calculate_statistics(
-        self,
-        physician_id: UUID,
-        use_cache: bool = True
+        self, physician_id: UUID, use_cache: bool = True
     ) -> PhysicianStatistics:
         """
         Calculate comprehensive statistics for a physician.
@@ -97,7 +94,7 @@ class PhysicianStatisticsService:
             alerts=alert_stats,
             patient_satisfaction_score=satisfaction_score,
             avg_treatment_duration_days=treatment_duration,
-            calculated_at=datetime.utcnow()
+            calculated_at=datetime.utcnow(),
         )
 
         # Cache the result
@@ -107,8 +104,7 @@ class PhysicianStatisticsService:
         return statistics
 
     def calculate_batch_statistics(
-        self,
-        physician_ids: List[UUID]
+        self, physician_ids: List[UUID]
     ) -> Dict[UUID, PhysicianStatistics]:
         """
         Calculate statistics for multiple physicians in batch (optimized).
@@ -132,7 +128,9 @@ class PhysicianStatisticsService:
 
         # Calculate for uncached physicians
         if uncached_ids:
-            logger.info(f"Batch calculating statistics for {len(uncached_ids)} physicians")
+            logger.info(
+                f"Batch calculating statistics for {len(uncached_ids)} physicians"
+            )
             for physician_id in uncached_ids:
                 stats = self.calculate_statistics(physician_id, use_cache=False)
                 results[physician_id] = stats
@@ -147,21 +145,22 @@ class PhysicianStatisticsService:
             day=1, hour=0, minute=0, second=0, microsecond=0
         )
 
-        result = self.db.query(
-            func.count(Patient.id).label("total"),
-            func.sum(
-                case((Patient.flow_state == FlowState.ACTIVE, 1), else_=0)
-            ).label("active"),
-            func.sum(
-                case((Patient.flow_state == FlowState.CANCELLED, 1), else_=0)
-            ).label("inactive"),
-            func.sum(
-                case((Patient.created_at >= start_of_month, 1), else_=0)
-            ).label("new_this_month"),
-        ).filter(
-            Patient.doctor_id == physician_id,
-            Patient.deleted_at.is_(None)
-        ).first()
+        result = (
+            self.db.query(
+                func.count(Patient.id).label("total"),
+                func.sum(
+                    case((Patient.flow_state == FlowState.ACTIVE, 1), else_=0)
+                ).label("active"),
+                func.sum(
+                    case((Patient.flow_state == FlowState.CANCELLED, 1), else_=0)
+                ).label("inactive"),
+                func.sum(
+                    case((Patient.created_at >= start_of_month, 1), else_=0)
+                ).label("new_this_month"),
+            )
+            .filter(Patient.doctor_id == physician_id, Patient.deleted_at.is_(None))
+            .first()
+        )
 
         total = result.total or 0
         active = result.active or 0
@@ -181,53 +180,56 @@ class PhysicianStatisticsService:
         week_ago = datetime.utcnow() - timedelta(days=7)
 
         # Get patient IDs subquery
-        patient_ids = self.db.query(Patient.id).filter(
-            Patient.doctor_id == physician_id,
-            Patient.deleted_at.is_(None)
-        ).subquery()
+        patient_ids = (
+            self.db.query(Patient.id)
+            .filter(Patient.doctor_id == physician_id, Patient.deleted_at.is_(None))
+            .subquery()
+        )
 
         # Single aggregation query for all message metrics
-        result = self.db.query(
-            func.sum(
-                case((Message.direction == MessageDirection.OUTBOUND, 1), else_=0)
-            ).label("sent"),
-            func.sum(
-                case((Message.direction == MessageDirection.INBOUND, 1), else_=0)
-            ).label("received"),
-            func.sum(
-                case(
-                    (
-                        (Message.direction == MessageDirection.INBOUND) &
-                        (Message.status.notin_([MessageStatus.READ])),
-                        1
-                    ),
-                    else_=0
-                )
-            ).label("unread"),
-            func.sum(
-                case(
-                    (
-                        (Message.direction == MessageDirection.INBOUND) &
-                        (Message.created_at >= week_ago),
-                        1
-                    ),
-                    else_=0
-                )
-            ).label("inbound_week"),
-            func.sum(
-                case(
-                    (
-                        (Message.direction == MessageDirection.INBOUND) &
-                        (Message.status == MessageStatus.READ) &
-                        (Message.created_at >= week_ago),
-                        1
-                    ),
-                    else_=0
-                )
-            ).label("read_week"),
-        ).filter(
-            Message.patient_id.in_(patient_ids)
-        ).first()
+        result = (
+            self.db.query(
+                func.sum(
+                    case((Message.direction == MessageDirection.OUTBOUND, 1), else_=0)
+                ).label("sent"),
+                func.sum(
+                    case((Message.direction == MessageDirection.INBOUND, 1), else_=0)
+                ).label("received"),
+                func.sum(
+                    case(
+                        (
+                            (Message.direction == MessageDirection.INBOUND)
+                            & (Message.status.notin_([MessageStatus.READ])),
+                            1,
+                        ),
+                        else_=0,
+                    )
+                ).label("unread"),
+                func.sum(
+                    case(
+                        (
+                            (Message.direction == MessageDirection.INBOUND)
+                            & (Message.created_at >= week_ago),
+                            1,
+                        ),
+                        else_=0,
+                    )
+                ).label("inbound_week"),
+                func.sum(
+                    case(
+                        (
+                            (Message.direction == MessageDirection.INBOUND)
+                            & (Message.status == MessageStatus.READ)
+                            & (Message.created_at >= week_ago),
+                            1,
+                        ),
+                        else_=0,
+                    )
+                ).label("read_week"),
+            )
+            .filter(Message.patient_id.in_(patient_ids))
+            .first()
+        )
 
         total_sent = result.sent or 0
         total_received = result.received or 0
@@ -245,27 +247,30 @@ class PhysicianStatisticsService:
             total_received=total_received,
             unread_count=unread_count,
             response_rate=round(response_rate, 2),
-            avg_response_time_minutes=avg_response_time
+            avg_response_time_minutes=avg_response_time,
         )
 
     def _calculate_avg_response_time(
-        self,
-        patient_ids,
-        week_ago: datetime
+        self, patient_ids, week_ago: datetime
     ) -> Optional[float]:
         """Calculate average response time in minutes."""
         try:
             # Simplified approach: average time between inbound and next outbound
-            response_times = self.db.query(
-                func.avg(
-                    func.extract('epoch', Message.created_at) -
-                    func.extract('epoch', Message.created_at)
-                ) / 60
-            ).filter(
-                Message.patient_id.in_(patient_ids),
-                Message.direction == MessageDirection.OUTBOUND,
-                Message.created_at >= week_ago
-            ).scalar()
+            response_times = (
+                self.db.query(
+                    func.avg(
+                        func.extract("epoch", Message.created_at)
+                        - func.extract("epoch", Message.created_at)
+                    )
+                    / 60
+                )
+                .filter(
+                    Message.patient_id.in_(patient_ids),
+                    Message.direction == MessageDirection.OUTBOUND,
+                    Message.created_at >= week_ago,
+                )
+                .scalar()
+            )
 
             if response_times:
                 return round(float(response_times), 1)
@@ -280,102 +285,114 @@ class PhysicianStatisticsService:
         today_end = datetime.combine(date.today(), time.max)
 
         try:
-            result = self.db.query(
-                func.count(Appointment.id).label("total"),
-                func.sum(
-                    case(
-                        (Appointment.status == AppointmentStatus.COMPLETED.value, 1),
-                        else_=0
-                    )
-                ).label("completed"),
-                func.sum(
-                    case(
-                        (
-                            Appointment.status.in_([
-                                AppointmentStatus.CANCELLED.value,
-                                AppointmentStatus.NO_SHOW.value
-                            ]),
-                            1
-                        ),
-                        else_=0
-                    )
-                ).label("cancelled"),
-                func.sum(
-                    case(
-                        (
-                            (Appointment.scheduled_at > datetime.utcnow()) &
-                            (Appointment.status.in_([
-                                AppointmentStatus.SCHEDULED.value,
-                                AppointmentStatus.CONFIRMED.value
-                            ])),
-                            1
-                        ),
-                        else_=0
-                    )
-                ).label("upcoming"),
-                func.sum(
-                    case(
-                        (
-                            (Appointment.scheduled_at >= today_start) &
-                            (Appointment.scheduled_at <= today_end),
-                            1
-                        ),
-                        else_=0
-                    )
-                ).label("today"),
-            ).filter(
-                Appointment.practitioner_id == physician_id
-            ).first()
+            result = (
+                self.db.query(
+                    func.count(Appointment.id).label("total"),
+                    func.sum(
+                        case(
+                            (
+                                Appointment.status == AppointmentStatus.COMPLETED.value,
+                                1,
+                            ),
+                            else_=0,
+                        )
+                    ).label("completed"),
+                    func.sum(
+                        case(
+                            (
+                                Appointment.status.in_(
+                                    [
+                                        AppointmentStatus.CANCELLED.value,
+                                        AppointmentStatus.NO_SHOW.value,
+                                    ]
+                                ),
+                                1,
+                            ),
+                            else_=0,
+                        )
+                    ).label("cancelled"),
+                    func.sum(
+                        case(
+                            (
+                                (Appointment.scheduled_at > datetime.utcnow())
+                                & (
+                                    Appointment.status.in_(
+                                        [
+                                            AppointmentStatus.SCHEDULED.value,
+                                            AppointmentStatus.CONFIRMED.value,
+                                        ]
+                                    )
+                                ),
+                                1,
+                            ),
+                            else_=0,
+                        )
+                    ).label("upcoming"),
+                    func.sum(
+                        case(
+                            (
+                                (Appointment.scheduled_at >= today_start)
+                                & (Appointment.scheduled_at <= today_end),
+                                1,
+                            ),
+                            else_=0,
+                        )
+                    ).label("today"),
+                )
+                .filter(Appointment.practitioner_id == physician_id)
+                .first()
+            )
 
             return AppointmentStats(
                 total_scheduled=result.total or 0,
                 completed=result.completed or 0,
                 cancelled=result.cancelled or 0,
                 upcoming=result.upcoming or 0,
-                today=result.today or 0
+                today=result.today or 0,
             )
         except Exception as e:
             logger.warning(f"Failed to calculate appointment stats: {e}")
             return AppointmentStats(
-                total_scheduled=0,
-                completed=0,
-                cancelled=0,
-                upcoming=0,
-                today=0
+                total_scheduled=0, completed=0, cancelled=0, upcoming=0, today=0
             )
 
     def _calculate_alert_stats(self, physician_id: UUID) -> AlertStats:
         """Calculate alert statistics with optimized queries."""
-        patient_ids = self.db.query(Patient.id).filter(
-            Patient.doctor_id == physician_id,
-            Patient.deleted_at.is_(None)
-        ).subquery()
+        patient_ids = (
+            self.db.query(Patient.id)
+            .filter(Patient.doctor_id == physician_id, Patient.deleted_at.is_(None))
+            .subquery()
+        )
 
-        result = self.db.query(
-            func.count(Alert.id).label("total"),
-            func.sum(
-                case((Alert.severity == AlertSeverity.CRITICAL, 1), else_=0)
-            ).label("critical"),
-            func.sum(
-                case((Alert.severity == AlertSeverity.HIGH, 1), else_=0)
-            ).label("high"),
-            func.sum(
-                case((Alert.severity == AlertSeverity.MEDIUM, 1), else_=0)
-            ).label("medium"),
-            func.sum(
-                case((Alert.severity == AlertSeverity.LOW, 1), else_=0)
-            ).label("low"),
-        ).filter(
-            Alert.patient_id.in_(patient_ids),
-            Alert.status.in_([AlertStatus.PENDING, AlertStatus.ACTIVE])
-        ).first()
+        result = (
+            self.db.query(
+                func.count(Alert.id).label("total"),
+                func.sum(
+                    case((Alert.severity == AlertSeverity.CRITICAL, 1), else_=0)
+                ).label("critical"),
+                func.sum(
+                    case((Alert.severity == AlertSeverity.HIGH, 1), else_=0)
+                ).label("high"),
+                func.sum(
+                    case((Alert.severity == AlertSeverity.MEDIUM, 1), else_=0)
+                ).label("medium"),
+                func.sum(case((Alert.severity == AlertSeverity.LOW, 1), else_=0)).label(
+                    "low"
+                ),
+            )
+            .filter(
+                Alert.patient_id.in_(patient_ids),
+                Alert.status.in_([AlertStatus.PENDING, AlertStatus.ACTIVE]),
+            )
+            .first()
+        )
 
         return AlertStats(
             total=result.total or 0,
             critical=result.critical or 0,
             high=result.high or 0,
             medium=result.medium or 0,
-            low=result.low or 0
+            low=result.low or 0,
         )
 
     def _calculate_satisfaction_score(
@@ -383,7 +400,7 @@ class PhysicianStatisticsService:
         patient_metrics: Dict,
         message_stats: MessageStats,
         appointment_stats: AppointmentStats,
-        alert_stats: AlertStats
+        alert_stats: AlertStats,
     ) -> Optional[float]:
         """Calculate patient satisfaction score based on multiple factors."""
         try:
@@ -410,9 +427,9 @@ class PhysicianStatisticsService:
 
             # Weighted average (scale 0-5)
             raw_score = (
-                appt_completion_rate * 0.4 +
-                alert_severity_score * 0.3 +
-                response_rate_score * 0.3
+                appt_completion_rate * 0.4
+                + alert_severity_score * 0.3
+                + response_rate_score * 0.3
             ) * 5
 
             return round(min(5.0, max(0.0, raw_score)), 2)
@@ -423,16 +440,21 @@ class PhysicianStatisticsService:
     def _calculate_treatment_duration(self, physician_id: UUID) -> Optional[float]:
         """Calculate average treatment duration in days."""
         try:
-            avg_duration = self.db.query(
-                func.avg(
-                    func.extract('epoch', Patient.updated_at) -
-                    func.extract('epoch', Patient.created_at)
-                ) / 86400  # Convert to days
-            ).filter(
-                Patient.doctor_id == physician_id,
-                Patient.flow_state == FlowState.CANCELLED,
-                Patient.deleted_at.is_(None)
-            ).scalar()
+            avg_duration = (
+                self.db.query(
+                    func.avg(
+                        func.extract("epoch", Patient.updated_at)
+                        - func.extract("epoch", Patient.created_at)
+                    )
+                    / 86400  # Convert to days
+                )
+                .filter(
+                    Patient.doctor_id == physician_id,
+                    Patient.flow_state == FlowState.CANCELLED,
+                    Patient.deleted_at.is_(None),
+                )
+                .scalar()
+            )
 
             if avg_duration:
                 return round(float(avg_duration), 1)
@@ -465,9 +487,7 @@ class PhysicianStatisticsService:
         try:
             cache_key = f"physician:stats:{physician_id}"
             self.redis_client.setex(
-                cache_key,
-                self.cache_ttl,
-                statistics.model_dump_json()
+                cache_key, self.cache_ttl, statistics.model_dump_json()
             )
             logger.info(
                 f"Cached statistics for physician {physician_id} "

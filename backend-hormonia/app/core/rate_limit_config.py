@@ -16,7 +16,7 @@ Usage:
     config = get_rate_limit_config(RateLimitEndpoint.API_PATIENTS)
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, List
 from dataclasses import dataclass
 from enum import Enum
 
@@ -571,7 +571,7 @@ def _validate_all_configs():
 
         logger = logging.getLogger(__name__)
         logger.warning(
-            f"Rate limit configuration validation warnings:\n" + "\n".join(all_errors)
+            "Rate limit configuration validation warnings:\n" + "\n".join(all_errors)
         )
 
 

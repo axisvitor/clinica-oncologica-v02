@@ -45,6 +45,7 @@ async def get_cached_result(cache_key: str) -> Optional[Dict]:
     """
     try:
         from app.core.redis_unified import get_async_redis
+
         redis_client = await get_async_redis()
         if redis_client is None:
             return None
@@ -69,6 +70,7 @@ async def set_cached_result(cache_key: str, data: Dict, ttl: int) -> None:
     """
     try:
         from app.core.redis_unified import get_async_redis
+
         redis_client = await get_async_redis()
         if redis_client is None:
             return

@@ -19,7 +19,6 @@ from enum import Enum
 import logging
 
 from ..types import (
-    FlowType,
     FlowStatus,
     FlowContext,
     FlowPriority,

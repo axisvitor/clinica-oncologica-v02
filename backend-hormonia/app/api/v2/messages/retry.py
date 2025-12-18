@@ -16,7 +16,10 @@ from app.models.message import Message, MessageStatus
 from app.models.patient import Patient
 from app.models.user import UserRole
 from app.domain.messaging.core import MessageService
-from app.tasks.messaging import send_scheduled_message, retry_failed_messages as retry_failed_messages_task
+from app.tasks.messaging import (
+    send_scheduled_message,
+    retry_failed_messages as retry_failed_messages_task,
+)
 from app.schemas.v2.messages import (
     MessageV2Response,
     RetryMessageV2Request,
@@ -38,22 +41,21 @@ logger = logging.getLogger(__name__)
     "/{message_id}/retry",
     response_model=MessageV2Response,
     summary="Retry failed message",
-    description="Retry sending a specific failed message"
+    description="Retry sending a specific failed message",
 )
 async def retry_message(
     message_id: str,
     retry_request: Optional[RetryMessageV2Request] = None,
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
 ):
     """Retry sending a failed message."""
     try:
         msg_uuid = UUID(message_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid message ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid message ID format"
         )
 
     message_service = MessageService(db)
@@ -61,8 +63,7 @@ async def retry_message(
 
     if not message:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Message not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Message not found"
         )
 
     # RBAC check
@@ -71,15 +72,14 @@ async def retry_message(
         patient = db.query(Patient).filter(Patient.id == message.patient_id).first()
         if not patient or str(patient.doctor_id) != user_id:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied"
+                status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
             )
 
     # Check if message can be retried
     if message.status not in [MessageStatus.FAILED, MessageStatus.PENDING]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Message can only be retried if it's in FAILED or PENDING status"
+            detail="Message can only be retried if it's in FAILED or PENDING status",
         )
 
     # Update content if provided
@@ -92,9 +92,9 @@ async def retry_message(
     db.query(Message).filter(Message.id == message.id).with_for_update().update(
         {
             Message.status: MessageStatus.PENDING,
-            Message.retry_count: func.coalesce(Message.retry_count, 0) + 1
+            Message.retry_count: func.coalesce(Message.retry_count, 0) + 1,
         },
-        synchronize_session="fetch"
+        synchronize_session="fetch",
     )
     db.commit()
     db.refresh(message)
@@ -108,12 +108,12 @@ async def retry_message(
 @router.post(
     "/retry-failed",
     summary="Retry all failed messages",
-    description="Retry sending all failed messages (batch operation)"
+    description="Retry sending all failed messages (batch operation)",
 )
 async def retry_failed_messages(
     limit: int = Query(50, ge=1, le=100, description="Max messages to retry"),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
 ):
     """Retry all failed messages via Celery task."""
     # Dispatch Celery task for async processing
@@ -131,12 +131,12 @@ async def retry_failed_messages(
     "/failed",
     response_model=FailedMessagesV2List,
     summary="List failed messages",
-    description="Get list of failed messages with cursor pagination"
+    description="Get list of failed messages with cursor pagination",
 )
 async def list_failed_messages(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
-    pagination = Depends(get_pagination_params),
+    current_user=Depends(get_current_user_from_session),
+    pagination=Depends(get_pagination_params),
 ):
     """List failed messages."""
     cursor_data = pagination["cursor_data"]
@@ -154,10 +154,12 @@ async def list_failed_messages(
     # Cursor pagination
     if cursor_data and "id" in cursor_data:
         cursor_id = UUID(cursor_data["id"])
-        cursor_created_at = datetime.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
+        cursor_created_at = datetime.fromisoformat(
+            cursor_data["created_at"].replace("Z", "+00:00")
+        )
         query = query.filter(
-            (Message.created_at < cursor_created_at) |
-            ((Message.created_at == cursor_created_at) & (Message.id > cursor_id))
+            (Message.created_at < cursor_created_at)
+            | ((Message.created_at == cursor_created_at) & (Message.id > cursor_id))
         )
 
     total = None

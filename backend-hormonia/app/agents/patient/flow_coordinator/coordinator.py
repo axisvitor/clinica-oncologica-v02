@@ -2,14 +2,13 @@
 Flow Coordinator Agent - Main coordinator class.
 """
 
-import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.agents.base import BaseAgent, MessagePriority
+from app.agents.base import BaseAgent
 from app.models.message import Message, MessageType, MessageDirection, MessageStatus
 from app.domain.messaging.delivery import MessageSender
 from app.services.template_loader import EnhancedTemplateLoader
@@ -35,22 +34,33 @@ class FlowCoordinatorAgent(BaseAgent):
     - Manage transitions between different flow types
     """
 
-    def __init__(self, db_session: Session, template_loader: Optional[EnhancedTemplateLoader] = None, **kwargs):
+    def __init__(
+        self,
+        db_session: Session,
+        template_loader: Optional[EnhancedTemplateLoader] = None,
+        **kwargs,
+    ):
         """Initialize FlowCoordinatorAgent."""
         super().__init__(
             agent_id=f"flow_coordinator_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
             agent_type="patient",
             specialization="flow_coordinator",
             db_session=db_session,
-            **kwargs
+            **kwargs,
         )
 
         # Initialize component managers
         self.state_manager = StateManager(db_session, self.agent_id, self.logger)
         self.decision_engine = DecisionEngine(self.agent_id, self.logger)
-        self.message_generator = MessageGenerator(db_session, self.agent_id, self.logger, template_loader)
-        self.transition_handler = TransitionHandler(db_session, self.agent_id, self.logger)
-        self.consensus_manager = ConsensusManager(self.agent_id, self.logger, self.send_message)
+        self.message_generator = MessageGenerator(
+            db_session, self.agent_id, self.logger, template_loader
+        )
+        self.transition_handler = TransitionHandler(
+            db_session, self.agent_id, self.logger
+        )
+        self.consensus_manager = ConsensusManager(
+            self.agent_id, self.logger, self.send_message
+        )
 
         # Service dependencies
         self.flow_engine = None  # Initialized during start
@@ -63,7 +73,7 @@ class FlowCoordinatorAgent(BaseAgent):
             "timing_optimization",
             "phase_transition",
             "patient_adaptation",
-            "consensus_participation"
+            "consensus_participation",
         ]
 
         # Flow timing parameters
@@ -108,7 +118,7 @@ class FlowCoordinatorAgent(BaseAgent):
             "evaluate_flow_transition",
             "optimize_message_timing",
             "adapt_flow_content",
-            "coordinate_intervention"
+            "coordinate_intervention",
         ]
 
         if task_type not in compatible_tasks:
@@ -118,7 +128,9 @@ class FlowCoordinatorAgent(BaseAgent):
         if task_type == "process_daily_flow":
             return "patient_id" in required_fields and "current_day" in required_fields
         elif task_type == "evaluate_flow_transition":
-            return "patient_id" in required_fields and "flow_state_id" in required_fields
+            return (
+                "patient_id" in required_fields and "flow_state_id" in required_fields
+            )
         elif task_type in ["optimize_message_timing", "adapt_flow_content"]:
             return "patient_id" in required_fields
 
@@ -168,7 +180,7 @@ class FlowCoordinatorAgent(BaseAgent):
             context,
             analysis,
             self.decision_engine.requires_consensus_decision,
-            self.consensus_manager.seek_agent_consensus
+            self.consensus_manager.seek_agent_consensus,
         )
 
         # Execute decision
@@ -180,13 +192,11 @@ class FlowCoordinatorAgent(BaseAgent):
             "current_day": current_day,
             "decision": decision.value,
             "analysis": analysis,
-            "execution": execution_result
+            "execution": execution_result,
         }
 
     async def _execute_flow_decision(
-        self,
-        decision: FlowDecision,
-        context: FlowContext
+        self, decision: FlowDecision, context: FlowContext
     ) -> Dict[str, Any]:
         """Execute the flow decision."""
         execution_result = {"decision": decision.value, "actions_taken": []}
@@ -244,7 +254,9 @@ class FlowCoordinatorAgent(BaseAgent):
 
         try:
             # Determine appropriate message for current day
-            message_content = await self.message_generator.generate_daily_message(context)
+            message_content = await self.message_generator.generate_daily_message(
+                context
+            )
 
             if message_content:
                 # Create and send message
@@ -256,11 +268,13 @@ class FlowCoordinatorAgent(BaseAgent):
                     message_metadata={
                         "flow_day": context.current_day,
                         "generated_by": self.agent_id,
-                        "personalization_level": message_content.get("personalization_level", "standard"),
-                        "flow_decision": "continue_current"
+                        "personalization_level": message_content.get(
+                            "personalization_level", "standard"
+                        ),
+                        "flow_decision": "continue_current",
                     },
                     status=MessageStatus.PENDING,
-                    scheduled_for=datetime.utcnow()
+                    scheduled_for=datetime.utcnow(),
                 )
 
                 # Save and send
@@ -276,11 +290,13 @@ class FlowCoordinatorAgent(BaseAgent):
                         if not context.flow_state.state_data:
                             context.flow_state.state_data = {}
 
-                        context.flow_state.state_data.update({
-                            "last_message_sent": datetime.utcnow().isoformat(),
-                            "current_day": context.current_day,
-                            "decision_agent": self.agent_id
-                        })
+                        context.flow_state.state_data.update(
+                            {
+                                "last_message_sent": datetime.utcnow().isoformat(),
+                                "current_day": context.current_day,
+                                "decision_agent": self.agent_id,
+                            }
+                        )
 
                         self.db_session.commit()
 
@@ -289,7 +305,9 @@ class FlowCoordinatorAgent(BaseAgent):
 
         return {"messages_sent": messages_sent}
 
-    async def _evaluate_flow_transition(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+    async def _evaluate_flow_transition(
+        self, payload: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Evaluate if patient should transition flow phases."""
         patient_id = UUID(payload["patient_id"])
         flow_state_id = payload["flow_state_id"]
@@ -300,16 +318,18 @@ class FlowCoordinatorAgent(BaseAgent):
             return {"success": False, "error": "Flow state not found"}
 
         # Build context for evaluation
-        context = await self.state_manager.build_flow_context(patient_id, flow_state.current_day or 0)
+        context = await self.state_manager.build_flow_context(
+            patient_id, flow_state.current_day or 0
+        )
 
         # Analyze readiness for transition
         analysis = await self.decision_engine.analyze_flow_situation(context)
 
         # Determine if transition is recommended
         transition_ready = (
-            analysis["progress_score"] >= 0.6 and
-            analysis["risk_level"] != "high" and
-            analysis["engagement_score"] >= 0.4
+            analysis["progress_score"] >= 0.6
+            and analysis["risk_level"] != "high"
+            and analysis["engagement_score"] >= 0.4
         )
 
         return {
@@ -317,7 +337,7 @@ class FlowCoordinatorAgent(BaseAgent):
             "patient_id": str(patient_id),
             "transition_ready": transition_ready,
             "analysis": analysis,
-            "recommendations": analysis["recommendations"]
+            "recommendations": analysis["recommendations"],
         }
 
     async def _optimize_message_timing(self, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -333,7 +353,7 @@ class FlowCoordinatorAgent(BaseAgent):
         return {
             "success": True,
             "patient_id": str(patient_id),
-            "optimized_timing": optimized_timing
+            "optimized_timing": optimized_timing,
         }
 
     async def _adapt_flow_content(self, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -346,11 +366,7 @@ class FlowCoordinatorAgent(BaseAgent):
         # Personalize content
         await self.transition_handler.personalize_content(context)
 
-        return {
-            "success": True,
-            "patient_id": str(patient_id),
-            "content_adapted": True
-        }
+        return {"success": True, "patient_id": str(patient_id), "content_adapted": True}
 
     async def _coordinate_intervention(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Coordinate intervention for patient."""
@@ -372,7 +388,7 @@ class FlowCoordinatorAgent(BaseAgent):
             "success": True,
             "patient_id": str(patient_id),
             "intervention_type": intervention_type,
-            "coordinated": True
+            "coordinated": True,
         }
 
     # Template management methods

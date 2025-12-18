@@ -43,7 +43,9 @@ class UserRepository(BaseRepository[User]):
         """
         return self.db.query(User).filter(User.firebase_uid == firebase_uid).first()
 
-    def get_active_users(self, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[User]:
+    def get_active_users(
+        self, skip: int = 0, limit: int = 100, eager_load: bool = True
+    ) -> List[User]:
         """
         Get all active users with eager loading enabled by default.
 
@@ -61,10 +63,7 @@ class UserRepository(BaseRepository[User]):
         Returns:
             List of active users with relationships pre-loaded
         """
-        query = (
-            self.db.query(User)
-            .filter(User.is_active == True)
-        )
+        query = self.db.query(User).filter(User.is_active)
 
         if eager_load:
             # PERFORMANCE: Eager load patients relationship to prevent N+1 queries

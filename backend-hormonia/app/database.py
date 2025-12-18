@@ -2,19 +2,25 @@
 
 CRITICAL FIX #3: Dynamic pool configuration based on environment to prevent connection exhaustion.
 FIX #5: Enhanced database optimization with comprehensive indexing strategy."""
-from sqlalchemy import create_engine, event, Index, text
+
+from sqlalchemy import text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import QueuePool
 from typing import Generator
 import logging
-import time
 from contextlib import contextmanager
 
 from app.config import settings
-from app.utils.database_optimization import create_optimized_engine, ConnectionPoolMonitor
-from app.utils.query_performance import QueryPerformanceMonitor, IndexManager
-from app.core.database_config import get_pool_config, validate_pool_config, detect_environment
+from app.utils.database_optimization import (
+    create_optimized_engine,
+    ConnectionPoolMonitor,
+)
+from app.core.database_config import (
+    get_pool_config,
+    validate_pool_config,
+    detect_environment,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,16 +53,13 @@ engine = create_optimized_engine(
     pool_pre_ping=pool_config.pool_pre_ping,
     pool_recycle=pool_config.pool_recycle,
     pool_timeout=pool_config.pool_timeout,
-
     # Advanced connection health and performance settings
-    pool_reset_on_return='commit',  # Reset connection state on return
-    pool_logging_name='hormonia_db', # Named logging for debugging
-
+    pool_reset_on_return="commit",  # Reset connection state on return
+    pool_logging_name="hormonia_db",  # Named logging for debugging
     # Connection validation and cleanup with environment-aware timeouts
     connect_args=pool_config.get_connect_args(),
-
     echo=settings.APP_ENABLE_DEBUG,
-    echo_pool=settings.APP_ENABLE_DEBUG if hasattr(settings, 'DEBUG') else False
+    echo_pool=settings.APP_ENABLE_DEBUG if hasattr(settings, "DEBUG") else False,
 )
 
 # Connection pool monitor
@@ -121,6 +124,7 @@ def is_pool_healthy():
 # THREAD-SAFE SESSION UTILITIES
 # ==============================================================================
 
+
 @contextmanager
 def get_scoped_session():
     """
@@ -175,14 +179,14 @@ def test_connection():
                     "checked_in": engine.pool.checkedin(),
                     "checked_out": engine.pool.checkedout(),
                     "overflow": engine.pool.overflow(),
-                }
+                },
             }
     except Exception as e:
         logger.error(f"Database connection test failed: {e}")
         return {
             "status": "unhealthy",
             "error": str(e),
-            "pool_info": get_pool_status() if pool_monitor else None
+            "pool_info": get_pool_status() if pool_monitor else None,
         }
 
 
@@ -197,7 +201,9 @@ def get_engine(use_service_role: bool = False):
         Engine: The primary SQLAlchemy engine instance.
     """
     if use_service_role:
-        logger.debug("get_engine called with use_service_role=True; returning primary engine")
+        logger.debug(
+            "get_engine called with use_service_role=True; returning primary engine"
+        )
     return engine
 
 
@@ -228,11 +234,13 @@ def force_pool_recreation():
             pool_pre_ping=pool_config.pool_pre_ping,
             pool_recycle=pool_config.pool_recycle,
             pool_timeout=pool_config.pool_timeout,
-            pool_reset_on_return='commit',
-            pool_logging_name='hormonia_db',
+            pool_reset_on_return="commit",
+            pool_logging_name="hormonia_db",
             connect_args=pool_config.get_connect_args(),
             echo=settings.APP_ENABLE_DEBUG,
-            echo_pool=settings.APP_ENABLE_DEBUG if hasattr(settings, 'DEBUG') else False
+            echo_pool=settings.APP_ENABLE_DEBUG
+            if hasattr(settings, "DEBUG")
+            else False,
         )
 
         # Recreate session factory
@@ -255,7 +263,7 @@ def force_pool_recreation():
 def get_engine_info():
     """Get detailed information about the database engine configuration."""
     return {
-        "url": str(engine.url).replace(engine.url.password or '', '***'),
+        "url": str(engine.url).replace(engine.url.password or "", "***"),
         "driver": engine.driver,
         "environment": detect_environment(),
         "pool_class": str(type(engine.pool)),
@@ -273,5 +281,5 @@ def get_engine_info():
             "checked_out": engine.pool.checkedout(),
             "overflow": engine.pool.overflow(),
             "total_in_use": engine.pool.checkedout() + engine.pool.overflow(),
-        }
+        },
     }

@@ -1,6 +1,7 @@
 """
 SQLAlchemy models for Hormonia Backend System.
 """
+
 from app.models.base import BaseModel
 from app.models.user import User, UserRole, AuthProvider
 from app.models.patient import Patient, FlowState
@@ -21,14 +22,16 @@ from app.models.ab_experiment import (
     ABExperimentMonitoring,
     ExperimentStatus,
     VariantType,
-    PatientSafetyLevel
+    PatientSafetyLevel,
 )
+
 # Pydantic models for API responses (not SQLAlchemy)
 from app.models.physician import (
     RiskAssessment,
     PatientRiskProfile,
-    RiskAssessmentsResponse
+    RiskAssessmentsResponse,
 )
+
 # Audit logging models
 from app.models.audit_log import AuditLog, AuditEventType
 from app.models.user_sync_log import UserSyncLog
@@ -56,7 +59,7 @@ from app.models.system_health import (
     SystemIncident,
     HealthStatus,
     IncidentSeverity,
-    IncidentStatus
+    IncidentStatus,
 )
 
 # Upload tracking for quota management (P2-3)
@@ -68,18 +71,15 @@ from app.models.patient_summary import PatientSummary
 __all__ = [
     # Base
     "BaseModel",
-
     # User models
     "User",
     "UserRole",
     "AuthProvider",
-
     # Patient models
     "Patient",
     "FlowState",
     "PatientOnboardingSaga",
     "SagaStatus",
-
     # Message models
     "Message",
     "MessageDirection",
@@ -88,29 +88,23 @@ __all__ = [
     "MessageStatusEvent",
     "EvolutionWebhookEvent",  # Evolution API webhook debugging
     "WebhookEvent",  # Idempotency tracking from webhook_event.py
-
     # Flow models
     "PatientFlowState",
     "FlowKind",
     "FlowTemplateVersion",
-
     # Quiz models
     "QuizTemplate",
     "QuizResponse",
-
     # Report models
     "MedicalReport",
-
     # Alert models
     "Alert",
     "AlertSeverity",
     "AlertStatus",
-
     # Analytics models
     "FlowAnalytics",
     "FlowMessage",
     "QuizQuestion",
-
     # A/B Testing models
     "ABExperiment",
     "ABVariantAssignment",
@@ -121,17 +115,14 @@ __all__ = [
     "ExperimentStatus",
     "VariantType",
     "PatientSafetyLevel",
-
     # Physician API models (Pydantic)
     "RiskAssessment",
     "PatientRiskProfile",
     "RiskAssessmentsResponse",
-
     # Audit logging models
     "AuditLog",
     "AuditEventType",
     "UserSyncLog",
-
     # Sprint 1: Eager loading optimization models (P1-2)
     "Treatment",
     "TreatmentStatus",
@@ -147,30 +138,24 @@ __all__ = [
     "Consent",
     "ConsentType",
     "ConsentStatus",
-
     # Sprint 2: Webhook idempotency (P6) - WebhookEvent exported above
     "FailedMessage",
     "FailureReason",
     "DLQStatus",
-
     # Error tracking models
     "ErrorLog",
-
     # System Health models
     "SystemHealthSnapshot",
     "SystemIncident",
     "HealthStatus",
     "IncidentSeverity",
     "IncidentStatus",
-
     # Upload tracking (P2-3)
     "Upload",
-
     # Webhook Management (P6)
     "WebhookEndpoint",
     "WebhookDelivery",
     "WebhookLog",
-
     # AI Patient Summaries
     "PatientSummary",
 ]

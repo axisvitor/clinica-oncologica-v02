@@ -8,11 +8,8 @@ implementation in security_headers.py.
 
 from .security_headers import (
     SecurityHeadersMiddleware,
-    create_production_security_middleware
+    create_production_security_middleware,
 )
 
 # Re-export for compatibility
-__all__ = [
-    "SecurityHeadersMiddleware",
-    "create_production_security_middleware"
-]
+__all__ = ["SecurityHeadersMiddleware", "create_production_security_middleware"]

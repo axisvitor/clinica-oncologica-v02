@@ -24,14 +24,13 @@ Author: Claude Code (Backend API Developer)
 
 import hashlib
 import json
-import logging
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional, Set, Tuple, Union, Any
+from typing import Dict, List, Optional, Any
 from uuid import uuid4
 
 import jwt
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from app.core.redis_unified import get_redis_client
 from app.core.security_config import get_security_config
@@ -43,6 +42,7 @@ logger = get_logger(__name__)
 # =============================================================================
 # CONFIGURATION MODELS
 # =============================================================================
+
 
 class TokenBlacklistConfig(BaseModel):
     """Configuration for token blacklisting system."""
@@ -101,6 +101,7 @@ class BlacklistStats(BaseModel):
 # MAIN TOKEN BLACKLIST MANAGER
 # =============================================================================
 
+
 class TokenBlacklistManager:
     """
     Redis-based token blacklisting manager for distributed JWT security.
@@ -133,7 +134,7 @@ class TokenBlacklistManager:
                 self.redis.setex(
                     stats_key,
                     timedelta(days=self.config.metrics_retention_days),
-                    json.dumps(initial_stats.dict())
+                    json.dumps(initial_stats.dict()),
                 )
                 logger.info("Initialized blacklist metrics storage")
         except Exception as e:
@@ -152,7 +153,7 @@ class TokenBlacklistManager:
         if not self.config.hash_token_content:
             return token
 
-        return hashlib.sha256(token.encode('utf-8')).hexdigest()
+        return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
     def _parse_token_claims(self, token: str) -> Optional[Dict[str, Any]]:
         """
@@ -173,7 +174,9 @@ class TokenBlacklistManager:
             logger.warning(f"Failed to parse token claims: {e}")
             return None
 
-    def _get_token_ttl(self, token: str, claims: Optional[Dict[str, Any]] = None) -> Optional[int]:
+    def _get_token_ttl(
+        self, token: str, claims: Optional[Dict[str, Any]] = None
+    ) -> Optional[int]:
         """
         Calculate TTL for token based on its expiry time.
 
@@ -188,11 +191,11 @@ class TokenBlacklistManager:
             if claims is None:
                 claims = self._parse_token_claims(token)
 
-            if not claims or 'exp' not in claims:
+            if not claims or "exp" not in claims:
                 # Default TTL if expiry not found
                 return int(timedelta(hours=24).total_seconds())
 
-            exp_timestamp = claims['exp']
+            exp_timestamp = claims["exp"]
             current_timestamp = time.time()
 
             ttl = int(exp_timestamp - current_timestamp)
@@ -224,18 +227,16 @@ class TokenBlacklistManager:
                 "operation": operation,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "token_metadata": token_metadata.dict(),
-                "audit_id": audit_id
+                "audit_id": audit_id,
             }
 
             audit_key = self._create_audit_key(audit_id)
             # Store audit logs for 30 days
-            self.redis.setex(
-                audit_key,
-                timedelta(days=30),
-                json.dumps(audit_data)
-            )
+            self.redis.setex(audit_key, timedelta(days=30), json.dumps(audit_data))
 
-            logger.info(f"Audit event logged: {operation} for token {token_metadata.token_id}")
+            logger.info(
+                f"Audit event logged: {operation} for token {token_metadata.token_id}"
+            )
 
         except Exception as e:
             logger.error(f"Failed to log audit event: {e}")
@@ -282,7 +283,7 @@ class TokenBlacklistManager:
             self.redis.setex(
                 stats_key,
                 timedelta(days=self.config.metrics_retention_days),
-                json.dumps(stats.dict())
+                json.dumps(stats.dict()),
             )
 
         except Exception as e:
@@ -299,7 +300,7 @@ class TokenBlacklistManager:
         user_id: Optional[str] = None,
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
     ) -> bool:
         """
         Add a token to the blacklist.
@@ -340,19 +341,25 @@ class TokenBlacklistManager:
                 token_id=claims.get("jti", token_hash[:16]),
                 user_id=user_id or claims.get("sub"),
                 token_type=token_type,
-                issued_at=datetime.fromtimestamp(claims.get("iat", time.time()), timezone.utc),
-                expires_at=datetime.fromtimestamp(claims.get("exp", time.time() + 3600), timezone.utc),
+                issued_at=datetime.fromtimestamp(
+                    claims.get("iat", time.time()), timezone.utc
+                ),
+                expires_at=datetime.fromtimestamp(
+                    claims.get("exp", time.time() + 3600), timezone.utc
+                ),
                 blacklisted_at=now,
                 reason=reason,
                 ip_address=ip_address,
                 user_agent=user_agent,
-                session_id=session_id
+                session_id=session_id,
             )
 
             # Calculate TTL
             ttl = self._get_token_ttl(token, claims)
             if ttl is None or ttl <= 0:
-                logger.info(f"Token already expired, not blacklisting: {token_hash[:16]}...")
+                logger.info(
+                    f"Token already expired, not blacklisting: {token_hash[:16]}..."
+                )
                 return True
 
             # Store in Redis with TTL
@@ -365,7 +372,9 @@ class TokenBlacklistManager:
             # Update statistics
             self._update_stats("blacklist", token_metadata)
 
-            logger.info(f"Token blacklisted successfully: {token_hash[:16]}... (TTL: {ttl}s)")
+            logger.info(
+                f"Token blacklisted successfully: {token_hash[:16]}... (TTL: {ttl}s)"
+            )
             return True
 
         except Exception as e:
@@ -398,7 +407,9 @@ class TokenBlacklistManager:
             # Fail secure: assume blacklisted if check fails
             return True
 
-    def blacklist_tokens_bulk(self, tokens_data: List[Dict[str, Any]]) -> Dict[str, bool]:
+    def blacklist_tokens_bulk(
+        self, tokens_data: List[Dict[str, Any]]
+    ) -> Dict[str, bool]:
         """
         Blacklist multiple tokens in bulk for better performance.
 
@@ -421,7 +432,7 @@ class TokenBlacklistManager:
             batch_size = self.config.bulk_operation_size
 
             for i in range(0, len(tokens_data), batch_size):
-                batch = tokens_data[i:i + batch_size]
+                batch = tokens_data[i : i + batch_size]
 
                 # Use Redis pipeline for atomic batch operations
                 pipeline = self.redis.pipeline()
@@ -440,19 +451,25 @@ class TokenBlacklistManager:
 
                         # Create metadata
                         now = datetime.now(timezone.utc)
-                        token_type = "refresh" if claims.get("type") == "refresh" else "access"
+                        token_type = (
+                            "refresh" if claims.get("type") == "refresh" else "access"
+                        )
 
                         metadata = TokenMetadata(
                             token_id=claims.get("jti", token_hash[:16]),
                             user_id=token_data.get("user_id") or claims.get("sub"),
                             token_type=token_type,
-                            issued_at=datetime.fromtimestamp(claims.get("iat", time.time()), timezone.utc),
-                            expires_at=datetime.fromtimestamp(claims.get("exp", time.time() + 3600), timezone.utc),
+                            issued_at=datetime.fromtimestamp(
+                                claims.get("iat", time.time()), timezone.utc
+                            ),
+                            expires_at=datetime.fromtimestamp(
+                                claims.get("exp", time.time() + 3600), timezone.utc
+                            ),
                             blacklisted_at=now,
                             reason=token_data.get("reason", "bulk_revoke"),
                             ip_address=token_data.get("ip_address"),
                             user_agent=token_data.get("user_agent"),
-                            session_id=token_data.get("session_id")
+                            session_id=token_data.get("session_id"),
                         )
 
                         batch_metadata.append((token_hash, metadata, claims))
@@ -481,7 +498,9 @@ class TokenBlacklistManager:
 
                 logger.info(f"Bulk blacklisted {len(batch_metadata)} tokens in batch")
 
-            logger.info(f"Bulk blacklist completed: {sum(results.values())}/{len(results)} successful")
+            logger.info(
+                f"Bulk blacklist completed: {sum(results.values())}/{len(results)} successful"
+            )
             return results
 
         except Exception as e:
@@ -492,7 +511,7 @@ class TokenBlacklistManager:
         self,
         user_id: str,
         reason: str = "user_revoke",
-        exclude_tokens: Optional[List[str]] = None
+        exclude_tokens: Optional[List[str]] = None,
     ) -> int:
         """
         Revoke all tokens for a specific user.
@@ -530,14 +549,17 @@ class TokenBlacklistManager:
             # With Redis TTL, expired keys are automatically removed
             # This method is mainly for statistics and logging
 
-            self._update_stats("cleanup", TokenMetadata(
-                token_id="cleanup",
-                token_type="system",
-                issued_at=datetime.now(timezone.utc),
-                expires_at=datetime.now(timezone.utc),
-                blacklisted_at=datetime.now(timezone.utc),
-                reason="cleanup"
-            ))
+            self._update_stats(
+                "cleanup",
+                TokenMetadata(
+                    token_id="cleanup",
+                    token_type="system",
+                    issued_at=datetime.now(timezone.utc),
+                    expires_at=datetime.now(timezone.utc),
+                    blacklisted_at=datetime.now(timezone.utc),
+                    reason="cleanup",
+                ),
+            )
 
             logger.info("Token cleanup completed (Redis handles TTL automatically)")
             return 0
@@ -617,20 +639,19 @@ class TokenBlacklistManager:
                 "redis_connection": redis_healthy,
                 "total_blacklisted": stats.total_blacklisted,
                 "blacklisted_today": stats.blacklisted_today,
-                "last_cleanup": stats.last_cleanup.isoformat() if stats.last_cleanup else None,
+                "last_cleanup": stats.last_cleanup.isoformat()
+                if stats.last_cleanup
+                else None,
                 "config": {
                     "hash_tokens": self.config.hash_token_content,
                     "audit_enabled": self.config.audit_token_operations,
-                    "metrics_enabled": self.config.enable_metrics
-                }
+                    "metrics_enabled": self.config.enable_metrics,
+                },
             }
 
         except Exception as e:
             logger.error(f"Health check failed: {e}")
-            return {
-                "healthy": False,
-                "error": str(e)
-            }
+            return {"healthy": False, "error": str(e)}
 
 
 # =============================================================================
@@ -671,10 +692,7 @@ def is_token_blacklisted(token: str) -> bool:
 
 
 def blacklist_token(
-    token: str,
-    reason: str = "logout",
-    user_id: Optional[str] = None,
-    **kwargs
+    token: str, reason: str = "logout", user_id: Optional[str] = None, **kwargs
 ) -> bool:
     """
     Convenience function to blacklist a token.
@@ -700,5 +718,5 @@ __all__ = [
     "BlacklistStats",
     "get_token_blacklist_manager",
     "is_token_blacklisted",
-    "blacklist_token"
+    "blacklist_token",
 ]

@@ -2,6 +2,7 @@
 Empathetic follow-up message generator.
 Creates personalized, empathetic messages for patient responses.
 """
+
 import logging
 from typing import Optional
 from datetime import datetime, timedelta
@@ -35,7 +36,7 @@ class EmpathyGenerator(BaseGenerator):
         patient_id: UUID,
         patient: Patient,
         structured_response: StructuredResponse,
-        patient_context: PatientContext
+        patient_context: PatientContext,
     ) -> Optional[FollowUpAction]:
         """
         Create empathetic follow-up message based on patient response.
@@ -59,7 +60,9 @@ class EmpathyGenerator(BaseGenerator):
                 return None
 
             # Determine scheduling delay based on concern level
-            delay_minutes = self.calculate_response_delay(structured_response.concern_level)
+            delay_minutes = self.calculate_response_delay(
+                structured_response.concern_level
+            )
             scheduled_for = datetime.utcnow() + timedelta(minutes=delay_minutes)
 
             # Create follow-up action
@@ -67,14 +70,18 @@ class EmpathyGenerator(BaseGenerator):
                 action_id=uuid4(),
                 patient_id=patient_id,
                 follow_up_type=FollowUpType.EMPATHETIC_RESPONSE,
-                priority="normal" if structured_response.concern_level == ConcernLevel.LOW else "high",
+                priority="normal"
+                if structured_response.concern_level == ConcernLevel.LOW
+                else "high",
                 scheduled_for=scheduled_for,
                 parameters={
                     "message_content": empathetic_message,
                     "original_message": structured_response.original_message,
-                    "sentiment": structured_response.sentiment_analysis.get("sentiment"),
-                    "concern_level": structured_response.concern_level.value
-                }
+                    "sentiment": structured_response.sentiment_analysis.get(
+                        "sentiment"
+                    ),
+                    "concern_level": structured_response.concern_level.value,
+                },
             )
 
             return action
@@ -84,9 +91,7 @@ class EmpathyGenerator(BaseGenerator):
             return None
 
     async def _generate_empathetic_message(
-        self,
-        structured_response: StructuredResponse,
-        patient_context: PatientContext
+        self, structured_response: StructuredResponse, patient_context: PatientContext
     ) -> Optional[str]:
         """
         Generate empathetic message using AI.
@@ -100,19 +105,21 @@ class EmpathyGenerator(BaseGenerator):
         """
         try:
             # Build context for AI humanizer
-            message_context = {
+            {
                 "patient_message": structured_response.original_message,
                 "sentiment": structured_response.sentiment_analysis.get("sentiment"),
                 "concern_level": structured_response.concern_level.value,
                 "medical_concerns": structured_response.medical_concerns,
-                "emotional_indicators": structured_response.sentiment_analysis.get("emotional_indicators", [])
+                "emotional_indicators": structured_response.sentiment_analysis.get(
+                    "emotional_indicators", []
+                ),
             }
 
             # Generate empathetic response
             empathetic_response = await self.ai_service.humanize_message(
                 template_message="Acknowledge and respond empathetically to the patient's message",
                 patient_context=patient_context,
-                message_type="empathetic_response"
+                message_type="empathetic_response",
             )
 
             return empathetic_response.humanized_message

@@ -1,6 +1,7 @@
 """
 AI Services - Usage Statistics and Cache Stats Endpoints
 """
+
 import logging
 from datetime import datetime
 
@@ -32,7 +33,7 @@ async def get_usage_statistics(
         if not redis_client:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Redis unavailable for usage stats"
+                detail="Redis unavailable for usage stats",
             )
 
         # ===== WOULD AGGREGATE ACTUAL USAGE DATA FROM REDIS =====
@@ -83,5 +84,5 @@ async def get_usage_statistics(
         logger.error(f"Failed to get usage stats: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve usage statistics: {str(e)}"
+            detail=f"Failed to retrieve usage statistics: {str(e)}",
         )

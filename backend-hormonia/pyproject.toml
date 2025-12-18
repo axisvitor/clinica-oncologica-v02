@@ -80,3 +80,24 @@ exclude_lines = [
 
 [tool.radon]
 exclude = "*/migrations/*,*/alembic/*,*/tests/*,*/venv/*"
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "migrations",
+    "alembic",
+    "__pycache__",
+]
+
+[tool.ruff.lint]
+# Select F (pyflakes) rules only - E rules are handled by black/other formatters
+select = ["F"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+# __init__.py files may have late imports for re-exports
+"**/__init__.py" = ["F401"]

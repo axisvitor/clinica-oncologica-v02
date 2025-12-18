@@ -8,17 +8,19 @@ Provides a clean lifespan context manager that handles:
 - Graceful shutdown procedures
 - Resource cleanup
 """
+
 import time
 import redis.asyncio as redis
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.config import settings
-from app.database import get_db
 from app.utils.logging import setup_logging, get_logger
 from app.utils.security import mask_sensitive_url
 from app.core.redis_manager import get_redis_manager, cleanup_redis_connections
 from app.core.session_manager import initialize_session_manager
-from app.utils.structured_logger import configure_logging as configure_structured_logging
+from app.utils.structured_logger import (
+    configure_logging as configure_structured_logging,
+)
 
 
 @asynccontextmanager
@@ -62,13 +64,15 @@ async def _startup(app: FastAPI) -> object:
     logger = get_logger(__name__)
 
     # Configure structured logging with JSON output
-    log_level = 'DEBUG' if settings.APP_ENABLE_DEBUG else 'INFO'
+    log_level = "DEBUG" if settings.APP_ENABLE_DEBUG else "INFO"
     configure_structured_logging(log_level=log_level)
-    logger.info("Structured logging configured", extra={'log_level': log_level})
+    logger.info("Structured logging configured", extra={"log_level": log_level})
 
     # Record startup time
     app.state.start_time = time.time()
-    logger.info("Starting Hormonia Backend System", extra={'event_type': 'application_startup'})
+    logger.info(
+        "Starting Hormonia Backend System", extra={"event_type": "application_startup"}
+    )
 
     # Initialize monitoring system
     await _initialize_monitoring(app, logger)
@@ -130,7 +134,10 @@ async def _shutdown(app: FastAPI, logger) -> None:
     except Exception as e:
         logger.error(f"Error during cleanup: {e}")
 
-    logger.info("Hormonia Backend System shutdown completed", extra={'event_type': 'application_shutdown'})
+    logger.info(
+        "Hormonia Backend System shutdown completed",
+        extra={"event_type": "application_shutdown"},
+    )
 
 
 async def _initialize_monitoring(app: FastAPI, logger) -> None:
@@ -196,11 +203,15 @@ async def _initialize_redis_websocket_events(app: FastAPI, logger) -> None:
 
         redis_url = settings.REDIS_URL
         masked_url = mask_sensitive_url(redis_url)
-        logger.info(f"✓ WebSocket events service initialized with Redis at {masked_url}")
+        logger.info(
+            f"✓ WebSocket events service initialized with Redis at {masked_url}"
+        )
 
     except redis.ConnectionError as e:
         logger.error(f"Redis connection failed: {e}")
-        logger.warning("Continuing without WebSocket events - real-time features unavailable")
+        logger.warning(
+            "Continuing without WebSocket events - real-time features unavailable"
+        )
         await _cleanup_redis_client(redis_client, logger)
 
     except redis.TimeoutError as e:
@@ -225,7 +236,7 @@ async def _setup_websocket_events(redis_client, logger) -> None:
         from app.services.websocket_events import WebSocketEventService
         import sys
 
-        ws_events_module = sys.modules.get('app.services.websocket_events')
+        ws_events_module = sys.modules.get("app.services.websocket_events")
         if ws_events_module:
             ws_events_module.websocket_events = WebSocketEventService(redis_client)
             logger.info("✓ WebSocket events service configured")
@@ -242,7 +253,7 @@ async def _initialize_session_manager(app: FastAPI, logger) -> None:
 
     try:
         # Get Redis client from app state (if available)
-        redis_client = getattr(app.state, 'redis_client', None)
+        redis_client = getattr(app.state, "redis_client", None)
         redis_status = "available" if redis_client else "not available"
         logger.info(f"Redis client for session manager: {redis_status}")
 
@@ -254,24 +265,31 @@ async def _initialize_session_manager(app: FastAPI, logger) -> None:
         if not session_manager:
             raise RuntimeError("Session manager initialization returned None")
 
-        logger.info("✓ Thread-safe session manager initialized with proper lifecycle management")
-        logger.info(f"Session manager instance: {type(session_manager).__name__} (id: {hex(id(session_manager))})")
+        logger.info(
+            "✓ Thread-safe session manager initialized with proper lifecycle management"
+        )
+        logger.info(
+            f"Session manager instance: {type(session_manager).__name__} (id: {hex(id(session_manager))})"
+        )
 
         # Log session manager health info
         from app.core.session_manager import get_session_health_info
+
         health_info = get_session_health_info()
         logger.info(f"Session manager health status: {health_info}")
 
         # Log session manager capabilities
         capabilities = []
-        if hasattr(session_manager, 'redis_client') and session_manager.redis_client:
+        if hasattr(session_manager, "redis_client") and session_manager.redis_client:
             capabilities.append("Redis integration")
-        if hasattr(session_manager, 'get_session'):
+        if hasattr(session_manager, "get_session"):
             capabilities.append("Context-scoped sessions")
-        if hasattr(session_manager, 'get_service_provider'):
+        if hasattr(session_manager, "get_service_provider"):
             capabilities.append("ServiceProvider factory")
 
-        logger.info(f"Session manager capabilities: {', '.join(capabilities) if capabilities else 'Basic session management'}")
+        logger.info(
+            f"Session manager capabilities: {', '.join(capabilities) if capabilities else 'Basic session management'}"
+        )
 
     except Exception as e:
         logger.error(f"Failed to initialize session manager: {e}")
@@ -281,7 +299,8 @@ async def _initialize_session_manager(app: FastAPI, logger) -> None:
 
         # Log more details for debugging
         try:
-            from app.database import SessionLocal, test_connection
+            from app.database import test_connection
+
             logger.info("Testing database connectivity...")
             db_status = test_connection()
             logger.info(f"Database connectivity test result: {db_status}")
@@ -291,25 +310,35 @@ async def _initialize_session_manager(app: FastAPI, logger) -> None:
 
         # Log environment information that might help debug
         import os
-        db_url = os.getenv('DATABASE_URL', 'NOT SET')
-        redis_url = os.getenv('REDIS_URL', 'NOT SET')
-        logger.error(f"DATABASE_URL configured: {'Yes' if db_url != 'NOT SET' else 'No'}")
-        logger.error(f"REDIS_URL configured: {'Yes' if redis_url != 'NOT SET' else 'No'}")
+
+        db_url = os.getenv("DATABASE_URL", "NOT SET")
+        redis_url = os.getenv("REDIS_URL", "NOT SET")
+        logger.error(
+            f"DATABASE_URL configured: {'Yes' if db_url != 'NOT SET' else 'No'}"
+        )
+        logger.error(
+            f"REDIS_URL configured: {'Yes' if redis_url != 'NOT SET' else 'No'}"
+        )
 
         # Don't raise exception here - allow app to start in degraded mode
-        logger.error("Session manager initialization failed - app will start in degraded mode")
+        logger.error(
+            "Session manager initialization failed - app will start in degraded mode"
+        )
         app.state.session_manager = None
 
 
 async def _initialize_redis_pubsub(app: FastAPI, logger) -> None:
     """Initialize Redis Pub/Sub for horizontal WebSocket scaling."""
     try:
-        from app.services.redis_pubsub_manager import RedisPubSubManager, set_pubsub_manager
+        from app.services.redis_pubsub_manager import (
+            RedisPubSubManager,
+            set_pubsub_manager,
+        )
         from app.services.websocket import get_websocket_manager
         import uuid
 
         # Get Redis client from app state
-        redis_client = getattr(app.state, 'redis_client', None)
+        redis_client = getattr(app.state, "redis_client", None)
 
         if not redis_client:
             logger.warning("Redis client not available - Redis Pub/Sub disabled")
@@ -327,7 +356,7 @@ async def _initialize_redis_pubsub(app: FastAPI, logger) -> None:
         pubsub_manager = RedisPubSubManager(
             redis_client=redis_client,
             connection_manager=ws_manager,
-            instance_id=instance_id
+            instance_id=instance_id,
         )
 
         # Start pub/sub listener
@@ -349,7 +378,9 @@ async def _initialize_redis_pubsub(app: FastAPI, logger) -> None:
 async def _initialize_ai_services(app: FastAPI, logger) -> None:
     """Initialize AI services and integrations."""
     try:
-        from app.services.quiz_question_humanizer_integration import integrate_humanization_into_quiz_service
+        from app.services.quiz_question_humanizer_integration import (
+            integrate_humanization_into_quiz_service,
+        )
 
         integrate_humanization_into_quiz_service()
         logger.info("✓ AI question humanization integration initialized")
@@ -369,7 +400,9 @@ async def _initialize_enum_validation(app: FastAPI, logger) -> None:
 
     except Exception as e:
         logger.error(f"Failed to initialize enum validation: {e}")
-        logger.warning("Continuing without enum validation - database enum errors may occur")
+        logger.warning(
+            "Continuing without enum validation - database enum errors may occur"
+        )
 
 
 async def _initialize_follow_up_system(app: FastAPI, logger) -> None:
@@ -396,7 +429,9 @@ async def _initialize_follow_up_system(app: FastAPI, logger) -> None:
 
     except Exception as e:
         logger.warning(f"Follow-up system initialization failed: {e}")
-        logger.info("Continuing without follow-up system - will initialize on first use")
+        logger.info(
+            "Continuing without follow-up system - will initialize on first use"
+        )
         app.state.follow_up_service = None
 
 
@@ -406,13 +441,16 @@ async def _cleanup_session_manager(app: FastAPI, logger) -> None:
 
     try:
         # Cleanup session manager if it exists
-        if hasattr(app.state, 'session_manager'):
+        if hasattr(app.state, "session_manager"):
             session_manager = app.state.session_manager
             session_manager_id = hex(id(session_manager)) if session_manager else "None"
             logger.info(f"Cleaning up session manager instance: {session_manager_id}")
 
             try:
-                from app.core.session_manager import cleanup_request_context, get_session_health_info
+                from app.core.session_manager import (
+                    cleanup_request_context,
+                    get_session_health_info,
+                )
 
                 # Get health status before cleanup
                 health_before = get_session_health_info()
@@ -443,7 +481,7 @@ async def _cleanup_session_manager(app: FastAPI, logger) -> None:
 async def _cleanup_monitoring(app: FastAPI, logger) -> None:
     """Cleanup monitoring system."""
     try:
-        if hasattr(app.state, 'monitoring_manager') and app.state.monitoring_manager:
+        if hasattr(app.state, "monitoring_manager") and app.state.monitoring_manager:
             from app.monitoring.manager import stop_monitoring
 
             logger.info("Stopping monitoring system...")
@@ -457,7 +495,7 @@ async def _cleanup_monitoring(app: FastAPI, logger) -> None:
 async def _cleanup_websocket_manager(app: FastAPI, logger) -> None:
     """Cleanup unified WebSocket manager."""
     try:
-        if hasattr(app.state, 'websocket_manager') and app.state.websocket_manager:
+        if hasattr(app.state, "websocket_manager") and app.state.websocket_manager:
             logger.info("Stopping unified WebSocket manager...")
             ws_manager = app.state.websocket_manager
 
@@ -467,7 +505,9 @@ async def _cleanup_websocket_manager(app: FastAPI, logger) -> None:
             # Disconnect all active connections
             active_count = len(ws_manager.connections)
             if active_count > 0:
-                logger.info(f"Disconnecting {active_count} active WebSocket connections...")
+                logger.info(
+                    f"Disconnecting {active_count} active WebSocket connections..."
+                )
                 for connection_id in list(ws_manager.connections.keys()):
                     await ws_manager.disconnect(connection_id, reason="Server shutdown")
 
@@ -481,7 +521,7 @@ async def _cleanup_websocket_manager(app: FastAPI, logger) -> None:
 async def _cleanup_redis_pubsub(app: FastAPI, logger) -> None:
     """Cleanup Redis Pub/Sub manager."""
     try:
-        if hasattr(app.state, 'pubsub_manager') and app.state.pubsub_manager:
+        if hasattr(app.state, "pubsub_manager") and app.state.pubsub_manager:
             logger.info("Stopping Redis Pub/Sub manager...")
             await app.state.pubsub_manager.stop()
             app.state.pubsub_manager = None
@@ -510,12 +550,13 @@ async def _cleanup_websocket_events_redis(logger) -> None:
     try:
         import app.services.websocket_events as ws_events_module
 
-        if (ws_events_module and
-            hasattr(ws_events_module, 'websocket_events') and
-            ws_events_module.websocket_events and
-            hasattr(ws_events_module.websocket_events, 'redis') and
-            ws_events_module.websocket_events.redis):
-
+        if (
+            ws_events_module
+            and hasattr(ws_events_module, "websocket_events")
+            and ws_events_module.websocket_events
+            and hasattr(ws_events_module.websocket_events, "redis")
+            and ws_events_module.websocket_events.redis
+        ):
             ws_events_module.websocket_events.redis.close()
             logger.info("✓ WebSocket events Redis connection closed")
 
@@ -547,7 +588,8 @@ async def _cleanup_redis_client(redis_client, logger) -> None:
     # Reset websocket_events service
     try:
         import sys
-        ws_events_module = sys.modules.get('app.services.websocket_events')
+
+        ws_events_module = sys.modules.get("app.services.websocket_events")
         if ws_events_module:
             ws_events_module.websocket_events = None
     except Exception as e:

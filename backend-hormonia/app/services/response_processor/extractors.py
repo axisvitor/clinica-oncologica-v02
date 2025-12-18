@@ -1,6 +1,7 @@
 """
 Data extraction logic for response processing.
 """
+
 import logging
 import re
 from typing import Optional, Any
@@ -17,7 +18,7 @@ from .models import (
     InboundMessage,
     ResponseType,
     ResponseFactory,
-    ResponseProcessorConfig
+    ResponseProcessorConfig,
 )
 
 logger = logging.getLogger(__name__)
@@ -40,14 +41,20 @@ class DataExtractor:
         self.message_repo = MessageRepository(db)
 
         # Initialize AI services only if enabled
-        self.sentiment_analyzer = get_sentiment_analyzer() if config.enable_sentiment_analysis else None
-        self.context_builder = get_context_builder() if config.enable_ai_processing else None
+        self.sentiment_analyzer = (
+            get_sentiment_analyzer() if config.enable_sentiment_analysis else None
+        )
+        self.context_builder = (
+            get_context_builder() if config.enable_ai_processing else None
+        )
 
-    async def extract_structured_data(self,
-                                     patient_id: UUID,
-                                     inbound_message: InboundMessage,
-                                     response_type: ResponseType,
-                                     flow_state: Optional[PatientFlowState]) -> StructuredResponse:
+    async def extract_structured_data(
+        self,
+        patient_id: UUID,
+        inbound_message: InboundMessage,
+        response_type: ResponseType,
+        flow_state: Optional[PatientFlowState],
+    ) -> StructuredResponse:
         """
         Extract structured data from patient response using AI.
 
@@ -62,11 +69,15 @@ class DataExtractor:
         """
         try:
             # Early exit if AI processing is disabled
-            if not self.config.enable_ai_processing or not self.context_builder or not self.sentiment_analyzer:
+            if (
+                not self.config.enable_ai_processing
+                or not self.context_builder
+                or not self.sentiment_analyzer
+            ):
                 return ResponseFactory.create_fallback_response(
                     patient_id=patient_id,
                     original_message=inbound_message.content,
-                    response_type=response_type
+                    response_type=response_type,
                 )
 
             # Get patient context for AI analysis
@@ -75,12 +86,14 @@ class DataExtractor:
                 raise NotFoundError(f"Patient {patient_id} not found")
 
             # Get recent message history
-            recent_messages = self.message_repo.get_conversation_history(patient_id, limit=10)
+            recent_messages = self.message_repo.get_conversation_history(
+                patient_id, limit=10
+            )
             recent_message_data = [
                 {
                     "content": msg.content,
                     "direction": msg.direction.value,
-                    "timestamp": msg.created_at.isoformat()
+                    "timestamp": msg.created_at.isoformat(),
                 }
                 for msg in recent_messages
             ]
@@ -90,18 +103,23 @@ class DataExtractor:
                 patient_id=str(patient_id),
                 patient_data={
                     "name": patient.name,
-                    "treatment_type": getattr(patient, 'treatment_type', 'general'),
+                    "treatment_type": getattr(patient, "treatment_type", "general"),
                     "current_day": flow_state.current_step if flow_state else 1,
-                    "treatment_start_date": flow_state.started_at.isoformat() if flow_state else None,
-                    "age": getattr(patient, 'age', None),
-                    "preferences": getattr(patient, 'preferences', {})
+                    "treatment_start_date": flow_state.started_at.isoformat()
+                    if flow_state
+                    else None,
+                    "age": getattr(patient, "age", None),
+                    "preferences": getattr(patient, "preferences", {}),
                 },
                 recent_messages=recent_message_data,
-                medical_data=getattr(patient, 'medical_history', {})
+                medical_data=getattr(patient, "medical_history", {}),
             )
 
             # Perform sentiment analysis
-            sentiment_response, concern_level = await self.sentiment_analyzer.analyze_response(
+            (
+                sentiment_response,
+                concern_level,
+            ) = await self.sentiment_analyzer.analyze_response(
                 inbound_message.content, patient_context
             )
 
@@ -112,9 +130,9 @@ class DataExtractor:
 
             # Determine if attention is required
             requires_attention = (
-                concern_level in [ConcernLevel.HIGH, ConcernLevel.CRITICAL] or
-                sentiment_response.medical_concerns or
-                self.contains_urgent_keywords(inbound_message.content)
+                concern_level in [ConcernLevel.HIGH, ConcernLevel.CRITICAL]
+                or sentiment_response.medical_concerns
+                or self.contains_urgent_keywords(inbound_message.content)
             )
 
             return StructuredResponse(
@@ -126,12 +144,12 @@ class DataExtractor:
                     "sentiment": sentiment_response.sentiment.value,
                     "confidence": sentiment_response.confidence,
                     "key_phrases": sentiment_response.key_phrases,
-                    "emotional_indicators": sentiment_response.emotional_indicators
+                    "emotional_indicators": sentiment_response.emotional_indicators,
                 },
                 medical_concerns=sentiment_response.medical_concerns,
                 concern_level=concern_level,
                 requires_attention=requires_attention,
-                confidence_score=sentiment_response.confidence
+                confidence_score=sentiment_response.confidence,
             )
 
         except Exception as e:
@@ -140,13 +158,15 @@ class DataExtractor:
             return ResponseFactory.create_fallback_response(
                 patient_id=patient_id,
                 original_message=inbound_message.content,
-                response_type=response_type
+                response_type=response_type,
             )
 
-    async def extract_type_specific_data(self,
-                                        inbound_message: InboundMessage,
-                                        response_type: ResponseType,
-                                        flow_state: Optional[PatientFlowState]) -> dict[str, Any]:
+    async def extract_type_specific_data(
+        self,
+        inbound_message: InboundMessage,
+        response_type: ResponseType,
+        flow_state: Optional[PatientFlowState],
+    ) -> dict[str, Any]:
         """
         Extract data specific to response type.
 
@@ -162,48 +182,68 @@ class DataExtractor:
 
         try:
             if response_type == ResponseType.BUTTON:
-                extracted_data.update({
-                    "button_value": inbound_message.content,
-                    "button_metadata": inbound_message.metadata.get('button_data', {})
-                })
+                extracted_data.update(
+                    {
+                        "button_value": inbound_message.content,
+                        "button_metadata": inbound_message.metadata.get(
+                            "button_data", {}
+                        ),
+                    }
+                )
 
             elif response_type == ResponseType.QUICK_REPLY:
-                extracted_data.update({
-                    "quick_reply_value": inbound_message.content,
-                    "quick_reply_payload": inbound_message.metadata.get('payload', '')
-                })
+                extracted_data.update(
+                    {
+                        "quick_reply_value": inbound_message.content,
+                        "quick_reply_payload": inbound_message.metadata.get(
+                            "payload", ""
+                        ),
+                    }
+                )
 
             elif response_type == ResponseType.LIST_SELECTION:
-                extracted_data.update({
-                    "selected_option": inbound_message.content,
-                    "list_metadata": inbound_message.metadata.get('list_data', {})
-                })
+                extracted_data.update(
+                    {
+                        "selected_option": inbound_message.content,
+                        "list_metadata": inbound_message.metadata.get("list_data", {}),
+                    }
+                )
 
             elif response_type == ResponseType.TEXT:
                 # Extract common patterns from free text
-                extracted_data.update(await self.extract_text_patterns(inbound_message.content))
+                extracted_data.update(
+                    await self.extract_text_patterns(inbound_message.content)
+                )
 
             elif response_type == ResponseType.MEDIA:
-                extracted_data.update({
-                    "media_type": inbound_message.metadata.get('media_type', 'unknown'),
-                    "media_url": inbound_message.metadata.get('media_url', ''),
-                    "caption": inbound_message.content
-                })
+                extracted_data.update(
+                    {
+                        "media_type": inbound_message.metadata.get(
+                            "media_type", "unknown"
+                        ),
+                        "media_url": inbound_message.metadata.get("media_url", ""),
+                        "caption": inbound_message.content,
+                    }
+                )
 
             elif response_type == ResponseType.LOCATION:
-                extracted_data.update({
-                    "latitude": inbound_message.metadata.get('latitude'),
-                    "longitude": inbound_message.metadata.get('longitude'),
-                    "address": inbound_message.content
-                })
+                extracted_data.update(
+                    {
+                        "latitude": inbound_message.metadata.get("latitude"),
+                        "longitude": inbound_message.metadata.get("longitude"),
+                        "address": inbound_message.content,
+                    }
+                )
 
             # Add flow context data
             if flow_state:
                 extracted_data["flow_context"] = {
                     "flow_type": flow_state.flow_type,
                     "current_step": flow_state.current_step,
-                    "expected_response_type": flow_state.state_data.get('expected_response_type'),
-                    "question_context": flow_state.state_data.get('last_question', '')
+                    "expected_response_type": flow_state.state_data.get(
+                        "expected_response_type"
+                    ),
+                    "question_context": flow_state.state_data.get("last_question", ""),
                 }
 
             return extracted_data
@@ -226,8 +266,8 @@ class DataExtractor:
 
         try:
             # Extract yes/no responses
-            yes_patterns = r'\b(sim|yes|yeah|ok|okay|claro|certo|positivo)\b'
-            no_patterns = r'\b(não|no|nope|never|negativo|jamais)\b'
+            yes_patterns = r"\b(sim|yes|yeah|ok|okay|claro|certo|positivo)\b"
+            no_patterns = r"\b(não|no|nope|never|negativo|jamais)\b"
 
             if re.search(yes_patterns, text.lower()):
                 patterns["boolean_response"] = True
@@ -235,29 +275,31 @@ class DataExtractor:
                 patterns["boolean_response"] = False
 
             # Extract numbers
-            numbers = re.findall(r'\b\d+(?:\.\d+)?\b', text)
+            numbers = re.findall(r"\b\d+(?:\.\d+)?\b", text)
             if numbers:
                 patterns["numbers"] = [float(n) for n in numbers]
 
             # Extract time references
-            time_patterns = r'\b(\d{1,2}):(\d{2})\b|(\d{1,2})\s*(am|pm|h|horas?)\b'
+            time_patterns = r"\b(\d{1,2}):(\d{2})\b|(\d{1,2})\s*(am|pm|h|horas?)\b"
             time_matches = re.findall(time_patterns, text.lower())
             if time_matches:
                 patterns["time_references"] = time_matches
 
             # Extract medication names (basic pattern)
-            med_patterns = r'\b(mg|ml|comprimido|cápsula|medicamento|remédio)\b'
+            med_patterns = r"\b(mg|ml|comprimido|cápsula|medicamento|remédio)\b"
             if re.search(med_patterns, text.lower()):
                 patterns["medication_mentioned"] = True
 
             # Extract pain scale (1-10)
-            pain_scale = re.search(r'\b([1-9]|10)\b.*\b(dor|pain|scale|escala)\b', text.lower())
+            pain_scale = re.search(
+                r"\b([1-9]|10)\b.*\b(dor|pain|scale|escala)\b", text.lower()
+            )
             if pain_scale:
                 patterns["pain_scale"] = int(pain_scale.group(1))
 
             # Extract mood indicators
-            positive_mood = r'\b(bem|good|great|ótimo|feliz|happy|melhor|better)\b'
-            negative_mood = r'\b(mal|bad|terrible|péssimo|triste|sad|pior|worse)\b'
+            positive_mood = r"\b(bem|good|great|ótimo|feliz|happy|melhor|better)\b"
+            negative_mood = r"\b(mal|bad|terrible|péssimo|triste|sad|pior|worse)\b"
 
             if re.search(positive_mood, text.lower()):
                 patterns["mood_indicator"] = "positive"
@@ -281,10 +323,25 @@ class DataExtractor:
             True if urgent keywords found
         """
         urgent_keywords = [
-            'emergency', 'emergência', 'urgent', 'urgente', 'help', 'ajuda',
-            'hospital', 'ambulance', 'ambulância', 'severe', 'severo',
-            'can\'t breathe', 'não consigo respirar', 'chest pain', 'dor no peito',
-            'bleeding', 'sangramento', 'unconscious', 'inconsciente'
+            "emergency",
+            "emergência",
+            "urgent",
+            "urgente",
+            "help",
+            "ajuda",
+            "hospital",
+            "ambulance",
+            "ambulância",
+            "severe",
+            "severo",
+            "can't breathe",
+            "não consigo respirar",
+            "chest pain",
+            "dor no peito",
+            "bleeding",
+            "sangramento",
+            "unconscious",
+            "inconsciente",
         ]
 
         text_lower = text.lower()

@@ -52,11 +52,7 @@ class DLQRetryHandler:
             self._atomic_counter = AtomicRetryCounter(redis_client, db)
             self._atomic_scheduler = AtomicRetryScheduler(redis_client, db)
 
-    def categorize_error(
-        self,
-        error_message: str,
-        error_type: str
-    ) -> ErrorCategory:
+    def categorize_error(self, error_message: str, error_type: str) -> ErrorCategory:
         """
         Categorize error to determine retry strategy.
 
@@ -89,10 +85,7 @@ class DLQRetryHandler:
         # Unknown error
         return ErrorCategory.UNKNOWN
 
-    def should_retry(
-        self,
-        failed_message: FailedMessage
-    ) -> bool:
+    def should_retry(self, failed_message: FailedMessage) -> bool:
         """
         Determine if message should be retried.
 
@@ -108,14 +101,13 @@ class DLQRetryHandler:
 
         # Check error category
         error_category = failed_message.metadata.get(
-            "error_category",
-            ErrorCategory.UNKNOWN.value
+            "error_category", ErrorCategory.UNKNOWN.value
         )
 
         # Only retry transient and unknown errors
         return error_category in [
             ErrorCategory.TRANSIENT.value,
-            ErrorCategory.UNKNOWN.value
+            ErrorCategory.UNKNOWN.value,
         ]
 
     def get_retry_delay(self, retry_count: int) -> int:
@@ -131,10 +123,7 @@ class DLQRetryHandler:
         index = min(retry_count, len(self.config.RETRY_DELAYS) - 1)
         return self.config.RETRY_DELAYS[index]
 
-    def schedule_retry(
-        self,
-        failed_message: FailedMessage
-    ) -> bool:
+    def schedule_retry(self, failed_message: FailedMessage) -> bool:
         """
         Schedule automatic retry for message.
 
@@ -213,8 +202,7 @@ class DLQRetryHandler:
         self.db.commit()
 
     async def mark_retry_started_atomic(
-        self,
-        failed_message: FailedMessage
+        self, failed_message: FailedMessage
     ) -> Tuple[bool, int]:
         """
         Mark message as being retried with atomic increment.
@@ -234,15 +222,13 @@ class DLQRetryHandler:
 
         # Atomic increment
         success, new_count = await self._atomic_counter.atomic_increment_retry(
-            failed_message.message_id,
-            self.config.MAX_RETRY_ATTEMPTS
+            failed_message.message_id, self.config.MAX_RETRY_ATTEMPTS
         )
 
         if not success:
             # Max retries exceeded
             await self._atomic_counter.mark_max_retries_exceeded(
-                failed_message.message_id,
-                failed_message
+                failed_message.message_id, failed_message
             )
             return False, new_count
 
@@ -255,9 +241,7 @@ class DLQRetryHandler:
         return True, new_count
 
     async def try_acquire_for_retry(
-        self,
-        failed_message: FailedMessage,
-        lock_ttl: int = 120
+        self, failed_message: FailedMessage, lock_ttl: int = 120
     ) -> Tuple[bool, int, Optional[str]]:
         """
         Attempt to acquire message for retry processing.
@@ -277,9 +261,7 @@ class DLQRetryHandler:
             return True, failed_message.retry_count, None
 
         return await self._atomic_counter.atomic_try_process(
-            failed_message.message_id,
-            self.config.MAX_RETRY_ATTEMPTS,
-            lock_ttl
+            failed_message.message_id, self.config.MAX_RETRY_ATTEMPTS, lock_ttl
         )
 
     def mark_retry_success(self, failed_message: FailedMessage) -> None:
@@ -294,9 +276,7 @@ class DLQRetryHandler:
         self.db.commit()
 
     def mark_retry_failed(
-        self,
-        failed_message: FailedMessage,
-        error_message: Optional[str] = None
+        self, failed_message: FailedMessage, error_message: Optional[str] = None
     ) -> None:
         """
         Mark retry as failed and schedule next retry if applicable.

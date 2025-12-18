@@ -7,13 +7,13 @@ import logging
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 from uuid import uuid4
-import redis
 import json
 from jose import jwt, JWTError
 from app.config import get_settings
 from app.core.redis_manager import get_redis_manager
 
 logger = logging.getLogger(__name__)
+
 
 class TokenRotationService:
     """
@@ -32,13 +32,19 @@ class TokenRotationService:
         self.secret_key = self.settings.SECURITY_SECRET_KEY
 
         # Token expiration settings
-        self.access_token_expire = timedelta(minutes=self.settings.AUTH_ACCESS_TOKEN_EXPIRE_MINUTES)
-        self.refresh_token_expire = timedelta(days=self.settings.AUTH_REFRESH_TOKEN_EXPIRE_DAYS)
+        self.access_token_expire = timedelta(
+            minutes=self.settings.AUTH_ACCESS_TOKEN_EXPIRE_MINUTES
+        )
+        self.refresh_token_expire = timedelta(
+            days=self.settings.AUTH_REFRESH_TOKEN_EXPIRE_DAYS
+        )
 
         # Rotation settings
         self.rotation_enabled = self.settings.AUTH_ENABLE_TOKEN_ROTATION
         self.blacklist_enabled = self.settings.AUTH_ENABLE_TOKEN_BLACKLIST
-        self.max_concurrent_sessions = getattr(self.settings, 'MAX_CONCURRENT_SESSIONS', 3)
+        self.max_concurrent_sessions = getattr(
+            self.settings, "MAX_CONCURRENT_SESSIONS", 3
+        )
 
     def create_access_token(self, data: dict, user_id: str) -> str:
         """
@@ -56,13 +62,15 @@ class TokenRotationService:
 
         # Add token metadata
         token_id = str(uuid4())
-        to_encode.update({
-            "exp": expire,
-            "iat": datetime.utcnow(),
-            "jti": token_id,  # JWT ID for tracking
-            "type": "access",
-            "rotation_count": 0
-        })
+        to_encode.update(
+            {
+                "exp": expire,
+                "iat": datetime.utcnow(),
+                "jti": token_id,  # JWT ID for tracking
+                "type": "access",
+                "rotation_count": 0,
+            }
+        )
 
         # Track active token
         if self.rotation_enabled:
@@ -91,7 +99,7 @@ class TokenRotationService:
             "exp": expire,
             "iat": datetime.utcnow(),
             "jti": token_id,
-            "type": "refresh"
+            "type": "refresh",
         }
 
         # Track refresh token
@@ -114,11 +122,15 @@ class TokenRotationService:
         """
         try:
             # Decode current token
-            payload = jwt.decode(current_token, self.secret_key, algorithms=[self.algorithm])
+            payload = jwt.decode(
+                current_token, self.secret_key, algorithms=[self.algorithm]
+            )
 
             # Check if token is blacklisted
             if self._is_blacklisted(payload.get("jti")):
-                logger.warning(f"Attempted to rotate blacklisted token: {payload.get('jti')}")
+                logger.warning(
+                    f"Attempted to rotate blacklisted token: {payload.get('jti')}"
+                )
                 return None
 
             # Get user info
@@ -134,19 +146,21 @@ class TokenRotationService:
             new_access_data = {
                 "sub": user_id,
                 "rotation_count": payload.get("rotation_count", 0) + 1,
-                "previous_jti": payload.get("jti")
+                "previous_jti": payload.get("jti"),
             }
 
             new_access_token = self.create_access_token(new_access_data, user_id)
             new_refresh_token = self.create_refresh_token(user_id)
 
             # Log rotation
-            logger.info(f"Token rotated for user {user_id}, rotation count: {new_access_data['rotation_count']}")
+            logger.info(
+                f"Token rotated for user {user_id}, rotation count: {new_access_data['rotation_count']}"
+            )
 
             return {
                 "access_token": new_access_token,
                 "refresh_token": new_refresh_token,
-                "token_type": "bearer"
+                "token_type": "bearer",
             }
 
         except JWTError as e:
@@ -304,11 +318,15 @@ class TokenRotationService:
                 redis_client.delete(key)
 
         if revoked_count > 0:
-            logger.info(f"Enforced session limit for user {user_id}, revoked {revoked_count} sessions")
+            logger.info(
+                f"Enforced session limit for user {user_id}, revoked {revoked_count} sessions"
+            )
 
         return revoked_count
 
-    def _track_token(self, user_id: str, token_id: str, token_type: str, expire: datetime):
+    def _track_token(
+        self, user_id: str, token_id: str, token_type: str, expire: datetime
+    ):
         """Track an active token in Redis."""
         try:
             # Get sync Redis client from manager
@@ -320,18 +338,14 @@ class TokenRotationService:
                 "type": token_type,
                 "iat": datetime.utcnow().isoformat(),
                 "exp": expire.isoformat(),
-                "user_id": user_id
+                "user_id": user_id,
             }
 
             # Calculate TTL
             ttl = int((expire - datetime.utcnow()).total_seconds())
 
             # Store in Redis with TTL
-            redis_client.setex(
-                key,
-                ttl,
-                json.dumps(value)
-            )
+            redis_client.setex(key, ttl, json.dumps(value))
 
         except Exception as e:
             logger.error(f"Failed to track token: {e}")
@@ -448,6 +462,7 @@ class TokenRotationService:
 
 # Singleton instance
 _token_rotation_service: Optional[TokenRotationService] = None
+
 
 def get_token_rotation_service() -> TokenRotationService:
     """Get or create the token rotation service instance."""

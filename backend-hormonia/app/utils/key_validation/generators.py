@@ -58,6 +58,6 @@ def generate_secure_secret(length: int = 32) -> str:
 
 
 __all__ = [
-    'generate_secure_key',
-    'generate_secure_secret',
+    "generate_secure_key",
+    "generate_secure_secret",
 ]

@@ -13,7 +13,6 @@ from uuid import UUID
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-from celery.result import AsyncResult
 
 from app.database import get_db
 from app.models.user import UserRole
@@ -29,7 +28,6 @@ from app.api.v2.dependencies import (
     get_pagination_params,
     get_field_selection,
     create_cursor,
-    apply_field_selection,
 )
 from app.dependencies.auth_dependencies import get_redis_cache
 from app.utils.rate_limiter import limiter
@@ -38,7 +36,6 @@ from app.celery_app import celery_app
 from ..dependencies import (
     _get_current_user_simple,
     _extract_user_role,
-    _celery_status_to_task_status,
     _get_task_from_celery,
     _register_task,
     _serialize_task,
@@ -65,8 +62,8 @@ async def list_tasks(
     user_id: Optional[UUID] = Query(None, description="Filter by user ID"),
     start_date: Optional[datetime] = Query(None, description="Filter tasks from date"),
     end_date: Optional[datetime] = Query(None, description="Filter tasks to date"),
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> TaskV2List:
     """
@@ -147,10 +144,7 @@ async def list_tasks(
             tasks.append(merged_data)
 
         # Sort by created_at
-        tasks.sort(
-            key=lambda x: x.get("created_at", datetime.min),
-            reverse=True
-        )
+        tasks.sort(key=lambda x: x.get("created_at", datetime.min), reverse=True)
 
         # Apply pagination
         start_index = 0
@@ -162,7 +156,7 @@ async def list_tasks(
                     start_index = i + 1
                     break
 
-        page_tasks = tasks[start_index:start_index + limit + 1]
+        page_tasks = tasks[start_index : start_index + limit + 1]
         has_more = len(page_tasks) > limit
         if has_more:
             page_tasks = page_tasks[:limit]
@@ -176,10 +170,7 @@ async def list_tasks(
         data = [_serialize_task(task, fields) for task in page_tasks]
 
         result = TaskV2List(
-            data=data,
-            next_cursor=next_cursor,
-            has_more=has_more,
-            total=len(tasks)
+            data=data, next_cursor=next_cursor, has_more=has_more, total=len(tasks)
         )
 
         # Cache the result
@@ -193,7 +184,7 @@ async def list_tasks(
         logger.error(f"Error listing tasks: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve tasks"
+            detail="Failed to retrieve tasks",
         )
 
 
@@ -203,8 +194,8 @@ async def get_task(
     task_id: str,
     request: Request,
     fields: Optional[List[str]] = Depends(get_field_selection),
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> Dict[str, Any]:
     """
@@ -239,8 +230,7 @@ async def get_task(
 
         if not task_data:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
             )
 
         # Check RBAC
@@ -251,7 +241,7 @@ async def get_task(
             if not task_user_id or task_user_id != current_user_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You do not have access to this task"
+                    detail="You do not have access to this task",
                 )
 
         # Get fresh data from Celery
@@ -263,7 +253,11 @@ async def get_task(
 
         # Cache the result (short TTL for active tasks)
         cache_ttl = CACHE_TTL_ACTIVE_TASKS
-        if merged_data.get("status") in [TaskStatus.SUCCESS, TaskStatus.FAILURE, TaskStatus.CANCELLED]:
+        if merged_data.get("status") in [
+            TaskStatus.SUCCESS,
+            TaskStatus.FAILURE,
+            TaskStatus.CANCELLED,
+        ]:
             cache_ttl = CACHE_TTL_TASK_HISTORY
 
         await redis_cache.set(cache_key, data, ttl=cache_ttl)
@@ -276,7 +270,7 @@ async def get_task(
         logger.error(f"Error retrieving task {task_id}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve task"
+            detail="Failed to retrieve task",
         )
 
 
@@ -285,8 +279,8 @@ async def get_task(
 async def create_task(
     task_data: TaskV2Create,
     request: Request,
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> Dict[str, Any]:
     """
@@ -322,7 +316,7 @@ async def create_task(
             task_data.celery_task_name,
             args=task_data.args,
             kwargs=task_data.kwargs,
-            **task_options
+            **task_options,
         )
 
         # Register task
@@ -332,16 +326,20 @@ async def create_task(
             task_data.task_type,
             task_data.priority,
             user_id,
-            task_data.metadata
+            task_data.metadata,
         )
 
         # Update registry with additional info
-        task_registry[celery_task.id].update({
-            "description": task_data.description,
-            "retry_config": task_data.retry_config.dict() if task_data.retry_config else None,
-            "timeout_seconds": task_data.timeout_seconds,
-            "scheduled_at": task_data.schedule_at,
-        })
+        task_registry[celery_task.id].update(
+            {
+                "description": task_data.description,
+                "retry_config": task_data.retry_config.dict()
+                if task_data.retry_config
+                else None,
+                "timeout_seconds": task_data.timeout_seconds,
+                "scheduled_at": task_data.schedule_at,
+            }
+        )
 
         # Invalidate list cache
         await redis_cache.delete_pattern("tasks:list:*")
@@ -364,5 +362,5 @@ async def create_task(
         logger.error(f"Error creating task: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create task: {str(e)}"
+            detail=f"Failed to create task: {str(e)}",
         )

@@ -2,6 +2,7 @@
 Field Analyzer
 Analyzes text fields for various corruption patterns.
 """
+
 import re
 import json
 import logging
@@ -19,7 +20,9 @@ class FieldAnalyzer(BaseAnalyzer):
         """Not used - use specific methods instead"""
         return self.corruption_patterns
 
-    async def analyze_text_field(self, text: str, field_name: str, entity_id: Any) -> None:
+    async def analyze_text_field(
+        self, text: str, field_name: str, entity_id: Any
+    ) -> None:
         """Analyze text field for corruption patterns"""
         try:
             if not text:
@@ -27,7 +30,7 @@ class FieldAnalyzer(BaseAnalyzer):
 
             # Check for encoding corruption
             try:
-                text.encode('utf-8').decode('utf-8')
+                text.encode("utf-8").decode("utf-8")
             except UnicodeError:
                 self._add_pattern(
                     type=CorruptionType.ENCODING_CORRUPTION,
@@ -37,11 +40,13 @@ class FieldAnalyzer(BaseAnalyzer):
                     description=f"Unicode encoding error in {field_name}",
                     detection_method="encoding_validation",
                     examples=[f"Entity {entity_id}: {text[:50]}..."],
-                    confidence=0.9
+                    confidence=0.9,
                 )
 
             # Check for control characters
-            control_chars = [c for c in text if ord(c) < 32 and c not in ['\n', '\r', '\t']]
+            control_chars = [
+                c for c in text if ord(c) < 32 and c not in ["\n", "\r", "\t"]
+            ]
             if control_chars:
                 self._add_pattern(
                     type=CorruptionType.CONTENT_CORRUPTION,
@@ -50,13 +55,15 @@ class FieldAnalyzer(BaseAnalyzer):
                     severity="medium",
                     description=f"Control characters found in {field_name}",
                     detection_method="character_analysis",
-                    examples=[f"Entity {entity_id}: Contains {len(control_chars)} control chars"],
-                    confidence=0.8
+                    examples=[
+                        f"Entity {entity_id}: Contains {len(control_chars)} control chars"
+                    ],
+                    confidence=0.8,
                 )
 
             # Check for unusual character patterns
-            if re.search(r'[^\w\s\-.,!?@]', text):
-                unusual_chars = re.findall(r'[^\w\s\-.,!?@]', text)
+            if re.search(r"[^\w\s\-.,!?@]", text):
+                unusual_chars = re.findall(r"[^\w\s\-.,!?@]", text)
                 if len(unusual_chars) > 3:
                     self._add_pattern(
                         type=CorruptionType.CONTENT_CORRUPTION,
@@ -66,11 +73,11 @@ class FieldAnalyzer(BaseAnalyzer):
                         description=f"Unusual character patterns in {field_name}",
                         detection_method="pattern_analysis",
                         examples=[f"Entity {entity_id}: {unusual_chars[:5]}"],
-                        confidence=0.6
+                        confidence=0.6,
                     )
 
             # Check for repeated character patterns
-            if re.search(r'(.)\1{10,}', text):
+            if re.search(r"(.)\1{10,}", text):
                 self._add_pattern(
                     type=CorruptionType.CONTENT_CORRUPTION,
                     field=field_name,
@@ -79,13 +86,15 @@ class FieldAnalyzer(BaseAnalyzer):
                     description=f"Repeated character patterns in {field_name}",
                     detection_method="repetition_analysis",
                     examples=[f"Entity {entity_id}: {text[:100]}..."],
-                    confidence=0.9
+                    confidence=0.9,
                 )
 
         except Exception as e:
             logger.error(f"Text field analysis failed for {field_name}: {e}")
 
-    async def analyze_metadata(self, metadata: Dict, field_name: str, entity_id: Any) -> None:
+    async def analyze_metadata(
+        self, metadata: Dict, field_name: str, entity_id: Any
+    ) -> None:
         """Analyze metadata/JSON field for corruption patterns"""
         try:
             # Try to serialize/deserialize
@@ -101,7 +110,7 @@ class FieldAnalyzer(BaseAnalyzer):
                     description=f"JSON serialization error in {field_name}",
                     detection_method="json_validation",
                     examples=[f"Entity {entity_id}: {str(e)}"],
-                    confidence=0.9
+                    confidence=0.9,
                 )
 
             # Check for suspicious nested structures
@@ -126,7 +135,7 @@ class FieldAnalyzer(BaseAnalyzer):
                     description="Excessive nesting depth in metadata",
                     detection_method="structure_analysis",
                     examples=[f"Entity {entity_id}: Depth {nesting_depth}"],
-                    confidence=0.7
+                    confidence=0.7,
                 )
 
             # Check for circular references
@@ -142,7 +151,7 @@ class FieldAnalyzer(BaseAnalyzer):
                         description="Circular reference in metadata",
                         detection_method="circular_detection",
                         examples=[f"Entity {entity_id}: {str(e)}"],
-                        confidence=0.95
+                        confidence=0.95,
                     )
 
         except Exception as e:

@@ -21,7 +21,6 @@ from app.schemas.v2.tasks import (
     TaskV2WithLogs,
     TaskStatisticsV2,
     QueueStatusV2,
-    TaskStatus,
 )
 from app.dependencies.auth_dependencies import get_redis_cache
 from app.utils.rate_limiter import limiter
@@ -50,8 +49,8 @@ async def get_task_logs(
     request: Request,
     limit: int = Query(100, ge=1, le=1000, description="Maximum log entries"),
     level: Optional[str] = Query(None, description="Filter by log level"),
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> Dict[str, Any]:
     """
@@ -78,8 +77,7 @@ async def get_task_logs(
 
         if not task_data:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
             )
 
         # Check RBAC
@@ -90,7 +88,7 @@ async def get_task_logs(
             if not task_user_id or task_user_id != current_user_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You do not have access to this task"
+                    detail="You do not have access to this task",
                 )
 
         # Get logs
@@ -112,10 +110,12 @@ async def get_task_logs(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error retrieving logs for task {task_id}: {str(e)}", exc_info=True)
+        logger.error(
+            f"Error retrieving logs for task {task_id}: {str(e)}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve task logs"
+            detail="Failed to retrieve task logs",
         )
 
 
@@ -124,8 +124,8 @@ async def get_task_logs(
 async def get_task_statistics(
     request: Request,
     hours: int = Query(24, ge=1, le=168, description="Analysis period in hours"),
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> TaskStatisticsV2:
     """
@@ -169,7 +169,10 @@ async def get_task_statistics(
 
             # Apply date filter
             created_at = task_data.get("created_at")
-            if isinstance(created_at, datetime) and start_date <= created_at <= end_date:
+            if (
+                isinstance(created_at, datetime)
+                and start_date <= created_at <= end_date
+            ):
                 celery_data = _get_task_from_celery(celery_task_id)
                 filtered_tasks.append({**task_data, **celery_data})
 
@@ -184,7 +187,7 @@ async def get_task_statistics(
 
         for task in filtered_tasks:
             task_status = task.get("status")
-            if hasattr(task_status, 'value'):
+            if hasattr(task_status, "value"):
                 status_counts[task_status.value] += 1
             else:
                 status_counts[str(task_status)] += 1
@@ -207,12 +210,15 @@ async def get_task_statistics(
         # Find slowest tasks
         slowest = sorted(
             [
-                {"task_name": t.get("task_name"), "runtime_seconds": t.get("runtime_seconds")}
+                {
+                    "task_name": t.get("task_name"),
+                    "runtime_seconds": t.get("runtime_seconds"),
+                }
                 for t in filtered_tasks
                 if t.get("runtime_seconds")
             ],
             key=lambda x: x["runtime_seconds"],
-            reverse=True
+            reverse=True,
         )[:5]
 
         statistics = TaskStatisticsV2(
@@ -229,7 +235,7 @@ async def get_task_statistics(
             tasks_by_type=dict(type_counts),
             tasks_by_priority=dict(priority_counts),
             slowest_tasks=slowest,
-            analysis_period_hours=hours
+            analysis_period_hours=hours,
         )
 
         # Cache result
@@ -243,7 +249,7 @@ async def get_task_statistics(
         logger.error(f"Error calculating task statistics: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to calculate task statistics"
+            detail="Failed to calculate task statistics",
         )
 
 
@@ -251,8 +257,8 @@ async def get_task_statistics(
 @limiter.limit("30/minute")
 async def get_queue_status(
     request: Request,
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> List[QueueStatusV2]:
     """
@@ -277,7 +283,7 @@ async def get_queue_status(
         cache_key = "tasks:queue:status"
         cached_data = await redis_cache.get(cache_key)
         if cached_data:
-            logger.debug(f"Cache hit for queue status")
+            logger.debug("Cache hit for queue status")
             return [QueueStatusV2(**q) for q in cached_data]
 
         # Get monitoring data
@@ -295,7 +301,7 @@ async def get_queue_status(
                     "pending_count": 0,
                     "active_count": 0,
                     "workers": set(),
-                    "processing_times": []
+                    "processing_times": [],
                 }
 
             queues[queue_name]["active_count"] += 1
@@ -308,13 +314,18 @@ async def get_queue_status(
                 pending_count=q["pending_count"],
                 active_count=q["active_count"],
                 workers=list(q["workers"]),
-                avg_processing_time=sum(q["processing_times"]) / len(q["processing_times"]) if q["processing_times"] else None
+                avg_processing_time=sum(q["processing_times"])
+                / len(q["processing_times"])
+                if q["processing_times"]
+                else None,
             )
             for q in queues.values()
         ]
 
         # Cache result
-        await redis_cache.set(cache_key, [q.dict() for q in queue_list], ttl=CACHE_TTL_QUEUE_STATUS)
+        await redis_cache.set(
+            cache_key, [q.dict() for q in queue_list], ttl=CACHE_TTL_QUEUE_STATUS
+        )
 
         return queue_list
 
@@ -324,5 +335,5 @@ async def get_queue_status(
         logger.error(f"Error getting queue status: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get queue status"
+            detail="Failed to get queue status",
         )

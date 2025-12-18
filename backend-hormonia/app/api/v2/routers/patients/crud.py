@@ -64,28 +64,46 @@ logger = logging.getLogger(__name__)
     "/",
     response_model=PatientV2List,
     summary="List patients with pagination",
-    description="Get paginated list of patients with optional field selection and eager loading"
+    description="Get paginated list of patients with optional field selection and eager loading",
 )
 @require_permission(Permission.PATIENT_READ)
 @limiter.limit("120/minute")
 async def list_patients(
     request: Request,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
-    pagination = Depends(get_pagination_params),
+    current_user=Depends(get_current_user_from_session),
+    pagination=Depends(get_pagination_params),
     fields: Optional[List[str]] = Depends(get_field_selection),
     include: Optional[List[str]] = Depends(get_eager_load_params),
     search: Optional[str] = Query(None, description="Search by name or email"),
-    status_filter: Optional[str] = Query(None, alias="status", description="Filter by patient status/flow state"),
+    status_filter: Optional[str] = Query(
+        None, alias="status", description="Filter by patient status/flow state"
+    ),
     treatment_type: Optional[str] = Query(None, description="Filter by treatment type"),
-    start_date_from: Optional[date] = Query(None, description="Filter patients with treatment_start_date on or after this date"),
-    start_date_to: Optional[date] = Query(None, description="Filter patients with treatment_start_date on or before this date"),
-    treatment_phase: Optional[str] = Query(None, description="Filter by treatment phase"),
-    has_active_flow: Optional[bool] = Query(None, description="Filter by active flow state"),
-    created_after: Optional[datetime] = Query(None, description="Filter patients created after this datetime"),
-    created_before: Optional[datetime] = Query(None, description="Filter patients created before this datetime"),
+    start_date_from: Optional[date] = Query(
+        None,
+        description="Filter patients with treatment_start_date on or after this date",
+    ),
+    start_date_to: Optional[date] = Query(
+        None,
+        description="Filter patients with treatment_start_date on or before this date",
+    ),
+    treatment_phase: Optional[str] = Query(
+        None, description="Filter by treatment phase"
+    ),
+    has_active_flow: Optional[bool] = Query(
+        None, description="Filter by active flow state"
+    ),
+    created_after: Optional[datetime] = Query(
+        None, description="Filter patients created after this datetime"
+    ),
+    created_before: Optional[datetime] = Query(
+        None, description="Filter patients created before this datetime"
+    ),
     sort_by: Optional[str] = Query("created_at", description="Sort by field"),
-    sort_order: Optional[str] = Query("desc", pattern="^(asc|desc)$", description="Sort order"),
+    sort_order: Optional[str] = Query(
+        "desc", pattern="^(asc|desc)$", description="Sort order"
+    ),
 ):
     """
     List patients with advanced filtering and pagination.
@@ -111,13 +129,15 @@ async def list_patients(
         "start_date_to": start_date_to,
         "has_active_flow": has_active_flow,
         "created_after": created_after,
-        "created_before": created_before
+        "created_before": created_before,
     }
 
     # RBAC: Non-admin users can only see their own patients
     if role_enum != UserRole.ADMIN:
         if not current_user_uuid:
-            raise HTTPException(status_code=403, detail="Unable to determine user context")
+            raise HTTPException(
+                status_code=403, detail="Unable to determine user context"
+            )
         filters["doctor_id"] = current_user_uuid
 
     # Execute query via repository
@@ -127,7 +147,7 @@ async def list_patients(
         limit=pagination["limit"],
         sort_by=sort_by,
         sort_order=sort_order,
-        eager_load=include
+        eager_load=include,
     )
 
     # Serialize response
@@ -148,9 +168,7 @@ async def list_patients(
 
 
 @router.get(
-    "/{patient_id}",
-    response_model=PatientV2Response,
-    summary="Get patient by ID"
+    "/{patient_id}", response_model=PatientV2Response, summary="Get patient by ID"
 )
 @require_permission(Permission.PATIENT_READ)
 @limiter.limit("120/minute")
@@ -158,7 +176,7 @@ async def get_patient(
     request: Request,
     patient_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
     fields: Optional[List[str]] = Depends(get_field_selection),
     include: Optional[List[str]] = Depends(get_eager_load_params),
 ):
@@ -179,7 +197,9 @@ async def get_patient(
     patient = repo.get_by_id(patient_uuid, eager_load=True)
 
     if not patient:
-        raise HTTPException(status_code=404, detail=f"Patient with id {patient_id} not found")
+        raise HTTPException(
+            status_code=404, detail=f"Patient with id {patient_id} not found"
+        )
 
     ensure_patient_access(current_user, patient.doctor_id)
 
@@ -196,7 +216,7 @@ async def get_patient(
     "/",
     response_model=PatientV2Response,
     status_code=status.HTTP_201_CREATED,
-    summary="Create new patient"
+    summary="Create new patient",
 )
 @require_doctor_or_admin()
 @limiter.limit("20/hour")
@@ -204,7 +224,7 @@ async def create_patient(
     request: Request,
     patient_data: PatientV2Create,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
     x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
 ):
     """
@@ -227,11 +247,14 @@ async def create_patient(
         repo = PatientRepository(db)
         existing = repo.get_by_idempotency_key(x_idempotency_key)
         if existing:
-            logger.info(f"Idempotency key {x_idempotency_key} already processed (DB), returning existing patient")
+            logger.info(
+                f"Idempotency key {x_idempotency_key} already processed (DB), returning existing patient"
+            )
             return serialize_patient(existing)
 
         # QW-006: Redis cache fallback for fast idempotency checks (secondary layer)
         from app.core.redis_client import get_redis_client
+
         redis = get_redis_client()
         if redis:
             try:
@@ -239,10 +262,15 @@ async def create_patient(
                 cached_result = redis.get(cache_key)
                 if cached_result:
                     import json
-                    logger.info(f"Idempotency key {x_idempotency_key} found in Redis cache")
+
+                    logger.info(
+                        f"Idempotency key {x_idempotency_key} found in Redis cache"
+                    )
                     return json.loads(cached_result)
             except Exception as redis_err:
-                logger.debug(f"Idempotency cache check failed (non-critical): {redis_err}")
+                logger.debug(
+                    f"Idempotency cache check failed (non-critical): {redis_err}"
+                )
 
     try:
         doctor_uuid = UUID(patient_data.doctor_id)
@@ -254,7 +282,10 @@ async def create_patient(
     current_user_uuid = ensure_uuid(user_id)
     if role_enum != UserRole.ADMIN:
         if not current_user_uuid or current_user_uuid != doctor_uuid:
-            raise HTTPException(status_code=403, detail="Doctors can only create patients for themselves")
+            raise HTTPException(
+                status_code=403,
+                detail="Doctors can only create patients for themselves",
+            )
 
     # Initialize coordinator via factory
     from app.services.patient.onboarding_factory import get_onboarding_coordinator
@@ -263,9 +294,7 @@ async def create_patient(
     from app.integrations.evolution import EvolutionClient
 
     saga_orchestrator = SagaOrchestrator(
-        db=db,
-        redis_client=get_redis_client(),
-        evolution_client=EvolutionClient()
+        db=db, redis_client=get_redis_client(), evolution_client=EvolutionClient()
     )
 
     coordinator = get_onboarding_coordinator(db, saga_orchestrator)
@@ -295,14 +324,18 @@ async def create_patient(
         # QW-006: Store result with idempotency key in Redis (TTL: 24 hours) as secondary cache
         if x_idempotency_key:
             from app.core.redis_client import get_redis_client
+
             redis = get_redis_client()
             if redis:
                 try:
                     import json
+
                     cache_key = f"idempotency:patient:create:{x_idempotency_key}"
                     redis.setex(cache_key, 86400, json.dumps(result, default=str))
                 except Exception as redis_err:
-                    logger.debug(f"Idempotency cache store failed (non-critical): {redis_err}")
+                    logger.debug(
+                        f"Idempotency cache store failed (non-critical): {redis_err}"
+                    )
 
         return result
 
@@ -313,9 +346,7 @@ async def create_patient(
 
 
 @router.patch(
-    "/{patient_id}",
-    response_model=PatientV2Response,
-    summary="Update patient"
+    "/{patient_id}", response_model=PatientV2Response, summary="Update patient"
 )
 @require_permission(Permission.PATIENT_UPDATE)
 @limiter.limit("30/hour")
@@ -324,7 +355,7 @@ async def update_patient(
     patient_id: str,
     patient_data: PatientV2Update,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
 ):
     """
     Update patient data.
@@ -361,11 +392,11 @@ async def update_patient(
                 patient_data=patient_data,
                 doctor_id=patient.doctor_id,
                 patient_id=patient_uuid,
-                is_update=True
+                is_update=True,
             )
             # Use validated data
             for k, v in validated.items():
-                if k != 'validation_errors' and v is not None:
+                if k != "validation_errors" and v is not None:
                     if hasattr(patient_data, k):
                         setattr(patient_data, k, v)
         except Exception as e:
@@ -376,7 +407,9 @@ async def update_patient(
         role_enum, user_id = extract_user_context(current_user)
         if role_enum != UserRole.ADMIN:
             if str(patient_data.doctor_id) != str(patient.doctor_id):
-                raise HTTPException(status_code=403, detail="Doctors cannot reassign patients")
+                raise HTTPException(
+                    status_code=403, detail="Doctors cannot reassign patients"
+                )
 
     # Delegate to CRUD service
     domain_update = DomainPatientUpdate(**patient_data.dict(exclude_unset=True))
@@ -388,15 +421,12 @@ async def update_patient(
     return serialize_patient(updated_patient)
 
 
-@router.delete(
-    "/{patient_id}",
-    summary="Soft delete patient"
-)
+@router.delete("/{patient_id}", summary="Soft delete patient")
 @require_admin()
 async def delete_patient(
     patient_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session)
+    current_user=Depends(get_current_user_from_session),
 ):
     """
     Soft delete a patient (admin only).

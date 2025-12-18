@@ -2,6 +2,7 @@
 Data models for the Follow-up Action System.
 Contains dataclasses for actions, alerts, and conversation context.
 """
+
 from typing import List, Optional, Any
 from datetime import datetime
 from uuid import UUID
@@ -13,14 +14,16 @@ from app.services.analytics.data_extraction import MedicalConcernType
 class FollowUpAction:
     """Follow-up action to be executed."""
 
-    def __init__(self,
-                 action_id: UUID,
-                 patient_id: UUID,
-                 follow_up_type: FollowUpType,
-                 priority: str,
-                 scheduled_for: datetime,
-                 parameters: dict[str, Any],
-                 created_by: str = "system"):
+    def __init__(
+        self,
+        action_id: UUID,
+        patient_id: UUID,
+        follow_up_type: FollowUpType,
+        priority: str,
+        scheduled_for: datetime,
+        parameters: dict[str, Any],
+        created_by: str = "system",
+    ):
         self.action_id = action_id
         self.patient_id = patient_id
         self.follow_up_type = follow_up_type
@@ -37,16 +40,18 @@ class FollowUpAction:
 class EscalationAlert:
     """Healthcare provider escalation alert."""
 
-    def __init__(self,
-                 alert_id: UUID,
-                 patient_id: UUID,
-                 escalation_level: EscalationLevel,
-                 concern_type: MedicalConcernType,
-                 description: str,
-                 original_message: str,
-                 recommended_actions: List[str],
-                 notification_channels: List[NotificationChannel],
-                 requires_immediate_response: bool = False):
+    def __init__(
+        self,
+        alert_id: UUID,
+        patient_id: UUID,
+        escalation_level: EscalationLevel,
+        concern_type: MedicalConcernType,
+        description: str,
+        original_message: str,
+        recommended_actions: List[str],
+        notification_channels: List[NotificationChannel],
+        requires_immediate_response: bool = False,
+    ):
         self.alert_id = alert_id
         self.patient_id = patient_id
         self.escalation_level = escalation_level
@@ -65,13 +70,15 @@ class EscalationAlert:
 class ConversationContext:
     """Context for maintaining conversation continuity."""
 
-    def __init__(self,
-                 patient_id: UUID,
-                 conversation_history: List[dict[str, Any]],
-                 current_topic: Optional[str],
-                 emotional_state: Optional[str],
-                 medical_context: dict[str, Any],
-                 preferences: dict[str, Any]):
+    def __init__(
+        self,
+        patient_id: UUID,
+        conversation_history: List[dict[str, Any]],
+        current_topic: Optional[str],
+        emotional_state: Optional[str],
+        medical_context: dict[str, Any],
+        preferences: dict[str, Any],
+    ):
         self.patient_id = patient_id
         self.conversation_history = conversation_history
         self.current_topic = current_topic
@@ -84,13 +91,15 @@ class ConversationContext:
 class ProviderNotification:
     """Healthcare provider notification data."""
 
-    def __init__(self,
-                 notification_id: UUID,
-                 patient_id: UUID,
-                 notification_type: str,
-                 content: dict[str, Any],
-                 channels: List[NotificationChannel],
-                 priority: str):
+    def __init__(
+        self,
+        notification_id: UUID,
+        patient_id: UUID,
+        notification_type: str,
+        content: dict[str, Any],
+        channels: List[NotificationChannel],
+        priority: str,
+    ):
         self.notification_id = notification_id
         self.patient_id = patient_id
         self.notification_type = notification_type

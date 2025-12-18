@@ -38,32 +38,31 @@ RATE_LIMIT_SEARCH = "30/minute"
 
 # ==================== Helper Functions ====================
 
+
 async def _get_current_user_simple(
     session_cookie_id: str = Cookie(None, alias="session_id"),
     x_session_id: str = Header(None, alias="X-Session-ID"),
     db: Session = Depends(get_db),
-    redis_cache = Depends(get_redis_cache)
+    redis_cache=Depends(get_redis_cache),
 ) -> Dict[str, Any]:
     """Simplified session validation for template operations."""
     final_session_id = session_cookie_id or x_session_id
     if not final_session_id:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session ID not provided"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Session ID not provided"
         )
 
     session_data = await redis_cache.get_session(final_session_id)
     if not session_data:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session"
+            detail="Invalid or expired session",
         )
 
     firebase_uid = session_data.get("firebase_uid")
     if not firebase_uid:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid session data"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session data"
         )
 
     # Get user from cache or DB
@@ -72,29 +71,29 @@ async def _get_current_user_simple(
         user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found"
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
             )
         user_data = {
             "id": str(user.id),
             "firebase_uid": user.firebase_uid,
             "email": user.email,
             "full_name": user.full_name,
-            "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
-            "is_active": user.is_active
+            "role": user.role.value if hasattr(user.role, "value") else str(user.role),
+            "is_active": user.is_active,
         }
         await redis_cache.cache_user_data(firebase_uid, user_data, ttl=900)
 
     if not user_data.get("is_active", False):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is inactive"
+            status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive"
         )
 
     return user_data
 
 
-def _extract_user_context(current_user: Dict[str, Any]) -> Tuple[UserRole, Optional[UUID]]:
+def _extract_user_context(
+    current_user: Dict[str, Any],
+) -> Tuple[UserRole, Optional[UUID]]:
     """Extract role and user UUID from current_user dict."""
     role_value = current_user.get("role", "doctor")
     user_id = current_user.get("id")
@@ -125,7 +124,7 @@ def _check_write_permission(current_user: Dict[str, Any]) -> None:
     if not _is_admin_or_doctor(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators and doctors can create/modify templates"
+            detail="Only administrators and doctors can create/modify templates",
         )
 
 
@@ -140,6 +139,7 @@ async def _get_cached_result(cache_key: str):
     """Get cached result from Redis."""
     try:
         from app.core.redis_unified import get_async_redis
+
         redis_client = await get_async_redis()
         if redis_client is None:
             return None
@@ -157,6 +157,7 @@ async def _set_cached_result(cache_key: str, data: dict, ttl: int):
     """Set cached result in Redis."""
     try:
         from app.core.redis_unified import get_async_redis
+
         redis_client = await get_async_redis()
         if redis_client is None:
             return
@@ -166,10 +167,13 @@ async def _set_cached_result(cache_key: str, data: dict, ttl: int):
         logger.warning(f"Cache write failed: {e}")
 
 
-async def _invalidate_template_cache(template_type: str, template_id: Optional[UUID] = None):
+async def _invalidate_template_cache(
+    template_type: str, template_id: Optional[UUID] = None
+):
     """Invalidate template-related cache entries."""
     try:
         from app.core.redis_unified import get_async_redis
+
         redis_client = await get_async_redis()
         if redis_client is None:
             return
@@ -203,7 +207,9 @@ def _serialize_flow_template(template: FlowTemplateVersion) -> Dict[str, Any]:
         "metadata": template.template_metadata or {},
         "is_active": template.is_active,
         "is_draft": template.is_draft,
-        "published_at": template.published_at.isoformat() if template.published_at else None,
+        "published_at": template.published_at.isoformat()
+        if template.published_at
+        else None,
         "created_at": template.created_at.isoformat() if template.created_at else None,
         "updated_at": template.updated_at.isoformat() if template.updated_at else None,
         "created_by": str(template.created_by) if template.created_by else None,
@@ -229,7 +235,9 @@ def _serialize_quiz_template(template: QuizTemplate) -> Dict[str, Any]:
     }
 
 
-def _serialize_flow_kind(kind: FlowKind, version_stats: Optional[Dict] = None) -> Dict[str, Any]:
+def _serialize_flow_kind(
+    kind: FlowKind, version_stats: Optional[Dict] = None
+) -> Dict[str, Any]:
     """Serialize FlowKind to API-friendly dict with optional version statistics."""
     result = {
         "id": str(kind.id),
@@ -242,12 +250,14 @@ def _serialize_flow_kind(kind: FlowKind, version_stats: Optional[Dict] = None) -
     }
 
     if version_stats:
-        result.update({
-            "total_versions": version_stats.get("total", 0),
-            "published_versions": version_stats.get("published", 0),
-            "draft_versions": version_stats.get("draft", 0),
-            "active_version": version_stats.get("active_version"),
-        })
+        result.update(
+            {
+                "total_versions": version_stats.get("total", 0),
+                "published_versions": version_stats.get("published", 0),
+                "draft_versions": version_stats.get("draft", 0),
+                "active_version": version_stats.get("active_version"),
+            }
+        )
 
     return result
 
@@ -257,19 +267,21 @@ def _compare_templates(old_data: Dict, new_data: Dict) -> Dict[str, Any]:
     old_json = json.dumps(old_data, indent=2, sort_keys=True)
     new_json = json.dumps(new_data, indent=2, sort_keys=True)
 
-    diff_lines = list(unified_diff(
-        old_json.splitlines(keepends=True),
-        new_json.splitlines(keepends=True),
-        fromfile="old_version",
-        tofile="new_version",
-        lineterm=""
-    ))
+    diff_lines = list(
+        unified_diff(
+            old_json.splitlines(keepends=True),
+            new_json.splitlines(keepends=True),
+            fromfile="old_version",
+            tofile="new_version",
+            lineterm="",
+        )
+    )
 
     changes = []
     for line in diff_lines:
-        if line.startswith('+') and not line.startswith('+++'):
+        if line.startswith("+") and not line.startswith("+++"):
             changes.append({"type": "added", "content": line[1:].strip()})
-        elif line.startswith('-') and not line.startswith('---'):
+        elif line.startswith("-") and not line.startswith("---"):
             changes.append({"type": "removed", "content": line[1:].strip()})
 
     return {

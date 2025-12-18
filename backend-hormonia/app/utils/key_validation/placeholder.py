@@ -27,4 +27,4 @@ def contains_placeholder(key: str) -> bool:
     return False
 
 
-__all__ = ['contains_placeholder']
+__all__ = ["contains_placeholder"]

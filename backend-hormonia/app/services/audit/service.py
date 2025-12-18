@@ -26,4 +26,5 @@ class AuditService(BaseAuditService, QuizAuditMixin, AIAuditMixin, AuditReportsM
 
     ADAPTER VERSION: Compatible with new AuditLog model schema.
     """
+
     pass

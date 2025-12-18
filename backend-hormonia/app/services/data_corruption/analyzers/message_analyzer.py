@@ -2,6 +2,7 @@
 Message Analyzer
 Analyzes message-specific corruption patterns.
 """
+
 import re
 import logging
 from .base import BaseAnalyzer
@@ -29,9 +30,9 @@ class MessageAnalyzer(BaseAnalyzer):
             await self._analyze_content(message)
 
             # Analyze metadata corruption
-            if hasattr(message, 'message_metadata') and message.message_metadata:
+            if hasattr(message, "message_metadata") and message.message_metadata:
                 await self.field_analyzer.analyze_metadata(
-                    message.message_metadata, 'message.metadata', message.id
+                    message.message_metadata, "message.metadata", message.id
                 )
 
             # Analyze temporal consistency
@@ -39,14 +40,16 @@ class MessageAnalyzer(BaseAnalyzer):
 
             # Analyze encoding issues
             if message.content:
-                await self.encoding_analyzer.check_encoding(message.content, "message.content", message.id)
+                await self.encoding_analyzer.check_encoding(
+                    message.content, "message.content", message.id
+                )
 
             # Collect all patterns
             all_patterns = (
-                self.corruption_patterns +
-                self.field_analyzer.corruption_patterns +
-                self.temporal_analyzer.corruption_patterns +
-                self.encoding_analyzer.corruption_patterns
+                self.corruption_patterns
+                + self.field_analyzer.corruption_patterns
+                + self.temporal_analyzer.corruption_patterns
+                + self.encoding_analyzer.corruption_patterns
             )
 
             return all_patterns
@@ -64,7 +67,7 @@ class MessageAnalyzer(BaseAnalyzer):
             content = message.content
 
             # Check for binary data in text content
-            if re.search(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]', content):
+            if re.search(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]", content):
                 self._add_pattern(
                     type=CorruptionType.CONTENT_CORRUPTION,
                     field="message.content",
@@ -73,7 +76,7 @@ class MessageAnalyzer(BaseAnalyzer):
                     description="Binary data found in text content",
                     detection_method="binary_detection",
                     examples=[f"Message {message.id}: Contains binary data"],
-                    confidence=0.9
+                    confidence=0.9,
                 )
 
             # Check for extremely long messages
@@ -85,8 +88,10 @@ class MessageAnalyzer(BaseAnalyzer):
                     severity="medium",
                     description="Message content is excessively long",
                     detection_method="length_validation",
-                    examples=[f"Message {message.id}: Length {len(content)} characters"],
-                    confidence=0.7
+                    examples=[
+                        f"Message {message.id}: Length {len(content)} characters"
+                    ],
+                    confidence=0.7,
                 )
 
             # Check for message content that's only whitespace
@@ -99,8 +104,10 @@ class MessageAnalyzer(BaseAnalyzer):
                     description="Message content is empty or only whitespace",
                     detection_method="content_validation",
                     examples=[f"Message {message.id}: Empty content"],
-                    confidence=0.8
+                    confidence=0.8,
                 )
 
         except Exception as e:
-            logger.error(f"Message content analysis failed for message {message.id}: {e}")
+            logger.error(
+                f"Message content analysis failed for message {message.id}: {e}"
+            )

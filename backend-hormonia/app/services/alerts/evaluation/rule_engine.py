@@ -13,7 +13,6 @@ from datetime import datetime
 from ..types import (
     AlertRule,
     AlertRuleType,
-    AlertSeverity,
     AlertEvaluation,
 )
 

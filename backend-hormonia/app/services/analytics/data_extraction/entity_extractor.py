@@ -2,6 +2,7 @@
 Entity extraction functionality.
 Handles extraction of structured entities from patient messages.
 """
+
 import logging
 import re
 import json
@@ -29,9 +30,9 @@ class EntityExtractor:
         self.langchain_orchestrator = langchain_orchestrator
         self.patterns = MedicalPatterns()
 
-    async def extract_entities(self,
-                               message_text: str,
-                               patient_context: PatientContext) -> List[ExtractedEntity]:
+    async def extract_entities(
+        self, message_text: str, patient_context: PatientContext
+    ) -> List[ExtractedEntity]:
         """
         Extract entities from message using AI and pattern matching.
 
@@ -50,7 +51,9 @@ class EntityExtractor:
             entities.extend(pattern_entities)
 
             # Extract using AI
-            ai_entities = await self.extract_entities_by_ai(message_text, patient_context)
+            ai_entities = await self.extract_entities_by_ai(
+                message_text, patient_context
+            )
             entities.extend(ai_entities)
 
             # Remove duplicates and merge similar entities
@@ -77,79 +80,95 @@ class EntityExtractor:
 
         try:
             # Extract pain scale
-            pain_scale_match = re.search(self.patterns.pain_patterns['pain_scale'], text_lower)
+            pain_scale_match = re.search(
+                self.patterns.pain_patterns["pain_scale"], text_lower
+            )
             if pain_scale_match:
-                entities.append(ExtractedEntity(
-                    entity_type="pain_scale",
-                    value=int(pain_scale_match.group(1)),
-                    confidence=0.9,
-                    context="pain scale rating",
-                    source_text=pain_scale_match.group(0)
-                ))
+                entities.append(
+                    ExtractedEntity(
+                        entity_type="pain_scale",
+                        value=int(pain_scale_match.group(1)),
+                        confidence=0.9,
+                        context="pain scale rating",
+                        source_text=pain_scale_match.group(0),
+                    )
+                )
 
             # Extract medication dosage
-            dosage_matches = re.finditer(self.patterns.medication_patterns['dosage'], text_lower)
+            dosage_matches = re.finditer(
+                self.patterns.medication_patterns["dosage"], text_lower
+            )
             for match in dosage_matches:
-                entities.append(ExtractedEntity(
-                    entity_type="medication_dosage",
-                    value={"amount": float(match.group(1)), "unit": match.group(2)},
-                    confidence=0.8,
-                    context="medication dosage",
-                    source_text=match.group(0)
-                ))
+                entities.append(
+                    ExtractedEntity(
+                        entity_type="medication_dosage",
+                        value={"amount": float(match.group(1)), "unit": match.group(2)},
+                        confidence=0.8,
+                        context="medication dosage",
+                        source_text=match.group(0),
+                    )
+                )
 
             # Extract numbers
-            numbers = re.findall(r'\b\d+(?:\.\d+)?\b', message_text)
+            numbers = re.findall(r"\b\d+(?:\.\d+)?\b", message_text)
             for number in numbers:
-                entities.append(ExtractedEntity(
-                    entity_type="numeric_value",
-                    value=float(number),
-                    confidence=0.6,
-                    context="numeric mention",
-                    source_text=number
-                ))
+                entities.append(
+                    ExtractedEntity(
+                        entity_type="numeric_value",
+                        value=float(number),
+                        confidence=0.6,
+                        context="numeric mention",
+                        source_text=number,
+                    )
+                )
 
             # Extract time references
             time_patterns = [
-                r'\b(\d{1,2}):(\d{2})\b',
-                r'\b(\d{1,2})\s*(am|pm|h|horas?)\b',
-                r'\b(manhã|morning|tarde|afternoon|noite|night|evening)\b'
+                r"\b(\d{1,2}):(\d{2})\b",
+                r"\b(\d{1,2})\s*(am|pm|h|horas?)\b",
+                r"\b(manhã|morning|tarde|afternoon|noite|night|evening)\b",
             ]
 
             for pattern in time_patterns:
                 matches = re.finditer(pattern, text_lower)
                 for match in matches:
-                    entities.append(ExtractedEntity(
-                        entity_type="time_reference",
-                        value=match.group(0),
-                        confidence=0.7,
-                        context="time mention",
-                        source_text=match.group(0)
-                    ))
+                    entities.append(
+                        ExtractedEntity(
+                            entity_type="time_reference",
+                            value=match.group(0),
+                            confidence=0.7,
+                            context="time mention",
+                            source_text=match.group(0),
+                        )
+                    )
 
             # Extract yes/no responses
-            yes_pattern = r'\b(sim|yes|yeah|ok|okay|claro|certo|positivo)\b'
-            no_pattern = r'\b(não|no|nope|never|negativo|jamais)\b'
+            yes_pattern = r"\b(sim|yes|yeah|ok|okay|claro|certo|positivo)\b"
+            no_pattern = r"\b(não|no|nope|never|negativo|jamais)\b"
 
             yes_match = re.search(yes_pattern, text_lower)
             no_match = re.search(no_pattern, text_lower)
 
             if yes_match:
-                entities.append(ExtractedEntity(
-                    entity_type="boolean_response",
-                    value=True,
-                    confidence=0.8,
-                    context="affirmative response",
-                    source_text=yes_match.group(0)
-                ))
+                entities.append(
+                    ExtractedEntity(
+                        entity_type="boolean_response",
+                        value=True,
+                        confidence=0.8,
+                        context="affirmative response",
+                        source_text=yes_match.group(0),
+                    )
+                )
             elif no_match:
-                entities.append(ExtractedEntity(
-                    entity_type="boolean_response",
-                    value=False,
-                    confidence=0.8,
-                    context="negative response",
-                    source_text=no_match.group(0)
-                ))
+                entities.append(
+                    ExtractedEntity(
+                        entity_type="boolean_response",
+                        value=False,
+                        confidence=0.8,
+                        context="negative response",
+                        source_text=no_match.group(0),
+                    )
+                )
 
             return entities
 
@@ -157,9 +176,9 @@ class EntityExtractor:
             logger.error(f"Pattern-based entity extraction failed: {e}")
             return entities
 
-    async def extract_entities_by_ai(self,
-                                    message_text: str,
-                                    patient_context: PatientContext) -> List[ExtractedEntity]:
+    async def extract_entities_by_ai(
+        self, message_text: str, patient_context: PatientContext
+    ) -> List[ExtractedEntity]:
         """
         Extract entities using AI.
 
@@ -202,19 +221,23 @@ class EntityExtractor:
             - time_references: time-related information
             """
 
-            ai_response = await self.langchain_orchestrator.generate_text(extraction_prompt)
+            ai_response = await self.langchain_orchestrator.generate_text(
+                extraction_prompt
+            )
 
             # Parse AI response (simplified - in production, use proper JSON parsing)
             try:
                 parsed_response = json.loads(ai_response)
                 for entity_data in parsed_response.get("entities", []):
-                    entities.append(ExtractedEntity(
-                        entity_type=entity_data.get("type", "unknown"),
-                        value=entity_data.get("value"),
-                        confidence=float(entity_data.get("confidence", 0.5)),
-                        context=entity_data.get("context", "AI extracted"),
-                        source_text=message_text[:50]  # First 50 chars as source
-                    ))
+                    entities.append(
+                        ExtractedEntity(
+                            entity_type=entity_data.get("type", "unknown"),
+                            value=entity_data.get("value"),
+                            confidence=float(entity_data.get("confidence", 0.5)),
+                            context=entity_data.get("context", "AI extracted"),
+                            source_text=message_text[:50],  # First 50 chars as source
+                        )
+                    )
             except (json.JSONDecodeError, KeyError, ValueError) as e:
                 logger.warning(f"Failed to parse AI entity extraction response: {e}")
 
@@ -224,7 +247,9 @@ class EntityExtractor:
             logger.error(f"AI entity extraction failed: {e}")
             return entities
 
-    def deduplicate_entities(self, entities: List[ExtractedEntity]) -> List[ExtractedEntity]:
+    def deduplicate_entities(
+        self, entities: List[ExtractedEntity]
+    ) -> List[ExtractedEntity]:
         """
         Remove duplicate entities and merge similar ones.
 
@@ -234,7 +259,6 @@ class EntityExtractor:
         Returns:
             Deduplicated list of entities
         """
-        deduplicated: List[ExtractedEntity] = []
         seen_entities: dict[str, ExtractedEntity] = {}
 
         for entity in entities:

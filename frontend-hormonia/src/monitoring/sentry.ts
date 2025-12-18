@@ -12,10 +12,10 @@
  */
 
 import * as Sentry from '@sentry/react';
-import { BrowserTracing } from '@sentry/tracing';
-import { CaptureConsole } from '@sentry/integrations';
-import { Replay } from '@sentry/replay';
 import { createLogger } from '@/lib/logger';
+
+// Note: In Sentry v10+, BrowserTracing and Replay are included in @sentry/react
+// CaptureConsole is available via Sentry.captureConsoleIntegration()
 
 const logger = createLogger('Sentry');
 
@@ -63,22 +63,23 @@ export class SentryMonitoring {
         dsn: SENTRY_DSN,
         environment: ENVIRONMENT,
         integrations: [
-          new BrowserTracing({
-            tracePropagationTargets: ['localhost', /^https:\/\/[^/]*\.railway\.app/],
-            enableWebVitals: true,
-          } as any) as any,
-          new Replay({
-            sessionSampleRate: SENTRY_REPLAYS_SESSION_SAMPLE_RATE,
-            errorSampleRate: SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE,
+          // Sentry v10+ API - integrations are now factory functions
+          Sentry.browserTracingIntegration({
+            enableInp: true,
+          }),
+          Sentry.replayIntegration({
             maskAllText: true,
             maskAllInputs: true,
             blockAllMedia: true,
-          }) as any,
-          new CaptureConsole({
+          }),
+          Sentry.captureConsoleIntegration({
             levels: ['error', 'warn'],
-          }) as any,
+          }),
         ],
+        tracePropagationTargets: ['localhost', /^https:\/\/[^/]*\.railway\.app/],
         tracesSampleRate: SENTRY_TRACES_SAMPLE_RATE,
+        replaysSessionSampleRate: SENTRY_REPLAYS_SESSION_SAMPLE_RATE,
+        replaysOnErrorSampleRate: SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE,
         beforeSend: this.beforeSendFilter,
         beforeSendTransaction: this.beforeSendTransactionFilter,
         release: import.meta.env['VITE_APP_VERSION'] || 'unknown',
@@ -331,16 +332,32 @@ export class SentryMonitoring {
   }
 
   /**
-   * Start a custom transaction for performance monitoring
+   * Start a custom span for performance monitoring (Sentry v10+ API)
+   * @deprecated Use Sentry.startSpan() directly for new code
    */
-  static startTransaction(name: string, op: string = 'custom'): any | null {
+  static startTransaction(name: string, op: string = 'custom'): { finish: () => void } | null {
     if (!this.isInitialized) return null;
 
     try {
-      // @ts-ignore - Sentry SDK version mismatch workaround
-      return Sentry.startTransaction({ name, op });
+      // Sentry v10+ uses startSpan instead of startTransaction
+      // Return a compatible interface for backwards compatibility
+      const spanRef = { finished: false };
+
+      Sentry.startSpan({ name, op }, () => {
+        // Span is automatically finished when callback completes
+        spanRef.finished = true;
+      });
+
+      return {
+        finish: () => {
+          // No-op since span is auto-finished in v10
+          if (!spanRef.finished) {
+            logger.debug(`Span ${name} finish called`);
+          }
+        }
+      };
     } catch (error) {
-      logger.error('Failed to start transaction:', error);
+      logger.error('Failed to start span:', error);
       return null;
     }
   }

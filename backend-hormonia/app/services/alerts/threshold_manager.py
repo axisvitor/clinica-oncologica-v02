@@ -9,7 +9,6 @@ import logging
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 from collections import defaultdict
-from uuid import UUID
 
 from .types import Alert, AlertRuleType, AlertSeverity
 from .config import get_config, AlertSystemConfig

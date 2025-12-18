@@ -1,17 +1,19 @@
 """
 Routing module for WhatsApp messages.
 """
+
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
+
 
 class MessageRouter:
     """
     Handles routing logic for incoming WhatsApp messages.
     Decides the target service based on message content and user context.
     """
-    
+
     def __init__(self, redis_client):
         self.redis = redis_client
 
@@ -50,9 +52,7 @@ class MessageRouter:
         return ""
 
     async def determine_routing_target(
-        self,
-        phone_number: str,
-        message_text: str
+        self, phone_number: str, message_text: str
     ) -> str:
         """
         Determine where to route the message.

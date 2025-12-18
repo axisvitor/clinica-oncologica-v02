@@ -10,16 +10,14 @@ This module implements monitoring tasks to detect and alert on saga anomalies:
 import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
-from uuid import UUID
 
 from celery import shared_task
-from sqlalchemy import and_, or_
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.patient_onboarding_saga import PatientOnboardingSaga, SagaStatus
 from app.core.monitoring import capture_message, capture_exception
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -226,9 +224,7 @@ def generate_saga_metrics() -> dict:
         completed_sagas = len(
             [s for s in recent_sagas if s.status == SagaStatus.COMPLETED]
         )
-        failed_sagas = len(
-            [s for s in recent_sagas if s.status == SagaStatus.FAILED]
-        )
+        failed_sagas = len([s for s in recent_sagas if s.status == SagaStatus.FAILED])
         compensated_sagas = len(
             [s for s in recent_sagas if s.status == SagaStatus.COMPENSATED]
         )

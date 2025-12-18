@@ -11,12 +11,11 @@ All validation endpoints ensure data consistency and prevent duplicates.
 Soft delete operations preserve data for audit purposes while marking records as deleted.
 """
 
-from typing import Any, Optional, List
+from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import func
 import logging
 
 from app.database import get_db
@@ -24,7 +23,11 @@ from app.models.patient import Patient
 from app.models.user import UserRole
 from app.schemas.patient import validate_cpf as validate_cpf_value
 from app.schemas.v2.patient import PatientV2Response, PatientV2List
-from app.api.v2.dependencies import get_pagination_params, get_field_selection, apply_field_selection
+from app.api.v2.dependencies import (
+    get_pagination_params,
+    get_field_selection,
+    apply_field_selection,
+)
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.utils.rate_limiter import limiter
 
@@ -32,7 +35,6 @@ from app.utils.rate_limiter import limiter
 from app.api.v2.patients_utils import (
     _normalize_cpf,
     _extract_user_context,
-    _ensure_uuid,
 )
 
 router = APIRouter()
@@ -42,6 +44,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # Pydantic Models for Validation Requests/Responses
 # ============================================================================
+
 
 class CPFValidationRequest(BaseModel):
     cpf: str
@@ -56,16 +59,14 @@ class EmailCheckResponse(BaseModel):
 # CPF Validation Endpoint
 # ============================================================================
 
+
 @router.post(
     "/validate-cpf",
     summary="Validate CPF",
-    description="Validate CPF format and length"
+    description="Validate CPF format and length",
 )
 @limiter.limit("60/minute")
-async def validate_cpf_endpoint(
-    request: Request,
-    payload: CPFValidationRequest
-):
+async def validate_cpf_endpoint(request: Request, payload: CPFValidationRequest):
     """
     Validate CPF format and length.
 
@@ -102,17 +103,18 @@ async def validate_cpf_endpoint(
 # Email Existence Check Endpoint
 # ============================================================================
 
+
 @router.get(
     "/check-email",
     response_model=EmailCheckResponse,
     summary="Check if patient email exists",
-    description="Check if a patient with the given email already exists in the system"
+    description="Check if a patient with the given email already exists in the system",
 )
 @limiter.limit("60/minute")
 async def check_email_exists(
     request: Request,
     email: EmailStr = Query(..., description="Email to validate"),
-    db = Depends(get_db),
+    db=Depends(get_db),
 ):
     """
     Check if a patient email already exists.
@@ -132,6 +134,7 @@ async def check_email_exists(
     """
     # LGPD: Use email_hash for lookup (plaintext column removed in migration 030)
     from app.services.encryption import get_lgpd_encryption_service
+
     service = get_lgpd_encryption_service()
     email_hash = service.hash_email(email.lower())
 
@@ -151,18 +154,19 @@ async def check_email_exists(
 # Soft Delete Operations
 # ============================================================================
 
+
 @router.delete(
     "/{patient_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete patient (soft delete)",
-    description="Soft delete a patient record - marks as deleted without removing from database"
+    description="Soft delete a patient record - marks as deleted without removing from database",
 )
 @limiter.limit("10/hour")
 async def delete_patient(
     request: Request,
     patient_id: str,
-    db = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user_from_session),
 ):
     """
     Soft delete a patient.
@@ -191,20 +195,20 @@ async def delete_patient(
         patient_uuid = UUID(patient_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid patient ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid patient ID format"
         )
 
     # Only get active patients (not already deleted)
-    patient = db.query(Patient).filter(
-        Patient.id == patient_uuid,
-        Patient.deleted_at.is_(None)
-    ).first()
+    patient = (
+        db.query(Patient)
+        .filter(Patient.id == patient_uuid, Patient.deleted_at.is_(None))
+        .first()
+    )
 
     if not patient:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Active patient with id {patient_id} not found"
+            detail=f"Active patient with id {patient_id} not found",
         )
 
     # Soft delete: set deleted_at timestamp
@@ -218,14 +222,14 @@ async def delete_patient(
     "/{patient_id}/restore",
     response_model=PatientV2Response,
     summary="Restore deleted patient",
-    description="Restore a soft-deleted patient record"
+    description="Restore a soft-deleted patient record",
 )
 @limiter.limit("10/hour")
 async def restore_patient(
     request: Request,
     patient_id: str,
-    db = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user_from_session),
 ):
     """
     Restore a soft-deleted patient.
@@ -253,20 +257,20 @@ async def restore_patient(
         patient_uuid = UUID(patient_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid patient ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid patient ID format"
         )
 
     # Only get deleted patients
-    patient = db.query(Patient).filter(
-        Patient.id == patient_uuid,
-        Patient.deleted_at.isnot(None)
-    ).first()
+    patient = (
+        db.query(Patient)
+        .filter(Patient.id == patient_uuid, Patient.deleted_at.isnot(None))
+        .first()
+    )
 
     if not patient:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Deleted patient with id {patient_id} not found"
+            detail=f"Deleted patient with id {patient_id} not found",
         )
 
     # Restore: remove deleted_at timestamp
@@ -281,18 +285,19 @@ async def restore_patient(
 # Deleted Patients Management
 # ============================================================================
 
+
 @router.get(
     "/deleted",
     response_model=PatientV2List,
     summary="List deleted patients",
-    description="Get list of soft-deleted patients (ADMIN only)"
+    description="Get list of soft-deleted patients (ADMIN only)",
 )
 @limiter.limit("30/minute")
 async def list_deleted_patients(
     request: Request,
-    db = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
-    pagination = Depends(get_pagination_params),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user_from_session),
+    pagination=Depends(get_pagination_params),
     fields: Optional[List[str]] = Depends(get_field_selection),
 ):
     """
@@ -323,24 +328,36 @@ async def list_deleted_patients(
     if role_enum != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can view deleted patients"
+            detail="Only administrators can view deleted patients",
         )
 
     # Query deleted patients
     query = db.query(Patient).filter(Patient.deleted_at.isnot(None))
 
     # Get cursor data and limit from pagination
-    cursor_data = pagination.get("cursor_data") if isinstance(pagination, dict) else None
-    limit = pagination.get("limit", 20) if isinstance(pagination, dict) else getattr(pagination, "limit", 20)
+    cursor_data = (
+        pagination.get("cursor_data") if isinstance(pagination, dict) else None
+    )
+    limit = (
+        pagination.get("limit", 20)
+        if isinstance(pagination, dict)
+        else getattr(pagination, "limit", 20)
+    )
 
     # Apply cursor-based pagination if cursor exists
     if cursor_data and "id" in cursor_data:
-        cursor_id = UUID(cursor_data["id"]) if isinstance(cursor_data["id"], str) else cursor_data["id"]
-        cursor_created_at = datetime.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
+        cursor_id = (
+            UUID(cursor_data["id"])
+            if isinstance(cursor_data["id"], str)
+            else cursor_data["id"]
+        )
+        cursor_created_at = datetime.fromisoformat(
+            cursor_data["created_at"].replace("Z", "+00:00")
+        )
 
         query = query.filter(
-            (Patient.created_at < cursor_created_at) |
-            ((Patient.created_at == cursor_created_at) & (Patient.id > cursor_id))
+            (Patient.created_at < cursor_created_at)
+            | ((Patient.created_at == cursor_created_at) & (Patient.id > cursor_id))
         )
 
     # Calculate total (only on first page)
@@ -362,9 +379,10 @@ async def list_deleted_patients(
     if has_more and patients:
         import json
         import base64
+
         cursor_data = {
             "id": str(patients[-1].id),
-            "created_at": patients[-1].created_at.isoformat()
+            "created_at": patients[-1].created_at.isoformat(),
         }
         next_cursor = base64.b64encode(json.dumps(cursor_data).encode()).decode()
 

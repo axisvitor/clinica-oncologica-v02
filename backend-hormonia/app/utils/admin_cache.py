@@ -3,18 +3,17 @@ Admin endpoint caching utilities for Hormonia Backend.
 
 Provides efficient caching for admin dashboard data and user management.
 """
+
 import json
 import hashlib
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List, Callable
 from functools import wraps
 
-import redis.asyncio as redis
 from fastapi import Request
 import structlog
 
 from app.core.redis_unified import get_async_redis
-from app.config import settings
 
 logger = structlog.get_logger(__name__)
 
@@ -27,11 +26,7 @@ class AdminCacheManager:
     def __init__(self):
         self.default_ttl = 300  # 5 minutes
         self.cache_prefix = "admin_cache"
-        self.stats = {
-            'hits': 0,
-            'misses': 0,
-            'invalidations': 0
-        }
+        self.stats = {"hits": 0, "misses": 0, "invalidations": 0}
 
     def _generate_cache_key(self, key_parts: List[str]) -> str:
         """Generate consistent cache key from parts."""
@@ -39,12 +34,14 @@ class AdminCacheManager:
         key_hash = hashlib.md5(key_string.encode()).hexdigest()[:12]
         return f"{self.cache_prefix}:{key_hash}:{key_string}"
 
-    def _generate_request_key(self, request: Request, additional_parts: List[str] = None) -> str:
+    def _generate_request_key(
+        self, request: Request, additional_parts: List[str] = None
+    ) -> str:
         """Generate cache key from request parameters."""
         key_parts = [
             request.method,
             request.url.path,
-            str(sorted(request.query_params.items()))
+            str(sorted(request.query_params.items())),
         ]
 
         if additional_parts:
@@ -59,33 +56,30 @@ class AdminCacheManager:
             cached_data = await redis_client.get(cache_key)
 
             if cached_data:
-                self.stats['hits'] += 1
+                self.stats["hits"] += 1
                 data = json.loads(cached_data.decode())
 
                 # Check if cache is still valid
-                if 'expires_at' in data:
-                    expires_at = datetime.fromisoformat(data['expires_at'])
+                if "expires_at" in data:
+                    expires_at = datetime.fromisoformat(data["expires_at"])
                     if datetime.utcnow() > expires_at:
                         await redis_client.delete(cache_key)
-                        self.stats['misses'] += 1
+                        self.stats["misses"] += 1
                         return None
 
                 logger.debug(f"Cache hit for key: {cache_key}")
-                return data.get('response')
+                return data.get("response")
 
-            self.stats['misses'] += 1
+            self.stats["misses"] += 1
             return None
 
         except Exception as e:
             logger.error(f"Error getting cached response: {e}")
-            self.stats['misses'] += 1
+            self.stats["misses"] += 1
             return None
 
     async def set_cached_response(
-        self,
-        cache_key: str,
-        response_data: Dict[str, Any],
-        ttl: Optional[int] = None
+        self, cache_key: str, response_data: Dict[str, Any], ttl: Optional[int] = None
     ) -> bool:
         """Cache response data with TTL."""
         try:
@@ -93,15 +87,13 @@ class AdminCacheManager:
             ttl = ttl or self.default_ttl
 
             cache_data = {
-                'response': response_data,
-                'cached_at': datetime.utcnow().isoformat(),
-                'expires_at': (datetime.utcnow() + timedelta(seconds=ttl)).isoformat()
+                "response": response_data,
+                "cached_at": datetime.utcnow().isoformat(),
+                "expires_at": (datetime.utcnow() + timedelta(seconds=ttl)).isoformat(),
             }
 
             await redis_client.setex(
-                cache_key,
-                ttl,
-                json.dumps(cache_data, default=str)
+                cache_key, ttl, json.dumps(cache_data, default=str)
             )
 
             logger.debug(f"Cached response for key: {cache_key}, TTL: {ttl}s")
@@ -119,8 +111,10 @@ class AdminCacheManager:
 
             if keys:
                 deleted = await redis_client.delete(*keys)
-                self.stats['invalidations'] += deleted
-                logger.info(f"Invalidated {deleted} cache entries matching pattern: {pattern}")
+                self.stats["invalidations"] += deleted
+                logger.info(
+                    f"Invalidated {deleted} cache entries matching pattern: {pattern}"
+                )
                 return deleted
 
             return 0
@@ -131,25 +125,20 @@ class AdminCacheManager:
 
     async def invalidate_user_cache(self, user_id: str) -> None:
         """Invalidate cache entries related to a specific user."""
-        patterns = [
-            f"user:{user_id}",
-            "users",
-            "stats",
-            "activity"
-        ]
+        patterns = [f"user:{user_id}", "users", "stats", "activity"]
 
         for pattern in patterns:
             await self.invalidate_pattern(pattern)
 
     def get_cache_stats(self) -> Dict[str, Any]:
         """Get cache performance statistics."""
-        total_requests = self.stats['hits'] + self.stats['misses']
-        hit_rate = (self.stats['hits'] / max(total_requests, 1)) * 100
+        total_requests = self.stats["hits"] + self.stats["misses"]
+        hit_rate = (self.stats["hits"] / max(total_requests, 1)) * 100
 
         return {
             **self.stats,
-            'total_requests': total_requests,
-            'hit_rate_percentage': round(hit_rate, 2)
+            "total_requests": total_requests,
+            "hit_rate_percentage": round(hit_rate, 2),
         }
 
 
@@ -160,7 +149,7 @@ admin_cache = AdminCacheManager()
 def cache_admin_response(
     ttl: int = 300,
     cache_key_fn: Optional[Callable] = None,
-    invalidate_on: Optional[List[str]] = None
+    invalidate_on: Optional[List[str]] = None,
 ):
     """
     Decorator for caching admin endpoint responses.
@@ -170,6 +159,7 @@ def cache_admin_response(
         cache_key_fn: Custom function to generate cache key
         invalidate_on: List of events that should invalidate this cache
     """
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -199,9 +189,11 @@ def cache_admin_response(
             response = await func(*args, **kwargs)
 
             # Cache the response if it's successful
-            if hasattr(response, 'status_code'):
+            if hasattr(response, "status_code"):
                 if response.status_code == 200:
-                    await admin_cache.set_cached_response(cache_key, response.__dict__, ttl)
+                    await admin_cache.set_cached_response(
+                        cache_key, response.__dict__, ttl
+                    )
             else:
                 # For direct dict/object responses
                 await admin_cache.set_cached_response(cache_key, response, ttl)
@@ -209,6 +201,7 @@ def cache_admin_response(
             return response
 
         return wrapper
+
     return decorator
 
 
@@ -233,41 +226,32 @@ def invalidate_admin_cache(pattern: str):
 # Cache key generators for common patterns
 def user_list_cache_key(request: Request, *args, **kwargs) -> str:
     """Generate cache key for user list endpoint."""
-    page = request.query_params.get('page', '1')
-    size = request.query_params.get('size', '20')
+    page = request.query_params.get("page", "1")
+    size = request.query_params.get("size", "20")
     filters = [
-        request.query_params.get('role', ''),
-        request.query_params.get('is_active', ''),
-        request.query_params.get('search', ''),
+        request.query_params.get("role", ""),
+        request.query_params.get("is_active", ""),
+        request.query_params.get("search", ""),
     ]
 
-    return admin_cache._generate_cache_key([
-        'user_list',
-        page,
-        size,
-        *filters
-    ])
+    return admin_cache._generate_cache_key(["user_list", page, size, *filters])
 
 
 def user_stats_cache_key(request: Request, *args, **kwargs) -> str:
     """Generate cache key for user statistics."""
-    return admin_cache._generate_cache_key(['user_stats'])
+    return admin_cache._generate_cache_key(["user_stats"])
 
 
 def user_activity_cache_key(request: Request, *args, **kwargs) -> str:
     """Generate cache key for user activity."""
-    user_id = kwargs.get('user_id', '')
-    page = request.query_params.get('page', '1')
-    size = request.query_params.get('size', '20')
-    action = request.query_params.get('action', '')
+    user_id = kwargs.get("user_id", "")
+    page = request.query_params.get("page", "1")
+    size = request.query_params.get("size", "20")
+    action = request.query_params.get("action", "")
 
-    return admin_cache._generate_cache_key([
-        'user_activity',
-        str(user_id),
-        page,
-        size,
-        action
-    ])
+    return admin_cache._generate_cache_key(
+        ["user_activity", str(user_id), page, size, action]
+    )
 
 
 def get_admin_cache() -> AdminCacheManager:

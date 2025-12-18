@@ -8,9 +8,9 @@ and enforcing idempotent behavior within a 24-hour window.
 import logging
 import hashlib
 import json
-from typing import Callable, Any
+from typing import Callable
 from datetime import datetime
-from fastapi import Request, Response, HTTPException, status
+from fastapi import Request, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -30,10 +30,7 @@ class IdempotencyMiddleware:
     """
 
     def __init__(
-        self,
-        app,
-        ttl_hours: int = 24,
-        enabled_paths: list[str] | None = None
+        self, app, ttl_hours: int = 24, enabled_paths: list[str] | None = None
     ):
         """
         Initialize idempotency middleware.
@@ -49,7 +46,7 @@ class IdempotencyMiddleware:
         self.enabled_paths = enabled_paths or [
             "/api/v2/webhooks/whatsapp",
             "/api/v2/webhooks/twilio",
-            "/webhooks/"
+            "/webhooks/",
         ]
 
     async def __call__(self, request: Request, call_next: Callable) -> Response:
@@ -73,7 +70,7 @@ class IdempotencyMiddleware:
             # No event ID found, process normally
             logger.warning(
                 "No event ID found for idempotent webhook",
-                extra={"path": request.url.path}
+                extra={"path": request.url.path},
             )
             return await call_next(request)
 
@@ -89,7 +86,7 @@ class IdempotencyMiddleware:
                 event_id=event_id,
                 provider=provider,
                 event_type=event_type,
-                request=request
+                request=request,
             )
 
             if webhook_event.status == "completed":
@@ -99,8 +96,8 @@ class IdempotencyMiddleware:
                     extra={
                         "event_id": event_id,
                         "provider": provider,
-                        "retry_count": webhook_event.retry_count
-                    }
+                        "retry_count": webhook_event.retry_count,
+                    },
                 )
                 webhook_event.increment_retry()
                 db.commit()
@@ -112,13 +109,13 @@ class IdempotencyMiddleware:
                         "message": "Event already processed",
                         "event_id": event_id,
                         "processed_at": webhook_event.processed_at.isoformat(),
-                        "response": webhook_event.response_data
+                        "response": webhook_event.response_data,
                     },
                     headers={
                         "X-Idempotency-Status": "duplicate",
                         "X-Event-ID": event_id,
-                        "X-Retry-Count": str(webhook_event.retry_count)
-                    }
+                        "X-Retry-Count": str(webhook_event.retry_count),
+                    },
                 )
 
             # Process the webhook
@@ -126,10 +123,12 @@ class IdempotencyMiddleware:
                 response = await call_next(request)
 
                 # Mark as completed
-                webhook_event.mark_completed({
-                    "status_code": response.status_code,
-                    "processed_at": datetime.utcnow().isoformat()
-                })
+                webhook_event.mark_completed(
+                    {
+                        "status_code": response.status_code,
+                        "processed_at": datetime.utcnow().isoformat(),
+                    }
+                )
                 db.commit()
 
                 # Add idempotency headers
@@ -140,10 +139,9 @@ class IdempotencyMiddleware:
 
             except Exception as e:
                 # Mark as failed
-                webhook_event.mark_failed({
-                    "error": str(e),
-                    "error_type": type(e).__name__
-                })
+                webhook_event.mark_failed(
+                    {"error": str(e), "error_type": type(e).__name__}
+                )
                 db.commit()
                 raise
 
@@ -237,7 +235,7 @@ class IdempotencyMiddleware:
         event_id: str,
         provider: str,
         event_type: str,
-        request: Request
+        request: Request,
     ) -> WebhookEvent:
         """
         Check if event has been processed before.
@@ -246,16 +244,16 @@ class IdempotencyMiddleware:
             WebhookEvent instance (existing or new)
         """
         # Check for existing event
-        existing_event = db.query(WebhookEvent).filter(
-            WebhookEvent.event_id == event_id
-        ).first()
+        existing_event = (
+            db.query(WebhookEvent).filter(WebhookEvent.event_id == event_id).first()
+        )
 
         if existing_event:
             # Check if expired
             if existing_event.is_expired():
                 logger.info(
                     "Expired idempotency record found, allowing reprocessing",
-                    extra={"event_id": event_id}
+                    extra={"event_id": event_id},
                 )
                 # Delete expired record and create new one
                 db.delete(existing_event)
@@ -275,7 +273,7 @@ class IdempotencyMiddleware:
             provider=provider,
             event_type=event_type,
             payload=payload,
-            ttl_hours=self.ttl_hours
+            ttl_hours=self.ttl_hours,
         )
 
         try:
@@ -287,9 +285,9 @@ class IdempotencyMiddleware:
         except IntegrityError:
             # Race condition - another request created the record
             db.rollback()
-            existing_event = db.query(WebhookEvent).filter(
-                WebhookEvent.event_id == event_id
-            ).first()
+            existing_event = (
+                db.query(WebhookEvent).filter(WebhookEvent.event_id == event_id).first()
+            )
             if existing_event:
                 return existing_event
             raise
@@ -311,9 +309,12 @@ async def cleanup_expired_events(db: Session, batch_size: int = 1000) -> int:
     try:
         while True:
             # Find expired events
-            expired_events = db.query(WebhookEvent).filter(
-                WebhookEvent.expires_at < datetime.utcnow()
-            ).limit(batch_size).all()
+            expired_events = (
+                db.query(WebhookEvent)
+                .filter(WebhookEvent.expires_at < datetime.utcnow())
+                .limit(batch_size)
+                .all()
+            )
 
             if not expired_events:
                 break
@@ -327,7 +328,7 @@ async def cleanup_expired_events(db: Session, batch_size: int = 1000) -> int:
 
             logger.info(
                 f"Deleted {len(expired_events)} expired idempotency records",
-                extra={"batch_size": batch_size, "total_deleted": deleted_count}
+                extra={"batch_size": batch_size, "total_deleted": deleted_count},
             )
 
         return deleted_count

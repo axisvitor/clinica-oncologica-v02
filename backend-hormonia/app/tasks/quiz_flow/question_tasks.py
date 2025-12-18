@@ -41,7 +41,9 @@ def send_quiz_question_task(
 
     try:
         with next(get_db()) as db:
-            from app.domain.quizzes.integration.flow_integration import ConversationalQuizService
+            from app.domain.quizzes.integration.flow_integration import (
+                ConversationalQuizService,
+            )
             from app.services.quiz import QuizSessionService, QuizTemplateService
 
             quiz_flow_service = ConversationalQuizService(db)
@@ -58,7 +60,7 @@ def send_quiz_question_task(
             template = template_service.get_template(active_session.quiz_template_id)
 
             # Send next question using async method
-            result = asyncio.run(
+            asyncio.run(
                 quiz_flow_service._send_next_question(
                     patient_id=UUID(patient_id),
                     session=active_session,

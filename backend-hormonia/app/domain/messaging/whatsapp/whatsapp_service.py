@@ -20,7 +20,7 @@ Legacy Files:
 import logging
 import hashlib
 import uuid
-from typing import Optional, Dict, Any, List, Callable
+from typing import Optional, Dict, Any, Callable
 from datetime import datetime, timedelta
 from enum import Enum
 
@@ -36,8 +36,7 @@ from app.repositories.message import MessageRepository
 from app.repositories.patient import PatientRepository
 from app.services.websocket_events import websocket_events
 from app.schemas.websocket import WebSocketEventType
-from app.exceptions import ExternalServiceError, NotFoundError
-from app.utils.db_retry import with_db_retry
+from app.exceptions import NotFoundError
 
 
 logger = logging.getLogger(__name__)

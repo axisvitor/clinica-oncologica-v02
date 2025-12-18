@@ -1,6 +1,7 @@
 """
 Repository layer for data access.
 """
+
 from app.repositories.base import BaseRepository
 from app.repositories.user import UserRepository
 from app.repositories.patient import PatientRepository
@@ -13,7 +14,7 @@ from app.repositories.alert import AlertRepository
 __all__ = [
     "BaseRepository",
     "UserRepository",
-    "PatientRepository", 
+    "PatientRepository",
     "MessageRepository",
     "FlowStateRepository",
     "QuizTemplateRepository",

@@ -7,7 +7,6 @@ Provides helper functions for:
 """
 
 from typing import Optional
-import logging
 
 from app.models.user import UserRole
 from app.core.redis_client import get_async_redis_client

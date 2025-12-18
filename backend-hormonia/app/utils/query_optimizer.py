@@ -23,19 +23,19 @@ from datetime import datetime
 
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Query, Session, RelationshipProperty
-from sqlalchemy.orm.query import Query as QueryType
+from sqlalchemy.orm import Query, Session
 from sqlalchemy.sql import text
 
 logger = logging.getLogger(__name__)
 
 # Type variable for generic function wrapping
-F = TypeVar('F', bound=Callable[..., Any])
+F = TypeVar("F", bound=Callable[..., Any])
 
 
 @dataclass
 class QueryMetrics:
     """Metrics for a single query execution"""
+
     query_text: str
     execution_time_ms: float
     row_count: int
@@ -49,6 +49,7 @@ class QueryMetrics:
 @dataclass
 class QueryStats:
     """Aggregated statistics for query optimization"""
+
     total_queries: int = 0
     total_time_ms: float = 0.0
     slow_queries: int = 0
@@ -85,9 +86,7 @@ class QueryOptimizer:
         self._enabled = True
 
     def optimized_query(
-        self,
-        relationships: Optional[List[str]] = None,
-        strategy: str = "auto"
+        self, relationships: Optional[List[str]] = None, strategy: str = "auto"
     ) -> Callable[[F], F]:
         """
         Decorator to automatically apply eager loading to queries and track performance.
@@ -111,6 +110,7 @@ class QueryOptimizer:
             def get_patient_with_details(db, patient_id):
                 return db.query(Patient).filter_by(id=patient_id).first()
         """
+
         def decorator(func: F) -> F:
             @wraps(func)
             def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -144,12 +144,14 @@ class QueryOptimizer:
                     n1_detected = query_count > 5  # More than 5 queries suggests N+1
 
                     metrics = QueryMetrics(
-                        query_text=str(result) if isinstance(result, Query) else function_name,
+                        query_text=str(result)
+                        if isinstance(result, Query)
+                        else function_name,
                         execution_time_ms=execution_time_ms,
                         row_count=row_count,
                         function_name=function_name,
                         is_slow=is_slow,
-                        n1_detected=n1_detected
+                        n1_detected=n1_detected,
                     )
 
                     # Update statistics
@@ -178,13 +180,11 @@ class QueryOptimizer:
                         del self._query_count_per_request[request_id]
 
             return cast(F, wrapper)
+
         return decorator
 
     def _apply_eager_loading(
-        self,
-        query: Query,
-        relationships: List[str],
-        strategy: str
+        self, query: Query, relationships: List[str], strategy: str
     ) -> Query:
         """
         Apply eager loading to query based on strategy.
@@ -204,7 +204,7 @@ class QueryOptimizer:
 
         for rel_path in relationships:
             # Parse nested relationships (e.g., 'patient.doctor')
-            rel_parts = rel_path.split('.')
+            rel_parts = rel_path.split(".")
 
             # Determine loading strategy
             if strategy == "joined":
@@ -284,25 +284,25 @@ class QueryOptimizer:
                 "avg_time_ms": round(self.stats.avg_execution_time_ms, 2),
                 "slow_queries_count": self.stats.slow_queries,
                 "n1_queries_count": self.stats.n1_queries,
-                "queries_by_table": dict(self.stats.queries_by_table)
+                "queries_by_table": dict(self.stats.queries_by_table),
             },
             "slow_queries": [
                 {
                     "function": m.function_name,
                     "time_ms": round(m.execution_time_ms, 2),
                     "rows": m.row_count,
-                    "timestamp": m.timestamp.isoformat()
+                    "timestamp": m.timestamp.isoformat(),
                 }
-                for m in sorted(slow_queries, key=lambda x: x.execution_time_ms, reverse=True)[:10]
+                for m in sorted(
+                    slow_queries, key=lambda x: x.execution_time_ms, reverse=True
+                )[:10]
             ],
             "n1_patterns": list(self._n1_patterns),
-            "suggestions": self._generate_suggestions(slow_queries, n1_queries)
+            "suggestions": self._generate_suggestions(slow_queries, n1_queries),
         }
 
     def _generate_suggestions(
-        self,
-        slow_queries: List[QueryMetrics],
-        n1_queries: List[QueryMetrics]
+        self, slow_queries: List[QueryMetrics], n1_queries: List[QueryMetrics]
     ) -> List[str]:
         """Generate optimization suggestions based on detected issues"""
         suggestions = []
@@ -344,8 +344,7 @@ _global_optimizer = QueryOptimizer()
 
 
 def optimized_query(
-    relationships: Optional[List[str]] = None,
-    strategy: str = "auto"
+    relationships: Optional[List[str]] = None, strategy: str = "auto"
 ) -> Callable[[F], F]:
     """
     Convenience function for using global optimizer.
@@ -387,6 +386,7 @@ def track_queries(session: Session):
 
         logger.info(f"Executed {tracker.query_count} queries", extra={"query_count": tracker.query_count})
     """
+
     class QueryTracker:
         def __init__(self):
             self.query_count = 0
@@ -395,13 +395,17 @@ def track_queries(session: Session):
     tracker = QueryTracker()
 
     @event.listens_for(session, "after_cursor_execute")
-    def receive_after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    def receive_after_cursor_execute(
+        conn, cursor, statement, parameters, context, executemany
+    ):
         tracker.query_count += 1
-        tracker.queries.append({
-            "statement": statement,
-            "parameters": parameters,
-            "executemany": executemany
-        })
+        tracker.queries.append(
+            {
+                "statement": statement,
+                "parameters": parameters,
+                "executemany": executemany,
+            }
+        )
 
     try:
         yield tracker
@@ -417,19 +421,23 @@ def setup_query_logging(engine: Engine, log_all: bool = False) -> None:
         engine: SQLAlchemy engine
         log_all: If True, log all queries. If False, only log slow queries.
     """
+
     @event.listens_for(engine, "before_cursor_execute")
-    def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
-        conn.info.setdefault('query_start_time', []).append(time.time())
+    def before_cursor_execute(
+        conn, cursor, statement, parameters, context, executemany
+    ):
+        conn.info.setdefault("query_start_time", []).append(time.time())
 
     @event.listens_for(engine, "after_cursor_execute")
     def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
-        total_time = time.time() - conn.info['query_start_time'].pop()
+        total_time = time.time() - conn.info["query_start_time"].pop()
         total_time_ms = total_time * 1000
 
         # Update global optimizer
         request_id = f"engine_{id(conn)}"
-        _global_optimizer._query_count_per_request[request_id] = \
+        _global_optimizer._query_count_per_request[request_id] = (
             _global_optimizer._query_count_per_request.get(request_id, 0) + 1
+        )
 
         # Log based on settings
         if log_all:
@@ -437,9 +445,7 @@ def setup_query_logging(engine: Engine, log_all: bool = False) -> None:
                 f"Query executed in {total_time_ms:.2f}ms: {statement[:100]}..."
             )
         elif total_time_ms > _global_optimizer.slow_query_threshold_ms:
-            logger.warning(
-                f"Slow query ({total_time_ms:.2f}ms): {statement[:200]}..."
-            )
+            logger.warning(f"Slow query ({total_time_ms:.2f}ms): {statement[:200]}...")
 
 
 def analyze_query_plan(session: Session, query: Query) -> Dict[str, Any]:
@@ -455,10 +461,11 @@ def analyze_query_plan(session: Session, query: Query) -> Dict[str, Any]:
     """
     try:
         # Get query string
-        query_str = str(query.statement.compile(
-            session.bind,
-            compile_kwargs={"literal_binds": True}
-        ))
+        query_str = str(
+            query.statement.compile(
+                session.bind, compile_kwargs={"literal_binds": True}
+            )
+        )
 
         # Execute EXPLAIN ANALYZE
         result = session.execute(
@@ -469,14 +476,14 @@ def analyze_query_plan(session: Session, query: Query) -> Dict[str, Any]:
 
         # Extract key metrics
         if isinstance(plan, list) and len(plan) > 0:
-            execution_time = plan[0].get('Execution Time', 0)
-            planning_time = plan[0].get('Planning Time', 0)
+            execution_time = plan[0].get("Execution Time", 0)
+            planning_time = plan[0].get("Planning Time", 0)
 
             return {
                 "execution_time_ms": execution_time,
                 "planning_time_ms": planning_time,
                 "total_time_ms": execution_time + planning_time,
-                "plan": plan
+                "plan": plan,
             }
 
         return {"error": "Unable to parse query plan"}

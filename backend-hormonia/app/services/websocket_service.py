@@ -13,13 +13,11 @@ Total: 5 files → 1 file (80% reduction)
 Version: 1.0.0 (QW-024)
 """
 
-import json
 import logging
-import asyncio
 from typing import Dict, Set, Optional, Any, List
 from datetime import datetime, timedelta
 from uuid import UUID
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import WebSocket
 from redis import Redis
 from jose import jwt, JWTError
 
@@ -180,7 +178,9 @@ class WebSocketConnectionManager:
         """
         try:
             payload = jwt.decode(
-                token, settings.SECURITY_SECRET_KEY, algorithms=[settings.SECURITY_ALGORITHM]
+                token,
+                settings.SECURITY_SECRET_KEY,
+                algorithms=[settings.SECURITY_ALGORITHM],
             )
             user_id = payload.get("sub")
 

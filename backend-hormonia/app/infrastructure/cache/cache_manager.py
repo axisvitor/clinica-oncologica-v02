@@ -6,7 +6,6 @@ statistics tracking, and cache configuration management.
 """
 
 import hashlib
-import logging
 import asyncio
 from typing import Any, Callable, Optional, Union, List, Dict
 from datetime import timedelta, datetime
@@ -25,6 +24,7 @@ logger = get_logger(__name__)
 
 class CacheOperation(str, Enum):
     """Cache operation types for monitoring."""
+
     GET = "get"
     SET = "set"
     DELETE = "delete"
@@ -35,6 +35,7 @@ class CacheOperation(str, Enum):
 @dataclass
 class CacheConfig:
     """Configuration for different cache types."""
+
     ttl: int  # Time to live in seconds
     key_prefix: str
     serialize_method: SerializationMethod = SerializationMethod.JSON
@@ -47,6 +48,7 @@ class CacheConfig:
 @dataclass
 class CacheStats:
     """Cache statistics tracking."""
+
     hits: int = 0
     misses: int = 0
     errors: int = 0
@@ -61,7 +63,9 @@ class CacheStats:
 
     @property
     def hit_rate(self) -> float:
-        return (self.hits / self.total_requests * 100) if self.total_requests > 0 else 0.0
+        return (
+            (self.hits / self.total_requests * 100) if self.total_requests > 0 else 0.0
+        )
 
     def reset(self):
         """Reset all statistics."""
@@ -81,7 +85,9 @@ DEFAULT_CACHE_CONFIGS = {
     "user_profile": CacheConfig(ttl=1800, key_prefix="users:profile"),  # 30 minutes
     "quiz_templates": CacheConfig(ttl=3600, key_prefix="quiz:templates"),  # 1 hour
     "flow_templates": CacheConfig(ttl=3600, key_prefix="flow:templates"),  # 1 hour
-    "analytics_dashboard": CacheConfig(ttl=300, key_prefix="analytics:dashboard"),  # 5 minutes
+    "analytics_dashboard": CacheConfig(
+        ttl=300, key_prefix="analytics:dashboard"
+    ),  # 5 minutes
     "system_metrics": CacheConfig(ttl=60, key_prefix="system:metrics"),  # 1 minute
     "message_stats": CacheConfig(ttl=300, key_prefix="messages:stats"),  # 5 minutes
     "report_data": CacheConfig(ttl=1800, key_prefix="reports:data"),  # 30 minutes
@@ -101,7 +107,7 @@ class UnifiedCacheManager:
         self,
         redis_client: Optional[Union[Redis, AsyncRedis]] = None,
         enable_stats: bool = True,
-        enable_local_fallback: bool = True
+        enable_local_fallback: bool = True,
     ):
         """
         Initialize unified cache manager.
@@ -116,8 +122,7 @@ class UnifiedCacheManager:
         self._cache_configs = DEFAULT_CACHE_CONFIGS.copy()
         self._executor = ThreadPoolExecutor(max_workers=4)
         self._backend = RedisBackend(
-            redis_client=redis_client,
-            enable_local_fallback=enable_local_fallback
+            redis_client=redis_client, enable_local_fallback=enable_local_fallback
         )
 
     def register_cache_config(self, cache_type: str, config: CacheConfig):
@@ -133,7 +138,7 @@ class UnifiedCacheManager:
         config: CacheConfig,
         key_parts: Optional[List[str]] = None,
         *args,
-        **kwargs
+        **kwargs,
     ) -> str:
         """
         Generate a unique cache key from configuration and arguments.
@@ -210,7 +215,9 @@ class UnifiedCacheManager:
         This keeps backward compatibility with the old cache API.
         """
         try:
-            from .invalidation import CacheInvalidator  # Local import to avoid circular dependency
+            from .invalidation import (
+                CacheInvalidator,
+            )  # Local import to avoid circular dependency
 
             invalidator = CacheInvalidator(cache_manager=self)
             return invalidator.invalidate_pattern(pattern, namespace=namespace)
@@ -222,13 +229,17 @@ class UnifiedCacheManager:
             )
             return 0
 
-    async def invalidate_pattern_async(self, pattern: str, namespace: Optional[str] = None) -> int:
+    async def invalidate_pattern_async(
+        self, pattern: str, namespace: Optional[str] = None
+    ) -> int:
         """Async variant of invalidate_pattern."""
         try:
             from .invalidation import CacheInvalidator
 
             invalidator = CacheInvalidator(cache_manager=self)
-            return await invalidator.invalidate_pattern_async(pattern, namespace=namespace)
+            return await invalidator.invalidate_pattern_async(
+                pattern, namespace=namespace
+            )
         except Exception as exc:
             logger.error(
                 "UnifiedCacheManager.invalidate_pattern_async failed",
@@ -243,7 +254,7 @@ class UnifiedCacheManager:
         key_parts: Optional[List[str]] = None,
         default: Any = None,
         *args,
-        **kwargs
+        **kwargs,
     ) -> Any:
         """
         Get value from cache (synchronous).
@@ -270,7 +281,9 @@ class UnifiedCacheManager:
             # Try Redis first
             cached_data = self._backend.redis_get(cache_key)
             if cached_data is not None:
-                result = self._backend.deserialize_from_cache(cached_data, config.serialize_method)
+                result = self._backend.deserialize_from_cache(
+                    cached_data, config.serialize_method
+                )
                 self._update_stats(CacheOperation.GET, True)
                 logger.debug(f"Cache HIT (Redis) for key: {cache_key}")
                 return result
@@ -298,7 +311,7 @@ class UnifiedCacheManager:
         key_parts: Optional[List[str]] = None,
         default: Any = None,
         *args,
-        **kwargs
+        **kwargs,
     ) -> Any:
         """
         Get value from cache (asynchronous).
@@ -325,7 +338,9 @@ class UnifiedCacheManager:
             # Try Redis first
             cached_data = await self._backend.redis_get_async(cache_key)
             if cached_data is not None:
-                result = self._backend.deserialize_from_cache(cached_data, config.serialize_method)
+                result = self._backend.deserialize_from_cache(
+                    cached_data, config.serialize_method
+                )
                 self._update_stats(CacheOperation.GET, True)
                 logger.debug(f"Cache HIT (Redis Async) for key: {cache_key}")
                 return result
@@ -354,7 +369,7 @@ class UnifiedCacheManager:
         key_parts: Optional[List[str]] = None,
         ttl_override: Optional[Union[int, timedelta]] = None,
         *args,
-        **kwargs
+        **kwargs,
     ) -> bool:
         """
         Set value in cache (synchronous).
@@ -380,13 +395,19 @@ class UnifiedCacheManager:
 
         # Calculate TTL
         if ttl_override is not None:
-            ttl = ttl_override.total_seconds() if isinstance(ttl_override, timedelta) else ttl_override
+            ttl = (
+                ttl_override.total_seconds()
+                if isinstance(ttl_override, timedelta)
+                else ttl_override
+            )
         else:
             ttl = config.ttl
 
         try:
             # Serialize the data
-            serialized_data = self._backend.serialize_for_cache(value, config.serialize_method)
+            serialized_data = self._backend.serialize_for_cache(
+                value, config.serialize_method
+            )
 
             # Try Redis first
             self._backend.redis_set(cache_key, serialized_data, int(ttl))
@@ -409,7 +430,7 @@ class UnifiedCacheManager:
         key_parts: Optional[List[str]] = None,
         ttl_override: Optional[Union[int, timedelta]] = None,
         *args,
-        **kwargs
+        **kwargs,
     ) -> bool:
         """
         Set value in cache (asynchronous).
@@ -435,13 +456,19 @@ class UnifiedCacheManager:
 
         # Calculate TTL
         if ttl_override is not None:
-            ttl = ttl_override.total_seconds() if isinstance(ttl_override, timedelta) else ttl_override
+            ttl = (
+                ttl_override.total_seconds()
+                if isinstance(ttl_override, timedelta)
+                else ttl_override
+            )
         else:
             ttl = config.ttl
 
         try:
             # Serialize the data
-            serialized_data = self._backend.serialize_for_cache(value, config.serialize_method)
+            serialized_data = self._backend.serialize_for_cache(
+                value, config.serialize_method
+            )
 
             # Try Redis first
             await self._backend.redis_set_async(cache_key, serialized_data, int(ttl))
@@ -458,11 +485,7 @@ class UnifiedCacheManager:
             return False
 
     def delete(
-        self,
-        cache_type: str,
-        key_parts: Optional[List[str]] = None,
-        *args,
-        **kwargs
+        self, cache_type: str, key_parts: Optional[List[str]] = None, *args, **kwargs
     ) -> bool:
         """
         Delete value from cache (synchronous).
@@ -499,11 +522,7 @@ class UnifiedCacheManager:
             return False
 
     async def delete_async(
-        self,
-        cache_type: str,
-        key_parts: Optional[List[str]] = None,
-        *args,
-        **kwargs
+        self, cache_type: str, key_parts: Optional[List[str]] = None, *args, **kwargs
     ) -> bool:
         """
         Delete value from cache (asynchronous).
@@ -540,11 +559,7 @@ class UnifiedCacheManager:
             return False
 
     def exists(
-        self,
-        cache_type: str,
-        key_parts: Optional[List[str]] = None,
-        *args,
-        **kwargs
+        self, cache_type: str, key_parts: Optional[List[str]] = None, *args, **kwargs
     ) -> bool:
         """
         Check if key exists in cache (synchronous).
@@ -577,11 +592,7 @@ class UnifiedCacheManager:
             return False
 
     async def exists_async(
-        self,
-        cache_type: str,
-        key_parts: Optional[List[str]] = None,
-        *args,
-        **kwargs
+        self, cache_type: str, key_parts: Optional[List[str]] = None, *args, **kwargs
     ) -> bool:
         """
         Check if key exists in cache (asynchronous).
@@ -614,11 +625,7 @@ class UnifiedCacheManager:
             return False
 
     def get_ttl(
-        self,
-        cache_type: str,
-        key_parts: Optional[List[str]] = None,
-        *args,
-        **kwargs
+        self, cache_type: str, key_parts: Optional[List[str]] = None, *args, **kwargs
     ) -> Optional[int]:
         """
         Get remaining TTL for a cache key (synchronous).
@@ -647,7 +654,9 @@ class UnifiedCacheManager:
             # Check local cache
             if cache_key in self._backend._local_cache:
                 cache_entry = self._backend._local_cache[cache_key]
-                remaining = (cache_entry["expires_at"] - datetime.utcnow()).total_seconds()
+                remaining = (
+                    cache_entry["expires_at"] - datetime.utcnow()
+                ).total_seconds()
                 return int(remaining) if remaining > 0 else None
 
             return None
@@ -677,7 +686,7 @@ class UnifiedCacheManager:
             "hit_rate_percent": round(self._stats.hit_rate, 2),
             "local_cache_size": self._backend.get_local_cache_size(),
             "last_reset": self._stats.last_reset.isoformat(),
-            "registered_cache_types": list(self._cache_configs.keys())
+            "registered_cache_types": list(self._cache_configs.keys()),
         }
 
     def reset_stats(self):
@@ -689,7 +698,9 @@ class UnifiedCacheManager:
         """Clear local cache."""
         self._backend.clear_local_cache()
 
-    def warmup_cache(self, cache_type: str, data_loader: Callable, key_parts_list: List[List[str]]):
+    def warmup_cache(
+        self, cache_type: str, data_loader: Callable, key_parts_list: List[List[str]]
+    ):
         """
         Warm up cache with preloaded data (synchronous).
 
@@ -698,20 +709,28 @@ class UnifiedCacheManager:
             data_loader: Function to load data
             key_parts_list: List of key parts for cache entries
         """
-        logger.info(f"Starting cache warmup for {cache_type} with {len(key_parts_list)} entries")
+        logger.info(
+            f"Starting cache warmup for {cache_type} with {len(key_parts_list)} entries"
+        )
 
         for key_parts in key_parts_list:
             try:
                 data = data_loader(*key_parts)
                 if data is not None:
                     self.set(cache_type, data, key_parts)
-                    logger.debug(f"Warmed up cache for {cache_type}:{':'.join(key_parts)}")
+                    logger.debug(
+                        f"Warmed up cache for {cache_type}:{':'.join(key_parts)}"
+                    )
             except Exception as e:
-                logger.warning(f"Cache warmup failed for {cache_type}:{':'.join(key_parts)}: {e}")
+                logger.warning(
+                    f"Cache warmup failed for {cache_type}:{':'.join(key_parts)}: {e}"
+                )
 
         logger.info(f"Cache warmup completed for {cache_type}")
 
-    async def warmup_cache_async(self, cache_type: str, data_loader: Callable, key_parts_list: List[List[str]]):
+    async def warmup_cache_async(
+        self, cache_type: str, data_loader: Callable, key_parts_list: List[List[str]]
+    ):
         """
         Warm up cache with preloaded data (asynchronous).
 
@@ -720,18 +739,25 @@ class UnifiedCacheManager:
             data_loader: Async function to load data
             key_parts_list: List of key parts for cache entries
         """
-        logger.info(f"Starting async cache warmup for {cache_type} with {len(key_parts_list)} entries")
+        logger.info(
+            f"Starting async cache warmup for {cache_type} with {len(key_parts_list)} entries"
+        )
 
         tasks = []
         for key_parts in key_parts_list:
+
             async def _warmup_entry(kp=key_parts):
                 try:
                     data = await data_loader(*kp)
                     if data is not None:
                         await self.set_async(cache_type, data, kp)
-                        logger.debug(f"Warmed up cache (async) for {cache_type}:{':'.join(kp)}")
+                        logger.debug(
+                            f"Warmed up cache (async) for {cache_type}:{':'.join(kp)}"
+                        )
                 except Exception as e:
-                    logger.warning(f"Async cache warmup failed for {cache_type}:{':'.join(kp)}: {e}")
+                    logger.warning(
+                        f"Async cache warmup failed for {cache_type}:{':'.join(kp)}: {e}"
+                    )
 
             tasks.append(_warmup_entry())
 
@@ -747,7 +773,7 @@ _unified_cache_manager: Optional[UnifiedCacheManager] = None
 def get_unified_cache_manager(
     redis_client: Optional[Union[Redis, AsyncRedis]] = None,
     enable_stats: bool = True,
-    enable_local_fallback: bool = True
+    enable_local_fallback: bool = True,
 ) -> UnifiedCacheManager:
     """
     Get global unified cache manager singleton.
@@ -765,7 +791,7 @@ def get_unified_cache_manager(
         _unified_cache_manager = UnifiedCacheManager(
             redis_client=redis_client,
             enable_stats=enable_stats,
-            enable_local_fallback=enable_local_fallback
+            enable_local_fallback=enable_local_fallback,
         )
     return _unified_cache_manager
 
@@ -783,5 +809,5 @@ __all__ = [
     "CacheStats",
     "CacheOperation",
     "DEFAULT_CACHE_CONFIGS",
-    "get_unified_cache_manager"
+    "get_unified_cache_manager",
 ]

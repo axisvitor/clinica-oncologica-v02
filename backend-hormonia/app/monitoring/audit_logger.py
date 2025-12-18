@@ -6,7 +6,6 @@ with 7-year retention as required by HIPAA regulations.
 """
 
 import asyncio
-import logging
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from enum import Enum
@@ -21,6 +20,7 @@ logger = get_logger(__name__)
 
 class AuditAction(str, Enum):
     """Audit actions for HIPAA compliance."""
+
     CREATE = "create"
     READ = "read"
     UPDATE = "update"
@@ -36,6 +36,7 @@ class AuditAction(str, Enum):
 
 class ResourceType(str, Enum):
     """Resource types for audit logging."""
+
     PATIENT = "patient"
     MEDICAL_RECORD = "medical_record"
     QUIZ_RESPONSE = "quiz_response"
@@ -66,7 +67,7 @@ class AuditEntry:
         user_agent: Optional[str] = None,
         session_id: Optional[str] = None,
         success: bool = True,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ):
         self.action = action
         self.resource_type = resource_type
@@ -90,20 +91,20 @@ class AuditEntry:
     def to_dict(self) -> Dict[str, Any]:
         """Convert audit entry to dictionary."""
         return {
-            'timestamp': self.timestamp.isoformat(),
-            'action': self.action.value,
-            'resource_type': self.resource_type.value,
-            'resource_id': self.resource_id,
-            'user_id': self.user_id,
-            'patient_id': self.patient_id,
-            'changes': self.changes,
-            'reason': self.reason,
-            'ip_address': self.ip_address,
-            'user_agent': self.user_agent,
-            'session_id': self.session_id,
-            'success': self.success,
-            'error_message': self.error_message,
-            'compliance_tags': self.compliance_tags
+            "timestamp": self.timestamp.isoformat(),
+            "action": self.action.value,
+            "resource_type": self.resource_type.value,
+            "resource_id": self.resource_id,
+            "user_id": self.user_id,
+            "patient_id": self.patient_id,
+            "changes": self.changes,
+            "reason": self.reason,
+            "ip_address": self.ip_address,
+            "user_agent": self.user_agent,
+            "session_id": self.session_id,
+            "success": self.success,
+            "error_message": self.error_message,
+            "compliance_tags": self.compliance_tags,
         }
 
 
@@ -156,7 +157,7 @@ class AuditLogger:
         user_agent: Optional[str] = None,
         session_id: Optional[str] = None,
         success: bool = True,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ):
         """Log an audit event."""
         entry = AuditEntry(
@@ -171,7 +172,7 @@ class AuditLogger:
             user_agent=user_agent,
             session_id=session_id,
             success=success,
-            error_message=error_message
+            error_message=error_message,
         )
 
         async with self._buffer_lock:
@@ -185,14 +186,14 @@ class AuditLogger:
         logger.info(
             f"Audit: {action.value} {resource_type.value} {resource_id}",
             extra={
-                'event_type': 'audit',
-                'audit_action': action.value,
-                'resource_type': resource_type.value,
-                'resource_id': resource_id,
-                'user_id': user_id,
-                'patient_id': patient_id,
-                'success': success
-            }
+                "event_type": "audit",
+                "audit_action": action.value,
+                "resource_type": resource_type.value,
+                "resource_id": resource_id,
+                "user_id": user_id,
+                "patient_id": patient_id,
+                "success": success,
+            },
         )
 
     async def _periodic_flush(self):
@@ -240,7 +241,9 @@ class AuditLogger:
                     pipeline.expire(patient_audit_key, self.retention_days * 86400)
 
                 # Store in resource-specific audit trail
-                resource_audit_key = f"audit:resource:{entry.resource_type.value}:{entry.resource_id}"
+                resource_audit_key = (
+                    f"audit:resource:{entry.resource_type.value}:{entry.resource_id}"
+                )
                 pipeline.rpush(resource_audit_key, json.dumps(entry.to_dict()))
                 pipeline.expire(resource_audit_key, self.retention_days * 86400)
 
@@ -256,7 +259,7 @@ class AuditLogger:
         user_id: str,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """Get audit trail for a specific user."""
         if not self.redis:
@@ -269,7 +272,7 @@ class AuditLogger:
             entries = []
             for entry_json in entries_json:
                 entry = json.loads(entry_json)
-                entry_time = datetime.fromisoformat(entry['timestamp'])
+                entry_time = datetime.fromisoformat(entry["timestamp"])
 
                 if start_time and entry_time < start_time:
                     continue
@@ -279,7 +282,7 @@ class AuditLogger:
                 entries.append(entry)
 
             # Sort by timestamp descending
-            entries.sort(key=lambda x: x['timestamp'], reverse=True)
+            entries.sort(key=lambda x: x["timestamp"], reverse=True)
             return entries[:limit]
 
         except Exception as e:
@@ -291,7 +294,7 @@ class AuditLogger:
         patient_id: str,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """Get audit trail for a specific patient (PHI access log)."""
         if not self.redis:
@@ -304,7 +307,7 @@ class AuditLogger:
             entries = []
             for entry_json in entries_json:
                 entry = json.loads(entry_json)
-                entry_time = datetime.fromisoformat(entry['timestamp'])
+                entry_time = datetime.fromisoformat(entry["timestamp"])
 
                 if start_time and entry_time < start_time:
                     continue
@@ -314,7 +317,7 @@ class AuditLogger:
                 entries.append(entry)
 
             # Sort by timestamp descending
-            entries.sort(key=lambda x: x['timestamp'], reverse=True)
+            entries.sort(key=lambda x: x["timestamp"], reverse=True)
             return entries[:limit]
 
         except Exception as e:
@@ -322,10 +325,7 @@ class AuditLogger:
             return []
 
     async def get_resource_audit_trail(
-        self,
-        resource_type: ResourceType,
-        resource_id: str,
-        limit: int = 100
+        self, resource_type: ResourceType, resource_id: str, limit: int = 100
     ) -> List[Dict[str, Any]]:
         """Get audit trail for a specific resource."""
         if not self.redis:
@@ -341,7 +341,7 @@ class AuditLogger:
                 entries.append(entry)
 
             # Sort by timestamp descending
-            entries.sort(key=lambda x: x['timestamp'], reverse=True)
+            entries.sort(key=lambda x: x["timestamp"], reverse=True)
             return entries[:limit]
 
         except Exception as e:
@@ -349,9 +349,7 @@ class AuditLogger:
             return []
 
     async def generate_compliance_report(
-        self,
-        start_date: datetime,
-        end_date: datetime
+        self, start_date: datetime, end_date: datetime
     ) -> Dict[str, Any]:
         """Generate HIPAA compliance report for a date range."""
         if not self.redis:
@@ -362,7 +360,7 @@ class AuditLogger:
             months = []
             current = start_date.replace(day=1)
             while current <= end_date:
-                months.append(current.strftime('%Y-%m'))
+                months.append(current.strftime("%Y-%m"))
                 # Move to next month
                 if current.month == 12:
                     current = current.replace(year=current.year + 1, month=1)
@@ -375,7 +373,7 @@ class AuditLogger:
                 entries_json = await self.redis.lrange(audit_key, 0, -1)
                 for entry_json in entries_json:
                     entry = json.loads(entry_json)
-                    entry_time = datetime.fromisoformat(entry['timestamp'])
+                    entry_time = datetime.fromisoformat(entry["timestamp"])
                     if start_date <= entry_time <= end_date:
                         all_entries.append(entry)
 
@@ -389,41 +387,43 @@ class AuditLogger:
 
             for entry in all_entries:
                 # Count by action
-                action = entry['action']
+                action = entry["action"]
                 events_by_action[action] = events_by_action.get(action, 0) + 1
 
                 # Count by resource type
-                resource_type = entry['resource_type']
-                events_by_resource[resource_type] = events_by_resource.get(resource_type, 0) + 1
+                resource_type = entry["resource_type"]
+                events_by_resource[resource_type] = (
+                    events_by_resource.get(resource_type, 0) + 1
+                )
 
                 # Count by user
-                user_id = entry['user_id']
+                user_id = entry["user_id"]
                 events_by_user[user_id] = events_by_user.get(user_id, 0) + 1
 
                 # Count PHI access
-                if entry.get('patient_id'):
+                if entry.get("patient_id"):
                     phi_access_count += 1
 
                 # Count failed access
-                if not entry.get('success', True):
+                if not entry.get("success", True):
                     failed_access_count += 1
 
             return {
-                'period': {
-                    'start': start_date.isoformat(),
-                    'end': end_date.isoformat()
+                "period": {
+                    "start": start_date.isoformat(),
+                    "end": end_date.isoformat(),
                 },
-                'total_events': total_events,
-                'phi_access_count': phi_access_count,
-                'failed_access_count': failed_access_count,
-                'events_by_action': events_by_action,
-                'events_by_resource': events_by_resource,
-                'top_users': sorted(
-                    events_by_user.items(),
-                    key=lambda x: x[1],
-                    reverse=True
+                "total_events": total_events,
+                "phi_access_count": phi_access_count,
+                "failed_access_count": failed_access_count,
+                "events_by_action": events_by_action,
+                "events_by_resource": events_by_resource,
+                "top_users": sorted(
+                    events_by_user.items(), key=lambda x: x[1], reverse=True
                 )[:10],
-                'compliance_status': 'compliant' if failed_access_count / max(total_events, 1) < 0.01 else 'review_required'
+                "compliance_status": "compliant"
+                if failed_access_count / max(total_events, 1) < 0.01
+                else "review_required",
             }
 
         except Exception as e:

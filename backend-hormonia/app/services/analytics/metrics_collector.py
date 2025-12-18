@@ -2,22 +2,21 @@
 Metrics Collection Service - Healthcare KPIs, AI tracking, system performance.
 Features: Real-time aggregation, Redis caching, anomaly detection.
 """
+
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 from uuid import UUID
-from sqlalchemy import func, and_, or_, text
+from sqlalchemy import and_
 import redis.asyncio as redis
 import json
 import psutil
-import asyncio
 import logging
-from statistics import mean, median
+from statistics import mean
 
-from app.config import settings
 from app.models.patient import Patient, FlowState
-from app.models.quiz import QuizSession, QuizResponse, QuizTemplate
-from app.models.message import Message, MessageStatus
-from app.models.user import User, UserRole
+from app.models.quiz import QuizSession, QuizTemplate
+from app.models.message import Message
+from app.models.user import UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +44,9 @@ class MetricsCollectorService:
 
         return None
 
-    async def _cache_set(self, key: str, data: Dict[str, Any], ttl: Optional[int] = None) -> None:
+    async def _cache_set(
+        self, key: str, data: Dict[str, Any], ttl: Optional[int] = None
+    ) -> None:
         """Set cached metrics data."""
         if not self.redis_client:
             return
@@ -53,9 +54,7 @@ class MetricsCollectorService:
         try:
             ttl = ttl or self.cache_ttl
             await self.redis_client.setex(
-                f"{self.cache_prefix}{key}",
-                ttl,
-                json.dumps(data, default=str)
+                f"{self.cache_prefix}{key}", ttl, json.dumps(data, default=str)
             )
         except Exception as e:
             logger.error(f"Cache set error for key {key}: {e}")
@@ -74,58 +73,91 @@ class MetricsCollectorService:
             last_30d = now - timedelta(days=30)
 
             # Engagement rate calculation
-            total_patients = self.db.query(Patient).filter(
-                Patient.flow_state.in_([FlowState.ACTIVE, FlowState.ONBOARDING])
-            ).count()
+            total_patients = (
+                self.db.query(Patient)
+                .filter(
+                    Patient.flow_state.in_([FlowState.ACTIVE, FlowState.ONBOARDING])
+                )
+                .count()
+            )
 
             # Active patients (responded in last 30 days)
-            active_patients = self.db.query(Patient).join(Message).filter(
-                and_(
-                    Patient.flow_state == FlowState.ACTIVE,
-                    Message.created_at >= last_30d,
-                    Message.direction == 'inbound'
+            active_patients = (
+                self.db.query(Patient)
+                .join(Message)
+                .filter(
+                    and_(
+                        Patient.flow_state == FlowState.ACTIVE,
+                        Message.created_at >= last_30d,
+                        Message.direction == "inbound",
+                    )
                 )
-            ).distinct().count()
+                .distinct()
+                .count()
+            )
 
-            engagement_rate = (active_patients / total_patients * 100) if total_patients > 0 else 0
+            engagement_rate = (
+                (active_patients / total_patients * 100) if total_patients > 0 else 0
+            )
 
             # Quiz completion rate
-            total_quiz_sessions = self.db.query(QuizSession).filter(
-                QuizSession.created_at >= last_30d
-            ).count()
+            total_quiz_sessions = (
+                self.db.query(QuizSession)
+                .filter(QuizSession.created_at >= last_30d)
+                .count()
+            )
 
-            completed_quiz_sessions = self.db.query(QuizSession).filter(
-                and_(
-                    QuizSession.created_at >= last_30d,
-                    QuizSession.status == 'completed'
+            completed_quiz_sessions = (
+                self.db.query(QuizSession)
+                .filter(
+                    and_(
+                        QuizSession.created_at >= last_30d,
+                        QuizSession.status == "completed",
+                    )
                 )
-            ).count()
+                .count()
+            )
 
-            quiz_completion_rate = (completed_quiz_sessions / total_quiz_sessions * 100) if total_quiz_sessions > 0 else 0
+            quiz_completion_rate = (
+                (completed_quiz_sessions / total_quiz_sessions * 100)
+                if total_quiz_sessions > 0
+                else 0
+            )
 
             # AI personalization impact (messages with humanization vs engagement)
-            total_messages = self.db.query(Message).filter(
-                and_(
-                    Message.created_at >= last_30d,
-                    Message.direction == 'outbound'
+            total_messages = (
+                self.db.query(Message)
+                .filter(
+                    and_(
+                        Message.created_at >= last_30d, Message.direction == "outbound"
+                    )
                 )
-            ).count()
+                .count()
+            )
 
             # Estimate AI personalization impact based on response rates
-            personalized_messages = self.db.query(Message).filter(
-                and_(
-                    Message.created_at >= last_30d,
-                    Message.direction == 'outbound',
-                    Message.metadata.isnot(None)
+            personalized_messages = (
+                self.db.query(Message)
+                .filter(
+                    and_(
+                        Message.created_at >= last_30d,
+                        Message.direction == "outbound",
+                        Message.metadata.isnot(None),
+                    )
                 )
-            ).count()
+                .count()
+            )
 
-            ai_personalization_impact = (personalized_messages / total_messages * 100) if total_messages > 0 else 0
+            ai_personalization_impact = (
+                (personalized_messages / total_messages * 100)
+                if total_messages > 0
+                else 0
+            )
 
             # Daily messages count
-            daily_messages = self.db.query(Message).filter(
-                Message.created_at >= last_24h
-            ).count()
+            daily_messages = (
+                self.db.query(Message).filter(Message.created_at >= last_24h).count()
+            )
 
             # System health score (simplified calculation)
             system_health_score = await self._calculate_system_health_score()
@@ -137,7 +169,7 @@ class MetricsCollectorService:
                 "active_patients": active_patients,
                 "daily_messages": daily_messages,
                 "system_health_score": system_health_score,
-                "timestamp": now
+                "timestamp": now,
             }
 
             # Cache for 5 minutes
@@ -153,7 +185,7 @@ class MetricsCollectorService:
                 "active_patients": 0,
                 "daily_messages": 0,
                 "system_health_score": 0.0,
-                "timestamp": datetime.utcnow()
+                "timestamp": datetime.utcnow(),
             }
 
     async def get_engagement_metrics(self) -> Dict[str, Any]:
@@ -170,53 +202,83 @@ class MetricsCollectorService:
             last_30d = now - timedelta(days=30)
 
             # Patient counts
-            total_patients = self.db.query(Patient).filter(
-                Patient.flow_state.in_([FlowState.ACTIVE, FlowState.ONBOARDING])
-            ).count()
+            total_patients = (
+                self.db.query(Patient)
+                .filter(
+                    Patient.flow_state.in_([FlowState.ACTIVE, FlowState.ONBOARDING])
+                )
+                .count()
+            )
 
             # Daily Active Users
-            dau = self.db.query(Patient).join(Message).filter(
-                and_(
-                    Patient.flow_state == FlowState.ACTIVE,
-                    Message.created_at >= last_24h,
-                    Message.direction == 'inbound'
+            dau = (
+                self.db.query(Patient)
+                .join(Message)
+                .filter(
+                    and_(
+                        Patient.flow_state == FlowState.ACTIVE,
+                        Message.created_at >= last_24h,
+                        Message.direction == "inbound",
+                    )
                 )
-            ).distinct().count()
+                .distinct()
+                .count()
+            )
 
             # Weekly Active Users
-            wau = self.db.query(Patient).join(Message).filter(
-                and_(
-                    Patient.flow_state == FlowState.ACTIVE,
-                    Message.created_at >= last_7d,
-                    Message.direction == 'inbound'
+            wau = (
+                self.db.query(Patient)
+                .join(Message)
+                .filter(
+                    and_(
+                        Patient.flow_state == FlowState.ACTIVE,
+                        Message.created_at >= last_7d,
+                        Message.direction == "inbound",
+                    )
                 )
-            ).distinct().count()
+                .distinct()
+                .count()
+            )
 
             # Monthly Active Users
-            mau = self.db.query(Patient).join(Message).filter(
-                and_(
-                    Patient.flow_state == FlowState.ACTIVE,
-                    Message.created_at >= last_30d,
-                    Message.direction == 'inbound'
+            mau = (
+                self.db.query(Patient)
+                .join(Message)
+                .filter(
+                    and_(
+                        Patient.flow_state == FlowState.ACTIVE,
+                        Message.created_at >= last_30d,
+                        Message.direction == "inbound",
+                    )
                 )
-            ).distinct().count()
+                .distinct()
+                .count()
+            )
 
             # Response rates
-            outbound_messages = self.db.query(Message).filter(
-                and_(
-                    Message.created_at >= last_30d,
-                    Message.direction == 'outbound'
+            outbound_messages = (
+                self.db.query(Message)
+                .filter(
+                    and_(
+                        Message.created_at >= last_30d, Message.direction == "outbound"
+                    )
                 )
-            ).count()
+                .count()
+            )
 
-            inbound_messages = self.db.query(Message).filter(
-                and_(
-                    Message.created_at >= last_30d,
-                    Message.direction == 'inbound'
+            inbound_messages = (
+                self.db.query(Message)
+                .filter(
+                    and_(Message.created_at >= last_30d, Message.direction == "inbound")
                 )
-            ).count()
+                .count()
+            )
 
-            response_rate = (inbound_messages / outbound_messages * 100) if outbound_messages > 0 else 0
+            response_rate = (
+                (inbound_messages / outbound_messages * 100)
+                if outbound_messages > 0
+                else 0
+            )
 
             # Average response time (simplified calculation)
             avg_response_time_hours = await self._calculate_avg_response_time()
@@ -227,13 +289,15 @@ class MetricsCollectorService:
             metrics = {
                 "total_patients": total_patients,
                 "active_patients": mau,
-                "engagement_rate": (mau / total_patients * 100) if total_patients > 0 else 0,
+                "engagement_rate": (mau / total_patients * 100)
+                if total_patients > 0
+                else 0,
                 "response_rate": round(response_rate, 2),
                 "avg_response_time_hours": avg_response_time_hours,
                 "daily_active_users": dau,
                 "weekly_active_users": wau,
                 "monthly_active_users": mau,
-                "engagement_trend": engagement_trend
+                "engagement_trend": engagement_trend,
             }
 
             await self._cache_set(cache_key, metrics)
@@ -250,7 +314,7 @@ class MetricsCollectorService:
                 "daily_active_users": 0,
                 "weekly_active_users": 0,
                 "monthly_active_users": 0,
-                "engagement_trend": []
+                "engagement_trend": [],
             }
 
     async def get_quiz_metrics(self) -> Dict[str, Any]:
@@ -265,18 +329,28 @@ class MetricsCollectorService:
             last_30d = now - timedelta(days=30)
 
             # Basic quiz statistics
-            total_quizzes_sent = self.db.query(QuizSession).filter(
-                QuizSession.created_at >= last_30d
-            ).count()
+            total_quizzes_sent = (
+                self.db.query(QuizSession)
+                .filter(QuizSession.created_at >= last_30d)
+                .count()
+            )
 
-            completed_quizzes = self.db.query(QuizSession).filter(
-                and_(
-                    QuizSession.created_at >= last_30d,
-                    QuizSession.status == 'completed'
+            completed_quizzes = (
+                self.db.query(QuizSession)
+                .filter(
+                    and_(
+                        QuizSession.created_at >= last_30d,
+                        QuizSession.status == "completed",
+                    )
                 )
-            ).count()
+                .count()
+            )
 
-            completion_rate = (completed_quizzes / total_quizzes_sent * 100) if total_quizzes_sent > 0 else 0
+            completion_rate = (
+                (completed_quizzes / total_quizzes_sent * 100)
+                if total_quizzes_sent > 0
+                else 0
+            )
 
             # Average completion time
             avg_completion_time = await self._calculate_avg_quiz_completion_time()
@@ -297,7 +371,7 @@ class MetricsCollectorService:
                 "avg_completion_time_minutes": avg_completion_time,
                 "quiz_types": quiz_types_analysis,
                 "monthly_quiz_stats": monthly_quiz_stats,
-                "completion_trend": completion_trend
+                "completion_trend": completion_trend,
             }
 
             await self._cache_set(cache_key, metrics)
@@ -312,7 +386,7 @@ class MetricsCollectorService:
                 "avg_completion_time_minutes": 0.0,
                 "quiz_types": {},
                 "monthly_quiz_stats": {},
-                "completion_trend": []
+                "completion_trend": [],
             }
 
     async def get_ai_personalization_metrics(self) -> Dict[str, Any]:
@@ -327,23 +401,34 @@ class MetricsCollectorService:
             last_30d = now - timedelta(days=30)
 
             # Total messages processed
-            total_messages = self.db.query(Message).filter(
-                and_(
-                    Message.created_at >= last_30d,
-                    Message.direction == 'outbound'
+            total_messages = (
+                self.db.query(Message)
+                .filter(
+                    and_(
+                        Message.created_at >= last_30d, Message.direction == "outbound"
+                    )
                 )
-            ).count()
+                .count()
+            )
 
             # Messages with personalization metadata
-            personalized_messages = self.db.query(Message).filter(
-                and_(
-                    Message.created_at >= last_30d,
-                    Message.direction == 'outbound',
-                    Message.metadata.isnot(None)
+            personalized_messages = (
+                self.db.query(Message)
+                .filter(
+                    and_(
+                        Message.created_at >= last_30d,
+                        Message.direction == "outbound",
+                        Message.metadata.isnot(None),
+                    )
                 )
-            ).count()
+                .count()
+            )
 
-            personalization_rate = (personalized_messages / total_messages * 100) if total_messages > 0 else 0
+            personalization_rate = (
+                (personalized_messages / total_messages * 100)
+                if total_messages > 0
+                else 0
+            )
 
             # Safety interventions (messages that didn't get personalized due to safety)
             safety_interventions = await self._count_safety_interventions()
@@ -358,7 +443,9 @@ class MetricsCollectorService:
             personalization_impact = await self._analyze_personalization_impact()
 
             # Average personalization score
-            avg_personalization_score = 85.0  # Placeholder - would need actual scoring mechanism
+            avg_personalization_score = (
+                85.0  # Placeholder - would need actual scoring mechanism
+            )
 
             metrics = {
                 "total_messages_processed": total_messages,
@@ -368,7 +455,7 @@ class MetricsCollectorService:
                 "safety_interventions": safety_interventions,
                 "fallback_rate": fallback_rate,
                 "response_quality_score": response_quality_score,
-                "personalization_impact": personalization_impact
+                "personalization_impact": personalization_impact,
             }
 
             await self._cache_set(cache_key, metrics)
@@ -384,7 +471,7 @@ class MetricsCollectorService:
                 "safety_interventions": 0,
                 "fallback_rate": 0.0,
                 "response_quality_score": 0.0,
-                "personalization_impact": []
+                "personalization_impact": [],
             }
 
     async def get_system_performance_metrics(self) -> Dict[str, Any]:
@@ -393,7 +480,7 @@ class MetricsCollectorService:
             # CPU and Memory usage
             cpu_usage = psutil.cpu_percent(interval=1)
             memory = psutil.virtual_memory()
-            disk = psutil.disk_usage('/')
+            disk = psutil.disk_usage("/")
 
             # Database connections (approximate)
             active_connections = await self._get_db_connection_count()
@@ -405,9 +492,10 @@ class MetricsCollectorService:
             error_rate = await self._calculate_error_rate()
 
             # System uptime
-            uptime_seconds = (datetime.utcnow() - datetime.utcnow().replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )).total_seconds()
+            uptime_seconds = (
+                datetime.utcnow()
+                - datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            ).total_seconds()
 
             # Throughput (requests per second)
             throughput_rps = await self._calculate_throughput()
@@ -420,7 +508,7 @@ class MetricsCollectorService:
                 "response_time_ms": avg_response_time,
                 "error_rate": error_rate,
                 "uptime_seconds": uptime_seconds,
-                "throughput_rps": throughput_rps
+                "throughput_rps": throughput_rps,
             }
 
         except Exception as e:
@@ -433,7 +521,7 @@ class MetricsCollectorService:
                 "response_time_ms": 0.0,
                 "error_rate": 0.0,
                 "uptime_seconds": 0,
-                "throughput_rps": 0.0
+                "throughput_rps": 0.0,
             }
 
     async def get_active_alerts_count(self) -> int:
@@ -446,7 +534,11 @@ class MetricsCollectorService:
         except Exception:
             return 0
 
-    async def get_active_alerts(self, severity_filter: Optional[str] = None, user_role: UserRole = UserRole.DOCTOR) -> List[Dict[str, Any]]:
+    async def get_active_alerts(
+        self,
+        severity_filter: Optional[str] = None,
+        user_role: UserRole = UserRole.DOCTOR,
+    ) -> List[Dict[str, Any]]:
         """Get active system alerts filtered by severity and user role."""
         try:
             if not self.redis_client:
@@ -462,24 +554,29 @@ class MetricsCollectorService:
                         alert = json.loads(alert_data)
 
                         # Apply severity filter
-                        if severity_filter and alert.get('severity') != severity_filter:
+                        if severity_filter and alert.get("severity") != severity_filter:
                             continue
 
                         # Apply role-based filtering
-                        if user_role == UserRole.DOCTOR and alert.get('scope') == 'system':
+                        if (
+                            user_role == UserRole.DOCTOR
+                            and alert.get("scope") == "system"
+                        ):
                             continue
 
                         alerts.append(alert)
                 except Exception as e:
                     logger.error(f"Error processing alert {key}: {e}")
 
-            return sorted(alerts, key=lambda x: x.get('created_at', ''), reverse=True)
+            return sorted(alerts, key=lambda x: x.get("created_at", ""), reverse=True)
 
         except Exception as e:
             logger.error(f"Error getting active alerts: {e}")
             return []
 
-    async def acknowledge_alert(self, alert_id: UUID, user_id: UUID, ip_address: str) -> bool:
+    async def acknowledge_alert(
+        self, alert_id: UUID, user_id: UUID, ip_address: str
+    ) -> bool:
         """Acknowledge an active alert and move to acknowledged alerts."""
         try:
             if not self.redis_client:
@@ -492,17 +589,17 @@ class MetricsCollectorService:
                 return False
 
             alert = json.loads(alert_data)
-            alert['acknowledged'] = True
-            alert['acknowledged_by'] = str(user_id)
-            alert['acknowledged_at'] = datetime.utcnow().isoformat()
-            alert['acknowledged_from_ip'] = ip_address
+            alert["acknowledged"] = True
+            alert["acknowledged_by"] = str(user_id)
+            alert["acknowledged_at"] = datetime.utcnow().isoformat()
+            alert["acknowledged_from_ip"] = ip_address
 
             # Move to acknowledged alerts
             acknowledged_key = f"alerts:acknowledged:{alert_id}"
             await self.redis_client.setex(
                 acknowledged_key,
                 86400,  # Keep for 24 hours
-                json.dumps(alert, default=str)
+                json.dumps(alert, default=str),
             )
 
             # Remove from active alerts
@@ -514,7 +611,9 @@ class MetricsCollectorService:
             logger.error(f"Error acknowledging alert {alert_id}: {e}")
             return False
 
-    async def export_metrics(self, start_date: datetime, end_date: datetime, format: str = "json") -> Dict[str, Any]:
+    async def export_metrics(
+        self, start_date: datetime, end_date: datetime, format: str = "json"
+    ) -> Dict[str, Any]:
         """Export comprehensive metrics data for specified period."""
         try:
             # Collect comprehensive metrics for the period
@@ -523,12 +622,20 @@ class MetricsCollectorService:
                     "start_date": start_date.isoformat(),
                     "end_date": end_date.isoformat(),
                     "format": format,
-                    "generated_at": datetime.utcnow().isoformat()
+                    "generated_at": datetime.utcnow().isoformat(),
                 },
-                "engagement": await self._get_historical_engagement_metrics(start_date, end_date),
-                "quiz_performance": await self._get_historical_quiz_metrics(start_date, end_date),
-                "ai_personalization": await self._get_historical_ai_metrics(start_date, end_date),
-                "system_performance": await self._get_historical_system_metrics(start_date, end_date)
+                "engagement": await self._get_historical_engagement_metrics(
+                    start_date, end_date
+                ),
+                "quiz_performance": await self._get_historical_quiz_metrics(
+                    start_date, end_date
+                ),
+                "ai_personalization": await self._get_historical_ai_metrics(
+                    start_date, end_date
+                ),
+                "system_performance": await self._get_historical_system_metrics(
+                    start_date, end_date
+                ),
             }
 
             return export_data
@@ -571,19 +678,24 @@ class MetricsCollectorService:
                 start_of_day = date.replace(hour=0, minute=0, second=0, microsecond=0)
                 end_of_day = start_of_day + timedelta(days=1)
 
-                active_users = self.db.query(Patient).join(Message).filter(
-                    and_(
-                        Patient.flow_state == FlowState.ACTIVE,
-                        Message.created_at >= start_of_day,
-                        Message.created_at < end_of_day,
-                        Message.direction == 'inbound'
+                active_users = (
+                    self.db.query(Patient)
+                    .join(Message)
+                    .filter(
+                        and_(
+                            Patient.flow_state == FlowState.ACTIVE,
+                            Message.created_at >= start_of_day,
+                            Message.created_at < end_of_day,
+                            Message.direction == "inbound",
+                        )
                     )
-                ).distinct().count()
+                    .distinct()
+                    .count()
+                )
 
-                trend_data.append({
-                    "date": start_of_day.isoformat(),
-                    "active_users": active_users
-                })
+                trend_data.append(
+                    {"date": start_of_day.isoformat(), "active_users": active_users}
+                )
 
             return trend_data[:10]  # Return last 10 days
         except Exception:
@@ -592,13 +704,18 @@ class MetricsCollectorService:
     async def _calculate_avg_quiz_completion_time(self) -> float:
         """Calculate average quiz completion time in minutes."""
         try:
-            completed_sessions = self.db.query(QuizSession).filter(
-                and_(
-                    QuizSession.status == 'completed',
-                    QuizSession.completed_at.isnot(None),
-                    QuizSession.created_at >= datetime.utcnow() - timedelta(days=30)
+            completed_sessions = (
+                self.db.query(QuizSession)
+                .filter(
+                    and_(
+                        QuizSession.status == "completed",
+                        QuizSession.completed_at.isnot(None),
+                        QuizSession.created_at
+                        >= datetime.utcnow() - timedelta(days=30),
+                    )
                 )
-            ).all()
+                .all()
+            )
 
             if not completed_sessions:
                 return 0.0
@@ -620,20 +737,25 @@ class MetricsCollectorService:
             templates = self.db.query(QuizTemplate).all()
 
             for template in templates:
-                sessions = self.db.query(QuizSession).filter(
-                    and_(
-                        QuizSession.template_id == template.id,
-                        QuizSession.created_at >= datetime.utcnow() - timedelta(days=30)
+                sessions = (
+                    self.db.query(QuizSession)
+                    .filter(
+                        and_(
+                            QuizSession.template_id == template.id,
+                            QuizSession.created_at
+                            >= datetime.utcnow() - timedelta(days=30),
+                        )
                     )
-                ).all()
+                    .all()
+                )
 
                 total = len(sessions)
-                completed = len([s for s in sessions if s.status == 'completed'])
+                completed = len([s for s in sessions if s.status == "completed"])
 
                 quiz_types[template.title] = {
                     "total_sessions": total,
                     "completed_sessions": completed,
-                    "completion_rate": (completed / total * 100) if total > 0 else 0
+                    "completion_rate": (completed / total * 100) if total > 0 else 0,
                 }
 
             return quiz_types
@@ -644,18 +766,29 @@ class MetricsCollectorService:
         """Get monthly quiz specific statistics."""
         try:
             # Monthly quiz sessions (assuming there's a way to identify them)
-            monthly_sessions = self.db.query(QuizSession).filter(
-                and_(
-                    QuizSession.created_at >= datetime.utcnow() - timedelta(days=30),
-                    QuizSession.metadata.isnot(None)  # Assuming monthly quizzes have metadata
+            monthly_sessions = (
+                self.db.query(QuizSession)
+                .filter(
+                    and_(
+                        QuizSession.created_at
+                        >= datetime.utcnow() - timedelta(days=30),
+                        QuizSession.metadata.isnot(
+                            None
+                        ),  # Assuming monthly quizzes have metadata
+                    )
                 )
-            ).all()
+                .all()
+            )
 
             return {
                 "total_sent": len(monthly_sessions),
-                "completed": len([s for s in monthly_sessions if s.status == 'completed']),
-                "in_progress": len([s for s in monthly_sessions if s.status == 'in_progress']),
-                "expired": len([s for s in monthly_sessions if s.status == 'expired'])
+                "completed": len(
+                    [s for s in monthly_sessions if s.status == "completed"]
+                ),
+                "in_progress": len(
+                    [s for s in monthly_sessions if s.status == "in_progress"]
+                ),
+                "expired": len([s for s in monthly_sessions if s.status == "expired"]),
             }
         except Exception:
             return {}
@@ -671,18 +804,21 @@ class MetricsCollectorService:
                 start_of_day = date.replace(hour=0, minute=0, second=0, microsecond=0)
                 end_of_day = start_of_day + timedelta(days=1)
 
-                completed = self.db.query(QuizSession).filter(
-                    and_(
-                        QuizSession.completed_at >= start_of_day,
-                        QuizSession.completed_at < end_of_day,
-                        QuizSession.status == 'completed'
+                completed = (
+                    self.db.query(QuizSession)
+                    .filter(
+                        and_(
+                            QuizSession.completed_at >= start_of_day,
+                            QuizSession.completed_at < end_of_day,
+                            QuizSession.status == "completed",
+                        )
                     )
-                ).count()
+                    .count()
+                )
 
-                trend_data.append({
-                    "date": start_of_day.isoformat(),
-                    "completed_quizzes": completed
-                })
+                trend_data.append(
+                    {"date": start_of_day.isoformat(), "completed_quizzes": completed}
+                )
 
             return trend_data
         except Exception:
@@ -705,7 +841,7 @@ class MetricsCollectorService:
         return [
             {"metric": "response_rate_increase", "value": 15.3, "unit": "percent"},
             {"metric": "engagement_time_increase", "value": 23.7, "unit": "percent"},
-            {"metric": "patient_satisfaction_score", "value": 4.2, "unit": "out_of_5"}
+            {"metric": "patient_satisfaction_score", "value": 4.2, "unit": "out_of_5"},
         ]
 
     async def _get_db_connection_count(self) -> int:
@@ -724,18 +860,26 @@ class MetricsCollectorService:
         """Calculate requests per second."""
         return 23.5
 
-    async def _get_historical_engagement_metrics(self, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
+    async def _get_historical_engagement_metrics(
+        self, start_date: datetime, end_date: datetime
+    ) -> Dict[str, Any]:
         """Get historical engagement metrics."""
         return {"message": "Historical engagement data"}
 
-    async def _get_historical_quiz_metrics(self, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
+    async def _get_historical_quiz_metrics(
+        self, start_date: datetime, end_date: datetime
+    ) -> Dict[str, Any]:
         """Get historical quiz metrics."""
         return {"message": "Historical quiz data"}
 
-    async def _get_historical_ai_metrics(self, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
+    async def _get_historical_ai_metrics(
+        self, start_date: datetime, end_date: datetime
+    ) -> Dict[str, Any]:
         """Get historical AI metrics."""
         return {"message": "Historical AI data"}
 
-    async def _get_historical_system_metrics(self, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
+    async def _get_historical_system_metrics(
+        self, start_date: datetime, end_date: datetime
+    ) -> Dict[str, Any]:
         """Get historical system metrics."""
         return {"message": "Historical system data"}

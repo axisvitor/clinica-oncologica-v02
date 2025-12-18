@@ -2,16 +2,13 @@
 Monitoring and alerting system for flow operations.
 Implements critical error escalation, system health monitoring, and automated recovery.
 """
+
 import logging
-import asyncio
-from typing import Any, List, Optional, Callable, Union
+from typing import Any, List, Optional
 from datetime import datetime, timedelta
-from uuid import UUID
 from enum import Enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import json
-import statistics
-from collections import defaultdict, deque
 
 from sqlalchemy import and_, or_  # FIX: Add missing imports
 from redis import Redis
@@ -19,11 +16,8 @@ from redis import Redis
 
 from app.models.flow import PatientFlowState
 from app.models.flow_analytics import FlowMessage
-from app.models.patient import Patient
-from app.models.message import Message
 from app.repositories.flow import FlowStateRepository
 from app.services.data_corruption import DataCorruptionDetector
-from app.services.enhanced_flow_engine import FlowType
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +39,7 @@ class HealthStatus(Enum):
 @dataclass
 class PerformanceMetrics:
     """Performance metrics for flow operations."""
+
     total_active_flows: int
     messages_sent_last_hour: int
     messages_sent_last_24h: int
@@ -59,6 +54,7 @@ class PerformanceMetrics:
 @dataclass
 class SystemAlert:
     """System alert for flow operations."""
+
     id: str
     severity: AlertSeverity
     title: str
@@ -74,8 +70,13 @@ class SystemAlert:
 class FlowMonitoringService:
     """Service for monitoring flow operations and system health."""
 
-    def __init__(self, db: Any, redis: Redis, flow_repository: FlowStateRepository,
-                 corruption_detector: DataCorruptionDetector):
+    def __init__(
+        self,
+        db: Any,
+        redis: Redis,
+        flow_repository: FlowStateRepository,
+        corruption_detector: DataCorruptionDetector,
+    ):
         self.db = db
         self.redis = redis
         self.flow_repository = flow_repository
@@ -83,18 +84,18 @@ class FlowMonitoringService:
 
         # Monitoring thresholds
         self.thresholds = {
-            'error_rate_warning': 0.05,  # 5%
-            'error_rate_critical': 0.15,  # 15%
-            'response_time_warning': 5.0,  # 5 seconds
-            'response_time_critical': 15.0,  # 15 seconds
-            'queue_depth_warning': 100,
-            'queue_depth_critical': 500,
-            'redis_memory_warning': 0.8,  # 80%
-            'redis_memory_critical': 0.95,  # 95%
-            'stale_flows_warning': 10,
-            'stale_flows_critical': 50,
-            'corruption_rate_warning': 0.02,  # 2%
-            'corruption_rate_critical': 0.1,  # 10%
+            "error_rate_warning": 0.05,  # 5%
+            "error_rate_critical": 0.15,  # 15%
+            "response_time_warning": 5.0,  # 5 seconds
+            "response_time_critical": 15.0,  # 15 seconds
+            "queue_depth_warning": 100,
+            "queue_depth_critical": 500,
+            "redis_memory_warning": 0.8,  # 80%
+            "redis_memory_critical": 0.95,  # 95%
+            "stale_flows_warning": 10,
+            "stale_flows_critical": 50,
+            "corruption_rate_warning": 0.02,  # 2%
+            "corruption_rate_critical": 0.1,  # 10%
         }
 
         # Alert cooldown periods (in seconds)
@@ -121,41 +122,49 @@ class FlowMonitoringService:
             trends = await self._get_performance_trends()
 
             return {
-                'status': health_status.value,
-                'timestamp': datetime.utcnow().isoformat(),
-                'metrics': metrics.__dict__,
-                'active_alerts': [alert.__dict__ for alert in active_alerts],
-                'trends': trends,
-                'components': await self._get_component_health()
+                "status": health_status.value,
+                "timestamp": datetime.utcnow().isoformat(),
+                "metrics": metrics.__dict__,
+                "active_alerts": [alert.__dict__ for alert in active_alerts],
+                "trends": trends,
+                "components": await self._get_component_health(),
             }
 
         except Exception as e:
             logger.error(f"Error getting system health: {e}")
             return {
-                'status': HealthStatus.CRITICAL.value,
-                'error': str(e),
-                'timestamp': datetime.utcnow().isoformat()
+                "status": HealthStatus.CRITICAL.value,
+                "error": str(e),
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
     async def collect_performance_metrics(self) -> PerformanceMetrics:
         """Collect current performance metrics."""
         try:
             # Database metrics
-            total_active_flows = self.db.query(PatientFlowState).filter(  # FIX: Use PatientFlowState instead of FlowState
-                PatientFlowState.is_paused == False
-            ).count()
+            total_active_flows = (
+                self.db.query(PatientFlowState)
+                .filter(  # FIX: Use PatientFlowState instead of FlowState
+                    not PatientFlowState.is_paused
+                )
+                .count()
+            )
 
             # Message metrics
             one_hour_ago = datetime.utcnow() - timedelta(hours=1)
             twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
 
-            messages_last_hour = self.db.query(FlowMessage).filter(
-                FlowMessage.sent_at >= one_hour_ago
-            ).count()
+            messages_last_hour = (
+                self.db.query(FlowMessage)
+                .filter(FlowMessage.sent_at >= one_hour_ago)
+                .count()
+            )
 
-            messages_last_24h = self.db.query(FlowMessage).filter(
-                FlowMessage.sent_at >= twenty_four_hours_ago
-            ).count()
+            messages_last_24h = (
+                self.db.query(FlowMessage)
+                .filter(FlowMessage.sent_at >= twenty_four_hours_ago)
+                .count()
+            )
 
             # Response time metrics (from Redis if available)
             avg_response_time = await self._get_average_response_time()
@@ -182,7 +191,7 @@ class FlowMonitoringService:
                 success_rate=success_rate,
                 queue_depth=queue_depth,
                 redis_memory_usage=redis_memory_usage,
-                database_connection_count=db_connections
+                database_connection_count=db_connections,
             )
 
         except Exception as e:
@@ -197,7 +206,7 @@ class FlowMonitoringService:
                 success_rate=0.0,
                 queue_depth=0,
                 redis_memory_usage=0.0,
-                database_connection_count=0
+                database_connection_count=0,
             )
 
     async def check_and_create_alerts(self) -> List[SystemAlert]:
@@ -208,93 +217,96 @@ class FlowMonitoringService:
             metrics = await self.collect_performance_metrics()
 
             # Check error rate
-            if metrics.error_rate >= self.thresholds['error_rate_critical']:
+            if metrics.error_rate >= self.thresholds["error_rate_critical"]:
                 alert = await self._create_alert(
                     AlertSeverity.CRITICAL,
                     "High Error Rate",
                     f"Error rate is {metrics.error_rate:.2%}, exceeding critical threshold",
                     "flow_processing",
                     metrics.error_rate,
-                    self.thresholds['error_rate_critical']
+                    self.thresholds["error_rate_critical"],
                 )
                 if alert:
                     alerts.append(alert)
 
-            elif metrics.error_rate >= self.thresholds['error_rate_warning']:
+            elif metrics.error_rate >= self.thresholds["error_rate_warning"]:
                 alert = await self._create_alert(
                     AlertSeverity.HIGH,
                     "Elevated Error Rate",
                     f"Error rate is {metrics.error_rate:.2%}, exceeding warning threshold",
                     "flow_processing",
                     metrics.error_rate,
-                    self.thresholds['error_rate_warning']
+                    self.thresholds["error_rate_warning"],
                 )
                 if alert:
                     alerts.append(alert)
 
             # Check response time
-            if metrics.average_response_time >= self.thresholds['response_time_critical']:
+            if (
+                metrics.average_response_time
+                >= self.thresholds["response_time_critical"]
+            ):
                 alert = await self._create_alert(
                     AlertSeverity.CRITICAL,
                     "Slow Response Time",
                     f"Average response time is {metrics.average_response_time:.2f}s",
                     "performance",
                     metrics.average_response_time,
-                    self.thresholds['response_time_critical']
+                    self.thresholds["response_time_critical"],
                 )
                 if alert:
                     alerts.append(alert)
 
             # Check queue depth
-            if metrics.queue_depth >= self.thresholds['queue_depth_critical']:
+            if metrics.queue_depth >= self.thresholds["queue_depth_critical"]:
                 alert = await self._create_alert(
                     AlertSeverity.CRITICAL,
                     "High Queue Depth",
                     f"Message queue depth is {metrics.queue_depth}",
                     "message_queue",
                     metrics.queue_depth,
-                    self.thresholds['queue_depth_critical']
+                    self.thresholds["queue_depth_critical"],
                 )
                 if alert:
                     alerts.append(alert)
 
             # Check Redis memory usage
-            if metrics.redis_memory_usage >= self.thresholds['redis_memory_critical']:
+            if metrics.redis_memory_usage >= self.thresholds["redis_memory_critical"]:
                 alert = await self._create_alert(
                     AlertSeverity.CRITICAL,
                     "High Redis Memory Usage",
                     f"Redis memory usage is {metrics.redis_memory_usage:.1%}",
                     "redis",
                     metrics.redis_memory_usage,
-                    self.thresholds['redis_memory_critical']
+                    self.thresholds["redis_memory_critical"],
                 )
                 if alert:
                     alerts.append(alert)
 
             # Check for stale flows
             stale_flows = await self._count_stale_flows()
-            if stale_flows >= self.thresholds['stale_flows_critical']:
+            if stale_flows >= self.thresholds["stale_flows_critical"]:
                 alert = await self._create_alert(
                     AlertSeverity.HIGH,
                     "Stale Flows Detected",
                     f"{stale_flows} flows haven't been processed in over 24 hours",
                     "flow_processing",
                     stale_flows,
-                    self.thresholds['stale_flows_critical']
+                    self.thresholds["stale_flows_critical"],
                 )
                 if alert:
                     alerts.append(alert)
 
             # Check corruption rate
             corruption_rate = await self._calculate_corruption_rate()
-            if corruption_rate >= self.thresholds['corruption_rate_critical']:
+            if corruption_rate >= self.thresholds["corruption_rate_critical"]:
                 alert = await self._create_alert(
                     AlertSeverity.CRITICAL,
                     "High Data Corruption Rate",
                     f"Data corruption rate is {corruption_rate:.2%}",
                     "data_integrity",
                     corruption_rate,
-                    self.thresholds['corruption_rate_critical']
+                    self.thresholds["corruption_rate_critical"],
                 )
                 if alert:
                     alerts.append(alert)
@@ -315,18 +327,22 @@ class FlowMonitoringService:
                 alert_data = self.redis.get(key)  # FIX: Remove await
                 if alert_data:
                     alert_dict = json.loads(alert_data)
-                    if not alert_dict.get('resolved_at'):
+                    if not alert_dict.get("resolved_at"):
                         alert = SystemAlert(
-                            id=alert_dict['id'],
-                            severity=AlertSeverity(alert_dict['severity']),
-                            title=alert_dict['title'],
-                            message=alert_dict['message'],
-                            component=alert_dict['component'],
-                            metric_value=alert_dict.get('metric_value'),
-                            threshold=alert_dict.get('threshold'),
-                            created_at=datetime.fromisoformat(alert_dict['created_at']),
-                            resolved_at=datetime.fromisoformat(alert_dict['resolved_at']) if alert_dict.get('resolved_at') else None,
-                            metadata=alert_dict.get('metadata', {})
+                            id=alert_dict["id"],
+                            severity=AlertSeverity(alert_dict["severity"]),
+                            title=alert_dict["title"],
+                            message=alert_dict["message"],
+                            component=alert_dict["component"],
+                            metric_value=alert_dict.get("metric_value"),
+                            threshold=alert_dict.get("threshold"),
+                            created_at=datetime.fromisoformat(alert_dict["created_at"]),
+                            resolved_at=datetime.fromisoformat(
+                                alert_dict["resolved_at"]
+                            )
+                            if alert_dict.get("resolved_at")
+                            else None,
+                            metadata=alert_dict.get("metadata", {}),
                         )
                         alerts.append(alert)
 
@@ -336,7 +352,9 @@ class FlowMonitoringService:
             logger.error(f"Error getting active alerts: {e}")
             return []
 
-    async def resolve_alert(self, alert_id: str, resolution_note: Optional[str] = None) -> bool:
+    async def resolve_alert(
+        self, alert_id: str, resolution_note: Optional[str] = None
+    ) -> bool:
         """Resolve an active alert."""
         try:
             alert_key = f"alert:{alert_id}"
@@ -346,11 +364,13 @@ class FlowMonitoringService:
                 return False
 
             alert_dict = json.loads(alert_data)
-            alert_dict['resolved_at'] = datetime.utcnow().isoformat()
+            alert_dict["resolved_at"] = datetime.utcnow().isoformat()
             if resolution_note:
-                alert_dict['resolution_note'] = resolution_note
+                alert_dict["resolution_note"] = resolution_note
 
-            self.redis.setex(alert_key, 86400 * 7, json.dumps(alert_dict))  # FIX: Remove await
+            self.redis.setex(
+                alert_key, 86400 * 7, json.dumps(alert_dict)
+            )  # FIX: Remove await
 
             logger.info(f"Resolved alert {alert_id}: {resolution_note}")
             return True
@@ -362,56 +382,79 @@ class FlowMonitoringService:
     async def run_health_checks(self) -> dict[str, Any]:
         """Run comprehensive health checks."""
         health_checks = {
-            'database_connectivity': await self._check_database_connectivity(),
-            'redis_connectivity': await self._check_redis_connectivity(),
-            'flow_processing': await self._check_flow_processing_health(),
-            'message_delivery': await self._check_message_delivery_health(),
-            'data_integrity': await self._check_data_integrity(),
-            'external_services': await self._check_external_services()
+            "database_connectivity": await self._check_database_connectivity(),
+            "redis_connectivity": await self._check_redis_connectivity(),
+            "flow_processing": await self._check_flow_processing_health(),
+            "message_delivery": await self._check_message_delivery_health(),
+            "data_integrity": await self._check_data_integrity(),
+            "external_services": await self._check_external_services(),
         }
 
         overall_status = HealthStatus.HEALTHY
         for check_name, check_result in health_checks.items():
-            if check_result['status'] == HealthStatus.CRITICAL.value:
+            if check_result["status"] == HealthStatus.CRITICAL.value:
                 overall_status = HealthStatus.CRITICAL
                 break
-            elif check_result['status'] == HealthStatus.DEGRADED.value and overall_status != HealthStatus.CRITICAL:
+            elif (
+                check_result["status"] == HealthStatus.DEGRADED.value
+                and overall_status != HealthStatus.CRITICAL
+            ):
                 overall_status = HealthStatus.DEGRADED
-            elif check_result['status'] == HealthStatus.WARNING.value and overall_status == HealthStatus.HEALTHY:
+            elif (
+                check_result["status"] == HealthStatus.WARNING.value
+                and overall_status == HealthStatus.HEALTHY
+            ):
                 overall_status = HealthStatus.WARNING
 
         return {
-            'overall_status': overall_status.value,
-            'timestamp': datetime.utcnow().isoformat(),
-            'checks': health_checks
+            "overall_status": overall_status.value,
+            "timestamp": datetime.utcnow().isoformat(),
+            "checks": health_checks,
         }
 
-    async def _determine_health_status(self, metrics: PerformanceMetrics) -> HealthStatus:
+    async def _determine_health_status(
+        self, metrics: PerformanceMetrics
+    ) -> HealthStatus:
         """Determine overall health status based on metrics."""
-        if (metrics.error_rate >= self.thresholds['error_rate_critical'] or
-            metrics.average_response_time >= self.thresholds['response_time_critical'] or
-            metrics.queue_depth >= self.thresholds['queue_depth_critical'] or
-            metrics.redis_memory_usage >= self.thresholds['redis_memory_critical']):
+        if (
+            metrics.error_rate >= self.thresholds["error_rate_critical"]
+            or metrics.average_response_time
+            >= self.thresholds["response_time_critical"]
+            or metrics.queue_depth >= self.thresholds["queue_depth_critical"]
+            or metrics.redis_memory_usage >= self.thresholds["redis_memory_critical"]
+        ):
             return HealthStatus.CRITICAL
 
-        if (metrics.error_rate >= self.thresholds['error_rate_warning'] or
-            metrics.average_response_time >= self.thresholds['response_time_warning'] or
-            metrics.queue_depth >= self.thresholds['queue_depth_warning'] or
-            metrics.redis_memory_usage >= self.thresholds['redis_memory_warning']):
+        if (
+            metrics.error_rate >= self.thresholds["error_rate_warning"]
+            or metrics.average_response_time >= self.thresholds["response_time_warning"]
+            or metrics.queue_depth >= self.thresholds["queue_depth_warning"]
+            or metrics.redis_memory_usage >= self.thresholds["redis_memory_warning"]
+        ):
             return HealthStatus.DEGRADED
 
         # Check for any active high/critical alerts
         active_alerts = await self.get_active_alerts()
-        critical_alerts = [a for a in active_alerts if a.severity in [AlertSeverity.CRITICAL, AlertSeverity.HIGH]]
+        critical_alerts = [
+            a
+            for a in active_alerts
+            if a.severity in [AlertSeverity.CRITICAL, AlertSeverity.HIGH]
+        ]
 
         if critical_alerts:
             return HealthStatus.WARNING
 
         return HealthStatus.HEALTHY
 
-    async def _create_alert(self, severity: AlertSeverity, title: str, message: str,
-                          component: str, metric_value: Optional[float] = None,
-                          threshold: Optional[float] = None) -> Optional[SystemAlert]:
+    async def _create_alert(
+        self,
+        severity: AlertSeverity,
+        title: str,
+        message: str,
+        component: str,
+        metric_value: Optional[float] = None,
+        threshold: Optional[float] = None,
+    ) -> Optional[SystemAlert]:
         """Create a new alert if not in cooldown period."""
         try:
             # Check cooldown
@@ -431,25 +474,27 @@ class FlowMonitoringService:
                 threshold=threshold,
                 created_at=datetime.utcnow(),
                 resolved_at=None,
-                metadata={}
+                metadata={},
             )
 
             # Store alert
             alert_key = f"alert:{alert_id}"
             alert_data = {
-                'id': alert.id,
-                'severity': alert.severity.value,
-                'title': alert.title,
-                'message': alert.message,
-                'component': alert.component,
-                'metric_value': alert.metric_value,
-                'threshold': alert.threshold,
-                'created_at': alert.created_at.isoformat(),
-                'resolved_at': None,
-                'metadata': alert.metadata
+                "id": alert.id,
+                "severity": alert.severity.value,
+                "title": alert.title,
+                "message": alert.message,
+                "component": alert.component,
+                "metric_value": alert.metric_value,
+                "threshold": alert.threshold,
+                "created_at": alert.created_at.isoformat(),
+                "resolved_at": None,
+                "metadata": alert.metadata,
             }
 
-            self.redis.setex(alert_key, 86400 * 7, json.dumps(alert_data))  # FIX: Remove await
+            self.redis.setex(
+                alert_key, 86400 * 7, json.dumps(alert_data)
+            )  # FIX: Remove await
 
             # Set cooldown
             cooldown_seconds = self.alert_cooldowns[severity]
@@ -471,7 +516,9 @@ class FlowMonitoringService:
     async def _get_average_response_time(self) -> float:
         """Get average response time from Redis metrics."""
         try:
-            response_times = self.redis.lrange("response_times", 0, 99)  # FIX: Remove await - Redis is synchronous
+            response_times = self.redis.lrange(
+                "response_times", 0, 99
+            )  # FIX: Remove await - Redis is synchronous
             if response_times:
                 times = [float(t) for t in response_times]
                 return sum(times) / len(times)
@@ -489,7 +536,9 @@ class FlowMonitoringService:
             error_count = self.redis.llen(error_key)  # FIX: Remove await
 
             # Get total operations from last hour
-            total_operations = self.redis.get("operations_count_last_hour")  # FIX: Remove await
+            total_operations = self.redis.get(
+                "operations_count_last_hour"
+            )  # FIX: Remove await
             total_operations = int(total_operations) if total_operations else 1
 
             return error_count / max(total_operations, 1)
@@ -509,9 +558,9 @@ class FlowMonitoringService:
     async def _get_redis_memory_usage(self) -> float:
         """Get Redis memory usage percentage."""
         try:
-            info = self.redis.info('memory')  # FIX: Remove await - Redis is synchronous
-            used_memory = info.get('used_memory', 0)
-            max_memory = info.get('maxmemory', 0)
+            info = self.redis.info("memory")  # FIX: Remove await - Redis is synchronous
+            used_memory = info.get("used_memory", 0)
+            max_memory = info.get("maxmemory", 0)
 
             if max_memory > 0:
                 return used_memory / max_memory
@@ -533,15 +582,19 @@ class FlowMonitoringService:
         try:
             twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
 
-            stale_count = self.db.query(PatientFlowState).filter(  # FIX: Use PatientFlowState
-                and_(
-                    PatientFlowState.is_paused == False,
-                    or_(
-                        PatientFlowState.last_message_sent < twenty_four_hours_ago,
-                        PatientFlowState.last_message_sent.is_(None)
+            stale_count = (
+                self.db.query(PatientFlowState)
+                .filter(  # FIX: Use PatientFlowState
+                    and_(
+                        not PatientFlowState.is_paused,
+                        or_(
+                            PatientFlowState.last_message_sent < twenty_four_hours_ago,
+                            PatientFlowState.last_message_sent.is_(None),
+                        ),
                     )
                 )
-            ).count()
+                .count()
+            )
 
             return stale_count
 
@@ -553,13 +606,17 @@ class FlowMonitoringService:
         """Calculate data corruption rate."""
         try:
             # Sample a subset of flows for corruption checking
-            total_flows = self.db.query(PatientFlowState).count()  # FIX: Use PatientFlowState
+            total_flows = self.db.query(
+                PatientFlowState
+            ).count()  # FIX: Use PatientFlowState
             if total_flows == 0:
                 return 0.0
 
             # Check up to 100 flows for corruption
             sample_size = min(100, total_flows)
-            corruption_report = await self.corruption_detector.detect_bulk_corruption(sample_size)
+            corruption_report = await self.corruption_detector.detect_bulk_corruption(
+                sample_size
+            )
 
             corrupted_flows = len(corruption_report)
             return corrupted_flows / sample_size
@@ -573,9 +630,9 @@ class FlowMonitoringService:
         try:
             # Get metrics from the last 24 hours
             trends = {
-                'message_volume_trend': await self._get_message_volume_trend(),
-                'error_rate_trend': await self._get_error_rate_trend(),
-                'response_time_trend': await self._get_response_time_trend()
+                "message_volume_trend": await self._get_message_volume_trend(),
+                "error_rate_trend": await self._get_error_rate_trend(),
+                "response_time_trend": await self._get_response_time_trend(),
             }
             return trends
         except Exception as e:
@@ -585,11 +642,11 @@ class FlowMonitoringService:
     async def _get_component_health(self) -> dict[str, str]:
         """Get health status of individual components."""
         return {
-            'database': 'healthy',
-            'redis': 'healthy',
-            'message_queue': 'healthy',
-            'flow_engine': 'healthy',
-            'ai_services': 'healthy'
+            "database": "healthy",
+            "redis": "healthy",
+            "message_queue": "healthy",
+            "flow_engine": "healthy",
+            "ai_services": "healthy",
         }
 
     async def _check_database_connectivity(self) -> dict[str, Any]:
@@ -601,15 +658,15 @@ class FlowMonitoringService:
             response_time = (datetime.utcnow() - start_time).total_seconds()
 
             return {
-                'status': HealthStatus.HEALTHY.value,
-                'response_time': response_time,
-                'message': 'Database connectivity is healthy'
+                "status": HealthStatus.HEALTHY.value,
+                "response_time": response_time,
+                "message": "Database connectivity is healthy",
             }
         except Exception as e:
             return {
-                'status': HealthStatus.CRITICAL.value,
-                'error': str(e),
-                'message': 'Database connectivity failed'
+                "status": HealthStatus.CRITICAL.value,
+                "error": str(e),
+                "message": "Database connectivity failed",
             }
 
     async def _check_redis_connectivity(self) -> dict[str, Any]:
@@ -620,15 +677,15 @@ class FlowMonitoringService:
             response_time = (datetime.utcnow() - start_time).total_seconds()
 
             return {
-                'status': HealthStatus.HEALTHY.value,
-                'response_time': response_time,
-                'message': 'Redis connectivity is healthy'
+                "status": HealthStatus.HEALTHY.value,
+                "response_time": response_time,
+                "message": "Redis connectivity is healthy",
             }
         except Exception as e:
             return {
-                'status': HealthStatus.CRITICAL.value,
-                'error': str(e),
-                'message': 'Redis connectivity failed'
+                "status": HealthStatus.CRITICAL.value,
+                "error": str(e),
+                "message": "Redis connectivity failed",
             }
 
     async def _check_flow_processing_health(self) -> dict[str, Any]:
@@ -636,67 +693,71 @@ class FlowMonitoringService:
         try:
             # Check for recent flow processing activity
             one_hour_ago = datetime.utcnow() - timedelta(hours=1)
-            recent_messages = self.db.query(FlowMessage).filter(
-                FlowMessage.sent_at >= one_hour_ago
-            ).count()
+            recent_messages = (
+                self.db.query(FlowMessage)
+                .filter(FlowMessage.sent_at >= one_hour_ago)
+                .count()
+            )
 
             if recent_messages > 0:
                 return {
-                    'status': HealthStatus.HEALTHY.value,
-                    'recent_messages': recent_messages,
-                    'message': 'Flow processing is active'
+                    "status": HealthStatus.HEALTHY.value,
+                    "recent_messages": recent_messages,
+                    "message": "Flow processing is active",
                 }
             else:
                 return {
-                    'status': HealthStatus.WARNING.value,
-                    'recent_messages': recent_messages,
-                    'message': 'No recent flow processing activity'
+                    "status": HealthStatus.WARNING.value,
+                    "recent_messages": recent_messages,
+                    "message": "No recent flow processing activity",
                 }
         except Exception as e:
             return {
-                'status': HealthStatus.CRITICAL.value,
-                'error': str(e),
-                'message': 'Flow processing health check failed'
+                "status": HealthStatus.CRITICAL.value,
+                "error": str(e),
+                "message": "Flow processing health check failed",
             }
 
     async def _check_message_delivery_health(self) -> dict[str, Any]:
         """Check message delivery health."""
         # Placeholder implementation
         return {
-            'status': HealthStatus.HEALTHY.value,
-            'message': 'Message delivery is healthy'
+            "status": HealthStatus.HEALTHY.value,
+            "message": "Message delivery is healthy",
         }
 
     async def _check_data_integrity(self) -> dict[str, Any]:
         """Check data integrity."""
         try:
             # Run a quick corruption check on a small sample
-            corruption_report = await self.corruption_detector.detect_bulk_corruption(10)
+            corruption_report = await self.corruption_detector.detect_bulk_corruption(
+                10
+            )
 
             if not corruption_report:
                 return {
-                    'status': HealthStatus.HEALTHY.value,
-                    'message': 'Data integrity is healthy'
+                    "status": HealthStatus.HEALTHY.value,
+                    "message": "Data integrity is healthy",
                 }
             else:
                 return {
-                    'status': HealthStatus.WARNING.value,
-                    'corrupted_flows': len(corruption_report),
-                    'message': f'Found {len(corruption_report)} flows with data issues'
+                    "status": HealthStatus.WARNING.value,
+                    "corrupted_flows": len(corruption_report),
+                    "message": f"Found {len(corruption_report)} flows with data issues",
                 }
         except Exception as e:
             return {
-                'status': HealthStatus.CRITICAL.value,
-                'error': str(e),
-                'message': 'Data integrity check failed'
+                "status": HealthStatus.CRITICAL.value,
+                "error": str(e),
+                "message": "Data integrity check failed",
             }
 
     async def _check_external_services(self) -> dict[str, Any]:
         """Check external services health."""
         # Placeholder implementation
         return {
-            'status': HealthStatus.HEALTHY.value,
-            'message': 'External services are healthy'
+            "status": HealthStatus.HEALTHY.value,
+            "message": "External services are healthy",
         }
 
     async def _send_critical_alert_notification(self, alert: SystemAlert) -> None:
@@ -705,16 +766,18 @@ class FlowMonitoringService:
             # Store critical alert for immediate attention
             critical_key = f"critical_alert:{alert.id}"
             notification_data = {
-                'alert_id': alert.id,
-                'severity': alert.severity.value,
-                'title': alert.title,
-                'message': alert.message,
-                'component': alert.component,
-                'created_at': alert.created_at.isoformat(),
-                'requires_immediate_attention': True
+                "alert_id": alert.id,
+                "severity": alert.severity.value,
+                "title": alert.title,
+                "message": alert.message,
+                "component": alert.component,
+                "created_at": alert.created_at.isoformat(),
+                "requires_immediate_attention": True,
             }
 
-            self.redis.setex(critical_key, 86400, json.dumps(notification_data))  # FIX: Remove await
+            self.redis.setex(
+                critical_key, 86400, json.dumps(notification_data)
+            )  # FIX: Remove await
 
             # Log critical alert
             logger.critical(f"CRITICAL ALERT: {alert.title} - {alert.message}")

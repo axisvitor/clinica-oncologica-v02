@@ -4,6 +4,7 @@ Medication repository with eager loading optimizations.
 PERFORMANCE OPTIMIZATION: All methods support eager loading by default to eliminate N+1 queries.
 Achieves 60-80% query reduction for read operations.
 """
+
 from datetime import date
 from typing import List, Optional
 from uuid import UUID
@@ -52,12 +53,14 @@ class MedicationRepository(BaseRepository[Medication]):
             query = query.options(
                 joinedload(Medication.patient),
                 joinedload(Medication.prescribed_by),
-                joinedload(Medication.treatment)
+                joinedload(Medication.treatment),
             )
 
         return query.first()
 
-    def get_all(self, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Medication]:
+    def get_all(
+        self, skip: int = 0, limit: int = 100, eager_load: bool = True
+    ) -> List[Medication]:
         """
         Get all medications with eager loading enabled by default.
 
@@ -77,12 +80,14 @@ class MedicationRepository(BaseRepository[Medication]):
             query = query.options(
                 joinedload(Medication.patient),
                 joinedload(Medication.prescribed_by),
-                joinedload(Medication.treatment)
+                joinedload(Medication.treatment),
             )
 
         return query.offset(skip).limit(limit).all()
 
-    def get_by_patient(self, patient_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Medication]:
+    def get_by_patient(
+        self, patient_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True
+    ) -> List[Medication]:
         """
         Get medications by patient with eager loading.
 
@@ -103,12 +108,23 @@ class MedicationRepository(BaseRepository[Medication]):
             query = query.options(
                 joinedload(Medication.patient),
                 joinedload(Medication.prescribed_by),
-                joinedload(Medication.treatment)
+                joinedload(Medication.treatment),
             )
 
-        return query.order_by(Medication.prescription_date.desc()).offset(skip).limit(limit).all()
+        return (
+            query.order_by(Medication.prescription_date.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
-    def get_active(self, patient_id: Optional[UUID] = None, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Medication]:
+    def get_active(
+        self,
+        patient_id: Optional[UUID] = None,
+        skip: int = 0,
+        limit: int = 100,
+        eager_load: bool = True,
+    ) -> List[Medication]:
         """
         Get active medications with eager loading.
 
@@ -123,7 +139,7 @@ class MedicationRepository(BaseRepository[Medication]):
         Returns:
             List of active medications with relationships pre-loaded
         """
-        filters = [Medication.is_active == True]
+        filters = [Medication.is_active]
 
         if patient_id:
             filters.append(Medication.patient_id == patient_id)
@@ -134,12 +150,20 @@ class MedicationRepository(BaseRepository[Medication]):
             query = query.options(
                 joinedload(Medication.patient),
                 joinedload(Medication.prescribed_by),
-                joinedload(Medication.treatment)
+                joinedload(Medication.treatment),
             )
 
-        return query.order_by(Medication.start_date.desc()).offset(skip).limit(limit).all()
+        return (
+            query.order_by(Medication.start_date.desc()).offset(skip).limit(limit).all()
+        )
 
-    def get_by_prescribed_by(self, prescribed_by_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Medication]:
+    def get_by_prescribed_by(
+        self,
+        prescribed_by_id: UUID,
+        skip: int = 0,
+        limit: int = 100,
+        eager_load: bool = True,
+    ) -> List[Medication]:
         """
         Get medications by prescriber with eager loading.
 
@@ -152,18 +176,31 @@ class MedicationRepository(BaseRepository[Medication]):
         Returns:
             List of medications with relationships pre-loaded
         """
-        query = self.db.query(Medication).filter(Medication.prescribed_by_id == prescribed_by_id)
+        query = self.db.query(Medication).filter(
+            Medication.prescribed_by_id == prescribed_by_id
+        )
 
         if eager_load:
             query = query.options(
                 joinedload(Medication.patient),
                 joinedload(Medication.prescribed_by),
-                joinedload(Medication.treatment)
+                joinedload(Medication.treatment),
             )
 
-        return query.order_by(Medication.prescription_date.desc()).offset(skip).limit(limit).all()
+        return (
+            query.order_by(Medication.prescription_date.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
-    def get_by_treatment(self, treatment_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Medication]:
+    def get_by_treatment(
+        self,
+        treatment_id: UUID,
+        skip: int = 0,
+        limit: int = 100,
+        eager_load: bool = True,
+    ) -> List[Medication]:
         """
         Get medications by treatment with eager loading.
 
@@ -176,18 +213,22 @@ class MedicationRepository(BaseRepository[Medication]):
         Returns:
             List of medications with relationships pre-loaded
         """
-        query = self.db.query(Medication).filter(Medication.treatment_id == treatment_id)
+        query = self.db.query(Medication).filter(
+            Medication.treatment_id == treatment_id
+        )
 
         if eager_load:
             query = query.options(
                 joinedload(Medication.patient),
                 joinedload(Medication.prescribed_by),
-                joinedload(Medication.treatment)
+                joinedload(Medication.treatment),
             )
 
         return query.offset(skip).limit(limit).all()
 
-    def get_by_name(self, name: str, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Medication]:
+    def get_by_name(
+        self, name: str, skip: int = 0, limit: int = 100, eager_load: bool = True
+    ) -> List[Medication]:
         """
         Get medications by name (case-insensitive partial match) with eager loading.
 
@@ -209,12 +250,14 @@ class MedicationRepository(BaseRepository[Medication]):
             query = query.options(
                 joinedload(Medication.patient),
                 joinedload(Medication.prescribed_by),
-                joinedload(Medication.treatment)
+                joinedload(Medication.treatment),
             )
 
         return query.offset(skip).limit(limit).all()
 
-    def get_expiring_soon(self, days: int = 30, eager_load: bool = True) -> List[Medication]:
+    def get_expiring_soon(
+        self, days: int = 30, eager_load: bool = True
+    ) -> List[Medication]:
         """
         Get medications expiring within specified days with eager loading.
 
@@ -232,10 +275,10 @@ class MedicationRepository(BaseRepository[Medication]):
 
         query = self.db.query(Medication).filter(
             and_(
-                Medication.is_active == True,
+                Medication.is_active,
                 Medication.end_date.isnot(None),
                 Medication.end_date <= expiry_date,
-                Medication.end_date >= today
+                Medication.end_date >= today,
             )
         )
 
@@ -243,7 +286,7 @@ class MedicationRepository(BaseRepository[Medication]):
             query = query.options(
                 joinedload(Medication.patient),
                 joinedload(Medication.prescribed_by),
-                joinedload(Medication.treatment)
+                joinedload(Medication.treatment),
             )
 
         return query.order_by(Medication.end_date.asc()).all()
@@ -260,9 +303,9 @@ class MedicationRepository(BaseRepository[Medication]):
         """
         query = self.db.query(Medication).filter(
             and_(
-                Medication.is_active == True,
+                Medication.is_active,
                 Medication.refills_remaining > 0,
-                Medication.refills_allowed > 0
+                Medication.refills_allowed > 0,
             )
         )
 
@@ -270,7 +313,7 @@ class MedicationRepository(BaseRepository[Medication]):
             query = query.options(
                 joinedload(Medication.patient),
                 joinedload(Medication.prescribed_by),
-                joinedload(Medication.treatment)
+                joinedload(Medication.treatment),
             )
 
         return query.all()

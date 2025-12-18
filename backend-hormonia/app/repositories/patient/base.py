@@ -1,7 +1,7 @@
 """
 Core CRUD operations for Patient repository.
 """
-import logging
+
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 
@@ -26,7 +26,8 @@ class PatientRepositoryBase(BaseRepository[Patient]):
         if self._redis_client is None:
             try:
                 from app.core.redis_unified import get_redis_client
-                self._redis_client = get_redis_client('sync')
+
+                self._redis_client = get_redis_client("sync")
             except Exception:
                 # Redis optional - gracefully degrade if unavailable
                 self._redis_client = False
@@ -56,7 +57,11 @@ class PatientRepositoryBase(BaseRepository[Patient]):
         if isinstance(metadata_payload, dict):
             merged_patient_data.update(metadata_payload)
 
-        if allergies is not None or current_medications is not None or comorbidities is not None:
+        if (
+            allergies is not None
+            or current_medications is not None
+            or comorbidities is not None
+        ):
             medical_history = merged_patient_data.get("medical_history")
             if not isinstance(medical_history, dict):
                 medical_history = {}
@@ -153,7 +158,16 @@ class PatientRepositoryBase(BaseRepository[Patient]):
         metadata_payload = data.pop("metadata", None)
         patient_data_payload = data.pop("patient_data", None)
 
-        clinical_fields_present = any([allergies, current_medications, comorbidities, blood_type, emergency_contact_name, emergency_contact_phone])
+        clinical_fields_present = any(
+            [
+                allergies,
+                current_medications,
+                comorbidities,
+                blood_type,
+                emergency_contact_name,
+                emergency_contact_phone,
+            ]
+        )
 
         if phone_present:
             db_obj.set_phone(phone)
@@ -162,7 +176,12 @@ class PatientRepositoryBase(BaseRepository[Patient]):
         if cpf_present:
             db_obj.set_cpf(cpf)
 
-        if metadata_payload is not None or patient_data_payload is not None or timezone_present or clinical_fields_present:
+        if (
+            metadata_payload is not None
+            or patient_data_payload is not None
+            or timezone_present
+            or clinical_fields_present
+        ):
             merged_patient_data: Dict[str, Any] = dict(db_obj.patient_data or {})
 
             if isinstance(patient_data_payload, dict):
@@ -170,7 +189,11 @@ class PatientRepositoryBase(BaseRepository[Patient]):
             if isinstance(metadata_payload, dict):
                 merged_patient_data.update(metadata_payload)
 
-            if allergies is not None or current_medications is not None or comorbidities is not None:
+            if (
+                allergies is not None
+                or current_medications is not None
+                or comorbidities is not None
+            ):
                 medical_history = merged_patient_data.get("medical_history")
                 if not isinstance(medical_history, dict):
                     medical_history = {}
@@ -185,7 +208,10 @@ class PatientRepositoryBase(BaseRepository[Patient]):
             if blood_type is not None:
                 merged_patient_data["blood_type"] = blood_type
 
-            if emergency_contact_name is not None or emergency_contact_phone is not None:
+            if (
+                emergency_contact_name is not None
+                or emergency_contact_phone is not None
+            ):
                 emergency_contact = merged_patient_data.get("emergency_contact")
                 if not isinstance(emergency_contact, dict):
                     emergency_contact = {}
@@ -203,7 +229,9 @@ class PatientRepositoryBase(BaseRepository[Patient]):
                     if emergency_contact_name is not None:
                         custom_fields["emergency_contact_name"] = emergency_contact_name
                     if emergency_contact_phone is not None:
-                        custom_fields["emergency_contact_phone"] = emergency_contact_phone
+                        custom_fields["emergency_contact_phone"] = (
+                            emergency_contact_phone
+                        )
                     merged_patient_data["custom_fields"] = custom_fields
 
             integrity_hash = merged_patient_data.pop("integrity_hash", None)
@@ -238,7 +266,9 @@ class PatientRepositoryBase(BaseRepository[Patient]):
         self._invalidate_caches_for_model(db_obj)
         return db_obj
 
-    def get_by_id(self, patient_id: UUID, eager_load: bool = True, include: List[str] = None) -> Optional[Patient]:
+    def get_by_id(
+        self, patient_id: UUID, eager_load: bool = True, include: List[str] = None
+    ) -> Optional[Patient]:
         """
         Get patient by ID (only active patients) with eager loading.
 
@@ -258,8 +288,7 @@ class PatientRepositoryBase(BaseRepository[Patient]):
             Patient with relationships pre-loaded or None
         """
         query = self.db.query(Patient).filter(
-            Patient.id == patient_id,
-            Patient.deleted_at.is_(None)
+            Patient.id == patient_id, Patient.deleted_at.is_(None)
         )
 
         if eager_load:
@@ -267,7 +296,7 @@ class PatientRepositoryBase(BaseRepository[Patient]):
             query = query.options(
                 selectinload(Patient.quiz_sessions),
                 selectinload(Patient.flow_states),
-                joinedload(Patient.doctor)
+                joinedload(Patient.doctor),
             )
 
         return query.first()
@@ -283,15 +312,19 @@ class PatientRepositoryBase(BaseRepository[Patient]):
         LGPD Compliance: Searches by phone_hash (plaintext column removed in migration 030).
         """
         from app.services.encryption import get_lgpd_encryption_service
+
         service = get_lgpd_encryption_service()
         phone_hash = service.hash_phone(phone)
 
-        return self.db.query(Patient).filter(
-            Patient.phone_hash == phone_hash,
-            Patient.deleted_at.is_(None)
-        ).first()
+        return (
+            self.db.query(Patient)
+            .filter(Patient.phone_hash == phone_hash, Patient.deleted_at.is_(None))
+            .first()
+        )
 
-    def get_by_doctor(self, doctor_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Patient]:
+    def get_by_doctor(
+        self, doctor_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True
+    ) -> List[Patient]:
         """
         Get active patients for a doctor with eager loading.
 
@@ -311,20 +344,20 @@ class PatientRepositoryBase(BaseRepository[Patient]):
             List of patients with relationships pre-loaded
         """
         query = self.db.query(Patient).filter(
-            Patient.doctor_id == doctor_id,
-            Patient.deleted_at.is_(None)
+            Patient.doctor_id == doctor_id, Patient.deleted_at.is_(None)
         )
 
         if eager_load:
             # PERFORMANCE: Load quiz sessions and flow states to prevent N+1 queries
             query = query.options(
-                selectinload(Patient.quiz_sessions),
-                selectinload(Patient.flow_states)
+                selectinload(Patient.quiz_sessions), selectinload(Patient.flow_states)
             )
 
         return query.offset(skip).limit(limit).all()
 
-    def get_all_active(self, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Patient]:
+    def get_all_active(
+        self, skip: int = 0, limit: int = 100, eager_load: bool = True
+    ) -> List[Patient]:
         """
         Get all active (non-deleted) patients with eager loading.
 
@@ -343,25 +376,27 @@ class PatientRepositoryBase(BaseRepository[Patient]):
         Returns:
             List of active patients with relationships pre-loaded
         """
-        query = self.db.query(Patient).filter(
-            Patient.deleted_at.is_(None)
-        )
+        query = self.db.query(Patient).filter(Patient.deleted_at.is_(None))
 
         if eager_load:
             # PERFORMANCE: Load all related entities to prevent N+1 queries
             query = query.options(
                 selectinload(Patient.quiz_sessions),
                 selectinload(Patient.flow_states),
-                joinedload(Patient.doctor)
+                joinedload(Patient.doctor),
             )
 
         return query.offset(skip).limit(limit).all()
 
     def get_all_deleted(self, skip: int = 0, limit: int = 100) -> List[Patient]:
         """Get all soft-deleted patients"""
-        return self.db.query(Patient).filter(
-            Patient.deleted_at.isnot(None)
-        ).offset(skip).limit(limit).all()
+        return (
+            self.db.query(Patient)
+            .filter(Patient.deleted_at.isnot(None))
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
     def count_active(self, **filters) -> int:
         """Count active patients with optional filters"""
@@ -389,7 +424,10 @@ class PatientRepositoryBase(BaseRepository[Patient]):
         Returns:
             Patient if found, None otherwise
         """
-        return self.db.query(Patient).filter(
-            Patient.idempotency_key == idempotency_key,
-            Patient.deleted_at.is_(None)
-        ).first()
+        return (
+            self.db.query(Patient)
+            .filter(
+                Patient.idempotency_key == idempotency_key, Patient.deleted_at.is_(None)
+            )
+            .first()
+        )

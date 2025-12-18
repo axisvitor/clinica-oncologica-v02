@@ -34,31 +34,27 @@ Legacy Compatibility:
 from .state_machine import FlowIntegrityService
 from .message_handler import MessageHandler, SchedulerError
 from .scheduling import FlowScheduler
-from .message_template_loader import MessageTemplateLoader
+from .message_template_loader import MessageTemplateLoader  # noqa: F401 - exported
 from .analytics_tracker import AnalyticsTracker
 from .flow_service import (
     FlowService,
     FlowEngineIntegrationService,  # Legacy alias
-    get_flow_integration_service
+    get_flow_integration_service,
 )
 
 __all__ = [
     # Main service (primary entry point)
     "FlowService",
-
     # Specialized modules (for advanced usage)
     "FlowIntegrityService",
     "MessageHandler",
     "FlowScheduler",
     "TemplateManager",
     "AnalyticsTracker",
-
     # Factory function
     "get_flow_integration_service",
-
     # Legacy compatibility
     "FlowEngineIntegrationService",
-
     # Exceptions
     "SchedulerError",
 ]

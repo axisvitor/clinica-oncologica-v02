@@ -1,6 +1,7 @@
 """
 Message corrections.
 """
+
 import logging
 from datetime import datetime
 from uuid import UUID
@@ -23,7 +24,9 @@ class MessageCorrector:
         self.message_repo = MessageRepository(db)
         self.backup_manager = BackupManager()
 
-    async def fix_inconsistent_status(self, issue_id: str, create_backup: bool) -> CorrectionResult:
+    async def fix_inconsistent_status(
+        self, issue_id: str, create_backup: bool
+    ) -> CorrectionResult:
         """Fix inconsistent message status."""
         try:
             message_id = UUID(issue_id.split("_")[-1])
@@ -36,15 +39,17 @@ class MessageCorrector:
                     records_affected=0,
                     backup_created=False,
                     correction_details={},
-                    error_message="Message not found"
+                    error_message="Message not found",
                 )
 
             backup_data = None
             if create_backup:
                 backup_data = {
                     "original_status": message.status.value,
-                    "original_sent_at": message.sent_at.isoformat() if message.sent_at else None,
-                    "backup_timestamp": datetime.utcnow().isoformat()
+                    "original_sent_at": message.sent_at.isoformat()
+                    if message.sent_at
+                    else None,
+                    "backup_timestamp": datetime.utcnow().isoformat(),
                 }
 
             # Add sent_at timestamp if marked as sent but missing
@@ -64,15 +69,17 @@ class MessageCorrector:
                 correction_details={
                     "action": "added_sent_timestamp",
                     "new_sent_at": message.sent_at.isoformat(),
-                    "backup_data": backup_data
-                }
+                    "backup_data": backup_data,
+                },
             )
 
-        except Exception as e:
+        except Exception:
             self.db.rollback()
             raise
 
-    async def fix_invalid_dates(self, issue_id: str, create_backup: bool) -> CorrectionResult:
+    async def fix_invalid_dates(
+        self, issue_id: str, create_backup: bool
+    ) -> CorrectionResult:
         """Fix invalid message dates."""
         try:
             message_id = UUID(issue_id.split("_")[-1])
@@ -85,17 +92,23 @@ class MessageCorrector:
                     records_affected=0,
                     backup_created=False,
                     correction_details={},
-                    error_message="Message not found"
+                    error_message="Message not found",
                 )
 
             backup_data = None
             if create_backup:
                 backup_data = self.backup_manager.create_message_backup(
-                    message, "sent_at", message.sent_at.isoformat() if message.sent_at else None
+                    message,
+                    "sent_at",
+                    message.sent_at.isoformat() if message.sent_at else None,
                 )
 
             # Correct sent_at to be after created_at
-            if message.sent_at and message.created_at and message.sent_at < message.created_at:
+            if (
+                message.sent_at
+                and message.created_at
+                and message.sent_at < message.created_at
+            ):
                 message.sent_at = message.created_at
 
                 if backup_data:
@@ -111,15 +124,17 @@ class MessageCorrector:
                 correction_details={
                     "action": "corrected_sent_at",
                     "new_sent_at": message.sent_at.isoformat(),
-                    "backup_data": backup_data
-                }
+                    "backup_data": backup_data,
+                },
             )
 
-        except Exception as e:
+        except Exception:
             self.db.rollback()
             raise
 
-    async def fix_corrupted_metadata(self, issue_id: str, create_backup: bool) -> CorrectionResult:
+    async def fix_corrupted_metadata(
+        self, issue_id: str, create_backup: bool
+    ) -> CorrectionResult:
         """Fix corrupted message metadata."""
         try:
             message_id = UUID(issue_id.split("_")[-1])
@@ -132,14 +147,14 @@ class MessageCorrector:
                     records_affected=0,
                     backup_created=False,
                     correction_details={},
-                    error_message="Message not found"
+                    error_message="Message not found",
                 )
 
             backup_data = None
             if create_backup:
                 backup_data = {
                     "original_metadata": str(message.message_metadata),
-                    "backup_timestamp": datetime.utcnow().isoformat()
+                    "backup_timestamp": datetime.utcnow().isoformat(),
                 }
 
             # Reset metadata to empty dict
@@ -156,10 +171,10 @@ class MessageCorrector:
                 backup_created=create_backup,
                 correction_details={
                     "action": "reset_metadata",
-                    "backup_data": backup_data
-                }
+                    "backup_data": backup_data,
+                },
             )
 
-        except Exception as e:
+        except Exception:
             self.db.rollback()
             raise

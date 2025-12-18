@@ -4,19 +4,18 @@ Message Composer Agent
 Main agent class responsible for orchestrating message composition.
 """
 
-import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.agents.base import BaseAgent, AgentCapabilities, MessagePriority
-from app.integrations.gemini_client import get_gemini_client, GeminiClient
+from app.agents.base import BaseAgent, AgentCapabilities
+from app.integrations.gemini_client import get_gemini_client
 from app.models.patient import Patient
 from app.repositories.patient import PatientRepository
 from app.services.conversation_memory import get_conversation_memory
-from app.services.template_loader import EnhancedTemplateLoader, MessageTemplate
+from app.services.template_loader import EnhancedTemplateLoader
 from app.utils.logging import get_logger
 
 from .templates import MessageTemplateManager
@@ -38,7 +37,11 @@ class MessageComposerAgent(BaseAgent):
     - Conversation continuity
     """
 
-    def __init__(self, db_session: Session, template_loader: Optional[EnhancedTemplateLoader] = None):
+    def __init__(
+        self,
+        db_session: Session,
+        template_loader: Optional[EnhancedTemplateLoader] = None,
+    ):
         """Initialize Message Composer Agent."""
         super().__init__(
             agent_id="message_composer",
@@ -49,8 +52,8 @@ class MessageComposerAgent(BaseAgent):
                 AgentCapabilities.MESSAGE_COMPOSITION,
                 AgentCapabilities.PERSONALIZATION,
                 AgentCapabilities.EMOTIONAL_INTELLIGENCE,
-                AgentCapabilities.PATIENT_ADAPTATION
-            ]
+                AgentCapabilities.PATIENT_ADAPTATION,
+            ],
         )
 
         self.db_session = db_session
@@ -67,7 +70,7 @@ class MessageComposerAgent(BaseAgent):
             "context_window": 10,  # Previous messages to consider
             "languages": ["pt-BR", "en", "es"],
             "tone_adaptation": True,
-            "emoji_usage": "contextual"
+            "emoji_usage": "contextual",
         }
 
         # Initialize components
@@ -75,12 +78,12 @@ class MessageComposerAgent(BaseAgent):
         self.context_builder = MessageContextBuilder(
             self.gemini_client,
             self.conversation_memory,
-            self.composition_config["context_window"]  # type: ignore[arg-type]
+            self.composition_config["context_window"],  # type: ignore[arg-type]
         )
         self.tone_adapter = MessageToneAdapter(self.gemini_client)
         self.composer = MessageComposer(
             self.gemini_client,
-            self.composition_config["max_message_length"]  # type: ignore[arg-type]
+            self.composition_config["max_message_length"],  # type: ignore[arg-type]
         )
 
         self.logger.info("Message Composer Agent initialized")
@@ -111,10 +114,7 @@ class MessageComposerAgent(BaseAgent):
             elif task_type == "generate_quiz_message":
                 return await self._generate_quiz_message(payload)
             else:
-                return {
-                    "success": False,
-                    "error": f"Unknown task type: {task_type}"
-                }
+                return {"success": False, "error": f"Unknown task type: {task_type}"}
 
         except Exception as e:
             self.logger.error(f"Task processing failed: {e}")
@@ -143,8 +143,10 @@ class MessageComposerAgent(BaseAgent):
             if custom_content:
                 # Personalize custom content
                 message_content = await self.composer.personalize_custom_content(
-                    custom_content, patient, composition_context,
-                    self.composition_config["personalization_level"]  # type: ignore[arg-type]
+                    custom_content,
+                    patient,
+                    composition_context,
+                    self.composition_config["personalization_level"],  # type: ignore[arg-type]
                 )
             elif template_id:
                 # Use template with personalization
@@ -160,16 +162,21 @@ class MessageComposerAgent(BaseAgent):
             # Fallback if no content generated
             if not message_content:
                 message_content = self.template_manager.get_fallback_message(
-                    message_type, patient.name  # type: ignore[arg-type]
+                    message_type,
+                    patient.name,  # type: ignore[arg-type]
                 )
 
             # Apply tone adaptation
             if self.composition_config.get("tone_adaptation", True):
-                message_content = await self.tone_adapter.adapt_message_tone({
-                    "content": message_content,
-                    "patient_context": composition_context,
-                    "target_tone": composition_context.get("preferred_tone", "supportive")
-                })
+                message_content = await self.tone_adapter.adapt_message_tone(
+                    {
+                        "content": message_content,
+                        "patient_context": composition_context,
+                        "target_tone": composition_context.get(
+                            "preferred_tone", "supportive"
+                        ),
+                    }
+                )
 
             # Store message pattern for learning
             await self.conversation_memory.store_message_pattern(
@@ -177,17 +184,23 @@ class MessageComposerAgent(BaseAgent):
             )
 
             # Update knowledge graph
-            await self._update_message_knowledge(patient_id, message_content, message_type)
+            await self._update_message_knowledge(
+                patient_id, message_content, message_type
+            )
 
             return {
                 "success": True,
                 "message_content": message_content,
                 "composition_metadata": {
-                    "method": "ai_composed" if not template_id and not custom_content else "template_based",
-                    "personalization_level": self.composition_config["personalization_level"],
+                    "method": "ai_composed"
+                    if not template_id and not custom_content
+                    else "template_based",
+                    "personalization_level": self.composition_config[
+                        "personalization_level"
+                    ],
                     "context_tokens": len(str(composition_context)),
-                    "generated_at": datetime.utcnow().isoformat()
-                }
+                    "generated_at": datetime.utcnow().isoformat(),
+                },
             }
 
         except Exception as e:
@@ -212,8 +225,10 @@ class MessageComposerAgent(BaseAgent):
 
             # Personalize template
             personalized_content = await self.composer.personalize_template(
-                template, patient, composition_context,  # type: ignore[arg-type]
-                self.composition_config["personalization_level"]  # type: ignore[arg-type]
+                template,
+                patient,
+                composition_context,  # type: ignore[arg-type]
+                self.composition_config["personalization_level"],  # type: ignore[arg-type]
             )
 
             return {
@@ -221,9 +236,10 @@ class MessageComposerAgent(BaseAgent):
                 "personalized_content": personalized_content,
                 "personalization_metadata": {
                     "template_used": True,
-                    "ai_enhanced": self.composition_config["personalization_level"] == "high",
-                    "context_applied": len(composition_context) > 0
-                }
+                    "ai_enhanced": self.composition_config["personalization_level"]
+                    == "high",
+                    "context_applied": len(composition_context) > 0,
+                },
             }
 
         except Exception as e:
@@ -235,10 +251,7 @@ class MessageComposerAgent(BaseAgent):
         try:
             adapted_content = await self.tone_adapter.adapt_message_tone(payload)
 
-            return {
-                "success": True,
-                "adapted_content": adapted_content
-            }
+            return {"success": True, "adapted_content": adapted_content}
 
         except Exception as e:
             self.logger.error(f"Tone adaptation failed: {e}")
@@ -256,8 +269,10 @@ class MessageComposerAgent(BaseAgent):
                 return {"success": False, "error": "Patient not found"}
 
             # Analyze previous interaction
-            interaction_analysis = await self.context_builder.analyze_previous_interaction(
-                previous_interaction
+            interaction_analysis = (
+                await self.context_builder.analyze_previous_interaction(
+                    previous_interaction
+                )
             )
 
             # Generate follow-up
@@ -271,8 +286,8 @@ class MessageComposerAgent(BaseAgent):
                 "follow_up_metadata": {
                     "reason": follow_up_reason,
                     "based_on_previous": bool(previous_interaction),
-                    "interaction_analysis": interaction_analysis
-                }
+                    "interaction_analysis": interaction_analysis,
+                },
             }
 
         except Exception as e:
@@ -306,8 +321,8 @@ class MessageComposerAgent(BaseAgent):
                 "quiz_metadata": {
                     "question_type": question_data.get("type", "open_text"),
                     "has_options": len(question_data.get("options", [])) > 0,
-                    "personalized": True
-                }
+                    "personalized": True,
+                },
             }
 
         except Exception as e:
@@ -315,10 +330,7 @@ class MessageComposerAgent(BaseAgent):
             return {"success": False, "error": str(e)}
 
     async def _update_message_knowledge(
-        self,
-        patient_id: UUID,
-        message_content: str,
-        message_type: str
+        self, patient_id: UUID, message_content: str, message_type: str
     ):
         """Update knowledge graph with message patterns."""
         try:
@@ -329,24 +341,24 @@ class MessageComposerAgent(BaseAgent):
                     "content": message_content,
                     "type": message_type,
                     "composed_at": datetime.utcnow().isoformat(),
-                    "method": "ai_generated"
-                }
+                    "method": "ai_generated",
+                },
             )
 
         except Exception as e:
             self.logger.error(f"Failed to update message knowledge: {e}")
 
     def _compose_from_template(
-        self,
-        template_id: str,
-        patient: Patient,
-        context: Dict[str, Any]
+        self, template_id: str, patient: Patient, context: Dict[str, Any]
     ) -> str:
         """Compose message from predefined template."""
         time_of_day = context.get("time_context", {}).get("time_of_day", "morning")
 
         return self.template_manager.get_builtin_template(
-            template_id, patient.name, time_of_day, context  # type: ignore[arg-type]
+            template_id,
+            patient.name,
+            time_of_day,
+            context,  # type: ignore[arg-type]
         )
 
     # Template management methods
@@ -356,7 +368,9 @@ class MessageComposerAgent(BaseAgent):
         """Compose message from flow template."""
         try:
             # Get template message
-            template_message = self.template_manager.get_template_message(flow_type, day)
+            template_message = self.template_manager.get_template_message(
+                flow_type, day
+            )
             if not template_message:
                 return None
 

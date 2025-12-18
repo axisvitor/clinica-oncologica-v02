@@ -5,27 +5,26 @@ This module provides graceful error handling with specific handlers for
 database, WebSocket, and API errors, along with proper HTTP status codes
 and user-friendly error responses.
 """
+
 import logging
 import traceback
-import asyncio
-from typing import Dict, Any, Optional, Union, List
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 from enum import Enum
 
 from fastapi import HTTPException, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import (
-    SQLAlchemyError, 
-    IntegrityError, 
-    OperationalError, 
+    IntegrityError,
+    OperationalError,
     DatabaseError,
-    DisconnectionError
+    DisconnectionError,
 )
 from websockets.exceptions import (
-    ConnectionClosed, 
-    ConnectionClosedError, 
+    ConnectionClosed,
+    ConnectionClosedError,
     ConnectionClosedOK,
-    InvalidState
+    InvalidState,
 )
 from pydantic import ValidationError
 
@@ -37,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 class ErrorSeverity(str, Enum):
     """Error severity levels."""
+
     DEBUG = "DEBUG"
     INFO = "INFO"
     WARNING = "WARNING"
@@ -46,6 +46,7 @@ class ErrorSeverity(str, Enum):
 
 class ErrorCategory(str, Enum):
     """Error categories for classification."""
+
     DATABASE = "DATABASE"
     WEBSOCKET = "WEBSOCKET"
     API = "API"
@@ -58,7 +59,7 @@ class ErrorCategory(str, Enum):
 
 class ErrorResponse:
     """Standardized error response structure."""
-    
+
     def __init__(
         self,
         error_code: str,
@@ -68,7 +69,7 @@ class ErrorResponse:
         category: ErrorCategory = ErrorCategory.SYSTEM,
         severity: ErrorSeverity = ErrorSeverity.ERROR,
         context: Optional[Dict[str, Any]] = None,
-        suggestions: Optional[List[str]] = None
+        suggestions: Optional[List[str]] = None,
     ):
         self.error_code = error_code
         self.message = message
@@ -88,33 +89,30 @@ class ErrorResponse:
                 "message": self.message,
                 "category": self.category.value,
                 "severity": self.severity.value,
-                "timestamp": self.timestamp
+                "timestamp": self.timestamp,
             }
         }
-        
+
         if self.details:
             response["error"]["details"] = self.details
-        
+
         if self.suggestions:
             response["error"]["suggestions"] = self.suggestions
-            
+
         if self.context:
             response["error"]["context"] = self.context
-            
+
         return response
 
     def to_json_response(self) -> JSONResponse:
         """Convert to FastAPI JSONResponse."""
-        return JSONResponse(
-            status_code=self.status_code,
-            content=self.to_dict()
-        )
+        return JSONResponse(status_code=self.status_code, content=self.to_dict())
 
 
 class GracefulErrorHandler(CriticalErrorHandler):
     """
     Enhanced error handler with graceful degradation and specific error type handling.
-    
+
     Extends the base CriticalErrorHandler with:
     - Database-specific error handling
     - WebSocket error management
@@ -131,17 +129,17 @@ class GracefulErrorHandler(CriticalErrorHandler):
         error: Exception,
         operation: str,
         table_name: Optional[str] = None,
-        query_context: Optional[Dict[str, Any]] = None
+        query_context: Optional[Dict[str, Any]] = None,
     ) -> ErrorResponse:
         """
         Handle database-specific errors with appropriate responses.
-        
+
         Args:
             error: The database error
             operation: The database operation that failed
             table_name: Name of the affected table
             query_context: Additional query context
-            
+
         Returns:
             ErrorResponse with appropriate status code and message
         """
@@ -149,9 +147,9 @@ class GracefulErrorHandler(CriticalErrorHandler):
             "operation": operation,
             "table_name": table_name,
             "error_type": type(error).__name__,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
-        
+
         if query_context:
             context.update(query_context)
 
@@ -168,8 +166,8 @@ class GracefulErrorHandler(CriticalErrorHandler):
                 suggestions=[
                     "Check for duplicate values in unique fields",
                     "Ensure foreign key references exist",
-                    "Validate required fields are provided"
-                ]
+                    "Validate required fields are provided",
+                ],
             )
         elif isinstance(error, OperationalError):
             error_response = ErrorResponse(
@@ -183,8 +181,8 @@ class GracefulErrorHandler(CriticalErrorHandler):
                 suggestions=[
                     "Check database connection",
                     "Verify database server is running",
-                    "Try the operation again in a few moments"
-                ]
+                    "Try the operation again in a few moments",
+                ],
             )
         elif isinstance(error, DisconnectionError):
             error_response = ErrorResponse(
@@ -197,8 +195,8 @@ class GracefulErrorHandler(CriticalErrorHandler):
                 context=context,
                 suggestions=[
                     "The system will attempt to reconnect automatically",
-                    "Please try your request again in a few moments"
-                ]
+                    "Please try your request again in a few moments",
+                ],
             )
         elif isinstance(error, DatabaseError):
             error_response = ErrorResponse(
@@ -211,8 +209,8 @@ class GracefulErrorHandler(CriticalErrorHandler):
                 context=context,
                 suggestions=[
                     "Please try the operation again",
-                    "Contact support if the problem persists"
-                ]
+                    "Contact support if the problem persists",
+                ],
             )
         else:
             error_response = ErrorResponse(
@@ -225,8 +223,8 @@ class GracefulErrorHandler(CriticalErrorHandler):
                 context=context,
                 suggestions=[
                     "Please try the operation again",
-                    "Contact support if the problem persists"
-                ]
+                    "Contact support if the problem persists",
+                ],
             )
 
         # Log the error
@@ -235,7 +233,7 @@ class GracefulErrorHandler(CriticalErrorHandler):
             error_message=str(error),
             context=context,
             severity=error_response.severity.value,
-            stack_trace=traceback.format_exc()
+            stack_trace=traceback.format_exc(),
         )
 
         return error_response
@@ -245,17 +243,17 @@ class GracefulErrorHandler(CriticalErrorHandler):
         error: Exception,
         connection_id: Optional[str] = None,
         user_id: Optional[str] = None,
-        operation: Optional[str] = None
+        operation: Optional[str] = None,
     ) -> ErrorResponse:
         """
         Handle WebSocket-specific errors.
-        
+
         Args:
             error: The WebSocket error
             connection_id: ID of the WebSocket connection
             user_id: ID of the user associated with the connection
             operation: The WebSocket operation that failed
-            
+
         Returns:
             ErrorResponse with appropriate handling
         """
@@ -264,7 +262,7 @@ class GracefulErrorHandler(CriticalErrorHandler):
             "user_id": user_id,
             "operation": operation,
             "error_type": type(error).__name__,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
         # Handle specific WebSocket error types
@@ -279,8 +277,8 @@ class GracefulErrorHandler(CriticalErrorHandler):
                 context=context,
                 suggestions=[
                     "The client will attempt to reconnect automatically",
-                    "Check your network connection"
-                ]
+                    "Check your network connection",
+                ],
             )
         elif isinstance(error, ConnectionClosedOK):
             error_response = ErrorResponse(
@@ -291,7 +289,7 @@ class GracefulErrorHandler(CriticalErrorHandler):
                 category=ErrorCategory.WEBSOCKET,
                 severity=ErrorSeverity.INFO,
                 context=context,
-                suggestions=[]
+                suggestions=[],
             )
         elif isinstance(error, InvalidState):
             error_response = ErrorResponse(
@@ -304,8 +302,8 @@ class GracefulErrorHandler(CriticalErrorHandler):
                 context=context,
                 suggestions=[
                     "Ensure the WebSocket connection is properly established",
-                    "Try reconnecting to the WebSocket"
-                ]
+                    "Try reconnecting to the WebSocket",
+                ],
             )
         else:
             error_response = ErrorResponse(
@@ -318,8 +316,8 @@ class GracefulErrorHandler(CriticalErrorHandler):
                 context=context,
                 suggestions=[
                     "Try reconnecting to the WebSocket",
-                    "Check your network connection"
-                ]
+                    "Check your network connection",
+                ],
             )
 
         # Log the error (with lower severity for normal closures)
@@ -329,7 +327,7 @@ class GracefulErrorHandler(CriticalErrorHandler):
                 error_message=str(error),
                 context=context,
                 severity=error_response.severity.value,
-                stack_trace=traceback.format_exc()
+                stack_trace=traceback.format_exc(),
             )
 
         return error_response
@@ -340,18 +338,18 @@ class GracefulErrorHandler(CriticalErrorHandler):
         endpoint: str,
         method: str,
         user_id: Optional[str] = None,
-        request_data: Optional[Dict[str, Any]] = None
+        request_data: Optional[Dict[str, Any]] = None,
     ) -> ErrorResponse:
         """
         Handle API-specific errors with proper HTTP status codes.
-        
+
         Args:
             error: The API error
             endpoint: The API endpoint that failed
             method: HTTP method used
             user_id: ID of the user making the request
             request_data: Request data (sanitized)
-            
+
         Returns:
             ErrorResponse with appropriate status code
         """
@@ -360,9 +358,9 @@ class GracefulErrorHandler(CriticalErrorHandler):
             "method": method,
             "user_id": user_id,
             "error_type": type(error).__name__,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
-        
+
         if request_data:
             # Sanitize sensitive data
             sanitized_data = self._sanitize_request_data(request_data)
@@ -380,8 +378,8 @@ class GracefulErrorHandler(CriticalErrorHandler):
                 context=context,
                 suggestions=[
                     "Check the request format and required fields",
-                    "Ensure all data types are correct"
-                ]
+                    "Ensure all data types are correct",
+                ],
             )
         elif isinstance(error, PermissionError):
             error_response = ErrorResponse(
@@ -394,8 +392,8 @@ class GracefulErrorHandler(CriticalErrorHandler):
                 context=context,
                 suggestions=[
                     "Check your user permissions",
-                    "Contact an administrator if you believe this is an error"
-                ]
+                    "Contact an administrator if you believe this is an error",
+                ],
             )
         elif isinstance(error, ValueError):
             error_response = ErrorResponse(
@@ -408,8 +406,8 @@ class GracefulErrorHandler(CriticalErrorHandler):
                 context=context,
                 suggestions=[
                     "Check the provided values are in the correct format",
-                    "Ensure all required parameters are provided"
-                ]
+                    "Ensure all required parameters are provided",
+                ],
             )
         elif isinstance(error, KeyError):
             error_response = ErrorResponse(
@@ -422,8 +420,8 @@ class GracefulErrorHandler(CriticalErrorHandler):
                 context=context,
                 suggestions=[
                     "Check that all required parameters are provided",
-                    "Review the API documentation for required fields"
-                ]
+                    "Review the API documentation for required fields",
+                ],
             )
         elif isinstance(error, TimeoutError):
             error_response = ErrorResponse(
@@ -436,8 +434,8 @@ class GracefulErrorHandler(CriticalErrorHandler):
                 context=context,
                 suggestions=[
                     "Try the request again",
-                    "Consider reducing the scope of your request"
-                ]
+                    "Consider reducing the scope of your request",
+                ],
             )
         else:
             error_response = ErrorResponse(
@@ -450,8 +448,8 @@ class GracefulErrorHandler(CriticalErrorHandler):
                 context=context,
                 suggestions=[
                     "Please try your request again",
-                    "Contact support if the problem persists"
-                ]
+                    "Contact support if the problem persists",
+                ],
             )
 
         # Log the error
@@ -460,7 +458,7 @@ class GracefulErrorHandler(CriticalErrorHandler):
             error_message=str(error),
             context=context,
             severity=error_response.severity.value,
-            stack_trace=traceback.format_exc()
+            stack_trace=traceback.format_exc(),
         )
 
         return error_response
@@ -470,17 +468,17 @@ class GracefulErrorHandler(CriticalErrorHandler):
         primary_error: Exception,
         fallback_data: Optional[Any] = None,
         operation: str = "unknown",
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Handle graceful degradation when primary functionality fails.
-        
+
         Args:
             primary_error: The primary error that occurred
             fallback_data: Fallback data to return
             operation: Description of the operation
             context: Additional context
-            
+
         Returns:
             Response with fallback data and warning
         """
@@ -488,9 +486,9 @@ class GracefulErrorHandler(CriticalErrorHandler):
             "operation": operation,
             "primary_error": str(primary_error),
             "fallback_used": True,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
-        
+
         if context:
             error_context.update(context)
 
@@ -499,7 +497,7 @@ class GracefulErrorHandler(CriticalErrorHandler):
             error_type="GRACEFUL_DEGRADATION",
             error_message=f"Graceful degradation for {operation}: {str(primary_error)}",
             context=error_context,
-            severity=ErrorSeverity.WARNING.value
+            severity=ErrorSeverity.WARNING.value,
         )
 
         return {
@@ -508,25 +506,33 @@ class GracefulErrorHandler(CriticalErrorHandler):
                 "message": "Service is running in degraded mode",
                 "details": "Some features may be limited due to a temporary issue",
                 "operation": operation,
-                "timestamp": datetime.utcnow().isoformat()
-            }
+                "timestamp": datetime.utcnow().isoformat(),
+            },
         }
 
     def _sanitize_request_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Sanitize request data to remove sensitive information.
-        
+
         Args:
             data: Request data to sanitize
-            
+
         Returns:
             Sanitized data dictionary
         """
         sensitive_fields = {
-            'password', 'token', 'secret', 'key', 'auth', 'credential',
-            'private', 'confidential', 'ssn', 'social_security'
+            "password",
+            "token",
+            "secret",
+            "key",
+            "auth",
+            "credential",
+            "private",
+            "confidential",
+            "ssn",
+            "social_security",
         }
-        
+
         sanitized = {}
         for key, value in data.items():
             key_lower = key.lower()
@@ -538,7 +544,7 @@ class GracefulErrorHandler(CriticalErrorHandler):
                 sanitized[key] = [self._sanitize_request_data(item) for item in value]
             else:
                 sanitized[key] = value
-                
+
         return sanitized
 
     async def _log_and_track_error(
@@ -547,11 +553,11 @@ class GracefulErrorHandler(CriticalErrorHandler):
         error_message: str,
         context: Dict[str, Any],
         severity: str = "ERROR",
-        stack_trace: Optional[str] = None
+        stack_trace: Optional[str] = None,
     ) -> None:
         """
         Log and track error with rate limiting.
-        
+
         Args:
             error_type: Type of error
             error_message: Error message
@@ -560,7 +566,7 @@ class GracefulErrorHandler(CriticalErrorHandler):
             stack_trace: Stack trace if available
         """
         error_key = self._create_error_key(error_type, error_message)
-        
+
         if self._should_log_error(error_key):
             # Log the error
             log_level = getattr(logging, severity, logging.ERROR)
@@ -570,35 +576,33 @@ class GracefulErrorHandler(CriticalErrorHandler):
                 extra={
                     "error_type": error_type,
                     "context": context,
-                    "stack_trace": stack_trace
-                }
+                    "stack_trace": stack_trace,
+                },
             )
-            
+
             # Track in database
             await self._track_error_in_db(
                 error_type=error_type,
                 error_message=error_message,
                 context=context,
                 stack_trace=stack_trace,
-                severity=severity
+                severity=severity,
             )
 
     async def create_http_exception_from_error_response(
-        self, 
-        error_response: ErrorResponse
+        self, error_response: ErrorResponse
     ) -> HTTPException:
         """
         Convert ErrorResponse to HTTPException.
-        
+
         Args:
             error_response: The error response to convert
-            
+
         Returns:
             HTTPException with appropriate status code and detail
         """
         return HTTPException(
-            status_code=error_response.status_code,
-            detail=error_response.to_dict()
+            status_code=error_response.status_code, detail=error_response.to_dict()
         )
 
 
@@ -608,9 +612,7 @@ graceful_error_handler = GracefulErrorHandler()
 
 # Convenience functions for common error handling patterns
 async def handle_db_error(
-    error: Exception, 
-    operation: str, 
-    table_name: str = None
+    error: Exception, operation: str, table_name: str = None
 ) -> ErrorResponse:
     """Convenience function for database errors."""
     return await graceful_error_handler.handle_database_error(
@@ -619,9 +621,7 @@ async def handle_db_error(
 
 
 async def handle_ws_error(
-    error: Exception, 
-    connection_id: str = None, 
-    user_id: str = None
+    error: Exception, connection_id: str = None, user_id: str = None
 ) -> ErrorResponse:
     """Convenience function for WebSocket errors."""
     return await graceful_error_handler.handle_websocket_error(
@@ -630,10 +630,7 @@ async def handle_ws_error(
 
 
 async def handle_api_error(
-    error: Exception, 
-    endpoint: str, 
-    method: str, 
-    user_id: str = None
+    error: Exception, endpoint: str, method: str, user_id: str = None
 ) -> ErrorResponse:
     """Convenience function for API errors."""
     return await graceful_error_handler.handle_api_error(
@@ -642,9 +639,7 @@ async def handle_api_error(
 
 
 async def graceful_degradation(
-    error: Exception, 
-    fallback_data: Any = None, 
-    operation: str = "unknown"
+    error: Exception, fallback_data: Any = None, operation: str = "unknown"
 ) -> Dict[str, Any]:
     """Convenience function for graceful degradation."""
     return await graceful_error_handler.handle_graceful_degradation(

@@ -30,52 +30,62 @@ class HormoniaException(Exception):
 
 class AuthenticationError(HormoniaException):
     """Raised when authentication fails."""
+
     pass
 
 
 class AuthorizationError(HormoniaException):
     """Raised when user lacks required permissions."""
+
     pass
 
 
 class ValidationError(HormoniaException):
     """Raised when data validation fails."""
+
     pass
 
 
 class NotFoundError(HormoniaException):
     """Raised when a requested resource is not found."""
+
     pass
 
 
 class ConflictError(HormoniaException):
     """Raised when a business rule conflict occurs."""
+
     pass
 
 
 class ExternalServiceError(HormoniaException):
     """Raised when external service integration fails."""
+
     pass
 
 
 class DatabaseError(HormoniaException):
     """Raised when database operations fail."""
+
     pass
 
 
 class ProcessingError(HormoniaException):
     """Generic base for processing pipeline errors (parsing, AI, state)."""
+
     pass
 
 
 class ServiceError(HormoniaException):
     """Raised when a service operation fails."""
+
     pass
 
 
 # -------------------------
 # HTTP Exception factories
 # -------------------------
+
 
 def create_http_exception(
     status_code: int,
@@ -94,7 +104,9 @@ def create_http_exception(
 
 
 def authentication_exception(message: str = "Authentication failed") -> HTTPException:
-    return create_http_exception(status_code=status.HTTP_401_UNAUTHORIZED, message=message)
+    return create_http_exception(
+        status_code=status.HTTP_401_UNAUTHORIZED, message=message
+    )
 
 
 def authorization_exception(message: str = "Insufficient permissions") -> HTTPException:
@@ -109,7 +121,9 @@ def validation_exception(
     message: str = "Validation failed", details: Optional[Dict[str, Any]] = None
 ) -> HTTPException:
     return create_http_exception(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, message=message, details=details
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        message=message,
+        details=details,
     )
 
 
@@ -118,7 +132,9 @@ def conflict_exception(message: str = "Conflict occurred") -> HTTPException:
 
 
 def internal_server_exception(message: str = "Internal server error") -> HTTPException:
-    return create_http_exception(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=message)
+    return create_http_exception(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=message
+    )
 
 
 # -------------------------
@@ -149,19 +165,28 @@ class ConcurrentModificationError(ConflictError):
     The caller should retry the operation.
     """
 
-    def __init__(self, resource_type: str, resource_id: str, expected_version: int, actual_version: int):
+    def __init__(
+        self,
+        resource_type: str,
+        resource_id: str,
+        expected_version: int,
+        actual_version: int,
+    ):
         message = (
             f"Concurrent modification detected for {resource_type} {resource_id}. "
             f"Expected version {expected_version}, found {actual_version}. "
             "Please retry the operation."
         )
-        super().__init__(message, details={
-            "resource_type": resource_type,
-            "resource_id": resource_id,
-            "expected_version": expected_version,
-            "actual_version": actual_version,
-            "retry_recommended": True
-        })
+        super().__init__(
+            message,
+            details={
+                "resource_type": resource_type,
+                "resource_id": resource_id,
+                "expected_version": expected_version,
+                "actual_version": actual_version,
+                "retry_recommended": True,
+            },
+        )
 
 
 class PatientNotFoundError(NotFoundError):

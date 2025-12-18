@@ -20,12 +20,7 @@ DEFAULT_PAGE_LIMIT = 50  # Default pagination limit
 MAX_PAGE_LIMIT = 100  # Maximum pagination limit
 
 # Priority mappings (Celery priority scale: 0-10)
-PRIORITY_MAPPING = {
-    "low": 3,
-    "medium": 6,
-    "high": 9,
-    "critical": 10
-}
+PRIORITY_MAPPING = {"low": 3, "medium": 6, "high": 9, "critical": 10}
 
 # Retry strategy defaults
 DEFAULT_BASE_DELAY = 60  # 1 minute

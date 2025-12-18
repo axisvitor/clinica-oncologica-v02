@@ -42,7 +42,7 @@ def check_quiz_triggers_task(self, limit: int = 100) -> dict[str, Any]:
             )
             from app.repositories.flow import FlowStateRepository
 
-            quiz_flow_service = ConversationalQuizService(db)
+            ConversationalQuizService(db)
 
             # Get patients in monthly flow on day 30
             flow_repo = FlowStateRepository(db)
@@ -209,10 +209,10 @@ def monitor_quiz_links_task(self) -> dict[str, Any]:
             from app.services.monthly_quiz_message_integration import (
                 MonthlyQuizMessageIntegration,
             )
-            from datetime import datetime, timedelta
+            from datetime import datetime
 
-            quiz_service = MonthlyQuizService(db)
-            quiz_integration = MonthlyQuizMessageIntegration(db)
+            MonthlyQuizService(db)
+            MonthlyQuizMessageIntegration(db)
 
             results: dict[str, Any] = {
                 "checked_links": 0,
@@ -227,7 +227,7 @@ def monitor_quiz_links_task(self) -> dict[str, Any]:
             from app.models.quiz import QuizSession
 
             active_sessions = (
-                db.query(QuizSession).filter(QuizSession.is_completed == False).all()  # type: ignore[arg-type]
+                db.query(QuizSession).filter(not QuizSession.is_completed).all()  # type: ignore[arg-type]
             )
 
             current_time = datetime.utcnow()

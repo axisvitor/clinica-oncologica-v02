@@ -26,20 +26,24 @@ def extract_openapi_endpoints(app) -> List[Dict[str, Any]]:
                 tags = operation.get("tags", ["Uncategorized"])
                 tag = tags[0] if tags else "Uncategorized"
 
-                endpoints.append({
-                    "id": hashlib.md5(f"{method.upper()}:{path}".encode()).hexdigest()[:16],
-                    "method": method.upper(),
-                    "path": path,
-                    "summary": operation.get("summary", ""),
-                    "description": operation.get("description", ""),
-                    "tags": tags,
-                    "category": tag,
-                    "requires_auth": "security" in operation,
-                    "deprecated": operation.get("deprecated", False),
-                    "parameters": operation.get("parameters", []),
-                    "request_body": operation.get("requestBody"),
-                    "responses": operation.get("responses", {}),
-                })
+                endpoints.append(
+                    {
+                        "id": hashlib.md5(
+                            f"{method.upper()}:{path}".encode()
+                        ).hexdigest()[:16],
+                        "method": method.upper(),
+                        "path": path,
+                        "summary": operation.get("summary", ""),
+                        "description": operation.get("description", ""),
+                        "tags": tags,
+                        "category": tag,
+                        "requires_auth": "security" in operation,
+                        "deprecated": operation.get("deprecated", False),
+                        "parameters": operation.get("parameters", []),
+                        "request_body": operation.get("requestBody"),
+                        "responses": operation.get("responses", {}),
+                    }
+                )
 
     return endpoints
 

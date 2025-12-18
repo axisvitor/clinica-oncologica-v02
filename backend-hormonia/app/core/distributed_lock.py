@@ -104,7 +104,7 @@ class DistributedLock:
         ttl: int = DEFAULT_TTL,
         acquire_timeout: float = DEFAULT_ACQUIRE_TIMEOUT,
         retry_delay: float = DEFAULT_RETRY_DELAY,
-        auto_extend: bool = True
+        auto_extend: bool = True,
     ):
         """
         Initialize distributed lock.
@@ -138,6 +138,7 @@ class DistributedLock:
         """Get async Redis client (lazy initialization)."""
         if self._async_redis is None:
             from app.core.redis_unified import get_async_redis
+
             self._async_redis = await get_async_redis()
             # Register Lua scripts for performance
             self._release_sha = await self._async_redis.script_load(self.RELEASE_SCRIPT)
@@ -148,6 +149,7 @@ class DistributedLock:
         """Get sync Redis client (lazy initialization)."""
         if self._sync_redis is None:
             from app.core.redis_unified import get_sync_redis
+
             self._sync_redis = get_sync_redis()
             # Register Lua scripts for sync client
             self._release_sha_sync = self._sync_redis.script_load(self.RELEASE_SCRIPT)
@@ -165,10 +167,7 @@ class DistributedLock:
         return str(uuid.uuid4())
 
     async def try_acquire(
-        self,
-        key: str,
-        ttl: Optional[int] = None,
-        lock_id: Optional[str] = None
+        self, key: str, ttl: Optional[int] = None, lock_id: Optional[str] = None
     ) -> Optional[str]:
         """
         Try to acquire lock without waiting (non-blocking).
@@ -197,10 +196,7 @@ class DistributedLock:
         return None
 
     def try_acquire_sync(
-        self,
-        key: str,
-        ttl: Optional[int] = None,
-        lock_id: Optional[str] = None
+        self, key: str, ttl: Optional[int] = None, lock_id: Optional[str] = None
     ) -> Optional[str]:
         """
         Try to acquire lock without waiting (sync, non-blocking).
@@ -222,16 +218,15 @@ class DistributedLock:
 
         if acquired:
             self._locks_acquired += 1
-            logger.debug(f"Lock acquired (sync): {key} (lock_id={lock_id[:8]}..., ttl={ttl}s)")
+            logger.debug(
+                f"Lock acquired (sync): {key} (lock_id={lock_id[:8]}..., ttl={ttl}s)"
+            )
             return lock_id
 
         return None
 
     async def acquire_with_retry(
-        self,
-        key: str,
-        timeout: Optional[float] = None,
-        ttl: Optional[int] = None
+        self, key: str, timeout: Optional[float] = None, ttl: Optional[int] = None
     ) -> str:
         """
         Acquire lock with retry and exponential backoff.
@@ -269,7 +264,9 @@ class DistributedLock:
             elapsed = time.monotonic() - start_time
             if elapsed >= timeout:
                 self._locks_failed += 1
-                logger.warning(f"Lock acquisition timeout: {key} (attempts={attempts}, elapsed={elapsed:.2f}s)")
+                logger.warning(
+                    f"Lock acquisition timeout: {key} (attempts={attempts}, elapsed={elapsed:.2f}s)"
+                )
                 raise LockAcquisitionError(key, timeout)
 
             # Exponential backoff with jitter
@@ -281,10 +278,7 @@ class DistributedLock:
             delay = min(delay * 2, self.MAX_RETRY_DELAY)
 
     def acquire_with_retry_sync(
-        self,
-        key: str,
-        timeout: Optional[float] = None,
-        ttl: Optional[int] = None
+        self, key: str, timeout: Optional[float] = None, ttl: Optional[int] = None
     ) -> str:
         """
         Acquire lock with retry and exponential backoff (sync version).
@@ -314,13 +308,17 @@ class DistributedLock:
             acquired_id = self.try_acquire_sync(key, ttl=ttl, lock_id=lock_id)
             if acquired_id:
                 if attempts > 1:
-                    logger.info(f"Lock acquired (sync) after {attempts} attempts: {key}")
+                    logger.info(
+                        f"Lock acquired (sync) after {attempts} attempts: {key}"
+                    )
                 return acquired_id
 
             elapsed = time.monotonic() - start_time
             if elapsed >= timeout:
                 self._locks_failed += 1
-                logger.warning(f"Lock acquisition timeout (sync): {key} (attempts={attempts})")
+                logger.warning(
+                    f"Lock acquisition timeout (sync): {key} (attempts={attempts})"
+                )
                 raise LockAcquisitionError(key, timeout)
 
             jitter = delay * 0.1 * (uuid.uuid4().int % 100) / 100
@@ -386,7 +384,9 @@ class DistributedLock:
                 logger.debug(f"Lock released (sync): {key}")
                 return True
             else:
-                logger.warning(f"Lock release failed (sync, not owner or expired): {key}")
+                logger.warning(
+                    f"Lock release failed (sync, not owner or expired): {key}"
+                )
                 return False
         except Exception as e:
             logger.debug(f"Evalsha failed (sync), using inline script: {e}")
@@ -428,10 +428,7 @@ class DistributedLock:
 
     @asynccontextmanager
     async def acquire(
-        self,
-        key: str,
-        timeout: Optional[float] = None,
-        ttl: Optional[int] = None
+        self, key: str, timeout: Optional[float] = None, ttl: Optional[int] = None
     ) -> AsyncGenerator[str, None]:
         """
         Async context manager for acquiring/releasing locks.
@@ -459,10 +456,7 @@ class DistributedLock:
 
     @contextmanager
     def acquire_sync(
-        self,
-        key: str,
-        timeout: Optional[float] = None,
-        ttl: Optional[int] = None
+        self, key: str, timeout: Optional[float] = None, ttl: Optional[int] = None
     ) -> Generator[str, None, None]:
         """
         Sync context manager for acquiring/releasing locks.
@@ -544,7 +538,7 @@ class DistributedLock:
             "locks_failed": self._locks_failed,
             "locks_extended": self._locks_extended,
             "default_ttl": self.ttl,
-            "acquire_timeout": self.acquire_timeout
+            "acquire_timeout": self.acquire_timeout,
         }
 
 
@@ -572,7 +566,7 @@ def get_distributed_lock() -> DistributedLock:
 async def acquire_lock(
     key: str,
     timeout: float = DistributedLock.DEFAULT_ACQUIRE_TIMEOUT,
-    ttl: int = DistributedLock.DEFAULT_TTL
+    ttl: int = DistributedLock.DEFAULT_TTL,
 ) -> AsyncGenerator[str, None]:
     """
     Convenience function for async lock acquisition.
@@ -598,7 +592,7 @@ async def acquire_lock(
 def acquire_lock_sync(
     key: str,
     timeout: float = DistributedLock.DEFAULT_ACQUIRE_TIMEOUT,
-    ttl: int = DistributedLock.DEFAULT_TTL
+    ttl: int = DistributedLock.DEFAULT_TTL,
 ) -> Generator[str, None, None]:
     """
     Convenience function for sync lock acquisition.
@@ -635,6 +629,7 @@ def with_lock(key_template: str, timeout: float = 10.0, ttl: int = 30):
         timeout: Max time to wait for lock
         ttl: Lock TTL
     """
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -642,7 +637,9 @@ def with_lock(key_template: str, timeout: float = 10.0, ttl: int = 30):
             key = key_template.format(**kwargs)
             async with acquire_lock(key, timeout=timeout, ttl=ttl):
                 return await func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
@@ -661,19 +658,23 @@ def with_lock_sync(key_template: str, timeout: float = 10.0, ttl: int = 30):
         timeout: Max time to wait for lock
         ttl: Lock TTL
     """
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             key = key_template.format(**kwargs)
             with acquire_lock_sync(key, timeout=timeout, ttl=ttl):
                 return func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
 # ============================================================================
 # Lock key patterns for the application
 # ============================================================================
+
 
 class LockKeys:
     """

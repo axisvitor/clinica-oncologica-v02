@@ -87,7 +87,9 @@ async def process_image(
 
             # Generate thumbnail (128x128)
             if options.generate_thumbnail:
-                thumb_path = base_dir / "thumbnails" / f"{base_name}_thumb{file_path.suffix}"
+                thumb_path = (
+                    base_dir / "thumbnails" / f"{base_name}_thumb{file_path.suffix}"
+                )
                 thumb_path.parent.mkdir(exist_ok=True)
                 img_copy = img.copy()
                 img_copy.thumbnail((128, 128))

@@ -7,15 +7,14 @@ Tasks for:
 - Alert escalation handling
 - Metrics generation
 """
+
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from uuid import UUID
 from datetime import datetime, timedelta
 
-from celery import shared_task
 
 from app.celery_app import celery_app
-from app.database import get_db
 from app.tasks.base import BaseTask, get_db_session
 
 
@@ -25,6 +24,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # ALERT CHECKING TASKS
 # ============================================================================
+
 
 @celery_app.task(
     bind=True,
@@ -69,12 +69,13 @@ def check_patient_alerts(self) -> Dict[str, Any]:
                     # Evaluate alert rules for patient
                     context = _build_patient_context(db, patient.id)
                     triggered = alert_manager.evaluate_patient_alerts(
-                        patient_id=patient.id,
-                        context=context
+                        patient_id=patient.id, context=context
                     )
                     alerts_triggered += len(triggered) if triggered else 0
                 except Exception as e:
-                    logger.warning(f"Error checking alerts for patient {patient.id}: {e}")
+                    logger.warning(
+                        f"Error checking alerts for patient {patient.id}: {e}"
+                    )
                     continue
 
             execution_time = (datetime.utcnow() - start_time).total_seconds()
@@ -88,7 +89,7 @@ def check_patient_alerts(self) -> Dict[str, Any]:
                 "success": True,
                 "alerts_checked": alerts_checked,
                 "alerts_triggered": alerts_triggered,
-                "execution_time": execution_time
+                "execution_time": execution_time,
             }
 
     except Exception as e:
@@ -97,7 +98,7 @@ def check_patient_alerts(self) -> Dict[str, Any]:
             "success": False,
             "error": str(e),
             "alerts_checked": alerts_checked,
-            "alerts_triggered": alerts_triggered
+            "alerts_triggered": alerts_triggered,
         }
 
 
@@ -117,6 +118,7 @@ def periodic_alert_check(self) -> Dict[str, Any]:
 # ============================================================================
 # ALERT NOTIFICATION TASKS
 # ============================================================================
+
 
 @celery_app.task(
     bind=True,
@@ -148,8 +150,12 @@ def process_alert_notification(self, alert_data: Dict[str, Any]) -> Dict[str, An
         patient_name = alert_data.get("patient_name", "Unknown")
         doctor_id = alert_data.get("doctor_id")
 
-        priority = alert_data.get("priority") or alert_data.get("escalation_level", "medium")
-        alert_type = alert_data.get("alert_type") or alert_data.get("concern_type", "general")
+        priority = alert_data.get("priority") or alert_data.get(
+            "escalation_level", "medium"
+        )
+        alert_type = alert_data.get("alert_type") or alert_data.get(
+            "concern_type", "general"
+        )
         message = alert_data.get("message") or alert_data.get("description", "")
 
         logger.info(
@@ -163,29 +169,31 @@ def process_alert_notification(self, alert_data: Dict[str, Any]) -> Dict[str, An
 
             alert_repo = AlertRepository(db)
 
-            alert = alert_repo.create({
-                "patient_id": UUID(patient_id) if patient_id else None,
-                "doctor_id": UUID(doctor_id) if doctor_id else None,
-                "alert_type": alert_type,
-                "severity": priority,
-                "message": message,
-                "metadata": alert_data,
-                "status": "pending",
-                "created_at": datetime.utcnow()
-            })
+            alert = alert_repo.create(
+                {
+                    "patient_id": UUID(patient_id) if patient_id else None,
+                    "doctor_id": UUID(doctor_id) if doctor_id else None,
+                    "alert_type": alert_type,
+                    "severity": priority,
+                    "message": message,
+                    "metadata": alert_data,
+                    "status": "pending",
+                    "created_at": datetime.utcnow(),
+                }
+            )
 
             # Dispatch notification via WebSocket for real-time dashboard
             from app.services.websocket_events import websocket_events
             from app.schemas.websocket import WebSocketEventType
 
             notification_data = {
-                "alert_id": str(alert.id) if hasattr(alert, 'id') else None,
+                "alert_id": str(alert.id) if hasattr(alert, "id") else None,
                 "patient_id": patient_id,
                 "patient_name": patient_name,
                 "alert_type": alert_type,
                 "priority": priority,
                 "message": message,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
             # Send to doctor's dashboard if doctor_id exists
@@ -193,33 +201,31 @@ def process_alert_notification(self, alert_data: Dict[str, Any]) -> Dict[str, An
                 websocket_events.emit(
                     event_type=WebSocketEventType.ALERT_CREATED,
                     data=notification_data,
-                    target_user_id=doctor_id
+                    target_user_id=doctor_id,
                 )
 
             # Also emit to admin channel
             websocket_events.emit(
                 event_type=WebSocketEventType.ALERT_CREATED,
                 data=notification_data,
-                target_role="admin"
+                target_role="admin",
             )
 
             return {
                 "success": True,
-                "alert_id": str(alert.id) if hasattr(alert, 'id') else None,
-                "notification_sent": True
+                "alert_id": str(alert.id) if hasattr(alert, "id") else None,
+                "notification_sent": True,
             }
 
     except Exception as e:
         logger.error(f"Process alert notification failed: {e}", exc_info=True)
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        return {"success": False, "error": str(e)}
 
 
 # ============================================================================
 # ALERT ESCALATION TASKS
 # ============================================================================
+
 
 @celery_app.task(
     bind=True,
@@ -228,7 +234,9 @@ def process_alert_notification(self, alert_data: Dict[str, Any]) -> Dict[str, An
     max_retries=3,
     default_retry_delay=60,
 )
-def process_alert_escalation(self, alert_id: str, escalation_level: str = "high") -> Dict[str, Any]:
+def process_alert_escalation(
+    self, alert_id: str, escalation_level: str = "high"
+) -> Dict[str, Any]:
     """
     Process escalation for an existing alert.
 
@@ -240,7 +248,9 @@ def process_alert_escalation(self, alert_id: str, escalation_level: str = "high"
         Dict with escalation result
     """
     try:
-        logger.info(f"Processing escalation for alert {alert_id} to level {escalation_level}")
+        logger.info(
+            f"Processing escalation for alert {alert_id} to level {escalation_level}"
+        )
 
         with get_db_session() as db:
             from app.repositories.alert import AlertRepository
@@ -252,11 +262,14 @@ def process_alert_escalation(self, alert_id: str, escalation_level: str = "high"
                 return {"success": False, "error": f"Alert {alert_id} not found"}
 
             # Update alert escalation
-            alert_repo.update(UUID(alert_id), {
-                "severity": escalation_level,
-                "escalated_at": datetime.utcnow(),
-                "status": "escalated"
-            })
+            alert_repo.update(
+                UUID(alert_id),
+                {
+                    "severity": escalation_level,
+                    "escalated_at": datetime.utcnow(),
+                    "status": "escalated",
+                },
+            )
 
             # Notify relevant parties
             from app.services.websocket_events import websocket_events
@@ -267,15 +280,15 @@ def process_alert_escalation(self, alert_id: str, escalation_level: str = "high"
                 data={
                     "alert_id": alert_id,
                     "escalation_level": escalation_level,
-                    "escalated_at": datetime.utcnow().isoformat()
+                    "escalated_at": datetime.utcnow().isoformat(),
                 },
-                target_role="admin"
+                target_role="admin",
             )
 
             return {
                 "success": True,
                 "alert_id": alert_id,
-                "escalated_to": escalation_level
+                "escalated_to": escalation_level,
             }
 
     except Exception as e:
@@ -313,17 +326,15 @@ def periodic_escalation_check(self) -> Dict[str, Any]:
             for alert in pending_alerts:
                 try:
                     process_alert_escalation.delay(
-                        str(alert.id),
-                        escalation_level="high"
+                        str(alert.id), escalation_level="high"
                     )
                     escalated_count += 1
                 except Exception as e:
-                    logger.warning(f"Failed to queue escalation for alert {alert.id}: {e}")
+                    logger.warning(
+                        f"Failed to queue escalation for alert {alert.id}: {e}"
+                    )
 
-            return {
-                "success": True,
-                "alerts_escalated": escalated_count
-            }
+            return {"success": True, "alerts_escalated": escalated_count}
 
     except Exception as e:
         logger.error(f"Periodic escalation check failed: {e}", exc_info=True)
@@ -333,6 +344,7 @@ def periodic_escalation_check(self) -> Dict[str, Any]:
 # ============================================================================
 # CLEANUP AND METRICS TASKS
 # ============================================================================
+
 
 @celery_app.task(
     bind=True,
@@ -359,12 +371,14 @@ def cleanup_resolved_alerts(self, days_old: int = 30) -> Dict[str, Any]:
             cutoff_date = datetime.utcnow() - timedelta(days=days_old)
             cleaned_count = alert_repo.archive_resolved_before(cutoff_date)
 
-            logger.info(f"Cleaned up {cleaned_count} resolved alerts older than {days_old} days")
+            logger.info(
+                f"Cleaned up {cleaned_count} resolved alerts older than {days_old} days"
+            )
 
             return {
                 "success": True,
                 "alerts_cleaned": cleaned_count,
-                "cutoff_date": cutoff_date.isoformat()
+                "cutoff_date": cutoff_date.isoformat(),
             }
 
     except Exception as e:
@@ -405,15 +419,14 @@ def generate_alert_metrics(self, time_range_hours: int = 24) -> Dict[str, Any]:
                 "alerts_by_type": alert_repo.count_by_type_since(since),
                 "alerts_by_severity": alert_repo.count_by_severity_since(since),
                 "time_range_hours": time_range_hours,
-                "generated_at": datetime.utcnow().isoformat()
+                "generated_at": datetime.utcnow().isoformat(),
             }
 
-            logger.info(f"Alert metrics generated: {metrics['total_alerts']} total alerts in last {time_range_hours}h")
+            logger.info(
+                f"Alert metrics generated: {metrics['total_alerts']} total alerts in last {time_range_hours}h"
+            )
 
-            return {
-                "success": True,
-                "metrics": metrics
-            }
+            return {"success": True, "metrics": metrics}
 
     except Exception as e:
         logger.error(f"Generate alert metrics failed: {e}", exc_info=True)
@@ -423,6 +436,7 @@ def generate_alert_metrics(self, time_range_hours: int = 24) -> Dict[str, Any]:
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
+
 
 def _build_patient_context(db, patient_id: UUID) -> Dict[str, Any]:
     """
@@ -444,17 +458,11 @@ def _build_patient_context(db, patient_id: UUID) -> Dict[str, Any]:
 
         # Get recent messages
         recent_messages = message_repo.get_recent_for_patient(
-            patient_id,
-            limit=10,
-            days=7
+            patient_id, limit=10, days=7
         )
 
         # Get recent quiz responses
-        recent_quizzes = quiz_repo.get_recent_for_patient(
-            patient_id,
-            limit=5,
-            days=30
-        )
+        recent_quizzes = quiz_repo.get_recent_for_patient(patient_id, limit=5, days=30)
 
         return {
             "patient_id": str(patient_id),
@@ -462,19 +470,21 @@ def _build_patient_context(db, patient_id: UUID) -> Dict[str, Any]:
                 {
                     "id": str(m.id),
                     "content": m.content,
-                    "created_at": m.created_at.isoformat() if m.created_at else None
+                    "created_at": m.created_at.isoformat() if m.created_at else None,
                 }
                 for m in (recent_messages or [])
             ],
             "recent_quizzes": [
                 {
                     "id": str(q.id),
-                    "score": getattr(q, 'score', None),
-                    "completed_at": q.completed_at.isoformat() if hasattr(q, 'completed_at') and q.completed_at else None
+                    "score": getattr(q, "score", None),
+                    "completed_at": q.completed_at.isoformat()
+                    if hasattr(q, "completed_at") and q.completed_at
+                    else None,
                 }
                 for q in (recent_quizzes or [])
             ],
-            "evaluation_time": datetime.utcnow().isoformat()
+            "evaluation_time": datetime.utcnow().isoformat(),
         }
 
     except Exception as e:
@@ -482,7 +492,7 @@ def _build_patient_context(db, patient_id: UUID) -> Dict[str, Any]:
         return {
             "patient_id": str(patient_id),
             "evaluation_time": datetime.utcnow().isoformat(),
-            "error": str(e)
+            "error": str(e),
         }
 
 

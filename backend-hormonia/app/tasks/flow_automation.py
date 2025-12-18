@@ -14,9 +14,6 @@ from app.models.template import MessageTemplate
 
 from app.database import get_db_session
 from app.services.enhanced_flow_engine import get_enhanced_flow_engine
-from app.domain.quizzes import MonthlyQuizService
-from app.models.patient import Patient
-from app.models.flow import PatientFlowState
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +27,7 @@ def check_and_start_pending_flows() -> dict:
     Returns:
         dict: Summary of flows started
     """
+
     async def _process():
         flows_started = 0
         errors = []
@@ -53,7 +51,9 @@ def check_and_start_pending_flows() -> dict:
                 result = await db.execute(query)
                 patients_without_flow = result.fetchall()
 
-                logger.info(f"Found {len(patients_without_flow)} patients without active flows")
+                logger.info(
+                    f"Found {len(patients_without_flow)} patients without active flows"
+                )
 
                 flow_engine = get_enhanced_flow_engine(db)
 
@@ -66,8 +66,7 @@ def check_and_start_pending_flows() -> dict:
                             # Start the flow
                             # Enhanced engine uses enroll_patient instead of start_flow
                             await flow_engine.enroll_patient(
-                                patient_id=patient_row.id,
-                                flow_type=template_name
+                                patient_id=patient_row.id, flow_type=template_name
                             )
 
                             flows_started += 1
@@ -93,7 +92,7 @@ def check_and_start_pending_flows() -> dict:
         return {
             "flows_started": flows_started,
             "errors": errors,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
     # Run async function
@@ -109,6 +108,7 @@ def send_daily_reminders() -> dict:
     Returns:
         dict: Summary of reminders sent
     """
+
     async def _process():
         reminders_sent = 0
         errors = []
@@ -117,12 +117,12 @@ def send_daily_reminders() -> dict:
             try:
                 # Fetch reminder template
                 template_query = select(MessageTemplate).where(
-                    MessageTemplate.name == 'daily_reminder_generic',
-                    MessageTemplate.is_active == True
+                    MessageTemplate.name == "daily_reminder_generic",
+                    MessageTemplate.is_active,
                 )
                 template_result = await db.execute(template_query)
                 template = template_result.scalar_one_or_none()
-                
+
                 # Query for patients with pending quiz sessions
                 query = text("""
                     SELECT DISTINCT p.*, qs.id as session_id
@@ -140,26 +140,44 @@ def send_daily_reminders() -> dict:
                 result = await db.execute(query)
                 patients_with_pending_quiz = result.fetchall()
 
-                logger.info(f"Found {len(patients_with_pending_quiz)} patients with pending quizzes")
+                logger.info(
+                    f"Found {len(patients_with_pending_quiz)} patients with pending quizzes"
+                )
 
                 # Send reminders
-                from app.services.unified_whatsapp_service import UnifiedWhatsAppService, MessagingMode
-                from app.models.message import Message, MessageType, MessageDirection, MessageStatus
-                
-                unified_service = UnifiedWhatsAppService(db, messaging_mode=MessagingMode.QUEUE)
+                from app.services.unified_whatsapp_service import (
+                    UnifiedWhatsAppService,
+                    MessagingMode,
+                )
+                from app.models.message import (
+                    Message,
+                    MessageType,
+                    MessageDirection,
+                    MessageStatus,
+                )
+
+                unified_service = UnifiedWhatsAppService(
+                    db, messaging_mode=MessagingMode.QUEUE
+                )
 
                 for patient_row in patients_with_pending_quiz:
                     try:
                         # Send reminder message
                         if template:
                             try:
-                                reminder_content = template.content.format(patient_name=patient_row.name)
+                                reminder_content = template.content.format(
+                                    patient_name=patient_row.name
+                                )
                             except Exception as e:
-                                logger.warning(f"Failed to format template: {e}. Using fallback.")
-                                reminder_content = _get_reminder_message(patient_row.name)
+                                logger.warning(
+                                    f"Failed to format template: {e}. Using fallback."
+                                )
+                                reminder_content = _get_reminder_message(
+                                    patient_row.name
+                                )
                         else:
                             reminder_content = _get_reminder_message(patient_row.name)
-                        
+
                         # Create message object required by Unified Service
                         message = Message(
                             patient_id=patient_row.id,
@@ -167,7 +185,7 @@ def send_daily_reminders() -> dict:
                             type=MessageType.TEXT,
                             content=reminder_content,
                             status=MessageStatus.PENDING,
-                            message_metadata={"source": "automation_reminder"}
+                            message_metadata={"source": "automation_reminder"},
                         )
                         db.add(message)
                         await db.flush()
@@ -175,7 +193,9 @@ def send_daily_reminders() -> dict:
                         await unified_service.send_message(message)
 
                         reminders_sent += 1
-                        logger.info(f"Sent reminder to patient {patient_row.id} ({patient_row.name})")
+                        logger.info(
+                            f"Sent reminder to patient {patient_row.id} ({patient_row.name})"
+                        )
 
                     except Exception as e:
                         error_msg = f"Failed to send reminder to patient {patient_row.id}: {str(e)}"
@@ -189,7 +209,7 @@ def send_daily_reminders() -> dict:
         return {
             "reminders_sent": reminders_sent,
             "errors": errors,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
     # Run async function
@@ -205,6 +225,7 @@ def resume_paused_flows() -> dict:
     Returns:
         dict: Summary of flows resumed
     """
+
     async def _process():
         flows_resumed = 0
         errors = []
@@ -226,7 +247,9 @@ def resume_paused_flows() -> dict:
                 result = await db.execute(query)
                 paused_flows = result.fetchall()
 
-                logger.info(f"Found {len(paused_flows)} paused flows to potentially resume")
+                logger.info(
+                    f"Found {len(paused_flows)} paused flows to potentially resume"
+                )
 
                 flow_engine = get_enhanced_flow_engine(db)
 
@@ -236,7 +259,9 @@ def resume_paused_flows() -> dict:
                         await flow_engine.resume_patient_flow(flow_row.id)
 
                         flows_resumed += 1
-                        logger.info(f"Resumed flow {flow_row.id} for patient {flow_row.patient_id}")
+                        logger.info(
+                            f"Resumed flow {flow_row.id} for patient {flow_row.patient_id}"
+                        )
 
                     except Exception as e:
                         error_msg = f"Failed to resume flow {flow_row.id}: {str(e)}"
@@ -250,7 +275,7 @@ def resume_paused_flows() -> dict:
         return {
             "flows_resumed": flows_resumed,
             "errors": errors,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
     # Run async function
@@ -266,6 +291,7 @@ def cleanup_expired_quiz_links() -> dict:
     Returns:
         dict: Summary of links cleaned
     """
+
     async def _process():
         links_cleaned = 0
         errors = []
@@ -303,7 +329,7 @@ def cleanup_expired_quiz_links() -> dict:
         return {
             "links_cleaned": links_cleaned,
             "errors": errors,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
     # Run async function
@@ -313,7 +339,7 @@ def cleanup_expired_quiz_links() -> dict:
 def _get_reminder_message(patient_name: str) -> str:
     """
     Generate reminder message content.
-    
+
     TODO: Migrate this to database MessageTemplate (template_name='daily_reminder_generic')
     to allow dynamic updates without code changes.
     """
@@ -360,53 +386,53 @@ def _determine_template_for_patient(patient) -> Optional[str]:
         Template name or None if cannot determine
     """
     # Check for treatment type
-    if hasattr(patient, 'treatment_type') and patient.treatment_type:
+    if hasattr(patient, "treatment_type") and patient.treatment_type:
         treatment_lower = patient.treatment_type.lower()
 
-        if 'hormone' in treatment_lower or 'hormonal' in treatment_lower:
-            return 'hormonia_fluxo_hormonal'
-        elif 'quimio' in treatment_lower or 'chemo' in treatment_lower:
-            return 'hormonia_fluxo_quimio'
-        elif 'radio' in treatment_lower or 'radiation' in treatment_lower:
-            return 'hormonia_fluxo_radio'
+        if "hormone" in treatment_lower or "hormonal" in treatment_lower:
+            return "hormonia_fluxo_hormonal"
+        elif "quimio" in treatment_lower or "chemo" in treatment_lower:
+            return "hormonia_fluxo_quimio"
+        elif "radio" in treatment_lower or "radiation" in treatment_lower:
+            return "hormonia_fluxo_radio"
 
     # Check for specific cancer types (now mapped to treatment_type or diagnosis)
     # Fallback for legacy data that might still be in metadata
-    if hasattr(patient, 'metadata') and patient.metadata:
-        cancer_type = patient.metadata.get('cancer_type', '').lower()
-        
-        if 'mama' in cancer_type or 'breast' in cancer_type:
-            return 'hormonia_fluxo_mama'
-        elif 'prostata' in cancer_type or 'prostate' in cancer_type:
-            return 'hormonia_fluxo_prostata'
-        elif 'pulmao' in cancer_type or 'lung' in cancer_type:
-            return 'hormonia_fluxo_pulmao'
+    if hasattr(patient, "metadata") and patient.metadata:
+        cancer_type = patient.metadata.get("cancer_type", "").lower()
+
+        if "mama" in cancer_type or "breast" in cancer_type:
+            return "hormonia_fluxo_mama"
+        elif "prostata" in cancer_type or "prostate" in cancer_type:
+            return "hormonia_fluxo_prostata"
+        elif "pulmao" in cancer_type or "lung" in cancer_type:
+            return "hormonia_fluxo_pulmao"
 
     # Default template
-    return 'hormonia_fluxo_padrao'
+    return "hormonia_fluxo_padrao"
 
 
 # Celery Beat Schedule Configuration
 # Add this to your celery configuration
 CELERYBEAT_SCHEDULE = {
-    'check-pending-flows': {
-        'task': 'flow_automation.check_and_start_pending_flows',
-        'schedule': timedelta(minutes=15),  # Every 15 minutes
-        'options': {'queue': 'default'}
+    "check-pending-flows": {
+        "task": "flow_automation.check_and_start_pending_flows",
+        "schedule": timedelta(minutes=15),  # Every 15 minutes
+        "options": {"queue": "default"},
     },
-    'send-daily-reminders': {
-        'task': 'flow_automation.send_daily_reminders',
-        'schedule': crontab(hour=9, minute=0),  # Daily at 9 AM
-        'options': {'queue': 'default'}
+    "send-daily-reminders": {
+        "task": "flow_automation.send_daily_reminders",
+        "schedule": crontab(hour=9, minute=0),  # Daily at 9 AM
+        "options": {"queue": "default"},
     },
-    'resume-paused-flows': {
-        'task': 'flow_automation.resume_paused_flows',
-        'schedule': timedelta(hours=6),  # Every 6 hours
-        'options': {'queue': 'default'}
+    "resume-paused-flows": {
+        "task": "flow_automation.resume_paused_flows",
+        "schedule": timedelta(hours=6),  # Every 6 hours
+        "options": {"queue": "default"},
     },
-    'cleanup-expired-links': {
-        'task': 'flow_automation.cleanup_expired_quiz_links',
-        'schedule': crontab(hour=2, minute=0),  # Daily at 2 AM
-        'options': {'queue': 'default'}
-    }
+    "cleanup-expired-links": {
+        "task": "flow_automation.cleanup_expired_quiz_links",
+        "schedule": crontab(hour=2, minute=0),  # Daily at 2 AM
+        "options": {"queue": "default"},
+    },
 }

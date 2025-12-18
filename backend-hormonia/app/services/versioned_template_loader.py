@@ -2,6 +2,7 @@
 Versioned Template Loader Service
 Manages loading and versioning of flow templates
 """
+
 from typing import Dict, Optional, Any
 from pathlib import Path
 import json
@@ -25,7 +26,7 @@ class VersionedTemplateLoader:
         try:
             if self.template_path.exists():
                 for template_file in self.template_path.glob("*.json"):
-                    with open(template_file, 'r', encoding='utf-8') as f:
+                    with open(template_file, "r", encoding="utf-8") as f:
                         template_data = json.load(f)
                         template_name = template_file.stem
                         self.templates_cache[template_name] = template_data
@@ -33,7 +34,9 @@ class VersionedTemplateLoader:
         except Exception as e:
             logger.error(f"Error loading templates: {e}")
 
-    def get_template(self, template_name: str, version: Optional[str] = None) -> Optional[Dict]:
+    def get_template(
+        self, template_name: str, version: Optional[str] = None
+    ) -> Optional[Dict]:
         """
         Get a specific template by name and optional version
 
@@ -54,7 +57,7 @@ class VersionedTemplateLoader:
         template_file = self.template_path / f"{template_key}.json"
         if template_file.exists():
             try:
-                with open(template_file, 'r', encoding='utf-8') as f:
+                with open(template_file, "r", encoding="utf-8") as f:
                     template_data = json.load(f)
                     self.templates_cache[template_key] = template_data
                     return template_data
@@ -74,12 +77,14 @@ class VersionedTemplateLoader:
                 "name": name,
                 "version": data.get("version", "1.0.0"),
                 "description": data.get("description", ""),
-                "created_at": data.get("created_at", datetime.utcnow().isoformat())
+                "created_at": data.get("created_at", datetime.utcnow().isoformat()),
             }
             for name, data in self.templates_cache.items()
         }
 
-    def create_template(self, name: str, data: Dict, version: Optional[str] = None) -> bool:
+    def create_template(
+        self, name: str, data: Dict, version: Optional[str] = None
+    ) -> bool:
         """
         Create or update a template
 
@@ -103,7 +108,7 @@ class VersionedTemplateLoader:
             template_file = self.template_path / f"{template_key}.json"
             template_file.parent.mkdir(parents=True, exist_ok=True)
 
-            with open(template_file, 'w', encoding='utf-8') as f:
+            with open(template_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
 
             # Update cache

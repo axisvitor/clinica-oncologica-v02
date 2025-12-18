@@ -14,7 +14,7 @@ from .evolution import (
     MessageType,
     MessageStatus,
     get_evolution_client,
-    close_evolution_client
+    close_evolution_client,
 )
 
 # Optional OpenAI/LangChain integration. These imports may fail when the
@@ -35,6 +35,7 @@ try:  # pragma: no cover - exercised in environments with AI dependencies
         get_prompt_manager,
     )
 except Exception:  # pragma: no cover - we simply expose stubs
+
     class OpenAIClientError(Exception):
         """Fallback error when AI features are unavailable."""
 
@@ -49,40 +50,39 @@ except Exception:  # pragma: no cover - we simply expose stubs
     def get_prompt_manager(*args, **kwargs):
         raise OpenAIClientError("LangChain integration is not available")
 
+
 from .pdf_generator import (
     MedicalReportGenerator,
     ReportSection,
     PatientReportData,
     PDFGeneratorError,
-    get_pdf_generator
+    get_pdf_generator,
 )
 
 __all__ = [
     # Evolution API
     "EvolutionClient",
-    "EvolutionAPIError", 
+    "EvolutionAPIError",
     "WebhookEvent",
     "MessageType",
     "MessageStatus",
     "get_evolution_client",
     "close_evolution_client",
-    
     # OpenAI/LangChain
     "LangChainOrchestrator",
     "PromptManager",
     "SentimentType",
     "MessagePersonalizationRequest",
-    "SentimentAnalysisRequest", 
+    "SentimentAnalysisRequest",
     "PersonalizationResponse",
     "SentimentAnalysisResponse",
     "OpenAIClientError",
     "get_langchain_orchestrator",
     "get_prompt_manager",
-    
     # PDF Generation
     "MedicalReportGenerator",
     "ReportSection",
-    "PatientReportData", 
+    "PatientReportData",
     "PDFGeneratorError",
-    "get_pdf_generator"
+    "get_pdf_generator",
 ]

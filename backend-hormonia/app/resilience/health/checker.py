@@ -8,7 +8,7 @@ import time
 import asyncio
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Dict, List, Optional, Any, Callable
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 import logging
 
@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 class HealthStatus(Enum):
     """Health check status"""
+
     HEALTHY = "healthy"
     DEGRADED = "degraded"
     UNHEALTHY = "unhealthy"
@@ -26,6 +27,7 @@ class HealthStatus(Enum):
 @dataclass
 class HealthResult:
     """Health check result"""
+
     name: str
     status: HealthStatus
     message: str
@@ -73,7 +75,7 @@ class HealthCheck(ABC):
                 status=HealthStatus.UNHEALTHY,
                 message=f"Health check timed out after {self.timeout}s",
                 duration=duration,
-                error="TimeoutError"
+                error="TimeoutError",
             )
 
         except Exception as e:
@@ -83,13 +85,14 @@ class HealthCheck(ABC):
                 status=HealthStatus.UNHEALTHY,
                 message=f"Health check failed: {str(e)}",
                 duration=duration,
-                error=str(e)
+                error=str(e),
             )
 
 
 @dataclass
 class HealthSummary:
     """Overall health summary"""
+
     status: HealthStatus
     total_checks: int
     healthy_checks: int
@@ -124,11 +127,11 @@ class HealthChecker:
         self._checks: Dict[str, HealthCheck] = {}
         self._cache: Dict[str, HealthResult] = {}
         self._metrics = {
-            'total_checks': 0,
-            'failed_checks': 0,
-            'timeout_checks': 0,
-            'cache_hits': 0,
-            'cache_misses': 0
+            "total_checks": 0,
+            "failed_checks": 0,
+            "timeout_checks": 0,
+            "cache_hits": 0,
+            "cache_misses": 0,
         }
 
         logger.info(f"Health checker initialized with cache TTL: {cache_ttl}s")
@@ -164,8 +167,8 @@ class HealthChecker:
             # Single check
             if check_name not in self._checks:
                 return {
-                    'error': f'Health check "{check_name}" not found',
-                    'available_checks': list(self._checks.keys())
+                    "error": f'Health check "{check_name}" not found',
+                    "available_checks": list(self._checks.keys()),
                 }
 
             result = await self._execute_check(check_name)
@@ -178,29 +181,29 @@ class HealthChecker:
         summary = self._calculate_summary(results, time.time() - start_time)
 
         return {
-            'summary': {
-                'status': summary.status.value,
-                'health_percentage': summary.health_percentage,
-                'total_checks': summary.total_checks,
-                'healthy': summary.healthy_checks,
-                'degraded': summary.degraded_checks,
-                'unhealthy': summary.unhealthy_checks,
-                'unknown': summary.unknown_checks,
-                'duration': summary.duration,
-                'timestamp': summary.timestamp
+            "summary": {
+                "status": summary.status.value,
+                "health_percentage": summary.health_percentage,
+                "total_checks": summary.total_checks,
+                "healthy": summary.healthy_checks,
+                "degraded": summary.degraded_checks,
+                "unhealthy": summary.unhealthy_checks,
+                "unknown": summary.unknown_checks,
+                "duration": summary.duration,
+                "timestamp": summary.timestamp,
             },
-            'checks': {
+            "checks": {
                 name: {
-                    'status': result.status.value,
-                    'message': result.message,
-                    'duration': result.duration,
-                    'details': result.details,
-                    'timestamp': result.timestamp,
-                    'error': result.error
+                    "status": result.status.value,
+                    "message": result.message,
+                    "duration": result.duration,
+                    "details": result.details,
+                    "timestamp": result.timestamp,
+                    "error": result.error,
                 }
                 for name, result in results.items()
             },
-            'metrics': self._metrics.copy()
+            "metrics": self._metrics.copy(),
         }
 
     async def _execute_check(self, check_name: str) -> HealthResult:
@@ -208,22 +211,22 @@ class HealthChecker:
         # Check cache first
         cached_result = self._get_cached_result(check_name)
         if cached_result:
-            self._metrics['cache_hits'] += 1
+            self._metrics["cache_hits"] += 1
             return cached_result
 
-        self._metrics['cache_misses'] += 1
+        self._metrics["cache_misses"] += 1
 
         # Execute check
         check = self._checks[check_name]
         result = await check.check_with_timeout()
 
         # Update metrics
-        self._metrics['total_checks'] += 1
+        self._metrics["total_checks"] += 1
         if result.error:
-            if 'timeout' in result.error.lower():
-                self._metrics['timeout_checks'] += 1
+            if "timeout" in result.error.lower():
+                self._metrics["timeout_checks"] += 1
             else:
-                self._metrics['failed_checks'] += 1
+                self._metrics["failed_checks"] += 1
 
         # Cache result
         self._cache[check_name] = result
@@ -261,7 +264,7 @@ class HealthChecker:
                     status=HealthStatus.UNHEALTHY,
                     message=f"Check execution failed: {str(result)}",
                     duration=0.0,
-                    error=str(result)
+                    error=str(result),
                 )
             else:
                 health_results[check_name] = result
@@ -275,7 +278,9 @@ class HealthChecker:
             return cached_result
         return None
 
-    def _calculate_summary(self, results: Dict[str, HealthResult], duration: float) -> HealthSummary:
+    def _calculate_summary(
+        self, results: Dict[str, HealthResult], duration: float
+    ) -> HealthSummary:
         """Calculate overall health summary"""
         if not results:
             return HealthSummary(
@@ -285,7 +290,7 @@ class HealthChecker:
                 degraded_checks=0,
                 unhealthy_checks=0,
                 unknown_checks=0,
-                duration=duration
+                duration=duration,
             )
 
         # Count status types
@@ -293,7 +298,7 @@ class HealthChecker:
             HealthStatus.HEALTHY: 0,
             HealthStatus.DEGRADED: 0,
             HealthStatus.UNHEALTHY: 0,
-            HealthStatus.UNKNOWN: 0
+            HealthStatus.UNKNOWN: 0,
         }
 
         for result in results.values():
@@ -316,7 +321,7 @@ class HealthChecker:
             degraded_checks=status_counts[HealthStatus.DEGRADED],
             unhealthy_checks=status_counts[HealthStatus.UNHEALTHY],
             unknown_checks=status_counts[HealthStatus.UNKNOWN],
-            duration=duration
+            duration=duration,
         )
 
     def get_check_names(self) -> List[str]:
@@ -331,20 +336,20 @@ class HealthChecker:
     def get_metrics(self) -> Dict:
         """Get health checker metrics"""
         return {
-            'registered_checks': len(self._checks),
-            'cached_results': len(self._cache),
-            'cache_ttl': self.cache_ttl,
-            **self._metrics
+            "registered_checks": len(self._checks),
+            "cached_results": len(self._cache),
+            "cache_ttl": self.cache_ttl,
+            **self._metrics,
         }
 
     def reset_metrics(self):
         """Reset metrics"""
         self._metrics = {
-            'total_checks': 0,
-            'failed_checks': 0,
-            'timeout_checks': 0,
-            'cache_hits': 0,
-            'cache_misses': 0
+            "total_checks": 0,
+            "failed_checks": 0,
+            "timeout_checks": 0,
+            "cache_hits": 0,
+            "cache_misses": 0,
         }
         logger.info("Health checker metrics reset")
 

@@ -1,6 +1,7 @@
 """
 Hard delete operations with LGPD compliance audit trail.
 """
+
 import logging
 from datetime import datetime
 from uuid import UUID
@@ -81,8 +82,8 @@ class PatientAuditMixin:
                 "patient_id": str(patient_id),
                 "reason": audit_reason,
                 "timestamp": datetime.utcnow().isoformat(),
-                "compliance_article": "LGPD Art. 16 (Right to deletion)"
-            }
+                "compliance_article": "LGPD Art. 16 (Right to deletion)",
+            },
         )
 
         # Create audit record before deletion
@@ -111,9 +112,7 @@ class PatientAuditMixin:
         # - summaries
 
         # Delete patient record (cascades to related records)
-        result = await self.db.execute(
-            delete(Patient).where(Patient.id == patient_id)
-        )
+        result = await self.db.execute(delete(Patient).where(Patient.id == patient_id))
         await self.db.commit()
 
         deleted = result.rowcount > 0
@@ -124,16 +123,16 @@ class PatientAuditMixin:
                 extra={
                     "event": "patient_hard_delete_complete",
                     "patient_id": str(patient_id),
-                    "reason": audit_reason
-                }
+                    "reason": audit_reason,
+                },
             )
         else:
             logger.info(
                 "LGPD: Hard delete requested but patient not found",
                 extra={
                     "event": "patient_hard_delete_not_found",
-                    "patient_id": str(patient_id)
-                }
+                    "patient_id": str(patient_id),
+                },
             )
 
         return deleted
@@ -164,8 +163,8 @@ class PatientAuditMixin:
                 "patient_id": str(patient_id),
                 "reason": reason,
                 "timestamp": datetime.utcnow().isoformat(),
-                "compliance": "LGPD Art. 16, 18"
-            }
+                "compliance": "LGPD Art. 16, 18",
+            },
         )
 
         # Future implementation:

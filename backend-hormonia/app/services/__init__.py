@@ -1,4 +1,3 @@
-from typing import Any
 """Services module exports."""
 
 # ServiceProvider - Special import to avoid name conflict with package
@@ -19,11 +18,7 @@ if _services_file.exists():
 # Core Services
 from .auth import AuthService
 from app.domain.messaging.core import MessageService
-from .quiz import (
-    QuizTemplateService,
-    QuizSessionService,
-    QuizResponseService
-)
+from .quiz import QuizTemplateService, QuizSessionService, QuizResponseService
 
 # Flow Services
 from .flow import FlowEngine  # Consolidated Flow Engine
@@ -54,17 +49,16 @@ from .analytics import (
     MedicoStatsService,
     MetricsCollector,
     MetricsRedisStorage,
-    PerformanceMetricsCollector
+    PerformanceMetricsCollector,
 )
 
 # Admin Services
-from .admin import (
-    AdminUserService,
-    UserProvisioningService
-)
+from .admin import AdminUserService, UserProvisioningService
 
 # Integration Services
-from .hive_mind_integration import HiveMindIntegrationService  # Circular import resolved with lazy imports
+from .hive_mind_integration import (
+    HiveMindIntegrationService,
+)  # Circular import resolved with lazy imports
 from .platform_synchronization import PlatformSynchronizationService
 from .webhook_processor import WebhookProcessor
 
@@ -79,11 +73,7 @@ from .localization import LocalizationService
 from .audit_trail import AuditTrailService
 
 # Reporting Services
-from .reporting import (
-    ReportService,
-    EnhancedReportsService,
-    QuizReportGenerator
-)
+from .reporting import ReportService, EnhancedReportsService, QuizReportGenerator
 
 # Monitoring Services
 from .performance_monitoring import PerformanceMonitoringService
@@ -102,7 +92,6 @@ from .critical_error_escalation import CriticalErrorEscalationService
 __all__ = [
     # ServiceProvider (imported from services.py file)
     "ServiceProvider",
-
     # Core Services
     "AuthService",
     "PatientService",
@@ -110,23 +99,19 @@ __all__ = [
     "QuizTemplateService",
     "QuizSessionService",
     "QuizResponseService",
-    
     # Flow Services
     "FlowEngine",
     "FlowTemplateService",
     "EnhancedFlowEngine",
     "StateMachine",
-    
     # AI Services
     "AIHumanizer",
     "SentimentAnalyzer",
     "PatientContext",
-    
     # Alert Services
     "AlertManager",
     "AlertManagerAdapter",
     "AlertProcessor",
-    
     # Analytics Services
     "AnalyticsService",
     "FlowAnalyticsService",
@@ -139,35 +124,28 @@ __all__ = [
     "MetricsCollector",
     "MetricsRedisStorage",
     "PerformanceMetricsCollector",
-    
     # Admin Services
     "AdminUserService",
     "UserProvisioningService",
-
     # Integration Services
     "HiveMindIntegrationService",  # Circular import resolved with lazy imports
     "PlatformSynchronizationService",
     "WebhookProcessor",
-    
     # Messaging Services
     "websocket_events",
     "UnifiedWebSocketConnectionManager",
-    
     # Utility Services
     "EnhancedTemplateLoader",
     "LocalizationService",
     "AuditTrailService",
-    
     # Reporting Services
     "ReportService",
     "EnhancedReportsService",
     "QuizReportGenerator",
-    
     # Monitoring Services
     "PerformanceMonitoringService",
     "FlowMonitoringService",
     "DataCorruptionDetector",
-    
     # Error Handling Services
     "ErrorRecoveryService",
     "AutomatedRecoveryService",

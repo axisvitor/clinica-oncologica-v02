@@ -43,7 +43,7 @@ class BaseAuditService:
         retention_days: int = 365,
         # Legacy parameters for backward compatibility
         user_id: Optional[UUID] = None,
-        patient_id: Optional[UUID] = None
+        patient_id: Optional[UUID] = None,
     ) -> AuditLog:
         """
         Log an audit event (Legacy Adapter).
@@ -54,16 +54,20 @@ class BaseAuditService:
 
         # Prepare metadata with fields that no longer have dedicated columns
         metadata = event_data or {}
-        metadata.update({
-            "event_category": event_category,
-            "severity": severity,
-            "subject_id": str(subject_id) if subject_id else (str(patient_id) if patient_id else None),
-            "session_id": str(session_id) if session_id else None,
-            "data_subject_id": str(data_subject_id) if data_subject_id else None,
-            "legal_basis": legal_basis,
-            "retention_days": retention_days,
-            "adapter_version": "legacy_v2"
-        })
+        metadata.update(
+            {
+                "event_category": event_category,
+                "severity": severity,
+                "subject_id": str(subject_id)
+                if subject_id
+                else (str(patient_id) if patient_id else None),
+                "session_id": str(session_id) if session_id else None,
+                "data_subject_id": str(data_subject_id) if data_subject_id else None,
+                "legal_basis": legal_basis,
+                "retention_days": retention_days,
+                "adapter_version": "legacy_v2",
+            }
+        )
 
         # Sanitize metadata
         sanitized_metadata = mask_dict_secrets(metadata)
@@ -76,9 +80,17 @@ class BaseAuditService:
         except ValueError:
             # Fallback mapping for known legacy events
             if "login" in event_type:
-                mapped_event_type = AuditEventType.LOGIN_SUCCESS if result == "success" else AuditEventType.LOGIN_FAILURE
+                mapped_event_type = (
+                    AuditEventType.LOGIN_SUCCESS
+                    if result == "success"
+                    else AuditEventType.LOGIN_FAILURE
+                )
             elif "access" in event_type:
-                mapped_event_type = AuditEventType.ACCESS_DENIED if result != "success" else AuditEventType.SUSPICIOUS_ACTIVITY
+                mapped_event_type = (
+                    AuditEventType.ACCESS_DENIED
+                    if result != "success"
+                    else AuditEventType.SUSPICIOUS_ACTIVITY
+                )
             elif "quiz" in event_type:
                 # Generic mapping for quiz events not in Enum
                 mapped_event_type = AuditEventType.SUSPICIOUS_ACTIVITY
@@ -96,7 +108,7 @@ class BaseAuditService:
             user_agent=user_agent[:500] if user_agent else None,
             event_metadata=sanitized_metadata,
             message=f"{event_category}: {event_type}",
-            created_at=datetime.utcnow()
+            created_at=datetime.utcnow(),
         )
 
         self.db.add(audit_log)
@@ -106,11 +118,11 @@ class BaseAuditService:
         self.logger.info(
             f"Audit (Legacy): {event_type}",
             extra={
-                'audit_id': getattr(audit_log, 'id', 'unknown'),
-                'category': event_category,
-                'result': result,
-                'user_id': str(final_user_id) if final_user_id else None
-            }
+                "audit_id": getattr(audit_log, "id", "unknown"),
+                "category": event_category,
+                "result": result,
+                "user_id": str(final_user_id) if final_user_id else None,
+            },
         )
 
         return audit_log

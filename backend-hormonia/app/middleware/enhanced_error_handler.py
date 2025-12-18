@@ -6,11 +6,14 @@ Provides comprehensive error handling, logging, and recovery for production
 import logging
 import traceback
 import time
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Union
 from fastapi import Request, Response, HTTPException
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR, HTTP_503_SERVICE_UNAVAILABLE
+from starlette.status import (
+    HTTP_500_INTERNAL_SERVER_ERROR,
+    HTTP_503_SERVICE_UNAVAILABLE,
+)
 from datetime import datetime
 import psutil
 import os
@@ -44,7 +47,7 @@ class EnhancedErrorHandler(BaseHTTPMiddleware):
         Enhanced error handling with comprehensive logging and monitoring.
         """
         start_time = time.time()
-        request_id = getattr(request.state, 'request_id', f"req_{int(time.time())}")
+        request_id = getattr(request.state, "request_id", f"req_{int(time.time())}")
 
         try:
             # Check circuit breaker
@@ -56,24 +59,26 @@ class EnhancedErrorHandler(BaseHTTPMiddleware):
 
             # Log successful requests with performance metrics
             if response.status_code >= 400:
-                self._log_http_error(request, response, time.time() - start_time, request_id)
+                self._log_http_error(
+                    request, response, time.time() - start_time, request_id
+                )
 
             return response
 
         except HTTPException as http_exc:
             # Handle FastAPI HTTP exceptions
-            return await self._handle_http_exception(request, http_exc, start_time, request_id)
+            return await self._handle_http_exception(
+                request, http_exc, start_time, request_id
+            )
 
         except Exception as exc:
             # Handle unexpected exceptions
-            return await self._handle_unexpected_exception(request, exc, start_time, request_id)
+            return await self._handle_unexpected_exception(
+                request, exc, start_time, request_id
+            )
 
     async def _handle_http_exception(
-        self,
-        request: Request,
-        exc: HTTPException,
-        start_time: float,
-        request_id: str
+        self, request: Request, exc: HTTPException, start_time: float, request_id: str
     ) -> JSONResponse:
         """Handle FastAPI HTTP exceptions with enhanced logging."""
 
@@ -92,7 +97,7 @@ class EnhancedErrorHandler(BaseHTTPMiddleware):
             "detail": exc.detail,
             "status_code": exc.status_code,
             "timestamp": datetime.utcnow().isoformat(),
-            "request_id": request_id
+            "request_id": request_id,
         }
 
         # Add debug info if enabled
@@ -100,21 +105,17 @@ class EnhancedErrorHandler(BaseHTTPMiddleware):
             response_data["debug_info"] = {
                 "path": str(request.url.path),
                 "method": request.method,
-                "response_time_ms": round((time.time() - start_time) * 1000, 2)
+                "response_time_ms": round((time.time() - start_time) * 1000, 2),
             }
 
         return JSONResponse(
             status_code=exc.status_code,
             content=response_data,
-            headers={"X-Request-ID": request_id}
+            headers={"X-Request-ID": request_id},
         )
 
     async def _handle_unexpected_exception(
-        self,
-        request: Request,
-        exc: Exception,
-        start_time: float,
-        request_id: str
+        self, request: Request, exc: Exception, start_time: float, request_id: str
     ) -> JSONResponse:
         """Handle unexpected exceptions with comprehensive error tracking."""
 
@@ -131,7 +132,9 @@ class EnhancedErrorHandler(BaseHTTPMiddleware):
         error_context["system_state"] = system_state
 
         # Log with full context
-        logger.error(f"Unexpected {error_category} Error: {str(exc)}", extra=error_context)
+        logger.error(
+            f"Unexpected {error_category} Error: {str(exc)}", extra=error_context
+        )
         self._increment_error_count(error_category)
 
         # Determine response based on error type
@@ -139,11 +142,13 @@ class EnhancedErrorHandler(BaseHTTPMiddleware):
 
         # Create client-safe error response
         response_data = {
-            "detail": "Internal server error" if not self.enable_detailed_errors else str(exc),
+            "detail": "Internal server error"
+            if not self.enable_detailed_errors
+            else str(exc),
             "status_code": status_code,
             "timestamp": datetime.utcnow().isoformat(),
             "request_id": request_id,
-            "error_category": error_category
+            "error_category": error_category,
         }
 
         # Add debug information for development
@@ -153,16 +158,13 @@ class EnhancedErrorHandler(BaseHTTPMiddleware):
                 "path": str(request.url.path),
                 "method": request.method,
                 "response_time_ms": round((time.time() - start_time) * 1000, 2),
-                "system_state": system_state
+                "system_state": system_state,
             }
 
         return JSONResponse(
             status_code=status_code,
             content=response_data,
-            headers={
-                "X-Request-ID": request_id,
-                "X-Error-Category": error_category
-            }
+            headers={"X-Request-ID": request_id, "X-Error-Category": error_category},
         )
 
     def _build_error_context(
@@ -170,7 +172,7 @@ class EnhancedErrorHandler(BaseHTTPMiddleware):
         request: Request,
         exc: Union[Exception, HTTPException],
         start_time: float,
-        request_id: str
+        request_id: str,
     ) -> Dict[str, Any]:
         """Build comprehensive error context for logging."""
 
@@ -180,45 +182,71 @@ class EnhancedErrorHandler(BaseHTTPMiddleware):
             "path": str(request.url.path),
             "query_params": dict(request.query_params),
             "headers": dict(request.headers),
-            "client_ip": getattr(request.client, 'host', 'unknown'),
+            "client_ip": getattr(request.client, "host", "unknown"),
             "user_agent": request.headers.get("user-agent", "unknown"),
             "response_time_ms": round((time.time() - start_time) * 1000, 2),
             "exception_message": str(exc),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
     def _categorize_error(self, exc: Exception) -> str:
         """Categorize error for better handling and monitoring."""
 
-        exc_type = type(exc).__name__
+        type(exc).__name__
         exc_message = str(exc).lower()
 
         # Database errors
-        if any(db_term in exc_message for db_term in ['database', 'connection', 'psycopg', 'sqlalchemy']):
+        if any(
+            db_term in exc_message
+            for db_term in ["database", "connection", "psycopg", "sqlalchemy"]
+        ):
             return "database"
 
         # Network/HTTP errors
-        if any(net_term in exc_message for net_term in ['timeout', 'connection', 'network', 'unreachable']):
+        if any(
+            net_term in exc_message
+            for net_term in ["timeout", "connection", "network", "unreachable"]
+        ):
             return "network"
 
         # Authentication/Authorization errors
-        if any(auth_term in exc_message for auth_term in ['unauthorized', 'forbidden', 'authentication', 'permission']):
+        if any(
+            auth_term in exc_message
+            for auth_term in [
+                "unauthorized",
+                "forbidden",
+                "authentication",
+                "permission",
+            ]
+        ):
             return "authentication"
 
         # Validation errors
-        if any(val_term in exc_message for val_term in ['validation', 'invalid', 'required', 'format']):
+        if any(
+            val_term in exc_message
+            for val_term in ["validation", "invalid", "required", "format"]
+        ):
             return "validation"
 
         # Resource errors
-        if any(res_term in exc_message for res_term in ['not found', 'does not exist', 'missing']):
+        if any(
+            res_term in exc_message
+            for res_term in ["not found", "does not exist", "missing"]
+        ):
             return "resource"
 
         # External service errors
-        if any(ext_term in exc_message for ext_term in ['firebase', 'redis', 'external', 'api']):
+        if any(
+            ext_term in exc_message
+            for ext_term in ["firebase", "redis", "external", "api"]
+        ):
             return "external_service"
 
         # Memory/Performance errors
-        if any(perf_term in exc_message for perf_term in ['memory', 'timeout', 'too large', 'limit']):
+        if any(
+            perf_term in exc_message
+            for perf_term in ["memory", "timeout", "too large", "limit"]
+        ):
             return "performance"
 
         return "unknown"
@@ -234,7 +262,7 @@ class EnhancedErrorHandler(BaseHTTPMiddleware):
             "validation": 422,
             "resource": 404,
             "performance": HTTP_503_SERVICE_UNAVAILABLE,
-            "unknown": HTTP_500_INTERNAL_SERVER_ERROR
+            "unknown": HTTP_500_INTERNAL_SERVER_ERROR,
         }
 
         return status_mapping.get(category, HTTP_500_INTERNAL_SERVER_ERROR)
@@ -246,10 +274,12 @@ class EnhancedErrorHandler(BaseHTTPMiddleware):
             return {
                 "cpu_percent": round(psutil.cpu_percent(interval=0.1), 2),
                 "memory_percent": round(psutil.virtual_memory().percent, 2),
-                "memory_available_mb": round(psutil.virtual_memory().available / 1024 / 1024, 2),
-                "disk_usage_percent": round(psutil.disk_usage('/').percent, 2),
+                "memory_available_mb": round(
+                    psutil.virtual_memory().available / 1024 / 1024, 2
+                ),
+                "disk_usage_percent": round(psutil.disk_usage("/").percent, 2),
                 "process_count": len(psutil.pids()),
-                "load_average": os.getloadavg() if hasattr(os, 'getloadavg') else None
+                "load_average": os.getloadavg() if hasattr(os, "getloadavg") else None,
             }
         except Exception:
             return {"error": "Could not retrieve system state"}
@@ -265,8 +295,9 @@ class EnhancedErrorHandler(BaseHTTPMiddleware):
         # Clean old windows
         cutoff_time = current_time - self.error_rate_window
         keys_to_remove = [
-            key for key in self.error_counts.keys()
-            if int(key.split('_')[-1]) * self.error_rate_window < cutoff_time
+            key
+            for key in self.error_counts.keys()
+            if int(key.split("_")[-1]) * self.error_rate_window < cutoff_time
         ]
         for key in keys_to_remove:
             del self.error_counts[key]
@@ -279,8 +310,10 @@ class EnhancedErrorHandler(BaseHTTPMiddleware):
 
         # Count recent errors
         recent_errors = sum(
-            count for key, count in self.error_counts.items()
-            if int(key.split('_')[-1]) >= current_window - 1  # Current and previous window
+            count
+            for key, count in self.error_counts.items()
+            if int(key.split("_")[-1])
+            >= current_window - 1  # Current and previous window
         )
 
         return recent_errors > self.max_error_rate
@@ -294,12 +327,14 @@ class EnhancedErrorHandler(BaseHTTPMiddleware):
                 "detail": "Service temporarily unavailable due to high error rate",
                 "status_code": HTTP_503_SERVICE_UNAVAILABLE,
                 "timestamp": datetime.utcnow().isoformat(),
-                "retry_after": 60
+                "retry_after": 60,
             },
-            headers={"Retry-After": "60"}
+            headers={"Retry-After": "60"},
         )
 
-    def _log_http_error(self, request: Request, response: Response, duration: float, request_id: str):
+    def _log_http_error(
+        self, request: Request, response: Response, duration: float, request_id: str
+    ):
         """Log HTTP errors with context."""
 
         context = {
@@ -308,8 +343,8 @@ class EnhancedErrorHandler(BaseHTTPMiddleware):
             "path": str(request.url.path),
             "status_code": response.status_code,
             "response_time_ms": round(duration * 1000, 2),
-            "client_ip": getattr(request.client, 'host', 'unknown'),
-            "user_agent": request.headers.get("user-agent", "unknown")
+            "client_ip": getattr(request.client, "host", "unknown"),
+            "user_agent": request.headers.get("user-agent", "unknown"),
         }
 
         if response.status_code >= 500:
@@ -324,5 +359,5 @@ class EnhancedErrorHandler(BaseHTTPMiddleware):
             "error_counts": self.error_counts.copy(),
             "circuit_breaker_active": self.circuit_breaker_active,
             "error_rate_threshold": self.max_error_rate,
-            "window_seconds": self.error_rate_window
+            "window_seconds": self.error_rate_window,
         }

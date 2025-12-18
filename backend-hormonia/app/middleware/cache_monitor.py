@@ -64,27 +64,27 @@ class CacheMonitoringMiddleware(BaseHTTPMiddleware):
         stats_after = self.cache.get_stats()
 
         # Calculate cache operations during this request
-        cache_hits = stats_after['hits'] - stats_before['hits']
-        cache_misses = stats_after['misses'] - stats_before['misses']
+        cache_hits = stats_after["hits"] - stats_before["hits"]
+        cache_misses = stats_after["misses"] - stats_before["misses"]
 
         # Determine cache status
         if cache_hits > 0 and cache_misses == 0:
-            cache_status = 'HIT'
+            cache_status = "HIT"
         elif cache_misses > 0 and cache_hits == 0:
-            cache_status = 'MISS'
+            cache_status = "MISS"
         elif cache_hits > 0 and cache_misses > 0:
-            cache_status = 'PARTIAL'
+            cache_status = "PARTIAL"
         else:
-            cache_status = 'NONE'
+            cache_status = "NONE"
 
         # Add cache headers to response
-        response.headers['X-Cache-Status'] = cache_status
-        response.headers['X-Cache-Hits'] = str(cache_hits)
-        response.headers['X-Cache-Misses'] = str(cache_misses)
+        response.headers["X-Cache-Status"] = cache_status
+        response.headers["X-Cache-Hits"] = str(cache_hits)
+        response.headers["X-Cache-Misses"] = str(cache_misses)
 
         # Add performance header if request was slow
         if duration_ms > 1000:  # Log slow requests (>1s)
-            response.headers['X-Response-Time-Ms'] = f"{duration_ms:.2f}"
+            response.headers["X-Response-Time-Ms"] = f"{duration_ms:.2f}"
             logger.warning(
                 f"Slow request: {request.method} {request.url.path} "
                 f"({duration_ms:.2f}ms, cache: {cache_status})"
@@ -94,19 +94,19 @@ class CacheMonitoringMiddleware(BaseHTTPMiddleware):
         endpoint = f"{request.method} {request.url.path}"
         if endpoint not in self.endpoint_stats:
             self.endpoint_stats[endpoint] = {
-                'hits': 0,
-                'misses': 0,
-                'total_requests': 0,
-                'total_duration_ms': 0.0
+                "hits": 0,
+                "misses": 0,
+                "total_requests": 0,
+                "total_duration_ms": 0.0,
             }
 
-        self.endpoint_stats[endpoint]['hits'] += cache_hits
-        self.endpoint_stats[endpoint]['misses'] += cache_misses
-        self.endpoint_stats[endpoint]['total_requests'] += 1
-        self.endpoint_stats[endpoint]['total_duration_ms'] += duration_ms
+        self.endpoint_stats[endpoint]["hits"] += cache_hits
+        self.endpoint_stats[endpoint]["misses"] += cache_misses
+        self.endpoint_stats[endpoint]["total_requests"] += 1
+        self.endpoint_stats[endpoint]["total_duration_ms"] += duration_ms
 
         # Log slow cache operations (>10ms average)
-        avg_cache_time = stats_after.get('avg_get_time_ms', 0)
+        avg_cache_time = stats_after.get("avg_get_time_ms", 0)
         if avg_cache_time > 10:
             logger.warning(
                 f"Slow cache operation detected: {avg_cache_time:.2f}ms average "
@@ -125,20 +125,23 @@ class CacheMonitoringMiddleware(BaseHTTPMiddleware):
         stats = {}
 
         for endpoint, data in self.endpoint_stats.items():
-            total_cache_ops = data['hits'] + data['misses']
-            hit_rate = (data['hits'] / total_cache_ops * 100) if total_cache_ops > 0 else 0
+            total_cache_ops = data["hits"] + data["misses"]
+            hit_rate = (
+                (data["hits"] / total_cache_ops * 100) if total_cache_ops > 0 else 0
+            )
 
             avg_duration = (
-                data['total_duration_ms'] / data['total_requests']
-                if data['total_requests'] > 0 else 0
+                data["total_duration_ms"] / data["total_requests"]
+                if data["total_requests"] > 0
+                else 0
             )
 
             stats[endpoint] = {
-                'hits': data['hits'],
-                'misses': data['misses'],
-                'total_requests': data['total_requests'],
-                'hit_rate_percent': round(hit_rate, 2),
-                'avg_response_time_ms': round(avg_duration, 2)
+                "hits": data["hits"],
+                "misses": data["misses"],
+                "total_requests": data["total_requests"],
+                "hit_rate_percent": round(hit_rate, 2),
+                "avg_response_time_ms": round(avg_duration, 2),
             }
 
         return stats

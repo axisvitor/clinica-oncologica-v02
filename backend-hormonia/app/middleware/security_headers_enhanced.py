@@ -38,12 +38,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         csp_nonce_enabled: Whether CSP nonce is enabled
     """
 
-    def __init__(
-        self,
-        app,
-        enable_hsts: bool = False,
-        csp_report_uri: str = None
-    ):
+    def __init__(self, app, enable_hsts: bool = False, csp_report_uri: str = None):
         """Initialize security headers middleware.
 
         Args:
@@ -59,11 +54,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         if enable_hsts:
             logger.info("HSTS enabled - ensure HTTPS is configured")
 
-    async def dispatch(
-        self,
-        request: Request,
-        call_next: Callable
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Add security headers to response.
 
         Args:
@@ -96,16 +87,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # Permissions policy - disable unnecessary browser features
         # Prevents unauthorized access to sensitive APIs
         permissions_directives = [
-            "geolocation=()",      # No location access
-            "microphone=()",       # No microphone access
-            "camera=()",           # No camera access
-            "payment=()",          # No payment API
-            "usb=()",              # No USB access
-            "accelerometer=()",    # No accelerometer
-            "gyroscope=()",        # No gyroscope
-            "magnetometer=()",     # No magnetometer
+            "geolocation=()",  # No location access
+            "microphone=()",  # No microphone access
+            "camera=()",  # No camera access
+            "payment=()",  # No payment API
+            "usb=()",  # No USB access
+            "accelerometer=()",  # No accelerometer
+            "gyroscope=()",  # No gyroscope
+            "magnetometer=()",  # No magnetometer
             "ambient-light-sensor=()",  # No ambient light sensor
-            "autoplay=()",         # No autoplay
+            "autoplay=()",  # No autoplay
             "encrypted-media=()",  # No encrypted media
             "picture-in-picture=()",  # No PiP
         ]
@@ -115,41 +106,29 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # Comprehensive policy to prevent XSS and data injection
         csp_directives = [
             "default-src 'self'",  # Default: same-origin only
-
             # Scripts: Allow self + inline (needed for some frameworks)
             # TODO: Use nonce or hash for inline scripts (more secure)
             "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-
             # Styles: Allow self + inline
             "style-src 'self' 'unsafe-inline'",
-
             # Images: Allow self, data URIs, and HTTPS
             "img-src 'self' data: https:",
-
             # Fonts: Allow self and data URIs
             "font-src 'self' data:",
-
             # AJAX/WebSocket connections
             "connect-src 'self' https://api.evolution.com.br wss://api.evolution.com.br",
-
             # Media (audio/video)
             "media-src 'self'",
-
             # Object/embed tags (disabled)
             "object-src 'none'",
-
             # Frames: Prevent framing
             "frame-ancestors 'none'",
-
             # Base tag: Prevent base tag injection
             "base-uri 'self'",
-
             # Forms: Only submit to self
             "form-action 'self'",
-
             # Upgrade insecure requests (HTTP -> HTTPS)
             "upgrade-insecure-requests",
-
             # Block all mixed content
             "block-all-mixed-content",
         ]
@@ -195,11 +174,7 @@ class CSPReportMiddleware(BaseHTTPMiddleware):
     with the CSP policy or potential XSS attempts.
     """
 
-    async def dispatch(
-        self,
-        request: Request,
-        call_next: Callable
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Log CSP violations.
 
         Args:
@@ -214,10 +189,7 @@ class CSPReportMiddleware(BaseHTTPMiddleware):
                 report = await request.json()
                 logger.warning(
                     f"CSP Violation Report: {report}",
-                    extra={
-                        "csp_violation": report,
-                        "client_ip": request.client.host
-                    }
+                    extra={"csp_violation": report, "client_ip": request.client.host},
                 )
             except Exception as e:
                 logger.error(f"Failed to parse CSP report: {e}")
@@ -266,7 +238,7 @@ def get_security_headers_score(headers: dict) -> dict:
         "max_score": 100,
         "percentage": score,
         "grade": _get_grade(score),
-        "missing_headers": missing
+        "missing_headers": missing,
     }
 
 

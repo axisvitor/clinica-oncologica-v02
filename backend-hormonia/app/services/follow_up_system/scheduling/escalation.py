@@ -2,6 +2,7 @@
 Escalation action scheduler.
 Handles scheduling of escalation notifications to healthcare providers.
 """
+
 import logging
 from uuid import UUID
 from datetime import datetime
@@ -43,7 +44,9 @@ class EscalationScheduler:
 
             alert = self.active_alerts.get(UUID(alert_id))
             if not alert:
-                logger.warning(f"Alert {alert_id} not found for action {action.action_id}")
+                logger.warning(
+                    f"Alert {alert_id} not found for action {action.action_id}"
+                )
                 return
 
             # Send notifications through configured channels
@@ -52,7 +55,7 @@ class EscalationScheduler:
                     patient_id=action.patient_id,
                     patient_repo=self.patient_repo,
                     notification_data=alert,
-                    channel=channel
+                    channel=channel,
                 )
 
             # Mark action as executed
@@ -60,10 +63,12 @@ class EscalationScheduler:
             action.status = "executed"
             action.execution_result = {
                 "notifications_sent": len(alert.notification_channels),
-                "channels": [ch.value for ch in alert.notification_channels]
+                "channels": [ch.value for ch in alert.notification_channels],
             }
 
-            logger.info(f"Scheduled escalation notifications for action {action.action_id}")
+            logger.info(
+                f"Scheduled escalation notifications for action {action.action_id}"
+            )
 
         except Exception as e:
             logger.error(f"Failed to schedule escalation action: {e}")
@@ -83,7 +88,7 @@ class EscalationScheduler:
                 "concern_type": action.parameters.get("concern_type"),
                 "original_message": action.parameters.get("original_message"),
                 "priority": action.priority,
-                "created_at": action.created_at.isoformat()
+                "created_at": action.created_at.isoformat(),
             }
 
             # Send notification
@@ -91,14 +96,16 @@ class EscalationScheduler:
                 patient_id=action.patient_id,
                 patient_repo=self.patient_repo,
                 notification_data=notification_data,
-                channel=NotificationChannel.DASHBOARD_ALERT
+                channel=NotificationChannel.DASHBOARD_ALERT,
             )
 
             # Mark as executed
             action.executed_at = datetime.utcnow()
             action.status = "executed"
 
-            logger.info(f"Scheduled provider notification for action {action.action_id}")
+            logger.info(
+                f"Scheduled provider notification for action {action.action_id}"
+            )
 
         except Exception as e:
             logger.error(f"Failed to schedule provider notification: {e}")

@@ -5,7 +5,6 @@ Provides JSON-formatted logging with context-aware fields.
 """
 
 import logging
-import json
 import sys
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -19,35 +18,34 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
         self,
         log_record: Dict[str, Any],
         record: logging.LogRecord,
-        message_dict: Dict[str, Any]
+        message_dict: Dict[str, Any],
     ) -> None:
         """Add custom fields to log record."""
         super().add_fields(log_record, record, message_dict)
 
         # Add timestamp
-        log_record['timestamp'] = datetime.utcnow().isoformat()
+        log_record["timestamp"] = datetime.utcnow().isoformat()
 
         # Add log level
-        log_record['level'] = record.levelname
+        log_record["level"] = record.levelname
 
         # Add logger name
-        log_record['logger'] = record.name
+        log_record["logger"] = record.name
 
         # Add module and function
-        log_record['module'] = record.module
-        log_record['function'] = record.funcName
+        log_record["module"] = record.module
+        log_record["function"] = record.funcName
 
         # Add line number
-        log_record['line'] = record.lineno
+        log_record["line"] = record.lineno
 
         # Add process and thread info
-        log_record['process_id'] = record.process
-        log_record['thread_id'] = record.thread
+        log_record["process_id"] = record.process
+        log_record["thread_id"] = record.thread
 
 
 def configure_structured_logging(
-    log_level: str = "INFO",
-    log_file: Optional[str] = None
+    log_level: str = "INFO", log_file: Optional[str] = None
 ) -> None:
     """
     Configure structured JSON logging.
@@ -57,9 +55,7 @@ def configure_structured_logging(
         log_file: Optional log file path for file handler
     """
     # Create formatter
-    formatter = CustomJsonFormatter(
-        '%(timestamp)s %(level)s %(name)s %(message)s'
-    )
+    formatter = CustomJsonFormatter("%(timestamp)s %(level)s %(name)s %(message)s")
 
     # Configure root logger
     root_logger = logging.getLogger()
@@ -99,7 +95,7 @@ def log_security_event(
     severity: str,
     details: Dict[str, Any],
     user_id: Optional[int] = None,
-    ip_address: Optional[str] = None
+    ip_address: Optional[str] = None,
 ) -> None:
     """
     Log a security event with structured context.
@@ -116,7 +112,7 @@ def log_security_event(
         "event_category": "security",
         "event_type": event_type,
         "severity": severity,
-        "details": details
+        "details": details,
     }
 
     if user_id:
@@ -130,7 +126,7 @@ def log_security_event(
         "low": logging.INFO,
         "medium": logging.WARNING,
         "high": logging.ERROR,
-        "critical": logging.CRITICAL
+        "critical": logging.CRITICAL,
     }
 
     log_level = level_map.get(severity, logging.WARNING)
@@ -142,7 +138,7 @@ def log_performance_event(
     event_type: str,
     duration_ms: float,
     details: Dict[str, Any],
-    threshold_exceeded: bool = False
+    threshold_exceeded: bool = False,
 ) -> None:
     """
     Log a performance event with structured context.
@@ -159,7 +155,7 @@ def log_performance_event(
         "event_type": event_type,
         "duration_ms": duration_ms,
         "threshold_exceeded": threshold_exceeded,
-        "details": details
+        "details": details,
     }
 
     log_level = logging.WARNING if threshold_exceeded else logging.INFO
@@ -172,7 +168,7 @@ def log_business_event(
     entity_type: str,
     entity_id: Optional[int],
     details: Dict[str, Any],
-    user_id: Optional[int] = None
+    user_id: Optional[int] = None,
 ) -> None:
     """
     Log a business event with structured context.
@@ -190,7 +186,7 @@ def log_business_event(
         "event_type": event_type,
         "entity_type": entity_type,
         "entity_id": entity_id,
-        "details": details
+        "details": details,
     }
 
     if user_id:

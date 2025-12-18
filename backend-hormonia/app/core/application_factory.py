@@ -9,9 +9,10 @@ Creates and configures the FastAPI application using modular components:
 - Enhanced error handling and debugging capabilities
 - Production-ready security and performance features
 """
-from typing import Optional, Literal
+
+from typing import Literal
 from pathlib import Path
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from datetime import datetime
@@ -27,10 +28,13 @@ from .lifespan import lifespan
 from .monitoring_setup import setup_monitoring
 from app.core.exception_handlers import register_exception_handlers
 from app.core.setup.sentry import setup_sentry
-from app.core.setup.openapi import setup_enhanced_openapi, get_api_description, get_openapi_tags
+from app.core.setup.openapi import (
+    setup_enhanced_openapi,
+    get_api_description,
+    get_openapi_tags,
+)
 
 # Import rate limiter components
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from app.utils.rate_limiter import limiter, rate_limit_handler
 
@@ -42,7 +46,7 @@ def create_application(
     enable_debug_endpoints: bool = None,
     deployment_mode: Literal["production", "development", "debug"] = "production",
     enable_error_tracking: bool = True,
-    enable_enhanced_openapi: bool = True
+    enable_enhanced_openapi: bool = True,
 ) -> FastAPI:
     """
     Create and configure FastAPI application with clean separation of concerns.
@@ -73,7 +77,9 @@ def create_application(
     if enable_debug_endpoints is None:
         enable_debug_endpoints = settings.APP_ENABLE_DEBUG or deployment_mode == "debug"
 
-    logger.info(f"Creating FastAPI application (mode: {deployment_mode}, debug: {enable_debug_endpoints})")
+    logger.info(
+        f"Creating FastAPI application (mode: {deployment_mode}, debug: {enable_debug_endpoints})"
+    )
 
     # Initialize Sentry for error tracking (before app creation)
     setup_sentry()
@@ -83,19 +89,20 @@ def create_application(
 
     # Create base FastAPI application with metadata
     app = FastAPI(
-        title="Hormonia Backend API" + (f" ({deployment_mode.title()})" if deployment_mode != "production" else ""),
+        title="Hormonia Backend API"
+        + (f" ({deployment_mode.title()})" if deployment_mode != "production" else ""),
         description=get_api_description(deployment_mode),
         version="2.0.0",  # Updated version to reflect consolidation
         contact={
             "name": "Hormonia Support",
             "email": "support@hormonia.com",
-            "url": "https://hormonia.com/support"
+            "url": "https://hormonia.com/support",
         },
         docs_url="/docs" if docs_available else None,
         redoc_url="/redoc" if docs_available else None,
         openapi_url="/openapi.json" if docs_available else None,
         lifespan=lifespan,
-        openapi_tags=get_openapi_tags()
+        openapi_tags=get_openapi_tags(),
     )
 
     # Store configuration in app state for reference
@@ -112,14 +119,13 @@ def create_application(
     # Configure API v2 exception handlers
     from app.core.exceptions import APIException
     from fastapi.exceptions import RequestValidationError
-    from pydantic import ValidationError as PydanticValidationError
-    
+
     @app.exception_handler(APIException)
     async def api_exception_handler(request: Request, exc: APIException):
         """Handle custom API exceptions with consistent format."""
         # Add request ID if available
-        request_id = getattr(request.state, 'request_id', None)
-        
+        request_id = getattr(request.state, "request_id", None)
+
         logger.warning(
             f"API exception: {exc.error_code}",
             extra={
@@ -127,10 +133,10 @@ def create_application(
                 "status_code": exc.status_code,
                 "path": str(request.url.path),
                 "method": request.method,
-                "request_id": request_id
-            }
+                "request_id": request_id,
+            },
         )
-        
+
         return JSONResponse(
             status_code=exc.status_code,
             content={
@@ -138,34 +144,38 @@ def create_application(
                 "message": exc.message,
                 "details": exc.details,
                 "request_id": request_id,
-                "timestamp": datetime.utcnow().isoformat() + 'Z'
-            }
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+            },
         )
-    
+
     @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    async def validation_exception_handler(
+        request: Request, exc: RequestValidationError
+    ):
         """Handle Pydantic validation errors with detailed field information."""
-        request_id = getattr(request.state, 'request_id', None)
-        
+        request_id = getattr(request.state, "request_id", None)
+
         # Format validation errors
         errors = []
         for error in exc.errors():
-            errors.append({
-                "field": ".".join(str(loc) for loc in error["loc"]),
-                "message": error["msg"],
-                "type": error["type"]
-            })
-        
+            errors.append(
+                {
+                    "field": ".".join(str(loc) for loc in error["loc"]),
+                    "message": error["msg"],
+                    "type": error["type"],
+                }
+            )
+
         logger.warning(
             f"Validation error: {len(errors)} field(s)",
             extra={
                 "path": str(request.url.path),
                 "method": request.method,
                 "request_id": request_id,
-                "errors": errors
-            }
+                "errors": errors,
+            },
         )
-        
+
         return JSONResponse(
             status_code=422,
             content={
@@ -173,35 +183,37 @@ def create_application(
                 "message": "Request validation failed",
                 "details": {"errors": errors},
                 "request_id": request_id,
-                "timestamp": datetime.utcnow().isoformat() + 'Z'
-            }
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+            },
         )
-    
+
     logger.info("✓ API v2 exception handlers configured")
 
     # Configure CSRF protection
     try:
         from fastapi_csrf_protect.exceptions import CsrfProtectError
-        from app.middleware.csrf import csrf_protect, get_csrf_token
+        from app.middleware.csrf import csrf_protect
 
         @app.exception_handler(CsrfProtectError)
-        async def csrf_protect_exception_handler(request: Request, exc: CsrfProtectError):
+        async def csrf_protect_exception_handler(
+            request: Request, exc: CsrfProtectError
+        ):
             """Handle CSRF validation failures with proper logging."""
             logger.warning(
                 f"CSRF validation failed: {str(exc)}",
                 extra={
                     "path": str(request.url.path),
                     "method": request.method,
-                    "client_ip": request.client.host if request.client else "unknown"
-                }
+                    "client_ip": request.client.host if request.client else "unknown",
+                },
             )
             return JSONResponse(
                 status_code=403,
                 content={
                     "error": "csrf_validation_failed",
                     "message": "CSRF token validation failed. Please refresh and try again.",
-                    "timestamp": datetime.utcnow().isoformat()
-                }
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
             )
 
         # NOTE: Deprecated /api/v2/csrf-token endpoint removed.
@@ -219,7 +231,7 @@ def create_application(
     if enable_error_tracking:
         _setup_global_exception_handler(app)
         logger.info("✓ Global exception handler configured")
-        
+
     # Register domain-specific exception handlers
     register_exception_handlers(app)
     logger.info("✓ Domain exception handlers registered")
@@ -287,10 +299,10 @@ def _setup_global_exception_handler(app: FastAPI) -> None:
         logger = get_logger(__name__)
 
         # Generate request correlation ID if not present
-        request_id = getattr(request.state, 'request_id', 'unknown')
+        request_id = getattr(request.state, "request_id", "unknown")
 
         # Track error (thread-safe) if error tracking is enabled
-        if getattr(app.state, 'error_tracking_enabled', True):
+        if getattr(app.state, "error_tracking_enabled", True):
             try:
                 # FIX: track_error is synchronous, not async - remove await
                 track_error(exc, request)
@@ -298,24 +310,29 @@ def _setup_global_exception_handler(app: FastAPI) -> None:
                 logger.error(f"Error tracking failed: {tracking_error}")
 
         # Log error with context
-        logger.error(f"Unhandled exception: {exc}", extra={
-            'request_id': request_id,
-            'path': str(request.url),
-            'method': request.method,
-            'user_agent': request.headers.get('user-agent', 'unknown'),
-            'deployment_mode': getattr(app.state, 'deployment_mode', 'unknown')
-        })
+        logger.error(
+            f"Unhandled exception: {exc}",
+            extra={
+                "request_id": request_id,
+                "path": str(request.url),
+                "method": request.method,
+                "user_agent": request.headers.get("user-agent", "unknown"),
+                "deployment_mode": getattr(app.state, "deployment_mode", "unknown"),
+            },
+        )
 
         # Determine error detail level based on deployment mode
-        deployment_mode = getattr(app.state, 'deployment_mode', 'production')
-        include_details = deployment_mode in ['development', 'debug'] or settings.APP_ENABLE_DEBUG
+        deployment_mode = getattr(app.state, "deployment_mode", "production")
+        include_details = (
+            deployment_mode in ["development", "debug"] or settings.APP_ENABLE_DEBUG
+        )
 
         error_response = {
             "error": "internal_server_error",
             "message": "An unexpected error occurred",
             "details": {},
             "timestamp": datetime.utcnow().isoformat(),
-            "request_id": request_id
+            "request_id": request_id,
         }
 
         # Add debug information if appropriate
@@ -324,13 +341,10 @@ def _setup_global_exception_handler(app: FastAPI) -> None:
                 "exception_type": type(exc).__name__,
                 "exception_message": str(exc),
                 "path": str(request.url),
-                "method": request.method
+                "method": request.method,
             }
 
-        return JSONResponse(
-            status_code=500,
-            content=error_response
-        )
+        return JSONResponse(status_code=500, content=error_response)
 
 
 def _register_routers_with_resilience(app: FastAPI, deployment_mode: str) -> None:
@@ -370,6 +384,7 @@ def _register_core_routers_individually(app: FastAPI) -> None:
         except Exception as e:
             logger.error(f"?? Failed to register {router_name} router: {e}")
 
+
 def _add_debug_endpoints(app: FastAPI) -> None:
     """Add debug endpoints for troubleshooting (from minimal_main.py)."""
     import os
@@ -386,16 +401,20 @@ def _add_debug_endpoints(app: FastAPI) -> None:
             "PYTHONPATH": os.getenv("PYTHONPATH", "not_set"),
             "PWD": os.getenv("PWD", "not_set"),
             "DEBUG": str(settings.APP_ENABLE_DEBUG),
-            "DEPLOYMENT_MODE": getattr(app.state, 'deployment_mode', 'unknown')
+            "DEPLOYMENT_MODE": getattr(app.state, "deployment_mode", "unknown"),
         }
         return {
             "environment_variables": env_vars,
             "python_path": sys.path[:10],  # Limit for readability
             "app_state": {
-                "deployment_mode": getattr(app.state, 'deployment_mode', 'unknown'),
-                "debug_endpoints_enabled": getattr(app.state, 'debug_endpoints_enabled', False),
-                "error_tracking_enabled": getattr(app.state, 'error_tracking_enabled', True)
-            }
+                "deployment_mode": getattr(app.state, "deployment_mode", "unknown"),
+                "debug_endpoints_enabled": getattr(
+                    app.state, "debug_endpoints_enabled", False
+                ),
+                "error_tracking_enabled": getattr(
+                    app.state, "error_tracking_enabled", True
+                ),
+            },
         }
 
     @app.get("/debug/imports", tags=["Debug"])
@@ -413,37 +432,40 @@ def _add_debug_endpoints(app: FastAPI) -> None:
         for module_path, description in critical_imports:
             try:
                 __import__(module_path)
-                import_results[module_path] = {"status": "success", "description": description}
+                import_results[module_path] = {
+                    "status": "success",
+                    "description": description,
+                }
             except Exception as e:
                 import_results[module_path] = {
                     "status": "failed",
                     "error": str(e),
-                    "description": description
+                    "description": description,
                 }
 
         return {
             "import_test_results": import_results,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
     @app.get("/debug/health", tags=["Debug"])
     async def debug_health():
         """Enhanced health check with debug information."""
-        uptime = time.time() - getattr(app.state, 'start_time', time.time())
+        uptime = time.time() - getattr(app.state, "start_time", time.time())
 
         health_info = {
             "status": "healthy",
-            "deployment_mode": getattr(app.state, 'deployment_mode', 'unknown'),
-            "debug_mode": getattr(app.state, 'debug_endpoints_enabled', False),
+            "deployment_mode": getattr(app.state, "deployment_mode", "unknown"),
+            "debug_mode": getattr(app.state, "debug_endpoints_enabled", False),
             "uptime_seconds": uptime,
             "version": "2.0.0",
             "timestamp": datetime.utcnow().isoformat(),
             "features": {
-                "monitoring": hasattr(app.state, 'monitoring_manager'),
-                "redis": hasattr(app.state, 'redis_client'),
-                "session_manager": hasattr(app.state, 'session_manager'),
-                "error_tracking": getattr(app.state, 'error_tracking_enabled', True)
-            }
+                "monitoring": hasattr(app.state, "monitoring_manager"),
+                "redis": hasattr(app.state, "redis_client"),
+                "session_manager": hasattr(app.state, "session_manager"),
+                "error_tracking": getattr(app.state, "error_tracking_enabled", True),
+            },
         }
 
         return health_info

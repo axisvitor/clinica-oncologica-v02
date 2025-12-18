@@ -85,19 +85,32 @@ async def check_worker_health(db: Any) -> WorkerHealth:
         active_workers_dict = inspect.active()
 
         active_workers = len(active_workers_dict) if active_workers_dict else 0
-        active_tasks = sum(len(tasks) for tasks in active_workers_dict.values()) if active_workers_dict else 0
+        active_tasks = (
+            sum(len(tasks) for tasks in active_workers_dict.values())
+            if active_workers_dict
+            else 0
+        )
 
         # Get failed tasks from database
         from app.models.message import Message, MessageStatus
-        failed_tasks_24h = db.query(Message).filter(
-            Message.status == MessageStatus.FAILED,
-            Message.updated_at >= datetime.utcnow() - timedelta(hours=24)
-        ).count()
+
+        failed_tasks_24h = (
+            db.query(Message)
+            .filter(
+                Message.status == MessageStatus.FAILED,
+                Message.updated_at >= datetime.utcnow() - timedelta(hours=24),
+            )
+            .count()
+        )
 
         # Get pending tasks
-        pending_tasks = db.query(Message).filter(
-            Message.status.in_([MessageStatus.PENDING, MessageStatus.SCHEDULED])
-        ).count()
+        pending_tasks = (
+            db.query(Message)
+            .filter(
+                Message.status.in_([MessageStatus.PENDING, MessageStatus.SCHEDULED])
+            )
+            .count()
+        )
 
         worker_status = HealthStatus.HEALTHY
         if active_workers == 0:
@@ -132,7 +145,7 @@ async def check_external_services() -> List[ExternalServiceHealth]:
     services = []
 
     # Check Evolution API if enabled
-    if hasattr(settings, 'ENABLE_EVOLUTION') and settings.WHATSAPP_ENABLE_SERVICE:
+    if hasattr(settings, "ENABLE_EVOLUTION") and settings.WHATSAPP_ENABLE_SERVICE:
         try:
             from app.integrations.evolution import get_evolution_client
 
@@ -141,28 +154,32 @@ async def check_external_services() -> List[ExternalServiceHealth]:
             await client.get_instance_status()
             latency_ms = (time.time() - start_time) * 1000
 
-            services.append(ExternalServiceHealth(
-                name="Evolution API",
-                status=HealthStatus.HEALTHY,
-                latency_ms=round(latency_ms, 2),
-                last_check=datetime.utcnow(),
-                error_message=None,
-            ))
+            services.append(
+                ExternalServiceHealth(
+                    name="Evolution API",
+                    status=HealthStatus.HEALTHY,
+                    latency_ms=round(latency_ms, 2),
+                    last_check=datetime.utcnow(),
+                    error_message=None,
+                )
+            )
         except Exception as e:
-            services.append(ExternalServiceHealth(
-                name="Evolution API",
-                status=HealthStatus.DEGRADED,
-                latency_ms=None,
-                last_check=datetime.utcnow(),
-                error_message=str(e),
-            ))
+            services.append(
+                ExternalServiceHealth(
+                    name="Evolution API",
+                    status=HealthStatus.DEGRADED,
+                    latency_ms=None,
+                    last_check=datetime.utcnow(),
+                    error_message=str(e),
+                )
+            )
 
     return services
 
 
 @router.get("/redis", response_model=RedisHealth)
 async def redis_health_check(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> RedisHealth:
     """
     Redis/cache health check (Authenticated).
@@ -175,8 +192,7 @@ async def redis_health_check(
 
 @router.get("/workers", response_model=WorkerHealth)
 async def worker_health_check(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> WorkerHealth:
     """
     Background worker health check (Authenticated).
@@ -189,7 +205,7 @@ async def worker_health_check(
 
 @router.get("/external", response_model=List[ExternalServiceHealth])
 async def external_services_health_check(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> List[ExternalServiceHealth]:
     """
     External services health check (Authenticated).

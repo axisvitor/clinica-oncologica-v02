@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 # Database Diagnostics
 # ============================================================================
 
+
 @router.get(
     "/database",
     response_model=DebugResponse,
@@ -54,13 +55,11 @@ logger = logging.getLogger(__name__)
     - Database connectivity
     - Connection pool status
     - Query response time
-    """
+    """,
 )
 @limiter.limit("5/minute")
 async def get_database_diagnostics(
-    request: Request,
-    admin_user: User = Depends(get_admin_user),
-    db = Depends(get_db)
+    request: Request, admin_user: User = Depends(get_admin_user), db=Depends(get_db)
 ):
     """
     Get database connection diagnostics.
@@ -94,7 +93,7 @@ async def get_database_diagnostics(
                 size=pool.size(),
                 checked_out=pool.checkedout(),
                 overflow=pool.overflow(),
-                checked_in=pool.checkedin()
+                checked_in=pool.checkedin(),
             )
         except Exception as e:
             logger.warning(f"Failed to get pool info: {e}")
@@ -105,7 +104,7 @@ async def get_database_diagnostics(
             pool_info=pool_info,
             response_time_ms=response_time_ms,
             error=error_msg,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.utcnow(),
         )
 
         # Audit log
@@ -114,23 +113,25 @@ async def get_database_diagnostics(
             admin_user=admin_user,
             endpoint="/database",
             parameters={},
-            result_summary=f"Database {db_status.value}, {response_time_ms}ms response" if connected else "Database connection failed",
+            result_summary=f"Database {db_status.value}, {response_time_ms}ms response"
+            if connected
+            else "Database connection failed",
             request=request,
-            severity=DebugSeverity.WARNING if not connected else DebugSeverity.INFO
+            severity=DebugSeverity.WARNING if not connected else DebugSeverity.INFO,
         )
 
         return DebugResponse(
             success=True,
             data=diagnostics.dict(),
             audit_logged=True,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.utcnow(),
         )
 
     except Exception as e:
         logger.error(f"Database diagnostics error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get database diagnostics: {str(e)}"
+            detail=f"Failed to get database diagnostics: {str(e)}",
         )
 
 
@@ -148,14 +149,14 @@ async def get_database_diagnostics(
     - Dangerous keywords blocked
     - Query timeout enforced
     - Results limited to 10 rows
-    """
+    """,
 )
 @limiter.limit("5/minute")
 async def test_sql_query(
     request: Request,
     query_request: TestQueryRequest,
     admin_user: User = Depends(get_admin_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Test SQL query execution with safety checks.
@@ -170,7 +171,9 @@ async def test_sql_query(
         start_time = time.time()
         try:
             # Set statement timeout
-            db.execute(text(f"SET statement_timeout = {query_request.timeout_seconds * 1000}"))
+            db.execute(
+                text(f"SET statement_timeout = {query_request.timeout_seconds * 1000}")
+            )
 
             # Execute query
             result = db.execute(text(query_request.query))
@@ -190,7 +193,7 @@ async def test_sql_query(
                 execution_time_ms=execution_time_ms,
                 result=result_data,
                 error=None,
-                query_sanitized=sanitize_sql_query(query_request.query)
+                query_sanitized=sanitize_sql_query(query_request.query),
             )
 
             # Audit log
@@ -200,7 +203,7 @@ async def test_sql_query(
                 endpoint="/test-query",
                 parameters={"query": sanitize_sql_query(query_request.query, 50)},
                 result_summary=f"Query executed: {len(rows)} rows, {execution_time_ms:.2f}ms",
-                request=request
+                request=request,
             )
 
         except Exception as e:
@@ -211,7 +214,7 @@ async def test_sql_query(
                 execution_time_ms=execution_time_ms,
                 result=None,
                 error=str(e),
-                query_sanitized=sanitize_sql_query(query_request.query)
+                query_sanitized=sanitize_sql_query(query_request.query),
             )
 
             # Audit log error
@@ -222,19 +225,19 @@ async def test_sql_query(
                 parameters={"query": sanitize_sql_query(query_request.query, 50)},
                 result_summary=f"Query failed: {str(e)}",
                 request=request,
-                severity=DebugSeverity.WARNING
+                severity=DebugSeverity.WARNING,
             )
 
         return DebugResponse(
             success=test_result.success,
             data=test_result.dict(),
             audit_logged=True,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.utcnow(),
         )
 
     except Exception as e:
         logger.error(f"Test query error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to test query: {str(e)}"
+            detail=f"Failed to test query: {str(e)}",
         )

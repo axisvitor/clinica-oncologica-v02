@@ -7,20 +7,24 @@ Implements cursor pagination, Redis caching, rate limiting, and background sync 
 import logging
 import json
 import secrets
-from typing import Any, Optional, Dict, List
-from datetime import datetime, timedelta
+from typing import Optional
+from datetime import datetime
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Request, HTTPException, Depends, Query, BackgroundTasks, status
-from sqlalchemy import select, and_, func, desc, or_
+from fastapi import (
+    APIRouter,
+    Request,
+    HTTPException,
+    Depends,
+    Query,
+    BackgroundTasks,
+    status,
+)
 
 from app.database import get_db
 from app.dependencies.auth_dependencies import get_redis_cache
-from app.config import settings
 from app.utils.rate_limiter import limiter
 from app.schemas.v2.platform_sync import (
-    SyncJobCreate,
-    SyncJobUpdate,
     SyncJobResponse,
     SyncJobList,
     SyncTriggerRequest,
@@ -34,16 +38,13 @@ from app.schemas.v2.platform_sync import (
     PlatformTestResponse,
     ConflictResolutionRequest,
     ConflictResolutionResponse,
-    SyncHistoryResponse,
     SyncHistoryList,
     SyncRollbackRequest,
     SyncRollbackResponse,
     SyncJobStatus,
     SyncStrategy,
-    ConflictStrategy,
     PlatformType,
 )
-from app.schemas.v2.common import CursorEncoder
 from app.api.v2.dependencies import get_pagination_params
 
 logger = logging.getLogger(__name__)
@@ -83,10 +84,7 @@ def generate_idempotency_key(platform: str, entity_type: str, entity_id: str) ->
 
 
 async def check_sync_idempotency(
-    redis_cache,
-    platform: str,
-    entity_type: str,
-    entity_id: str
+    redis_cache, platform: str, entity_type: str, entity_id: str
 ) -> bool:
     """
     Check if sync operation has already been processed.
@@ -110,9 +108,7 @@ async def cache_sync_status(redis_cache, sync_job_id: UUID, status_data: dict) -
     """Cache sync job status for quick retrieval"""
     cache_key = f"sync:status:{sync_job_id}"
     await redis_cache.set(
-        cache_key,
-        json.dumps(status_data),
-        expire=REDIS_TTL_SYNC_STATUS
+        cache_key, json.dumps(status_data), expire=REDIS_TTL_SYNC_STATUS
     )
 
 
@@ -135,8 +131,8 @@ async def list_sync_jobs(
     pagination: dict = Depends(get_pagination_params),
     status_filter: Optional[SyncJobStatus] = Query(None, alias="status"),
     platform_filter: Optional[PlatformType] = Query(None, alias="platform"),
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
 ) -> SyncJobList:
     """
     List sync jobs with cursor-based pagination.
@@ -161,18 +157,11 @@ async def list_sync_jobs(
 
         # Mock implementation - in production, query actual sync_jobs table
         # For now, return empty list
-        response = SyncJobList(
-            data=[],
-            next_cursor=None,
-            has_more=False,
-            total=0
-        )
+        response = SyncJobList(data=[], next_cursor=None, has_more=False, total=0)
 
         # Cache response
         await redis_cache.set(
-            cache_key,
-            json.dumps(response.dict()),
-            expire=REDIS_TTL_SYNC_STATUS
+            cache_key, json.dumps(response.dict()), expire=REDIS_TTL_SYNC_STATUS
         )
 
         return response
@@ -181,7 +170,7 @@ async def list_sync_jobs(
         logger.error(f"Error listing sync jobs: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve sync jobs"
+            detail="Failed to retrieve sync jobs",
         )
 
 
@@ -190,8 +179,8 @@ async def list_sync_jobs(
 async def get_sync_job(
     request: Request,
     job_id: UUID,
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
 ) -> SyncJobResponse:
     """
     Get sync job details by ID.
@@ -208,8 +197,7 @@ async def get_sync_job(
 
         # Mock implementation
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Sync job not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Sync job not found"
         )
 
     except HTTPException:
@@ -218,21 +206,23 @@ async def get_sync_job(
         logger.error(f"Error retrieving sync job: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve sync job"
+            detail="Failed to retrieve sync job",
         )
 
 
 # ============================================================================
 # SYNC TRIGGER & EXECUTION ENDPOINTS
 # ============================================================================
-@router.post("/trigger", response_model=SyncTriggerResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/trigger", response_model=SyncTriggerResponse, status_code=status.HTTP_202_ACCEPTED
+)
 @limiter.limit(RATE_LIMIT_SYNC_TRIGGER)
 async def trigger_sync(
     request: Request,
     sync_request: SyncTriggerRequest,
     background_tasks: BackgroundTasks,
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
 ) -> SyncTriggerResponse:
     """
     Trigger manual synchronization.
@@ -254,7 +244,7 @@ async def trigger_sync(
                 redis_cache,
                 sync_request.platform.value,
                 sync_request.entity_types[0] if sync_request.entity_types else "all",
-                transaction_id
+                transaction_id,
             )
 
             if not is_new:
@@ -264,7 +254,7 @@ async def trigger_sync(
                     status=SyncJobStatus.PENDING,
                     message="Duplicate sync request (idempotency)",
                     estimated_items=0,
-                    started_at=datetime.utcnow()
+                    started_at=datetime.utcnow(),
                 )
 
         # Estimate items to sync
@@ -273,7 +263,9 @@ async def trigger_sync(
             estimated_items = 10000  # Mock estimate
         elif sync_request.strategy == SyncStrategy.INCREMENTAL:
             estimated_items = 500  # Mock estimate
-        elif sync_request.strategy == SyncStrategy.SELECTIVE and sync_request.entity_ids:
+        elif (
+            sync_request.strategy == SyncStrategy.SELECTIVE and sync_request.entity_ids
+        ):
             estimated_items = len(sync_request.entity_ids)
 
         # Create sync job (mock)
@@ -295,14 +287,14 @@ async def trigger_sync(
             status=SyncJobStatus.PENDING,
             message="Sync job created successfully",
             estimated_items=estimated_items,
-            started_at=datetime.utcnow()
+            started_at=datetime.utcnow(),
         )
 
     except Exception as e:
         logger.error(f"Error triggering sync: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to trigger sync"
+            detail="Failed to trigger sync",
         )
 
 
@@ -311,8 +303,8 @@ async def trigger_sync(
 async def get_sync_status(
     request: Request,
     job_id: UUID,
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
 ) -> SyncStatusResponse:
     """
     Get real-time sync job progress.
@@ -328,8 +320,7 @@ async def get_sync_status(
 
         # Mock implementation
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Sync job not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Sync job not found"
         )
 
     except HTTPException:
@@ -338,7 +329,7 @@ async def get_sync_status(
         logger.error(f"Error getting sync status: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve sync status"
+            detail="Failed to retrieve sync status",
         )
 
 
@@ -351,8 +342,8 @@ async def list_sync_configs(
     request: Request,
     pagination: dict = Depends(get_pagination_params),
     platform_filter: Optional[PlatformType] = Query(None, alias="platform"),
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
 ) -> SyncConfigList:
     """
     List platform sync configurations.
@@ -361,7 +352,9 @@ async def list_sync_configs(
     """
     try:
         # Build cache key
-        cache_key = f"sync:configs:list:{pagination.get('limit')}:{platform_filter or 'all'}"
+        cache_key = (
+            f"sync:configs:list:{pagination.get('limit')}:{platform_filter or 'all'}"
+        )
         if pagination.get("cursor_data"):
             cache_key += f":{pagination['cursor_data'].get('id', 0)}"
 
@@ -372,18 +365,11 @@ async def list_sync_configs(
             return SyncConfigList(**json.loads(cached))
 
         # Mock implementation
-        response = SyncConfigList(
-            data=[],
-            next_cursor=None,
-            has_more=False,
-            total=0
-        )
+        response = SyncConfigList(data=[], next_cursor=None, has_more=False, total=0)
 
         # Cache response
         await redis_cache.set(
-            cache_key,
-            json.dumps(response.dict()),
-            expire=REDIS_TTL_PLATFORM_CONFIG
+            cache_key, json.dumps(response.dict()), expire=REDIS_TTL_PLATFORM_CONFIG
         )
 
         return response
@@ -392,17 +378,19 @@ async def list_sync_configs(
         logger.error(f"Error listing sync configs: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve sync configurations"
+            detail="Failed to retrieve sync configurations",
         )
 
 
-@router.post("/configs", response_model=SyncConfigResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/configs", response_model=SyncConfigResponse, status_code=status.HTTP_201_CREATED
+)
 @limiter.limit(RATE_LIMIT_CONFIG_OPS)
 async def create_sync_config(
     request: Request,
     config_data: SyncConfigCreate,
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
 ) -> SyncConfigResponse:
     """
     Create new platform sync configuration.
@@ -449,7 +437,7 @@ async def create_sync_config(
         logger.error(f"Error creating sync config: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create sync configuration"
+            detail="Failed to create sync configuration",
         )
 
 
@@ -458,8 +446,8 @@ async def create_sync_config(
 async def get_sync_config(
     request: Request,
     config_id: UUID,
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
 ) -> SyncConfigResponse:
     """
     Get sync configuration by ID.
@@ -476,8 +464,7 @@ async def get_sync_config(
 
         # Mock implementation
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Sync configuration not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Sync configuration not found"
         )
 
     except HTTPException:
@@ -486,7 +473,7 @@ async def get_sync_config(
         logger.error(f"Error retrieving sync config: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve sync configuration"
+            detail="Failed to retrieve sync configuration",
         )
 
 
@@ -496,8 +483,8 @@ async def update_sync_config(
     request: Request,
     config_id: UUID,
     config_data: SyncConfigUpdate,
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
 ) -> SyncConfigResponse:
     """
     Update sync configuration.
@@ -509,8 +496,7 @@ async def update_sync_config(
 
         # Mock implementation
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Sync configuration not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Sync configuration not found"
         )
 
     except HTTPException:
@@ -519,7 +505,7 @@ async def update_sync_config(
         logger.error(f"Error updating sync config: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update sync configuration"
+            detail="Failed to update sync configuration",
         )
 
 
@@ -528,8 +514,8 @@ async def update_sync_config(
 async def delete_sync_config(
     request: Request,
     config_id: UUID,
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
 ) -> None:
     """
     Delete sync configuration.
@@ -545,8 +531,7 @@ async def delete_sync_config(
 
         # Mock implementation
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Sync configuration not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Sync configuration not found"
         )
 
     except HTTPException:
@@ -555,7 +540,7 @@ async def delete_sync_config(
         logger.error(f"Error deleting sync config: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete sync configuration"
+            detail="Failed to delete sync configuration",
         )
 
 
@@ -567,7 +552,7 @@ async def delete_sync_config(
 async def test_platform_connection(
     request: Request,
     test_request: PlatformTestRequest,
-    db = Depends(get_db),
+    db=Depends(get_db),
 ) -> PlatformTestResponse:
     """
     Test connection to external platform.
@@ -596,10 +581,11 @@ async def test_platform_connection(
             headers["X-API-Key"] = test_request.auth_token
 
         try:
-            async with httpx.AsyncClient(timeout=test_request.timeout_seconds) as client:
+            async with httpx.AsyncClient(
+                timeout=test_request.timeout_seconds
+            ) as client:
                 response = await client.get(
-                    str(test_request.endpoint_url),
-                    headers=headers
+                    str(test_request.endpoint_url), headers=headers
                 )
 
                 response_time = (time.time() - start_time) * 1000
@@ -608,13 +594,19 @@ async def test_platform_connection(
                     success=response.status_code < 400,
                     status_code=response.status_code,
                     response_time_ms=round(response_time, 2),
-                    message="Connection successful" if response.status_code < 400 else f"HTTP {response.status_code}",
+                    message="Connection successful"
+                    if response.status_code < 400
+                    else f"HTTP {response.status_code}",
                     platform_info={
-                        "status": "available" if response.status_code < 400 else "unavailable",
+                        "status": "available"
+                        if response.status_code < 400
+                        else "unavailable",
                         "headers": dict(response.headers),
                     },
-                    errors=[] if response.status_code < 400 else [f"HTTP {response.status_code}"],
-                    warnings=[]
+                    errors=[]
+                    if response.status_code < 400
+                    else [f"HTTP {response.status_code}"],
+                    warnings=[],
                 )
 
         except httpx.TimeoutException:
@@ -626,7 +618,7 @@ async def test_platform_connection(
                 message="Connection timeout",
                 platform_info=None,
                 errors=["Request timeout exceeded"],
-                warnings=[]
+                warnings=[],
             )
         except Exception as e:
             response_time = (time.time() - start_time) * 1000
@@ -637,14 +629,14 @@ async def test_platform_connection(
                 message="Connection failed",
                 platform_info=None,
                 errors=[str(e)],
-                warnings=[]
+                warnings=[],
             )
 
     except Exception as e:
         logger.error(f"Error testing platform connection: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to test platform connection"
+            detail="Failed to test platform connection",
         )
 
 
@@ -656,8 +648,8 @@ async def test_platform_connection(
 async def resolve_conflict(
     request: Request,
     resolution_request: ConflictResolutionRequest,
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
 ) -> ConflictResolutionResponse:
     """
     Manually resolve sync conflict.
@@ -681,16 +673,18 @@ async def resolve_conflict(
             conflict_id=resolution_request.conflict_id,
             status="resolved",
             resolution_strategy=resolution_request.resolution_strategy.value,
-            resolved_value=resolution_request.merged_data if resolution_request.merged_data else {},
+            resolved_value=resolution_request.merged_data
+            if resolution_request.merged_data
+            else {},
             message="Conflict resolved successfully",
-            resolved_at=datetime.utcnow()
+            resolved_at=datetime.utcnow(),
         )
 
     except Exception as e:
         logger.error(f"Error resolving conflict: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to resolve conflict"
+            detail="Failed to resolve conflict",
         )
 
 
@@ -705,8 +699,8 @@ async def get_sync_history(
     platform_filter: Optional[PlatformType] = Query(None, alias="platform"),
     status_filter: Optional[SyncJobStatus] = Query(None, alias="status"),
     days: int = Query(7, ge=1, le=90, description="Number of days to retrieve"),
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
 ) -> SyncHistoryList:
     """
     Get sync history with detailed logs.
@@ -734,18 +728,11 @@ async def get_sync_history(
             return SyncHistoryList(**json.loads(cached))
 
         # Mock implementation
-        response = SyncHistoryList(
-            data=[],
-            next_cursor=None,
-            has_more=False,
-            total=0
-        )
+        response = SyncHistoryList(data=[], next_cursor=None, has_more=False, total=0)
 
         # Cache response
         await redis_cache.set(
-            cache_key,
-            json.dumps(response.dict()),
-            expire=REDIS_TTL_SYNC_HISTORY
+            cache_key, json.dumps(response.dict()), expire=REDIS_TTL_SYNC_HISTORY
         )
 
         return response
@@ -754,7 +741,7 @@ async def get_sync_history(
         logger.error(f"Error retrieving sync history: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve sync history"
+            detail="Failed to retrieve sync history",
         )
 
 
@@ -767,8 +754,8 @@ async def rollback_sync(
     request: Request,
     rollback_request: SyncRollbackRequest,
     background_tasks: BackgroundTasks,
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
 ) -> SyncRollbackResponse:
     """
     Rollback sync transaction.
@@ -801,12 +788,12 @@ async def rollback_sync(
             status="pending",
             message="Rollback initiated successfully",
             estimated_items_to_revert=0,  # Mock
-            started_at=datetime.utcnow()
+            started_at=datetime.utcnow(),
         )
 
     except Exception as e:
         logger.error(f"Error initiating rollback: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to initiate rollback"
+            detail="Failed to initiate rollback",
         )

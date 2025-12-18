@@ -2,11 +2,13 @@
 Enums for the Follow-up Action System.
 Defines types, levels, and channels used throughout the follow-up system.
 """
+
 from enum import Enum
 
 
 class FollowUpType(str, Enum):
     """Types of follow-up actions."""
+
     EMPATHETIC_RESPONSE = "empathetic_response"
     MEDICAL_CLARIFICATION = "medical_clarification"
     ESCALATION_NOTIFICATION = "escalation_notification"
@@ -21,6 +23,7 @@ class FollowUpType(str, Enum):
 
 class EscalationLevel(str, Enum):
     """Escalation levels for healthcare provider notifications."""
+
     NONE = "none"
     LOW = "low"
     MEDIUM = "medium"
@@ -31,6 +34,7 @@ class EscalationLevel(str, Enum):
 
 class NotificationChannel(str, Enum):
     """Channels for healthcare provider notifications."""
+
     EMAIL = "email"
     SMS = "sms"
     WHATSAPP = "whatsapp"

@@ -7,11 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.models.message import Message, MessageStatus
-from app.models.patient import Patient
 from app.services.websocket_events import websocket_events
 from app.schemas.websocket import WebSocketEventType
 
 logger = logging.getLogger(__name__)
+
 
 class MessageStatusHandler:
     """
@@ -23,15 +23,15 @@ class MessageStatusHandler:
         self.db = db
 
     async def handle_status_update(
-        self, 
-        domain_message_id: UUID, 
-        new_status: MessageStatus, 
+        self,
+        domain_message_id: UUID,
+        new_status: MessageStatus,
         error_message: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """
         Update domain message status and trigger events.
-        
+
         Args:
             domain_message_id: ID of the domain Message
             new_status: New status to apply
@@ -45,19 +45,23 @@ class MessageStatusHandler:
             message = result.scalar_one_or_none()
 
             if not message:
-                logger.warning(f"Domain message {domain_message_id} not found for status update")
+                logger.warning(
+                    f"Domain message {domain_message_id} not found for status update"
+                )
                 return
 
             # Update status
             message.status = new_status
             message.updated_at = datetime.utcnow()
-            
+
             if error_message:
                 # Append to existing metadata or create new
                 if not message.message_metadata:
                     message.message_metadata = {}
-                message.message_metadata['error'] = error_message
-                message.message_metadata['last_error_at'] = datetime.utcnow().isoformat()
+                message.message_metadata["error"] = error_message
+                message.message_metadata["last_error_at"] = (
+                    datetime.utcnow().isoformat()
+                )
 
             if metadata:
                 if not message.message_metadata:
@@ -78,20 +82,26 @@ class MessageStatusHandler:
                     message.failed_at = now
 
             await self.db.commit()
-            
+
             # Publish WebSocket event
             await self._publish_event(message, new_status, error_message)
-            
-            logger.info(f"Updated domain message {domain_message_id} status to {new_status.value}")
+
+            logger.info(
+                f"Updated domain message {domain_message_id} status to {new_status.value}"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to handle status update for message {domain_message_id}: {e}")
+            logger.error(
+                f"Failed to handle status update for message {domain_message_id}: {e}"
+            )
             # Don't raise, just log - we don't want to break the integration layer
 
-    async def _publish_event(self, message: Message, status: MessageStatus, error_message: Optional[str]):
+    async def _publish_event(
+        self, message: Message, status: MessageStatus, error_message: Optional[str]
+    ):
         """Publish WebSocket event for status change."""
         event_type = WebSocketEventType.MESSAGE_UPDATED
-        
+
         if status == MessageStatus.SENT:
             event_type = WebSocketEventType.MESSAGE_SENT
         elif status == MessageStatus.FAILED:
@@ -103,9 +113,11 @@ class MessageStatusHandler:
 
         payload = {
             "status": status.value,
-            "updated_at": message.updated_at.isoformat() if message.updated_at else None
+            "updated_at": message.updated_at.isoformat()
+            if message.updated_at
+            else None,
         }
-        
+
         if error_message:
             payload["error"] = error_message
 
@@ -117,5 +129,5 @@ class MessageStatusHandler:
             message_type=message.type.value,
             content=message.content,
             status=status.value,
-            metadata=payload
+            metadata=payload,
         )

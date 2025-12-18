@@ -48,7 +48,9 @@ class EncryptionService:
         """Initialize encryption service with current encryption key."""
         if not self._initialized:
             # Load encryption key from environment
-            key_b64 = os.getenv("ENCRYPTION_KEY_CURRENT") or os.getenv("SECURITY_ENCRYPTION_KEY")
+            key_b64 = os.getenv("ENCRYPTION_KEY_CURRENT") or os.getenv(
+                "SECURITY_ENCRYPTION_KEY"
+            )
             if not key_b64:
                 raise ValueError(
                     "ENCRYPTION_KEY_CURRENT environment variable not set. "
@@ -100,8 +102,8 @@ class EncryptionService:
             # - Generating unique IV per encryption
             # - Adding timestamp for key rotation
             # - Computing HMAC for authentication
-            ciphertext_bytes = self.fernet.encrypt(plaintext.encode('utf-8'))
-            return ciphertext_bytes.decode('ascii')
+            ciphertext_bytes = self.fernet.encrypt(plaintext.encode("utf-8"))
+            return ciphertext_bytes.decode("ascii")
 
         except Exception as e:
             logger.error(f"Encryption failed: {e}")
@@ -131,21 +133,25 @@ class EncryptionService:
 
         try:
             # Try decrypting with current key
-            plaintext_bytes = self.fernet.decrypt(ciphertext.encode('ascii'))
-            return plaintext_bytes.decode('utf-8')
+            plaintext_bytes = self.fernet.decrypt(ciphertext.encode("ascii"))
+            return plaintext_bytes.decode("utf-8")
 
         except InvalidToken:
             # If current key fails, try previous key (for key rotation)
             if self.previous_fernet:
                 try:
-                    plaintext_bytes = self.previous_fernet.decrypt(ciphertext.encode('ascii'))
+                    plaintext_bytes = self.previous_fernet.decrypt(
+                        ciphertext.encode("ascii")
+                    )
                     logger.warning("Decrypted with previous key (key rotation needed)")
-                    return plaintext_bytes.decode('utf-8')
+                    return plaintext_bytes.decode("utf-8")
                 except InvalidToken as e:
                     logger.debug(f"Previous key also failed to decrypt: {e}")
 
             logger.error("Decryption failed: Invalid token or tampered data")
-            raise DecryptionError("Failed to decrypt data: invalid token or corrupted data")
+            raise DecryptionError(
+                "Failed to decrypt data: invalid token or corrupted data"
+            )
 
         except Exception as e:
             logger.error(f"Decryption failed: {e}")
@@ -172,9 +178,11 @@ class EncryptionService:
 
 class EncryptionError(Exception):
     """Raised when encryption operation fails."""
+
     pass
 
 
 class DecryptionError(Exception):
     """Raised when decryption operation fails."""
+
     pass

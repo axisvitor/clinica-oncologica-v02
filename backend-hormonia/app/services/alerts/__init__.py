@@ -1,4 +1,3 @@
-from typing import Any
 """
 Unified Alert System - Public API.
 
@@ -140,7 +139,7 @@ from .metrics import (
 
 # NEW MODULAR COMPONENTS
 from .evaluator import AlertEvaluator
-from .processor import AlertProcessor
+from .processor import AlertProcessor as AlertProcessorSimple  # noqa: F401
 from .escalation import AlertEscalation
 from .statistics import AlertStatisticsCollector
 from .target_resolver import TargetResolver
@@ -402,7 +401,7 @@ def initialize_alert_system(
     rule_engine = get_rule_engine()
     processor = get_alert_processor()
     dispatcher = get_notification_dispatcher()
-    escalation_mgr = get_escalation_manager()
+    get_escalation_manager()
     db_monitor = get_database_monitor()
 
     # Register patient evaluators

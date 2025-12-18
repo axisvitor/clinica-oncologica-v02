@@ -5,6 +5,7 @@ Handles question formatting, context building, and template rendering.
 Responsibilities: Question formatting, humanization (if enabled),
 context preparation, and question display logic.
 """
+
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from uuid import UUID
@@ -22,7 +23,9 @@ class QuestionRenderer:
     """Manages question rendering and formatting for quiz display."""
 
     def __init__(self):
-        self.humanizer = get_question_humanizer() if is_ai_humanization_enabled() else None
+        self.humanizer = (
+            get_question_humanizer() if is_ai_humanization_enabled() else None
+        )
 
     def render_quiz_access_response(
         self,
@@ -31,7 +34,7 @@ class QuestionRenderer:
         template: QuizTemplate,
         current_question_index: int,
         expires_at: datetime,
-        new_token: Optional[str] = None
+        new_token: Optional[str] = None,
     ) -> MonthlyQuizAccessResponse:
         """
         Build a complete quiz access response with formatted questions.
@@ -56,7 +59,7 @@ class QuestionRenderer:
             questions=template.questions,
             current_question_index=current_question_index,
             total_questions=len(template.questions),
-            expires_at=expires_at
+            expires_at=expires_at,
         )
 
         # Add rotated token if provided
@@ -69,7 +72,7 @@ class QuestionRenderer:
         self,
         question_text: str,
         patient_name: str,
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Humanize question text using AI if enabled.
@@ -87,9 +90,7 @@ class QuestionRenderer:
 
         try:
             humanized = self.humanizer.humanize(
-                text=question_text,
-                patient_name=patient_name,
-                context=context or {}
+                text=question_text, patient_name=patient_name, context=context or {}
             )
             return humanized
         except Exception as e:
@@ -97,10 +98,7 @@ class QuestionRenderer:
             return question_text
 
     def format_question(
-        self,
-        question: Dict[str, Any],
-        patient_name: str,
-        humanize: bool = False
+        self, question: Dict[str, Any], patient_name: str, humanize: bool = False
     ) -> Dict[str, Any]:
         """
         Format a single question for display.
@@ -122,25 +120,22 @@ class QuestionRenderer:
                 patient_name,
                 context={
                     "question_id": formatted_question.get("id"),
-                    "question_type": formatted_question.get("type")
-                }
+                    "question_type": formatted_question.get("type"),
+                },
             )
 
         # Format options if present
-        if "options" in formatted_question and isinstance(formatted_question["options"], list):
+        if "options" in formatted_question and isinstance(
+            formatted_question["options"], list
+        ):
             formatted_question["options"] = self._format_options(
-                formatted_question["options"],
-                patient_name,
-                humanize
+                formatted_question["options"], patient_name, humanize
             )
 
         return formatted_question
 
     def _format_options(
-        self,
-        options: List[Any],
-        patient_name: str,
-        humanize: bool = False
+        self, options: List[Any], patient_name: str, humanize: bool = False
     ) -> List[Any]:
         """
         Format question options for display.
@@ -164,7 +159,7 @@ class QuestionRenderer:
                     formatted_option["label"] = self.humanize_question_text(
                         formatted_option["label"],
                         patient_name,
-                        context={"type": "option"}
+                        context={"type": "option"},
                     )
 
                 formatted_options.append(formatted_option)
@@ -177,7 +172,7 @@ class QuestionRenderer:
         self,
         template: QuizTemplate,
         current_question_index: int,
-        patient_data: Optional[Dict[str, Any]] = None
+        patient_data: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Build context for question rendering.
@@ -191,18 +186,26 @@ class QuestionRenderer:
             Context dictionary for rendering
         """
         total_questions = len(template.questions)
-        current_question = template.questions[current_question_index] if current_question_index < total_questions else None
+        current_question = (
+            template.questions[current_question_index]
+            if current_question_index < total_questions
+            else None
+        )
 
         context = {
             "template_name": template.name,
             "template_version": template.version,
             "current_question_index": current_question_index,
             "total_questions": total_questions,
-            "progress_percentage": round((current_question_index / total_questions) * 100, 2) if total_questions > 0 else 0,
+            "progress_percentage": round(
+                (current_question_index / total_questions) * 100, 2
+            )
+            if total_questions > 0
+            else 0,
             "current_question": current_question,
             "is_first_question": current_question_index == 0,
             "is_last_question": current_question_index == total_questions - 1,
-            "questions_remaining": total_questions - current_question_index
+            "questions_remaining": total_questions - current_question_index,
         }
 
         # Add patient data if provided
@@ -212,10 +215,7 @@ class QuestionRenderer:
         return context
 
     def format_questions_batch(
-        self,
-        questions: List[Dict[str, Any]],
-        patient_name: str,
-        humanize: bool = False
+        self, questions: List[Dict[str, Any]], patient_name: str, humanize: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Format multiple questions for display.
@@ -233,10 +233,7 @@ class QuestionRenderer:
             for question in questions
         ]
 
-    def get_question_summary(
-        self,
-        template: QuizTemplate
-    ) -> Dict[str, Any]:
+    def get_question_summary(self, template: QuizTemplate) -> Dict[str, Any]:
         """
         Generate summary information about quiz questions.
 
@@ -259,5 +256,6 @@ class QuestionRenderer:
             "question_types": question_types,
             "template_name": template.name,
             "template_version": template.version,
-            "estimated_time_minutes": total_questions * 2  # Estimate 2 minutes per question
+            "estimated_time_minutes": total_questions
+            * 2,  # Estimate 2 minutes per question
         }

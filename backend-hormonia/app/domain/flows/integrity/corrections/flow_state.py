@@ -1,6 +1,7 @@
 """
 Flow state corrections.
 """
+
 import logging
 from datetime import datetime
 from uuid import UUID
@@ -26,7 +27,9 @@ class FlowStateCorrector:
         self.patient_repo = PatientRepository(db)
         self.backup_manager = BackupManager()
 
-    async def fix_invalid_flow_type(self, issue_id: str, create_backup: bool) -> CorrectionResult:
+    async def fix_invalid_flow_type(
+        self, issue_id: str, create_backup: bool
+    ) -> CorrectionResult:
         """Fix invalid flow type issue."""
         try:
             flow_state_id = UUID(issue_id.split("_")[-1])
@@ -39,7 +42,7 @@ class FlowStateCorrector:
                     records_affected=0,
                     backup_created=False,
                     correction_details={},
-                    error_message="Flow state not found"
+                    error_message="Flow state not found",
                 )
 
             backup_data = None
@@ -51,7 +54,9 @@ class FlowStateCorrector:
             # Determine correct flow type based on patient enrollment
             patient = self.patient_repo.get(flow_state.patient_id)
             if patient and patient.enrollment_date:
-                days_since_enrollment = (datetime.utcnow() - patient.enrollment_date).days
+                days_since_enrollment = (
+                    datetime.utcnow() - patient.enrollment_date
+                ).days
 
                 if days_since_enrollment <= 15:
                     new_flow_type = FlowType.INITIAL_15_DAYS.value
@@ -76,15 +81,17 @@ class FlowStateCorrector:
                 backup_created=create_backup,
                 correction_details={
                     "new_flow_type": new_flow_type,
-                    "backup_data": backup_data
-                }
+                    "backup_data": backup_data,
+                },
             )
 
-        except Exception as e:
+        except Exception:
             self.db.rollback()
             raise
 
-    async def fix_invalid_step(self, issue_id: str, create_backup: bool) -> CorrectionResult:
+    async def fix_invalid_step(
+        self, issue_id: str, create_backup: bool
+    ) -> CorrectionResult:
         """Fix invalid step issue."""
         try:
             flow_state_id = UUID(issue_id.split("_")[-1])
@@ -97,7 +104,7 @@ class FlowStateCorrector:
                     records_affected=0,
                     backup_created=False,
                     correction_details={},
-                    error_message="Flow state not found"
+                    error_message="Flow state not found",
                 )
 
             backup_data = None
@@ -118,17 +125,16 @@ class FlowStateCorrector:
                 success=True,
                 records_affected=1,
                 backup_created=create_backup,
-                correction_details={
-                    "new_step": 1,
-                    "backup_data": backup_data
-                }
+                correction_details={"new_step": 1, "backup_data": backup_data},
             )
 
-        except Exception as e:
+        except Exception:
             self.db.rollback()
             raise
 
-    async def fix_corrupted_json(self, issue_id: str, create_backup: bool) -> CorrectionResult:
+    async def fix_corrupted_json(
+        self, issue_id: str, create_backup: bool
+    ) -> CorrectionResult:
         """Fix corrupted flow state JSON."""
         try:
             flow_state_id = UUID(issue_id.split("_")[-1])
@@ -141,14 +147,14 @@ class FlowStateCorrector:
                     records_affected=0,
                     backup_created=False,
                     correction_details={},
-                    error_message="Flow state not found"
+                    error_message="Flow state not found",
                 )
 
             backup_data = None
             if create_backup:
                 backup_data = {
                     "original_state_data": str(flow_state.state_data),
-                    "backup_timestamp": datetime.utcnow().isoformat()
+                    "backup_timestamp": datetime.utcnow().isoformat(),
                 }
 
             # Reset to empty dict with marker
@@ -165,21 +171,24 @@ class FlowStateCorrector:
                 backup_created=create_backup,
                 correction_details={
                     "action": "reset_state_data",
-                    "backup_data": backup_data
-                }
+                    "backup_data": backup_data,
+                },
             )
 
-        except Exception as e:
+        except Exception:
             self.db.rollback()
             raise
 
-    async def fix_duplicate_active_flows(self, issue_id: str, create_backup: bool) -> CorrectionResult:
+    async def fix_duplicate_active_flows(
+        self, issue_id: str, create_backup: bool
+    ) -> CorrectionResult:
         """Fix duplicate active flows."""
         try:
             patient_id = UUID(issue_id.split("_")[-1])
 
             active_flows = [
-                f for f in self.flow_repo.get_by_patient_id(patient_id)
+                f
+                for f in self.flow_repo.get_by_patient_id(patient_id)
                 if not f.completed_at
             ]
 
@@ -189,7 +198,7 @@ class FlowStateCorrector:
                     success=True,
                     records_affected=0,
                     backup_created=False,
-                    correction_details={"message": "No duplicate flows found"}
+                    correction_details={"message": "No duplicate flows found"},
                 )
 
             # Keep most recent, complete others
@@ -221,21 +230,25 @@ class FlowStateCorrector:
                 correction_details={
                     "kept_flow_id": str(keep_flow.id),
                     "completed_flow_ids": [str(f.id) for f in complete_flows],
-                    "backup_data": backup_data
-                }
+                    "backup_data": backup_data,
+                },
             )
 
-        except Exception as e:
+        except Exception:
             self.db.rollback()
             raise
 
-    async def fix_orphaned_flow_message(self, issue_id: str, create_backup: bool) -> CorrectionResult:
+    async def fix_orphaned_flow_message(
+        self, issue_id: str, create_backup: bool
+    ) -> CorrectionResult:
         """Fix orphaned flow message."""
         try:
             flow_message_id = UUID(issue_id.split("_")[-1])
-            flow_message = self.db.query(FlowMessage).filter(
-                FlowMessage.id == flow_message_id
-            ).first()
+            flow_message = (
+                self.db.query(FlowMessage)
+                .filter(FlowMessage.id == flow_message_id)
+                .first()
+            )
 
             if not flow_message:
                 return CorrectionResult(
@@ -244,12 +257,14 @@ class FlowStateCorrector:
                     records_affected=0,
                     backup_created=False,
                     correction_details={},
-                    error_message="Flow message not found"
+                    error_message="Flow message not found",
                 )
 
             backup_data = None
             if create_backup:
-                backup_data = self.backup_manager.create_flow_message_backup(flow_message)
+                backup_data = self.backup_manager.create_flow_message_backup(
+                    flow_message
+                )
 
             # Delete orphaned message
             self.db.delete(flow_message)
@@ -262,10 +277,10 @@ class FlowStateCorrector:
                 backup_created=create_backup,
                 correction_details={
                     "action": "deleted_orphaned_message",
-                    "backup_data": backup_data
-                }
+                    "backup_data": backup_data,
+                },
             )
 
-        except Exception as e:
+        except Exception:
             self.db.rollback()
             raise

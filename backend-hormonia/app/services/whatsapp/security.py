@@ -1,6 +1,7 @@
 """
 Security module for WhatsApp webhook validation.
 """
+
 import hmac
 import hashlib
 import logging
@@ -10,17 +11,18 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+
 class WhatsAppSecurity:
     """
     Handles security and validation for WhatsApp webhooks.
     """
-    
+
     @staticmethod
     def validate_webhook_signature(
         webhook_data: Dict[str, Any],
         signature_header: Optional[str] = None,
         timestamp_header: Optional[str] = None,
-        raw_payload: Optional[bytes] = None
+        raw_payload: Optional[bytes] = None,
     ) -> bool:
         """
         Validate webhook signature for security using HMAC-SHA256.
@@ -40,7 +42,7 @@ class WhatsAppSecurity:
             - Constant-time comparison (prevents timing attacks)
         """
         # If no secret configured, skip validation (development mode)
-        webhook_secret = getattr(settings, 'EVOLUTION_WEBHOOK_SECRET', None)
+        webhook_secret = getattr(settings, "EVOLUTION_WEBHOOK_SECRET", None)
         if not webhook_secret:
             logger.warning(
                 "SECURITY WARNING: EVOLUTION_WEBHOOK_SECRET not configured. "
@@ -81,7 +83,9 @@ class WhatsAppSecurity:
                     logger.debug(f"Webhook timestamp validated (age: {time_diff}s)")
 
                 except (ValueError, TypeError):
-                    logger.error(f"SECURITY: Invalid webhook timestamp: {timestamp_header}")
+                    logger.error(
+                        f"SECURITY: Invalid webhook timestamp: {timestamp_header}"
+                    )
                     return False
 
             # Prepare payload for signature computation
@@ -91,19 +95,20 @@ class WhatsAppSecurity:
             else:
                 # Fallback to JSON encoding of webhook_data
                 import json
-                payload_bytes = json.dumps(webhook_data, sort_keys=True).encode('utf-8')
+
+                payload_bytes = json.dumps(webhook_data, sort_keys=True).encode("utf-8")
 
             # Compute expected signature with timestamp if available
             if timestamp_header:
-                signature_payload = f"{timestamp_header}.{payload_bytes.decode('utf-8')}"
-                signature_bytes = signature_payload.encode('utf-8')
+                signature_payload = (
+                    f"{timestamp_header}.{payload_bytes.decode('utf-8')}"
+                )
+                signature_bytes = signature_payload.encode("utf-8")
             else:
                 signature_bytes = payload_bytes
 
             expected_signature = hmac.new(
-                webhook_secret.encode('utf-8'),
-                signature_bytes,
-                hashlib.sha256
+                webhook_secret.encode("utf-8"), signature_bytes, hashlib.sha256
             ).hexdigest()
 
             # Constant-time comparison (timing attack prevention)
@@ -116,8 +121,8 @@ class WhatsAppSecurity:
                         "expected_prefix": expected_signature[:16],
                         "received_prefix": signature[:16],
                         "timestamp": timestamp_header,
-                        "payload_size": len(payload_bytes)
-                    }
+                        "payload_size": len(payload_bytes),
+                    },
                 )
             else:
                 logger.debug("Webhook signature validated successfully")
@@ -127,7 +132,7 @@ class WhatsAppSecurity:
         except Exception as e:
             logger.error(
                 f"SECURITY: Exception during webhook signature validation: {e}",
-                exc_info=True
+                exc_info=True,
             )
             # Fail secure: reject webhook on validation errors
             return False

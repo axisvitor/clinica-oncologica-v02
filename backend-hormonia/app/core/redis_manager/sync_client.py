@@ -7,7 +7,7 @@ Provides sync Redis client functions and compatibility wrappers.
 import logging
 import asyncio
 import concurrent.futures
-from typing import Optional, Any, Union
+from typing import Optional, Any
 import redis as redis_sync
 from redis.exceptions import TimeoutError
 
@@ -22,6 +22,7 @@ def get_sync_redis_client() -> redis_sync.Redis:
         Sync Redis client
     """
     from .utils import get_redis_manager
+
     manager = get_redis_manager()
     return manager.get_sync_client()
 
@@ -37,6 +38,7 @@ def get_compatible_redis_client(preferred_type: str = "auto"):
         Compatible Redis client
     """
     from .utils import get_redis_manager
+
     manager = get_redis_manager()
     return manager.get_compatible_client(preferred_type)
 
@@ -57,7 +59,7 @@ class AsyncToSyncWrapper:
         """Run async coroutine in sync context."""
         try:
             # Try to get current loop
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
 
             # We're in async context, run in thread to avoid blocking
             future = self._executor.submit(self._run_in_new_loop, coro)
@@ -86,6 +88,7 @@ class AsyncToSyncWrapper:
 
     def get(self, key: str) -> Optional[str]:
         """Sync wrapper for get operation."""
+
         async def _get():
             client = await self.redis_manager.get_async_client()
             return await client.get(key)
@@ -98,6 +101,7 @@ class AsyncToSyncWrapper:
 
     def set(self, key: str, value: Any, ex: Optional[int] = None, **kwargs) -> bool:
         """Sync wrapper for set operation."""
+
         async def _set():
             client = await self.redis_manager.get_async_client()
             return await client.set(key, value, ex=ex, **kwargs)
@@ -110,6 +114,7 @@ class AsyncToSyncWrapper:
 
     def setex(self, key: str, seconds: int, value: Any) -> bool:
         """Sync wrapper for setex operation."""
+
         async def _setex():
             client = await self.redis_manager.get_async_client()
             return await client.setex(key, seconds, value)
@@ -122,6 +127,7 @@ class AsyncToSyncWrapper:
 
     def delete(self, *keys: str) -> int:
         """Sync wrapper for delete operation."""
+
         async def _delete():
             client = await self.redis_manager.get_async_client()
             return await client.delete(*keys)
@@ -134,6 +140,7 @@ class AsyncToSyncWrapper:
 
     def exists(self, *keys: str) -> int:
         """Sync wrapper for exists operation."""
+
         async def _exists():
             client = await self.redis_manager.get_async_client()
             return await client.exists(*keys)
@@ -146,6 +153,7 @@ class AsyncToSyncWrapper:
 
     def expire(self, key: str, seconds: int) -> bool:
         """Sync wrapper for expire operation."""
+
         async def _expire():
             client = await self.redis_manager.get_async_client()
             return await client.expire(key, seconds)
@@ -158,6 +166,7 @@ class AsyncToSyncWrapper:
 
     def rpush(self, key: str, *values) -> int:
         """Sync wrapper for rpush operation."""
+
         async def _rpush():
             client = await self.redis_manager.get_async_client()
             return await client.rpush(key, *values)
@@ -170,6 +179,7 @@ class AsyncToSyncWrapper:
 
     def lpop(self, key: str) -> Optional[str]:
         """Sync wrapper for lpop operation."""
+
         async def _lpop():
             client = await self.redis_manager.get_async_client()
             return await client.lpop(key)
@@ -182,6 +192,7 @@ class AsyncToSyncWrapper:
 
     def ping(self) -> bool:
         """Sync wrapper for ping operation."""
+
         async def _ping():
             client = await self.redis_manager.get_async_client()
             return await client.ping()
@@ -195,6 +206,7 @@ class AsyncToSyncWrapper:
 
     def scan_iter(self, match: Optional[str] = None, count: Optional[int] = None):
         """Sync wrapper for scan_iter operation."""
+
         async def _scan_iter():
             client = await self.redis_manager.get_async_client()
             results = []
@@ -210,6 +222,7 @@ class AsyncToSyncWrapper:
 
     def ttl(self, key: str) -> int:
         """Sync wrapper for ttl operation."""
+
         async def _ttl():
             client = await self.redis_manager.get_async_client()
             return await client.ttl(key)

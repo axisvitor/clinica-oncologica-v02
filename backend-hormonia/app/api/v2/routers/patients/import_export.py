@@ -17,14 +17,27 @@ import csv
 import io
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, UploadFile, File, BackgroundTasks
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+    Query,
+    Request,
+    UploadFile,
+    File,
+    BackgroundTasks,
+)
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.patient import Patient, FlowState
 from app.models.user import UserRole
-from app.dependencies.auth_dependencies import get_current_user_from_session, get_redis_cache
+from app.dependencies.auth_dependencies import (
+    get_current_user_from_session,
+    get_redis_cache,
+)
 from app.utils.rate_limiter import limiter
 
 from .base import (
@@ -50,12 +63,22 @@ logger = logging.getLogger(__name__)
 async def export_patients(
     request: Request,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
-    redis_cache = Depends(get_redis_cache),
-    status_filter: Optional[str] = Query(None, alias="status", description="Filter by patient status/flow state"),
-    doctor_id: Optional[str] = Query(None, description="Filter by doctor ID (ADMIN only)"),
-    start_date_from: Optional[date] = Query(None, description="Filter patients with treatment_start_date on or after this date"),
-    start_date_to: Optional[date] = Query(None, description="Filter patients with treatment_start_date on or before this date"),
+    current_user=Depends(get_current_user_from_session),
+    redis_cache=Depends(get_redis_cache),
+    status_filter: Optional[str] = Query(
+        None, alias="status", description="Filter by patient status/flow state"
+    ),
+    doctor_id: Optional[str] = Query(
+        None, description="Filter by doctor ID (ADMIN only)"
+    ),
+    start_date_from: Optional[date] = Query(
+        None,
+        description="Filter patients with treatment_start_date on or after this date",
+    ),
+    start_date_to: Optional[date] = Query(
+        None,
+        description="Filter patients with treatment_start_date on or before this date",
+    ),
 ):
     """
     Export patients to CSV file with optional filters.
@@ -95,7 +118,7 @@ async def export_patients(
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid doctor ID format"
+                detail="Invalid doctor ID format",
             )
 
     # Apply status filter
@@ -115,7 +138,7 @@ async def export_patients(
 
     # Check if export is cached
     cache_key = f"patient_export:{user_id}:{status_filter}:{doctor_id}:{start_date_from}:{start_date_to}"
-    cached_data = await redis_cache.get(cache_key)
+    await redis_cache.get(cache_key)
 
     # Fetch all patients
     patients = query.all()
@@ -123,7 +146,7 @@ async def export_patients(
     if not patients:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No patients found matching the criteria"
+            detail="No patients found matching the criteria",
         )
 
     # Create CSV in memory using streaming
@@ -132,10 +155,22 @@ async def export_patients(
 
     # Write CSV headers
     headers = [
-        "ID", "Name", "Email", "Phone", "Birth Date", "CPF",
-        "Doctor ID", "Treatment Type", "Treatment Start Date",
-        "Diagnosis", "Treatment Phase", "Flow State", "Current Day",
-        "Doctor Notes", "Created At", "Updated At"
+        "ID",
+        "Name",
+        "Email",
+        "Phone",
+        "Birth Date",
+        "CPF",
+        "Doctor ID",
+        "Treatment Type",
+        "Treatment Start Date",
+        "Diagnosis",
+        "Treatment Phase",
+        "Flow State",
+        "Current Day",
+        "Doctor Notes",
+        "Created At",
+        "Updated At",
     ]
     writer.writerow(headers)
 
@@ -150,10 +185,14 @@ async def export_patients(
             patient.cpf or "",
             str(patient.doctor_id) if patient.doctor_id else "",
             patient.treatment_type or "",
-            patient.treatment_start_date.isoformat() if patient.treatment_start_date else "",
+            patient.treatment_start_date.isoformat()
+            if patient.treatment_start_date
+            else "",
             patient.diagnosis or "",
             patient.treatment_phase or "",
-            patient.flow_state.value if isinstance(patient.flow_state, FlowState) else patient.flow_state,
+            patient.flow_state.value
+            if isinstance(patient.flow_state, FlowState)
+            else patient.flow_state,
             patient.current_day or 0,
             patient.doctor_notes or "",
             patient.created_at.isoformat() if patient.created_at else "",
@@ -170,7 +209,7 @@ async def export_patients(
 
     # Return streaming response
     def iter_csv():
-        yield csv_content.encode('utf-8')
+        yield csv_content.encode("utf-8")
 
     filename = f"patients_export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
     return StreamingResponse(
@@ -179,7 +218,7 @@ async def export_patients(
         headers={
             "Content-Disposition": f"attachment; filename={filename}",
             "Cache-Control": "no-cache",
-        }
+        },
     )
 
 
@@ -195,7 +234,7 @@ async def import_patients(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(..., description="CSV file with patient data"),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
 ):
     """
     Import patients from CSV file with validation.
@@ -225,20 +264,20 @@ async def import_patients(
         )
 
     # Validate file type
-    if not file.filename.endswith('.csv'):
+    if not file.filename.endswith(".csv"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only CSV files are accepted"
+            detail="Only CSV files are accepted",
         )
 
     # Read CSV content
     try:
         contents = await file.read()
-        csv_content = contents.decode('utf-8')
+        csv_content = contents.decode("utf-8")
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to read CSV file: {str(e)}"
+            detail=f"Failed to read CSV file: {str(e)}",
         )
 
     # Parse CSV
@@ -246,16 +285,12 @@ async def import_patients(
     reader = csv.DictReader(csv_file)
 
     # Validate CSV headers
-    required_headers = {'Name', 'Phone'}
-    optional_headers = {
-        'Email', 'Birth Date', 'CPF', 'Treatment Type',
-        'Treatment Start Date', 'Diagnosis', 'Treatment Phase', 'Doctor Notes'
-    }
+    required_headers = {"Name", "Phone"}
 
     if not reader.fieldnames:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="CSV file is empty or has no headers"
+            detail="CSV file is empty or has no headers",
         )
 
     csv_headers = set(reader.fieldnames)
@@ -263,7 +298,7 @@ async def import_patients(
     if missing_headers:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Missing required headers: {', '.join(missing_headers)}"
+            detail=f"Missing required headers: {', '.join(missing_headers)}",
         )
 
     # Track results
@@ -278,8 +313,8 @@ async def import_patients(
 
         try:
             # Validate required fields
-            name = row.get('Name', '').strip()
-            phone = row.get('Phone', '').strip()
+            name = row.get("Name", "").strip()
+            phone = row.get("Phone", "").strip()
 
             if not name:
                 errors.append(ImportError(row=row_number, message="Name is required"))
@@ -294,84 +329,131 @@ async def import_patients(
             # Normalize phone
             normalized_phone = normalize_phone(phone)
             if not normalized_phone:
-                errors.append(ImportError(row=row_number, message="Invalid phone format"))
+                errors.append(
+                    ImportError(row=row_number, message="Invalid phone format")
+                )
                 failed_count += 1
                 continue
 
             # Ensure E.164 format
-            e164_phone = normalized_phone if normalized_phone.startswith('+') else f"+{normalized_phone}"
+            e164_phone = (
+                normalized_phone
+                if normalized_phone.startswith("+")
+                else f"+{normalized_phone}"
+            )
 
             # Check for duplicate phone (LGPD: use hash lookup)
             from app.services.encryption import get_lgpd_encryption_service
+
             phone_service = get_lgpd_encryption_service()
             phone_hash = phone_service.hash_phone(e164_phone)
-            existing_phone = db.query(Patient).filter(
-                Patient.phone_hash == phone_hash,
-                Patient.deleted_at.is_(None)
-            ).first()
+            existing_phone = (
+                db.query(Patient)
+                .filter(Patient.phone_hash == phone_hash, Patient.deleted_at.is_(None))
+                .first()
+            )
             if existing_phone:
-                errors.append(ImportError(row=row_number, message=f"Patient with phone {phone} already exists"))
+                errors.append(
+                    ImportError(
+                        row=row_number,
+                        message=f"Patient with phone {phone} already exists",
+                    )
+                )
                 failed_count += 1
                 continue
 
             # Parse optional fields
-            email = row.get('Email', '').strip() or None
-            cpf = normalize_cpf(row.get('CPF', '').strip()) if row.get('CPF') else None
-            treatment_type = row.get('Treatment Type', '').strip() or None
-            diagnosis = row.get('Diagnosis', '').strip() or None
-            treatment_phase = row.get('Treatment Phase', '').strip() or None
-            doctor_notes = row.get('Doctor Notes', '').strip() or None
+            email = row.get("Email", "").strip() or None
+            cpf = normalize_cpf(row.get("CPF", "").strip()) if row.get("CPF") else None
+            treatment_type = row.get("Treatment Type", "").strip() or None
+            diagnosis = row.get("Diagnosis", "").strip() or None
+            treatment_phase = row.get("Treatment Phase", "").strip() or None
+            doctor_notes = row.get("Doctor Notes", "").strip() or None
 
             # Parse dates
             birth_date = None
-            if row.get('Birth Date'):
+            if row.get("Birth Date"):
                 try:
-                    birth_date = datetime.strptime(row.get('Birth Date').strip(), '%Y-%m-%d').date()
+                    birth_date = datetime.strptime(
+                        row.get("Birth Date").strip(), "%Y-%m-%d"
+                    ).date()
                 except ValueError:
-                    errors.append(ImportError(row=row_number, message="Invalid birth date format (use YYYY-MM-DD)"))
+                    errors.append(
+                        ImportError(
+                            row=row_number,
+                            message="Invalid birth date format (use YYYY-MM-DD)",
+                        )
+                    )
                     failed_count += 1
                     continue
 
             treatment_start_date = None
-            if row.get('Treatment Start Date'):
+            if row.get("Treatment Start Date"):
                 try:
-                    treatment_start_date = datetime.strptime(row.get('Treatment Start Date').strip(), '%Y-%m-%d').date()
+                    treatment_start_date = datetime.strptime(
+                        row.get("Treatment Start Date").strip(), "%Y-%m-%d"
+                    ).date()
                 except ValueError:
-                    errors.append(ImportError(row=row_number, message="Invalid treatment start date format (use YYYY-MM-DD)"))
+                    errors.append(
+                        ImportError(
+                            row=row_number,
+                            message="Invalid treatment start date format (use YYYY-MM-DD)",
+                        )
+                    )
                     failed_count += 1
                     continue
 
             # Validate CPF if provided
             if cpf and len(cpf) != 11:
-                errors.append(ImportError(row=row_number, message=f"CPF must have exactly 11 digits, got {len(cpf)}"))
+                errors.append(
+                    ImportError(
+                        row=row_number,
+                        message=f"CPF must have exactly 11 digits, got {len(cpf)}",
+                    )
+                )
                 failed_count += 1
                 continue
 
             # Check for duplicate CPF (LGPD: use hash lookup)
             if cpf:
                 from app.services.encryption import get_cpf_encryption_service
+
                 cpf_service = get_cpf_encryption_service()
                 cpf_hash = cpf_service.hash_cpf(cpf)
-                existing_cpf = db.query(Patient).filter(
-                    Patient.cpf_hash == cpf_hash,
-                    Patient.deleted_at.is_(None)
-                ).first()
+                existing_cpf = (
+                    db.query(Patient)
+                    .filter(Patient.cpf_hash == cpf_hash, Patient.deleted_at.is_(None))
+                    .first()
+                )
                 if existing_cpf:
-                    errors.append(ImportError(row=row_number, message="Patient with CPF already exists"))
+                    errors.append(
+                        ImportError(
+                            row=row_number, message="Patient with CPF already exists"
+                        )
+                    )
                     failed_count += 1
                     continue
 
             # Check for duplicate email (LGPD: use hash lookup)
             if email:
                 from app.services.encryption import get_lgpd_encryption_service
+
                 lgpd_service = get_lgpd_encryption_service()
                 email_hash = lgpd_service.hash_email(email.lower())
-                existing_email = db.query(Patient).filter(
-                    Patient.email_hash == email_hash,
-                    Patient.deleted_at.is_(None)
-                ).first()
+                existing_email = (
+                    db.query(Patient)
+                    .filter(
+                        Patient.email_hash == email_hash, Patient.deleted_at.is_(None)
+                    )
+                    .first()
+                )
                 if existing_email:
-                    errors.append(ImportError(row=row_number, message=f"Patient with email {email} already exists"))
+                    errors.append(
+                        ImportError(
+                            row=row_number,
+                            message=f"Patient with email {email} already exists",
+                        )
+                    )
                     failed_count += 1
                     continue
 
@@ -404,7 +486,9 @@ async def import_patients(
 
         except Exception as e:
             logger.error(f"Failed to import row {row_number}: {e}")
-            errors.append(ImportError(row=row_number, message=f"Unexpected error: {str(e)}"))
+            errors.append(
+                ImportError(row=row_number, message=f"Unexpected error: {str(e)}")
+            )
             failed_count += 1
             db.rollback()
             continue
@@ -416,12 +500,12 @@ async def import_patients(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to commit imports: {str(e)}"
+            detail=f"Failed to commit imports: {str(e)}",
         )
 
     # Return import results
     return ImportResponse(
         success=success_count,
         failed=failed_count,
-        errors=errors[:100]  # Limit to first 100 errors
+        errors=errors[:100],  # Limit to first 100 errors
     )

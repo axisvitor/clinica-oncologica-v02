@@ -13,7 +13,6 @@ Security:
 from typing import Optional
 from datetime import datetime
 import time
-import logging
 
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 from sqlalchemy import text
@@ -39,13 +38,14 @@ _initialization_state = {
     "status": "pending",
     "components": {},
     "errors": [],
-    "warnings": []
+    "warnings": [],
 }
 
 
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
 
 async def _get_redis_client():
     """Get async Redis client for caching."""
@@ -74,6 +74,7 @@ def _is_admin(current_user) -> bool:
 # System Initialization Endpoints (ADMIN ONLY)
 # ============================================================================
 
+
 @router.post(
     "/initialize",
     response_model=InitializationStatusResponse,
@@ -89,14 +90,14 @@ def _is_admin(current_user) -> bool:
     - Redis cache and connection pools
     - Firebase Admin SDK
     - External service configurations
-    """
+    """,
 )
 @limiter.limit("5/hour")
 async def initialize_system(
     request: Request,
     init_request: Optional[InitializationRequest] = None,
     current_user=Depends(get_current_user_from_session),
-    db = Depends(get_db),
+    db=Depends(get_db),
 ):
     """
     Trigger comprehensive system initialization.
@@ -111,7 +112,7 @@ async def initialize_system(
     if not _is_admin(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin privileges required for system initialization"
+            detail="Admin privileges required for system initialization",
         )
 
     global _initialization_state
@@ -120,7 +121,7 @@ async def initialize_system(
     if _initialization_state["status"] == "in_progress":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="System initialization already in progress"
+            detail="System initialization already in progress",
         )
 
     if init_request is None:
@@ -134,14 +135,18 @@ async def initialize_system(
         "status": "in_progress",
         "components": {},
         "errors": [],
-        "warnings": []
+        "warnings": [],
     }
 
-    logger.info(f"System initialization started by user")
+    logger.info("System initialization started by user")
 
     try:
         # Initialize components
-        components_to_init = init_request.components or ["database", "redis", "firebase"]
+        components_to_init = init_request.components or [
+            "database",
+            "redis",
+            "firebase",
+        ]
 
         for component in components_to_init:
             try:
@@ -166,23 +171,32 @@ async def initialize_system(
                         _initialization_state["components"]["firebase"] = "initialized"
                     else:
                         _initialization_state["components"]["firebase"] = "skipped"
-                        _initialization_state["warnings"].append("Firebase not configured")
+                        _initialization_state["warnings"].append(
+                            "Firebase not configured"
+                        )
 
             except Exception as e:
                 logger.error(f"Failed to initialize {component}: {e}")
                 _initialization_state["components"][component] = "failed"
-                _initialization_state["errors"].append({
-                    "component": component,
-                    "error_message": str(e),
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "recoverable": True
-                })
+                _initialization_state["errors"].append(
+                    {
+                        "component": component,
+                        "error_message": str(e),
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "recoverable": True,
+                    }
+                )
 
         # Determine final status
         if _initialization_state["errors"]:
-            _initialization_state["status"] = "partial" if any(
-                c == "initialized" for c in _initialization_state["components"].values()
-            ) else "failed"
+            _initialization_state["status"] = (
+                "partial"
+                if any(
+                    c == "initialized"
+                    for c in _initialization_state["components"].values()
+                )
+                else "failed"
+            )
         else:
             _initialization_state["status"] = "completed"
 
@@ -190,7 +204,9 @@ async def initialize_system(
         duration_ms = (time.time() - start_time) * 1000
         _initialization_state["duration_ms"] = duration_ms
 
-        logger.info(f"System initialization completed with status: {_initialization_state['status']}")
+        logger.info(
+            f"System initialization completed with status: {_initialization_state['status']}"
+        )
 
         return InitializationStatusResponse(**_initialization_state)
 
@@ -198,16 +214,18 @@ async def initialize_system(
         logger.error(f"System initialization failed: {e}", exc_info=True)
         _initialization_state["status"] = "failed"
         _initialization_state["completed_at"] = datetime.utcnow()
-        _initialization_state["errors"].append({
-            "component": "system",
-            "error_message": str(e),
-            "timestamp": datetime.utcnow().isoformat(),
-            "recoverable": False
-        })
+        _initialization_state["errors"].append(
+            {
+                "component": "system",
+                "error_message": str(e),
+                "timestamp": datetime.utcnow().isoformat(),
+                "recoverable": False,
+            }
+        )
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"System initialization failed: {str(e)}"
+            detail=f"System initialization failed: {str(e)}",
         )
 
 
@@ -220,7 +238,7 @@ async def initialize_system(
 
     **Authentication:** Admin role required
     **Rate limit:** 30 requests/minute
-    """
+    """,
 )
 @limiter.limit("30/minute")
 async def get_initialization_status(
@@ -232,7 +250,7 @@ async def get_initialization_status(
     if not _is_admin(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin privileges required to view initialization status"
+            detail="Admin privileges required to view initialization status",
         )
 
     return InitializationStatusResponse(**_initialization_state)

@@ -2,14 +2,12 @@
 Secure configuration management for production environment.
 Implements secret management, encryption, and secure defaults.
 """
+
 import os
 import json
-import base64
 from typing import Any, Dict, Optional
 from pathlib import Path
 from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import logging
 
 logger = logging.getLogger(__name__)
@@ -65,21 +63,21 @@ class SecureConfigManager:
         self._secrets = {
             "database": {
                 "password": os.getenv("DB_PASSWORD", ""),
-                "service_role_key": os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+                "service_role_key": os.getenv("SUPABASE_SERVICE_ROLE_KEY", ""),
             },
             "redis": {
                 "password": os.getenv("REDIS_PASSWORD", ""),
-                "acl_password": self._generate_secure_password()
+                "acl_password": self._generate_secure_password(),
             },
             "api_keys": {
                 "gemini": os.getenv("GEMINI_API_KEY", ""),
                 "evolution": os.getenv("EVOLUTION_API_KEY", ""),
-                "monthly_quiz_token": os.getenv("MONTHLY_QUIZ_TOKEN_SECRET", "")
+                "monthly_quiz_token": os.getenv("MONTHLY_QUIZ_TOKEN_SECRET", ""),
             },
             "encryption": {
                 "field_encryption_key": self._generate_secure_password(),
-                "jwt_secret": os.getenv("SECRET_KEY", "")
-            }
+                "jwt_secret": os.getenv("SECRET_KEY", ""),
+            },
         }
         self._save_secrets()
 
@@ -100,8 +98,9 @@ class SecureConfigManager:
         """Generate a secure random password."""
         import secrets
         import string
+
         alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-        return ''.join(secrets.choice(alphabet) for _ in range(length))
+        return "".join(secrets.choice(alphabet) for _ in range(length))
 
     def get_secret(self, category: str, key: str, default: Any = None) -> Any:
         """Get a secret value."""
@@ -128,10 +127,11 @@ class SecureConfigManager:
             "max_connections": int(os.getenv("REDIS_MAX_CONNECTIONS", 25)),
             "socket_timeout": float(os.getenv("REDIS_SOCKET_TIMEOUT", 10.0)),
             "socket_connect_timeout": float(os.getenv("REDIS_SOCKET_TIMEOUT", 10.0)),
-            "retry_on_timeout": os.getenv("REDIS_RETRY_ON_TIMEOUT", "true").lower() == "true",
+            "retry_on_timeout": os.getenv("REDIS_RETRY_ON_TIMEOUT", "true").lower()
+            == "true",
             "max_retries": int(os.getenv("REDIS_MAX_RETRIES", 3)),
             "health_check_interval": 30,
-            "decode_responses": True
+            "decode_responses": True,
         }
 
     def get_database_config(self) -> Dict[str, Any]:
@@ -147,13 +147,13 @@ class SecureConfigManager:
             "connect_args": {
                 "server_settings": {
                     "application_name": "clinica_oncologica",
-                    "jit": "on"
+                    "jit": "on",
                 },
                 "keepalives": 1,
                 "keepalives_idle": 30,
                 "keepalives_interval": 10,
-                "keepalives_count": 5
-            }
+                "keepalives_count": 5,
+            },
         }
 
     def get_security_headers(self, nonce: str = None) -> Dict[str, str]:
@@ -172,7 +172,7 @@ class SecureConfigManager:
             "X-XSS-Protection": "1; mode=block",
             "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
             "Referrer-Policy": "strict-origin-when-cross-origin",
-            "Permissions-Policy": "geolocation=(), microphone=(), camera=()"
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
         }
 
         # CSP Level 3 with nonce support (eliminates unsafe-inline/unsafe-eval)
@@ -215,17 +215,10 @@ class SecureConfigManager:
                 "per_minute": 10,
                 "per_hour": 50,
                 "per_day": 200,
-                "burst_limit": 5
+                "burst_limit": 5,
             },
-            "webhook": {
-                "per_minute": 100,
-                "burst_limit": 20
-            },
-            "public_api": {
-                "per_minute": 30,
-                "per_hour": 500,
-                "burst_limit": 10
-            }
+            "webhook": {"per_minute": 100, "burst_limit": 20},
+            "public_api": {"per_minute": 30, "per_hour": 500, "burst_limit": 10},
         }
 
     def validate_environment(self) -> Dict[str, bool]:
@@ -236,7 +229,7 @@ class SecureConfigManager:
             "SECRET_KEY",
             "FIREBASE_ADMIN_PROJECT_ID",
             "FIREBASE_ADMIN_CLIENT_EMAIL",
-            "FIREBASE_ADMIN_PRIVATE_KEY"
+            "FIREBASE_ADMIN_PRIVATE_KEY",
         ]
 
         validation_results = {}
@@ -246,15 +239,20 @@ class SecureConfigManager:
         # Check security settings
         auto_provision_flag = os.getenv(
             "AUTO_PROVISION_IDENTITY_USERS",
-            os.getenv("AUTO_PROVISION_SUPABASE_USERS", "true")
+            os.getenv("AUTO_PROVISION_SUPABASE_USERS", "true"),
         )
 
         security_checks = {
             "REDIS_SSL": os.getenv("REDIS_SSL", "false").lower() == "true",
             "AUTO_PROVISION_IDENTITY_USERS": auto_provision_flag.lower() == "false",
-            "ENABLE_AUDIT_LOGGING": os.getenv("ENABLE_AUDIT_LOGGING", "false").lower() == "true",
-            "ENABLE_EVOLUTION": os.getenv("ENABLE_EVOLUTION", "false").lower() == "true",
-            "FORCE_HTTPS_QUIZ_LINKS": os.getenv("FORCE_HTTPS_QUIZ_LINKS", "false").lower() == "true"
+            "ENABLE_AUDIT_LOGGING": os.getenv("ENABLE_AUDIT_LOGGING", "false").lower()
+            == "true",
+            "ENABLE_EVOLUTION": os.getenv("ENABLE_EVOLUTION", "false").lower()
+            == "true",
+            "FORCE_HTTPS_QUIZ_LINKS": os.getenv(
+                "FORCE_HTTPS_QUIZ_LINKS", "false"
+            ).lower()
+            == "true",
         }
 
         validation_results.update(security_checks)

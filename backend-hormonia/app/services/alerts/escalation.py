@@ -7,9 +7,12 @@ and target resolution.
 
 import asyncio
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
 from uuid import UUID
 from datetime import datetime
+
+if TYPE_CHECKING:
+    from .notification_dispatcher import NotificationDispatcher
 
 from .types import (
     Alert,
@@ -76,8 +79,8 @@ class AlertEscalation:
             extra={
                 "severity": alert.severity.value,
                 "current_level": alert.escalation_level,
-                "max_level": self.config.max_escalation_level
-            }
+                "max_level": self.config.max_escalation_level,
+            },
         )
 
         # Check if max escalation level reached
@@ -90,19 +93,23 @@ class AlertEscalation:
         # Get escalation delay from config or rule config
         escalation_delay_seconds = self.config.metadata.get(
             "escalation_delay_seconds",
-            3600  # Default: 1 hour
+            3600,  # Default: 1 hour
         )
 
         # For critical/fatal alerts, use shorter escalation time
         if alert.severity == AlertSeverity.FATAL:
-            escalation_delay_seconds = min(escalation_delay_seconds, 900)  # 15 minutes max
+            escalation_delay_seconds = min(
+                escalation_delay_seconds, 900
+            )  # 15 minutes max
         elif alert.severity == AlertSeverity.CRITICAL:
-            escalation_delay_seconds = min(escalation_delay_seconds, 1800)  # 30 minutes max
+            escalation_delay_seconds = min(
+                escalation_delay_seconds, 1800
+            )  # 30 minutes max
 
         # Schedule the escalation as a background task
         asyncio.create_task(
             self._execute_escalation(alert.id, escalation_delay_seconds, alert_cache),
-            name=f"escalation_{alert.id}"
+            name=f"escalation_{alert.id}",
         )
 
         logger.info(
@@ -132,7 +139,11 @@ class AlertEscalation:
             alert = alert_cache[alert_id]
 
             # Check if alert was acknowledged or resolved
-            if alert.status in [AlertStatus.ACKNOWLEDGED, AlertStatus.RESOLVED, AlertStatus.EXPIRED]:
+            if alert.status in [
+                AlertStatus.ACKNOWLEDGED,
+                AlertStatus.RESOLVED,
+                AlertStatus.EXPIRED,
+            ]:
                 logger.info(
                     f"Alert {alert_id} already {alert.status.value}, skipping escalation"
                 )
@@ -148,8 +159,8 @@ class AlertEscalation:
                 extra={
                     "alert_id": str(alert_id),
                     "severity": alert.severity.value,
-                    "level": alert.escalation_level
-                }
+                    "level": alert.escalation_level,
+                },
             )
 
             # Get escalation targets (higher level gets more targets)
@@ -181,8 +192,7 @@ class AlertEscalation:
 
         except Exception as e:
             logger.error(
-                f"Error executing escalation for alert {alert_id}: {e}",
-                exc_info=True
+                f"Error executing escalation for alert {alert_id}: {e}", exc_info=True
             )
 
     async def get_escalation_targets(self, alert: Alert) -> List[NotificationTarget]:
@@ -231,7 +241,7 @@ class AlertEscalation:
                             "alert_id": str(alert.id),
                             "escalation_level": alert.escalation_level,
                             "is_escalation": True,
-                        }
+                        },
                     )
                 )
             except (ValueError, TypeError) as e:

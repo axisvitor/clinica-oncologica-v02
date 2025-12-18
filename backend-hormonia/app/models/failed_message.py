@@ -2,6 +2,7 @@
 FailedMessage model for Dead Letter Queue (DLQ).
 Stores messages that failed delivery after max retry attempts.
 """
+
 from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
@@ -13,6 +14,7 @@ from app.models.base import BaseModel
 
 class FailureReason(str, Enum):
     """Reasons why a message failed delivery."""
+
     NETWORK_ERROR = "network_error"
     TIMEOUT = "timeout"
     INVALID_PHONE = "invalid_phone"
@@ -25,6 +27,7 @@ class FailureReason(str, Enum):
 
 class DLQStatus(str, Enum):
     """Status of items in the Dead Letter Queue."""
+
     PENDING_REVIEW = "pending_review"
     UNDER_REVIEW = "under_review"
     RESOLVED = "resolved"
@@ -36,10 +39,16 @@ class FailedMessage(BaseModel):
     Failed message storage for Dead Letter Queue (DLQ).
     Corresponds to the 'whatsapp_delivery_failures' table.
     """
+
     __tablename__ = "whatsapp_delivery_failures"
 
     # Fields from the SQL schema
-    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
+    patient_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("patients.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     phone_number = Column(String(20), nullable=False)
     message_type = Column(String(50), nullable=False)
     message_content = Column(Text, nullable=True)
@@ -49,11 +58,18 @@ class FailedMessage(BaseModel):
     max_retries = Column(Integer, nullable=False, default=3)
     next_retry_at = Column(DateTime, nullable=True)
     last_retry_at = Column(DateTime, nullable=True)
-    status = Column(String(20), nullable=False, default='pending')
+    status = Column(String(20), nullable=False, default="pending")
     resolved_at = Column(DateTime, nullable=True)
     dlq_metadata = Column(JSONB, nullable=True, default=dict)
-    reviewed_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    original_message_id = Column(UUID(as_uuid=True), ForeignKey("messages.id", ondelete="SET NULL"), nullable=True, index=True)
+    reviewed_by = Column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    original_message_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("messages.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     @property
     def dlq_data(self) -> Dict[str, Any]:
@@ -65,9 +81,15 @@ class FailedMessage(BaseModel):
         self.dlq_metadata = value
 
     # Relationships
-    original_message = relationship("Message", foreign_keys=[original_message_id], backref="dlq_entries")
-    patient = relationship("Patient", foreign_keys=[patient_id], backref="failed_messages")
-    reviewer = relationship("User", foreign_keys=[reviewed_by], backref="reviewed_failures")
+    original_message = relationship(
+        "Message", foreign_keys=[original_message_id], backref="dlq_entries"
+    )
+    patient = relationship(
+        "Patient", foreign_keys=[patient_id], backref="failed_messages"
+    )
+    reviewer = relationship(
+        "User", foreign_keys=[reviewed_by], backref="reviewed_failures"
+    )
 
     def to_dict(self, include_sensitive: bool = False) -> Dict[str, Any]:
         """
@@ -83,12 +105,16 @@ class FailedMessage(BaseModel):
             "error_code": self.error_code,
             "retry_count": self.retry_count,
             "max_retries": self.max_retries,
-            "next_retry_at": self.next_retry_at.isoformat() if self.next_retry_at else None,
-            "last_retry_at": self.last_retry_at.isoformat() if self.last_retry_at else None,
+            "next_retry_at": self.next_retry_at.isoformat()
+            if self.next_retry_at
+            else None,
+            "last_retry_at": self.last_retry_at.isoformat()
+            if self.last_retry_at
+            else None,
             "status": self.status,
             "resolved_at": self.resolved_at.isoformat() if self.resolved_at else None,
             "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat()
+            "updated_at": self.updated_at.isoformat(),
         }
 
         if include_sensitive:

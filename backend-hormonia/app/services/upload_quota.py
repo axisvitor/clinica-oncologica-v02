@@ -13,8 +13,6 @@ Features:
 - Quota increase/decrease operations
 """
 
-import logging
-from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from uuid import UUID
 
@@ -68,15 +66,15 @@ class UploadQuotaService:
         self.redis = redis_client
 
         # Load quota configuration
-        self.default_quota = getattr(
-            settings, 'DEFAULT_USER_QUOTA_GB', 1
-        ) * 1024 * 1024 * 1024  # Convert GB to bytes
+        self.default_quota = (
+            getattr(settings, "DEFAULT_USER_QUOTA_GB", 1) * 1024 * 1024 * 1024
+        )  # Convert GB to bytes
 
-        self.premium_quota = getattr(
-            settings, 'PREMIUM_USER_QUOTA_GB', 10
-        ) * 1024 * 1024 * 1024
+        self.premium_quota = (
+            getattr(settings, "PREMIUM_USER_QUOTA_GB", 10) * 1024 * 1024 * 1024
+        )
 
-        self.cache_ttl = getattr(settings, 'QUOTA_CACHE_TTL', 300)  # 5 minutes
+        self.cache_ttl = getattr(settings, "QUOTA_CACHE_TTL", 300)  # 5 minutes
 
         logger.info(
             f"Upload quota service initialized: "
@@ -85,11 +83,7 @@ class UploadQuotaService:
         )
 
     async def check_quota(
-        self,
-        db: Any,
-        user_id: UUID,
-        file_size: int,
-        user_tier: str = "free"
+        self, db: Any, user_id: UUID, file_size: int, user_tier: str = "free"
     ) -> bool:
         """
         Check if user has quota for upload.
@@ -124,8 +118,8 @@ class UploadQuotaService:
                     "current_usage": current_usage,
                     "file_size": file_size,
                     "quota_limit": quota_limit,
-                    "user_tier": user_tier
-                }
+                    "user_tier": user_tier,
+                },
             )
 
             raise QuotaExceededError(
@@ -134,7 +128,7 @@ class UploadQuotaService:
                 f"Quota: {quota_limit / (1024**2):.1f}MB, "
                 f"Available: {(quota_limit - current_usage) / (1024**2):.1f}MB",
                 current_usage=current_usage,
-                quota_limit=quota_limit
+                quota_limit=quota_limit,
             )
 
         return True
@@ -193,12 +187,11 @@ class UploadQuotaService:
             from app.models.upload import Upload
 
             # Sum all upload sizes for user
-            result = db.query(
-                func.sum(Upload.file_size).label('total_size')
-            ).filter(
-                Upload.user_id == user_id,
-                Upload.deleted_at.is_(None)
-            ).first()
+            result = (
+                db.query(func.sum(Upload.file_size).label("total_size"))
+                .filter(Upload.user_id == user_id, Upload.deleted_at.is_(None))
+                .first()
+            )
 
             total_size = result.total_size if result and result.total_size else 0
 
@@ -213,12 +206,7 @@ class UploadQuotaService:
             # Return 0 on error to fail open (allow uploads)
             return 0
 
-    async def increment_usage(
-        self,
-        db: Any,
-        user_id: UUID,
-        file_size: int
-    ) -> int:
+    async def increment_usage(self, db: Any, user_id: UUID, file_size: int) -> int:
         """
         Increment user's storage usage.
 
@@ -249,12 +237,7 @@ class UploadQuotaService:
         # Fallback: return current usage
         return await self.get_usage(db, user_id)
 
-    async def decrement_usage(
-        self,
-        db: Any,
-        user_id: UUID,
-        file_size: int
-    ) -> int:
+    async def decrement_usage(self, db: Any, user_id: UUID, file_size: int) -> int:
         """
         Decrement user's storage usage (after file deletion).
 
@@ -292,10 +275,7 @@ class UploadQuotaService:
         return await self.get_usage(db, user_id)
 
     async def get_quota_info(
-        self,
-        db: Any,
-        user_id: UUID,
-        user_tier: str = "free"
+        self, db: Any, user_id: UUID, user_tier: str = "free"
     ) -> Dict[str, Any]:
         """
         Get quota information for user.
@@ -320,7 +300,7 @@ class UploadQuotaService:
             "available_bytes": quota_limit - current_usage,
             "available_mb": round((quota_limit - current_usage) / (1024**2), 2),
             "usage_percent": round((current_usage / quota_limit * 100), 2),
-            "tier": user_tier
+            "tier": user_tier,
         }
 
     async def invalidate_cache(self, user_id: UUID):
@@ -364,7 +344,7 @@ _quota_service: Optional[UploadQuotaService] = None
 
 
 async def get_quota_service(
-    redis_client: Optional[redis.Redis] = None
+    redis_client: Optional[redis.Redis] = None,
 ) -> UploadQuotaService:
     """
     Get or create upload quota service singleton.

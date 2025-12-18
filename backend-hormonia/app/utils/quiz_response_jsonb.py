@@ -6,6 +6,7 @@ JSONB column, including serialization, deserialization, validation, and querying
 
 Migration: HIGH-003 - response_value Text to JSONB conversion
 """
+
 import json
 from typing import Any, Dict, List, Optional, Union
 from enum import Enum
@@ -13,13 +14,14 @@ from enum import Enum
 
 class ResponseValueFormat(str, Enum):
     """Supported JSONB formats for response_value."""
-    PLAIN_TEXT = "plain_text"           # Simple string: "response"
-    TEXT_OBJECT = "text_object"         # {"text": "response"}
-    ARRAY = "array"                     # ["option1", "option2"]
-    SELECTIONS_OBJECT = "selections"    # {"selections": ["A", "B"]}
-    SCALE = "scale"                     # {"value": 7, "type": "scale"}
-    BOOLEAN = "boolean"                 # {"text": "yes", "boolean": true}
-    STRUCTURED = "structured"           # Complex object with metadata
+
+    PLAIN_TEXT = "plain_text"  # Simple string: "response"
+    TEXT_OBJECT = "text_object"  # {"text": "response"}
+    ARRAY = "array"  # ["option1", "option2"]
+    SELECTIONS_OBJECT = "selections"  # {"selections": ["A", "B"]}
+    SCALE = "scale"  # {"value": 7, "type": "scale"}
+    BOOLEAN = "boolean"  # {"text": "yes", "boolean": true}
+    STRUCTURED = "structured"  # Complex object with metadata
 
 
 class ResponseValueSerializer:
@@ -86,7 +88,9 @@ class ResponseValueSerializer:
         return result
 
     @staticmethod
-    def to_scale(value: Union[int, float], min_value: int = 1, max_value: int = 10) -> Dict[str, Any]:
+    def to_scale(
+        value: Union[int, float], min_value: int = 1, max_value: int = 10
+    ) -> Dict[str, Any]:
         """
         Serialize scale response.
 
@@ -101,7 +105,7 @@ class ResponseValueSerializer:
         return {
             "value": value,
             "type": "scale",
-            "range": {"min": min_value, "max": max_value}
+            "range": {"min": min_value, "max": max_value},
         }
 
     @staticmethod
@@ -116,13 +120,12 @@ class ResponseValueSerializer:
         Returns:
             Boolean object with text and value
         """
-        return {
-            "text": text,
-            "boolean": boolean_value
-        }
+        return {"text": text, "boolean": boolean_value}
 
     @staticmethod
-    def auto_serialize(value: Any, response_type: str = "open_text") -> Union[str, List, Dict]:
+    def auto_serialize(
+        value: Any, response_type: str = "open_text"
+    ) -> Union[str, List, Dict]:
         """
         Automatically serialize based on value type and response type.
 
@@ -140,7 +143,7 @@ class ResponseValueSerializer:
         # Handle string
         if isinstance(value, str):
             # Check if it's already JSON
-            if value.startswith(('[', '{')):
+            if value.startswith(("[", "{")):
                 try:
                     parsed = json.loads(value)
                     return parsed
@@ -148,12 +151,12 @@ class ResponseValueSerializer:
                     pass
 
             # Handle comma-separated values for multiple choice
-            if response_type == "multiple_choice" and ',' in value:
-                return [v.strip() for v in value.split(',')]
+            if response_type == "multiple_choice" and "," in value:
+                return [v.strip() for v in value.split(",")]
 
             # Handle boolean-like responses
-            if value.lower() in ('true', 'false', 'yes', 'no', 'sim', 'não'):
-                boolean_value = value.lower() in ('true', 'yes', 'sim')
+            if value.lower() in ("true", "false", "yes", "no", "sim", "não"):
+                boolean_value = value.lower() in ("true", "yes", "sim")
                 return ResponseValueSerializer.to_boolean(value, boolean_value)
 
             # Plain text
@@ -237,8 +240,8 @@ class ResponseValueDeserializer:
 
         if isinstance(value, str):
             # Check if it's a comma-separated string
-            if ',' in value:
-                return [v.strip() for v in value.split(',')]
+            if "," in value:
+                return [v.strip() for v in value.split(",")]
             return [value]
 
         if isinstance(value, dict):
@@ -301,9 +304,9 @@ class ResponseValueDeserializer:
             return value
 
         if isinstance(value, str):
-            if value.lower() in ('true', 'yes', 'sim', '1'):
+            if value.lower() in ("true", "yes", "sim", "1"):
                 return True
-            if value.lower() in ('false', 'no', 'não', '0'):
+            if value.lower() in ("false", "no", "não", "0"):
                 return False
 
         if isinstance(value, dict):
@@ -339,7 +342,9 @@ class ResponseValueValidator:
         return False, f"Invalid JSONB type: {type(value).__name__}"
 
     @staticmethod
-    def validate_multiple_choice(value: Any, valid_options: Optional[List[str]] = None) -> tuple[bool, Optional[str]]:
+    def validate_multiple_choice(
+        value: Any, valid_options: Optional[List[str]] = None
+    ) -> tuple[bool, Optional[str]]:
         """
         Validate multiple choice response.
 
@@ -365,7 +370,9 @@ class ResponseValueValidator:
         return True, None
 
     @staticmethod
-    def validate_scale(value: Any, min_value: int = 1, max_value: int = 10) -> tuple[bool, Optional[str]]:
+    def validate_scale(
+        value: Any, min_value: int = 1, max_value: int = 10
+    ) -> tuple[bool, Optional[str]]:
         """
         Validate scale response.
 
@@ -383,12 +390,17 @@ class ResponseValueValidator:
             return False, "Scale response must be numeric"
 
         if numeric < min_value or numeric > max_value:
-            return False, f"Scale value {numeric} out of range [{min_value}-{max_value}]"
+            return (
+                False,
+                f"Scale value {numeric} out of range [{min_value}-{max_value}]",
+            )
 
         return True, None
 
     @staticmethod
-    def validate_text(value: Any, min_length: int = 1, max_length: int = 10000) -> tuple[bool, Optional[str]]:
+    def validate_text(
+        value: Any, min_length: int = 1, max_length: int = 10000
+    ) -> tuple[bool, Optional[str]]:
         """
         Validate text response.
 
@@ -430,9 +442,10 @@ class ResponseValueQuery:
             SQLAlchemy filter expression
         """
         from sqlalchemy import or_, cast, String
+
         return or_(
             column == cast(text, String),  # Plain text
-            column['text'].astext == text   # Object with text field
+            column["text"].astext == text,  # Object with text field
         )
 
     @staticmethod
@@ -448,6 +461,7 @@ class ResponseValueQuery:
             SQLAlchemy filter expression
         """
         from sqlalchemy import func
+
         return func.get_quiz_response_text(column).contains(text)
 
     @staticmethod
@@ -462,11 +476,12 @@ class ResponseValueQuery:
         Returns:
             SQLAlchemy filter expression
         """
-        from sqlalchemy.dialects.postgresql import JSONB
         return column.contains([value])
 
     @staticmethod
-    def numeric_range(column, min_value: Optional[float] = None, max_value: Optional[float] = None):
+    def numeric_range(
+        column, min_value: Optional[float] = None, max_value: Optional[float] = None
+    ):
         """
         Query for numeric value in range.
 
@@ -478,10 +493,10 @@ class ResponseValueQuery:
         Returns:
             SQLAlchemy filter expression
         """
-        from sqlalchemy import and_, cast, Numeric
+        from sqlalchemy import and_, Numeric
 
         filters = []
-        numeric_col = column['value'].astext.cast(Numeric)
+        numeric_col = column["value"].astext.cast(Numeric)
 
         if min_value is not None:
             filters.append(numeric_col >= min_value)
@@ -492,7 +507,9 @@ class ResponseValueQuery:
 
 
 # Convenience functions
-def serialize_response(value: Any, response_type: str = "open_text") -> Union[str, List, Dict]:
+def serialize_response(
+    value: Any, response_type: str = "open_text"
+) -> Union[str, List, Dict]:
     """Serialize response value for JSONB storage."""
     return ResponseValueSerializer.auto_serialize(value, response_type)
 
@@ -512,7 +529,9 @@ def deserialize_to_numeric(value: Union[str, List, Dict]) -> Optional[float]:
     return ResponseValueDeserializer.to_numeric(value)
 
 
-def validate_response_value(value: Any, response_type: str, **constraints) -> tuple[bool, Optional[str]]:
+def validate_response_value(
+    value: Any, response_type: str, **constraints
+) -> tuple[bool, Optional[str]]:
     """
     Validate response value based on type.
 
@@ -532,20 +551,19 @@ def validate_response_value(value: Any, response_type: str, **constraints) -> tu
     # Type-specific validation
     if response_type == "multiple_choice":
         return ResponseValueValidator.validate_multiple_choice(
-            value,
-            valid_options=constraints.get('options')
+            value, valid_options=constraints.get("options")
         )
     elif response_type == "scale":
         return ResponseValueValidator.validate_scale(
             value,
-            min_value=constraints.get('min_value', 1),
-            max_value=constraints.get('max_value', 10)
+            min_value=constraints.get("min_value", 1),
+            max_value=constraints.get("max_value", 10),
         )
     elif response_type in ("open_text", "text"):
         return ResponseValueValidator.validate_text(
             value,
-            min_length=constraints.get('min_length', 1),
-            max_length=constraints.get('max_length', 10000)
+            min_length=constraints.get("min_length", 1),
+            max_length=constraints.get("max_length", 10000),
         )
 
     return True, None

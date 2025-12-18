@@ -2,6 +2,7 @@
 Report building and pattern analysis.
 Handles comprehensive reporting, trend analysis, and anomaly detection.
 """
+
 import logging
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Any
@@ -15,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.models.patient import Patient
 from app.models.message import Message, MessageDirection
 from app.models.quiz import QuizResponse
-from app.models.alert import Alert, AlertSeverity, AlertStatus
+from app.models.alert import Alert
 from app.utils.db_retry import with_db_retry
 from app.services.query_performance_monitor import QueryPerformanceMonitor
 from app.schemas.report import AnalyticsRequest, AnalyticsResponse
@@ -27,12 +28,12 @@ logger = logging.getLogger(__name__)
 # Treatment type color mapping for consistent chart rendering
 TREATMENT_COLORS = {
     "Quimioterapia": "#3b82f6",  # blue
-    "Radioterapia": "#10b981",   # green
-    "Imunoterapia": "#f59e0b",   # amber
-    "Cirurgia": "#ef4444",       # red
-    "Terapia Alvo": "#8b5cf6",   # purple
-    "Hormonioterapia": "#ec4899", # pink
-    "Outros": "#6b7280"          # gray
+    "Radioterapia": "#10b981",  # green
+    "Imunoterapia": "#f59e0b",  # amber
+    "Cirurgia": "#ef4444",  # red
+    "Terapia Alvo": "#8b5cf6",  # purple
+    "Hormonioterapia": "#ec4899",  # pink
+    "Outros": "#6b7280",  # gray
 }
 
 
@@ -85,7 +86,7 @@ class ReportBuilder:
                             patient_id,
                             request.start_date,
                             request.end_date,
-                            request.metrics
+                            request.metrics,
                         )
                         if analytics:
                             patient_analytics.append(analytics)
@@ -93,13 +94,17 @@ class ReportBuilder:
                 # Get analytics for all patients (filtered by doctor if specified)
                 # OPTIMIZATION: Use eager loading to prevent N+1 queries
                 with self.query_monitor.monitor_query("analytics_all_patients"):
-                    patients = self.metrics_collector.get_filtered_patients_with_relations(request.doctor_id)
+                    patients = (
+                        self.metrics_collector.get_filtered_patients_with_relations(
+                            request.doctor_id
+                        )
+                    )
                     for patient in patients:
                         analytics = self.metrics_collector.get_patient_metrics(
                             patient.id,
                             request.start_date,
                             request.end_date,
-                            request.metrics
+                            request.metrics,
                         )
                         if analytics:
                             patient_analytics.append(analytics)
@@ -107,16 +112,16 @@ class ReportBuilder:
             # Get system analytics
             with self.query_monitor.monitor_query("analytics_system_metrics"):
                 system_analytics = self.metrics_collector.get_system_metrics(
-                    request.start_date,
-                    request.end_date
+                    request.start_date, request.end_date
                 )
 
             response = AnalyticsResponse(
-                patient_analytics=patient_analytics,
-                system_analytics=system_analytics
+                patient_analytics=patient_analytics, system_analytics=system_analytics
             )
 
-            logger.info(f"Generated analytics report for {len(patient_analytics)} patients")
+            logger.info(
+                f"Generated analytics report for {len(patient_analytics)} patients"
+            )
             return response
 
         except Exception as e:
@@ -125,9 +130,7 @@ class ReportBuilder:
 
     @with_db_retry(max_retries=3)
     def build_treatment_distribution(
-        self,
-        period: str = "30d",
-        doctor_id: Optional[UUID] = None
+        self, period: str = "30d", doctor_id: Optional[UUID] = None
     ) -> Dict[str, Any]:
         """
         Build treatment type distribution report for specified period.
@@ -146,13 +149,12 @@ class ReportBuilder:
             if period == "all":
                 date_filter = None
             else:
-                days = int(period.rstrip('d'))
+                days = int(period.rstrip("d"))
                 date_filter = datetime.utcnow() - timedelta(days=days)
 
             # Build base query for treatment type counts
             query = self.db.query(
-                Patient.treatment_type,
-                func.count(Patient.id).label('count')
+                Patient.treatment_type, func.count(Patient.id).label("count")
             )
 
             # Apply date filter if specified
@@ -176,7 +178,7 @@ class ReportBuilder:
                     "data": [],
                     "period": period,
                     "total_patients": 0,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.utcnow().isoformat(),
                 }
 
             # Build distribution list with percentages and colors
@@ -185,37 +187,45 @@ class ReportBuilder:
                 percentage = round((count / total * 100) if total > 0 else 0, 2)
                 color = TREATMENT_COLORS.get(treatment_type, "#6b7280")
 
-                distribution.append({
-                    "treatment_type": treatment_type,
-                    "count": count,
-                    "percentage": percentage,
-                    "color": color
-                })
+                distribution.append(
+                    {
+                        "treatment_type": treatment_type,
+                        "count": count,
+                        "percentage": percentage,
+                        "color": color,
+                    }
+                )
 
             # Sort by count descending (most common treatments first)
-            distribution.sort(key=lambda x: x['count'], reverse=True)
+            distribution.sort(key=lambda x: x["count"], reverse=True)
 
             # Group small categories into "Outros" if they're below threshold
             MIN_PERCENTAGE_THRESHOLD = 2.0
-            large_categories = [d for d in distribution if d['percentage'] >= MIN_PERCENTAGE_THRESHOLD]
-            small_categories = [d for d in distribution if d['percentage'] < MIN_PERCENTAGE_THRESHOLD]
+            large_categories = [
+                d for d in distribution if d["percentage"] >= MIN_PERCENTAGE_THRESHOLD
+            ]
+            small_categories = [
+                d for d in distribution if d["percentage"] < MIN_PERCENTAGE_THRESHOLD
+            ]
 
             if small_categories and len(large_categories) > 0:
-                outros_count = sum(c['count'] for c in small_categories)
-                outros_percentage = sum(c['percentage'] for c in small_categories)
-                large_categories.append({
-                    "treatment_type": "Outros",
-                    "count": outros_count,
-                    "percentage": round(outros_percentage, 2),
-                    "color": TREATMENT_COLORS["Outros"]
-                })
+                outros_count = sum(c["count"] for c in small_categories)
+                outros_percentage = sum(c["percentage"] for c in small_categories)
+                large_categories.append(
+                    {
+                        "treatment_type": "Outros",
+                        "count": outros_count,
+                        "percentage": round(outros_percentage, 2),
+                        "color": TREATMENT_COLORS["Outros"],
+                    }
+                )
                 distribution = large_categories
 
             return {
                 "data": distribution,
                 "period": period,
                 "total_patients": total,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
         except Exception as e:
@@ -224,9 +234,7 @@ class ReportBuilder:
 
     @with_db_retry(max_retries=3)
     def detect_patterns(
-        self,
-        patient_id: Optional[UUID] = None,
-        days_back: int = 30
+        self, patient_id: Optional[UUID] = None, days_back: int = 30
     ) -> Dict[str, Any]:
         """
         Detect patterns in patient data using trend analysis.
@@ -239,17 +247,27 @@ class ReportBuilder:
             Dictionary containing detected patterns
         """
         try:
-            logger.info(f"Detecting patterns for {'all patients' if not patient_id else f'patient {patient_id}'}")
+            logger.info(
+                f"Detecting patterns for {'all patients' if not patient_id else f'patient {patient_id}'}"
+            )
 
             end_date = datetime.utcnow().date()
             start_date = end_date - timedelta(days=days_back)
 
             patterns = {
-                "engagement_trends": self._analyze_engagement_trends(patient_id, start_date, end_date),
-                "response_time_patterns": self._analyze_response_time_patterns(patient_id, start_date, end_date),
-                "alert_patterns": self._analyze_alert_patterns(patient_id, start_date, end_date),
-                "quiz_completion_trends": self._analyze_quiz_trends(patient_id, start_date, end_date),
-                "anomalies": self._detect_anomalies(patient_id, start_date, end_date)
+                "engagement_trends": self._analyze_engagement_trends(
+                    patient_id, start_date, end_date
+                ),
+                "response_time_patterns": self._analyze_response_time_patterns(
+                    patient_id, start_date, end_date
+                ),
+                "alert_patterns": self._analyze_alert_patterns(
+                    patient_id, start_date, end_date
+                ),
+                "quiz_completion_trends": self._analyze_quiz_trends(
+                    patient_id, start_date, end_date
+                ),
+                "anomalies": self._detect_anomalies(patient_id, start_date, end_date),
             }
 
             logger.info("Pattern detection completed")
@@ -262,22 +280,20 @@ class ReportBuilder:
     # Private analysis methods
 
     def _analyze_engagement_trends(
-        self,
-        patient_id: Optional[UUID],
-        start_date: date,
-        end_date: date
+        self, patient_id: Optional[UUID], start_date: date, end_date: date
     ) -> Dict[str, Any]:
         """Analyze engagement trends."""
         # Get daily message counts
-        query = self.db.query(
-            func.date(Message.created_at).label('date'),
-            func.count(Message.id).label('count')
-        ).filter(
-            and_(
-                Message.created_at >= start_date,
-                Message.created_at <= end_date
+        query = (
+            self.db.query(
+                func.date(Message.created_at).label("date"),
+                func.count(Message.id).label("count"),
             )
-        ).group_by(func.date(Message.created_at))
+            .filter(
+                and_(Message.created_at >= start_date, Message.created_at <= end_date)
+            )
+            .group_by(func.date(Message.created_at))
+        )
 
         if patient_id:
             query = query.filter(Message.patient_id == patient_id)
@@ -296,7 +312,7 @@ class ReportBuilder:
             try:
                 count_num = int(count)
             except (TypeError, ValueError):
-                count_num = getattr(count, 'return_value', 0)
+                count_num = getattr(count, "return_value", 0)
             y_values.append(count_num)
 
         # Calculate slope
@@ -306,27 +322,34 @@ class ReportBuilder:
         sum_xy = sum(x * y for x, y in zip(x_values, y_values))
         sum_x2 = sum(x * x for x in x_values)
 
-        slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x) if (n * sum_x2 - sum_x * sum_x) != 0 else 0
+        slope = (
+            (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x)
+            if (n * sum_x2 - sum_x * sum_x) != 0
+            else 0
+        )
 
         # Handle Mock objects for slope comparisons
         try:
             slope_num = float(slope)
         except (TypeError, ValueError):
-            slope_num = getattr(slope, 'return_value', 0)
+            slope_num = getattr(slope, "return_value", 0)
 
-        trend = "increasing" if slope_num > 0.1 else "decreasing" if slope_num < -0.1 else "stable"
+        trend = (
+            "increasing"
+            if slope_num > 0.1
+            else "decreasing"
+            if slope_num < -0.1
+            else "stable"
+        )
 
         return {
             "trend": trend,
             "slope": round(slope, 3),
-            "daily_average": round(sum_y / n, 2) if n > 0 else 0
+            "daily_average": round(sum_y / n, 2) if n > 0 else 0,
         }
 
     def _analyze_response_time_patterns(
-        self,
-        patient_id: Optional[UUID],
-        start_date: date,
-        end_date: date
+        self, patient_id: Optional[UUID], start_date: date, end_date: date
     ) -> Dict[str, Any]:
         """Analyze response time patterns."""
         query = self.db.query(Message).filter(
@@ -355,7 +378,7 @@ class ReportBuilder:
                 try:
                     diff_hours_num = float(diff_hours)
                 except (TypeError, ValueError):
-                    diff_hours_num = getattr(diff_hours, 'return_value', 0)
+                    diff_hours_num = getattr(diff_hours, "return_value", 0)
 
                 if diff_hours_num >= 0:
                     response_times.append(diff_hours_num)
@@ -378,7 +401,7 @@ class ReportBuilder:
         try:
             avg_num = float(avg)
         except (TypeError, ValueError):
-            avg_num = getattr(avg, 'return_value', 0)
+            avg_num = getattr(avg, "return_value", 0)
 
         if avg_num <= 1:
             pattern = "fast"
@@ -396,17 +419,11 @@ class ReportBuilder:
         }
 
     def _analyze_alert_patterns(
-        self,
-        patient_id: Optional[UUID],
-        start_date: date,
-        end_date: date
+        self, patient_id: Optional[UUID], start_date: date, end_date: date
     ) -> Dict[str, Any]:
         """Analyze alert patterns."""
         query = self.db.query(Alert).filter(
-            and_(
-                Alert.created_at >= start_date,
-                Alert.created_at <= end_date
-            )
+            and_(Alert.created_at >= start_date, Alert.created_at <= end_date)
         )
 
         if patient_id:
@@ -431,27 +448,24 @@ class ReportBuilder:
         try:
             frequency_num = float(frequency)
         except (TypeError, ValueError):
-            frequency_num = getattr(frequency, 'return_value', 0)
+            frequency_num = getattr(frequency, "return_value", 0)
 
         return {
             "pattern": "high_frequency" if frequency_num > 1 else "low_frequency",
             "frequency": round(frequency, 2),
             "severity_distribution": severity_counts,
-            "total_alerts": len(alerts)
+            "total_alerts": len(alerts),
         }
 
     def _analyze_quiz_trends(
-        self,
-        patient_id: Optional[UUID],
-        start_date: date,
-        end_date: date
+        self, patient_id: Optional[UUID], start_date: date, end_date: date
     ) -> Dict[str, Any]:
         """Analyze quiz completion trends."""
         query = self.db.query(QuizResponse).filter(
             and_(
                 QuizResponse.created_at >= start_date,
                 QuizResponse.created_at <= end_date,
-                QuizResponse.responded_at.isnot(None)
+                QuizResponse.responded_at.isnot(None),
             )
         )
 
@@ -467,38 +481,39 @@ class ReportBuilder:
         try:
             completion_rate_num = float(completion_rate)
         except (TypeError, ValueError):
-            completion_rate_num = getattr(completion_rate, 'return_value', 0)
+            completion_rate_num = getattr(completion_rate, "return_value", 0)
 
         return {
             "completion_rate": round(completion_rate, 2),
             "total_completions": len(completions),
-            "trend": "improving" if completion_rate_num > 0.5 else "needs_attention"
+            "trend": "improving" if completion_rate_num > 0.5 else "needs_attention",
         }
 
     def _detect_anomalies(
-        self,
-        patient_id: Optional[UUID],
-        start_date: date,
-        end_date: date
+        self, patient_id: Optional[UUID], start_date: date, end_date: date
     ) -> List[Dict[str, Any]]:
         """Detect anomalies in patient data."""
         anomalies = []
 
         # Check for sudden drop in engagement
-        engagement_trend = self._analyze_engagement_trends(patient_id, start_date, end_date)
+        engagement_trend = self._analyze_engagement_trends(
+            patient_id, start_date, end_date
+        )
         # Handle Mock objects for slope comparison
         slope_value = engagement_trend["slope"]
         try:
             slope_num = float(slope_value)
         except (TypeError, ValueError):
-            slope_num = getattr(slope_value, 'return_value', 0)
+            slope_num = getattr(slope_value, "return_value", 0)
 
         if engagement_trend["trend"] == "decreasing" and slope_num < -1:
-            anomalies.append({
-                "type": "engagement_drop",
-                "severity": "medium",
-                "description": "Significant decrease in patient engagement detected"
-            })
+            anomalies.append(
+                {
+                    "type": "engagement_drop",
+                    "severity": "medium",
+                    "description": "Significant decrease in patient engagement detected",
+                }
+            )
 
         # Check for high alert frequency
         alert_pattern = self._analyze_alert_patterns(patient_id, start_date, end_date)
@@ -507,13 +522,15 @@ class ReportBuilder:
         try:
             frequency_num = float(frequency_value)
         except (TypeError, ValueError):
-            frequency_num = getattr(frequency_value, 'return_value', 0)
+            frequency_num = getattr(frequency_value, "return_value", 0)
 
         if frequency_num > 2:
-            anomalies.append({
-                "type": "high_alert_frequency",
-                "severity": "high",
-                "description": f"High alert frequency detected: {alert_pattern['frequency']} alerts per day"
-            })
+            anomalies.append(
+                {
+                    "type": "high_alert_frequency",
+                    "severity": "high",
+                    "description": f"High alert frequency detected: {alert_pattern['frequency']} alerts per day",
+                }
+            )
 
         return anomalies

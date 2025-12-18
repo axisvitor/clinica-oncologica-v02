@@ -2,49 +2,52 @@
 Enhanced middleware components for comprehensive API security and monitoring.
 Implements advanced rate limiting, request validation, and security headers.
 """
+
 import time
 import json
 import hashlib
-import asyncio
 import logging
-from typing import Dict, Any, Optional, Callable
-from datetime import datetime, timedelta
+from typing import Dict, Optional, Callable
+from datetime import datetime
 from collections import defaultdict, deque
-import ipaddress
 
 from fastapi import Request, Response, HTTPException, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 import redis.asyncio as redis
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
-from app.config import settings
 from app.utils.logging import get_logger
 from app.core.logging_config import OptimizedRequestLogger, RateLimitedLogger
 
 logger = get_logger(__name__)
 
+
 class RateLimitRule(BaseModel):
     """Rate limiting rule configuration."""
+
     endpoint: str
     method: str
     limit: int
     window: int  # seconds
     burst_limit: Optional[int] = None
 
+
 class SecurityConfig(BaseModel):
     """Security configuration for middleware."""
+
     max_request_size: int = 10 * 1024 * 1024  # 10MB
     allowed_content_types: list = [
         "application/json",
         "application/x-www-form-urlencoded",
         "multipart/form-data",
-        "text/plain"
+        "text/plain",
     ]
     blocked_user_agents: list = []
     blocked_ips: list = []
     require_user_agent: bool = True
+
 
 class EnhancedRateLimitMiddleware(BaseHTTPMiddleware):
     """
@@ -65,7 +68,7 @@ class EnhancedRateLimitMiddleware(BaseHTTPMiddleware):
         default_limit: int = 100,
         default_window: int = 60,
         whitelist_ips: Optional[list] = None,
-        blacklist_ips: Optional[list] = None
+        blacklist_ips: Optional[list] = None,
     ):
         super().__init__(app)
         self.redis = redis_client
@@ -87,36 +90,36 @@ class EnhancedRateLimitMiddleware(BaseHTTPMiddleware):
                 limit=5,  # Industry standard (increased from 3)
                 window=900,  # 15 minutes
                 burst_limit=3,
-                cooldown_after_limit=3600  # 1 hour lockout after exhaustion
+                cooldown_after_limit=3600,  # 1 hour lockout after exhaustion
             ),
             ("POST", "/api/v2/auth/refresh"): RateLimitRule(
                 endpoint="/api/v2/auth/refresh",
                 method="POST",
                 limit=10,
                 window=60,
-                burst_limit=5
+                burst_limit=5,
             ),
             ("POST", "/api/v2/patients"): RateLimitRule(
                 endpoint="/api/v2/patients",
                 method="POST",
                 limit=20,
                 window=60,
-                burst_limit=10
+                burst_limit=10,
             ),
             ("GET", "/api/v2/patients"): RateLimitRule(
                 endpoint="/api/v2/patients",
                 method="GET",
                 limit=100,
                 window=60,
-                burst_limit=50
+                burst_limit=50,
             ),
             ("POST", "/api/v2/messages"): RateLimitRule(
                 endpoint="/api/v2/messages",
                 method="POST",
                 limit=50,
                 window=60,
-                burst_limit=25
-            )
+                burst_limit=25,
+            ),
         }
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
@@ -162,8 +165,8 @@ class EnhancedRateLimitMiddleware(BaseHTTPMiddleware):
                         "event_type": "rate_limit_exceeded",
                         "client_ip": client_ip,
                         "path": request.url.path,
-                        "method": request.method
-                    }
+                        "method": request.method,
+                    },
                 )
             raise
         except Exception as e:
@@ -175,7 +178,7 @@ class EnhancedRateLimitMiddleware(BaseHTTPMiddleware):
     async def _check_rate_limit(self, request: Request) -> None:
         """Check if request should be rate limited."""
         client_ip = self._get_client_ip(request)
-        user_id = getattr(request.state, 'user_id', None)
+        user_id = getattr(request.state, "user_id", None)
 
         # Get rate limit rule for this endpoint
         rule = self.rules.get((request.method, request.url.path))
@@ -185,7 +188,7 @@ class EnhancedRateLimitMiddleware(BaseHTTPMiddleware):
                 endpoint=request.url.path,
                 method=request.method,
                 limit=self.default_limit,
-                window=self.default_window
+                window=self.default_window,
             )
 
         # Check rate limits (prefer user-based, fallback to IP-based)
@@ -221,7 +224,7 @@ class EnhancedRateLimitMiddleware(BaseHTTPMiddleware):
             if current_count >= rule.limit:
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail=f"Rate limit exceeded: {rule.limit} requests per {rule.window} seconds"
+                    detail=f"Rate limit exceeded: {rule.limit} requests per {rule.window} seconds",
                 )
 
         except redis.RedisError as e:
@@ -250,7 +253,7 @@ class EnhancedRateLimitMiddleware(BaseHTTPMiddleware):
         if len(timestamps) >= rule.limit:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Rate limit exceeded: {rule.limit} requests per {rule.window} seconds"
+                detail=f"Rate limit exceeded: {rule.limit} requests per {rule.window} seconds",
             )
 
         # Add current timestamp
@@ -290,19 +293,24 @@ class EnhancedRateLimitMiddleware(BaseHTTPMiddleware):
             response.headers["X-RateLimit-Window"] = str(rule.window)
             response.headers["X-RateLimit-Policy"] = "sliding-window"
 
-    async def _log_request(self, request: Request, response: Response, process_time: float) -> None:
+    async def _log_request(
+        self, request: Request, response: Response, process_time: float
+    ) -> None:
         """Log request details for monitoring with rate limiting."""
-        log_key = f"rate_limit_request_{request.url.path}"
         message = f"{request.method} {request.url.path} - {response.status_code}"
-        
+
         # Use DEBUG level for successful requests to reduce log volume
         level = logging.DEBUG if response.status_code < 400 else logging.INFO
-        
+
         # Simple rate limiting check - log every 10th successful request for high-frequency endpoints
-        if response.status_code < 400 and request.url.path in ['/health', '/metrics', '/api/v2/health']:
+        if response.status_code < 400 and request.url.path in [
+            "/health",
+            "/metrics",
+            "/api/v2/health",
+        ]:
             # Skip logging for health checks and metrics to reduce noise
             return
-        
+
         logger.log(
             level,
             message,
@@ -314,8 +322,8 @@ class EnhancedRateLimitMiddleware(BaseHTTPMiddleware):
                 "process_time": round(process_time, 3),
                 "client_ip": self._get_client_ip(request),
                 "user_agent": request.headers.get("User-Agent", "unknown"),
-                "content_length": response.headers.get("content-length", 0)
-            }
+                "content_length": response.headers.get("content-length", 0),
+            },
         )
 
     def _rate_limit_response(self, message: str) -> JSONResponse:
@@ -325,13 +333,11 @@ class EnhancedRateLimitMiddleware(BaseHTTPMiddleware):
             content={
                 "error": "rate_limit_exceeded",
                 "message": message,
-                "timestamp": datetime.utcnow().isoformat() + 'Z'
+                "timestamp": datetime.utcnow().isoformat() + "Z",
             },
-            headers={
-                "Retry-After": "60",
-                "X-RateLimit-Policy": "sliding-window"
-            }
+            headers={"Retry-After": "60", "X-RateLimit-Policy": "sliding-window"},
         )
+
 
 class EnhancedSecurityMiddleware(BaseHTTPMiddleware):
     """
@@ -347,24 +353,25 @@ class EnhancedSecurityMiddleware(BaseHTTPMiddleware):
     - Input sanitization
     """
 
-    def __init__(
-        self,
-        app: ASGIApp,
-        config: Optional[SecurityConfig] = None
-    ):
+    def __init__(self, app: ASGIApp, config: Optional[SecurityConfig] = None):
         super().__init__(app)
         self.config = config or SecurityConfig()
 
         # Optimized and compiled suspicious patterns for better performance
         import re
+
         self.sql_patterns = [
             re.compile(r"(\%27)|(\')|(\-\-)|(\%23)|(#)", re.IGNORECASE),
-            re.compile(r"((\%3D)|(=))[^\n]*((\%27)|(\')|(\-\-)|(\%3B)|(;))", re.IGNORECASE),
-            re.compile(r"\w*((\%27)|(\'))((\%6F)|o|(\%4F))((\%72)|r|(\%52))", re.IGNORECASE),
+            re.compile(
+                r"((\%3D)|(=))[^\n]*((\%27)|(\')|(\-\-)|(\%3B)|(;))", re.IGNORECASE
+            ),
+            re.compile(
+                r"\w*((\%27)|(\'))((\%6F)|o|(\%4F))((\%72)|r|(\%52))", re.IGNORECASE
+            ),
             re.compile(r"((\%27)|(\'))union", re.IGNORECASE),
             re.compile(r"exec(\s|\+)+(s|x)p\w+", re.IGNORECASE),
             re.compile(r"UNION.*SELECT.*FROM", re.IGNORECASE),
-            re.compile(r"SELECT.*FROM.*WHERE", re.IGNORECASE)
+            re.compile(r"SELECT.*FROM.*WHERE", re.IGNORECASE),
         ]
 
         self.xss_patterns = [
@@ -374,7 +381,7 @@ class EnhancedSecurityMiddleware(BaseHTTPMiddleware):
             re.compile(r"onload=", re.IGNORECASE),
             re.compile(r"onerror=", re.IGNORECASE),
             re.compile(r"onclick=", re.IGNORECASE),
-            re.compile(r"<iframe[^>]*>.*?</iframe>", re.IGNORECASE)
+            re.compile(r"<iframe[^>]*>.*?</iframe>", re.IGNORECASE),
         ]
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
@@ -387,7 +394,7 @@ class EnhancedSecurityMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
 
             # Get CSP nonce from request state if available
-            nonce = getattr(request.state, 'csp_nonce', None)
+            nonce = getattr(request.state, "csp_nonce", None)
 
             # Add security headers with nonce support
             self._add_security_headers(response, nonce)
@@ -405,10 +412,13 @@ class EnhancedSecurityMiddleware(BaseHTTPMiddleware):
         # Allow public endpoints without strict validation (health/metrics/docs)
         url_path = str(request.url.path)
         if (
-            url_path == "/health" or url_path.startswith("/health") or
-            url_path.startswith("/api/v2/health") or
-            url_path == "/metrics" or url_path == "/openapi.json" or
-            url_path.startswith("/docs") or url_path.startswith("/redoc")
+            url_path == "/health"
+            or url_path.startswith("/health")
+            or url_path.startswith("/api/v2/health")
+            or url_path == "/metrics"
+            or url_path == "/openapi.json"
+            or url_path.startswith("/docs")
+            or url_path.startswith("/redoc")
         ):
             return
 
@@ -417,7 +427,7 @@ class EnhancedSecurityMiddleware(BaseHTTPMiddleware):
         if content_length > self.config.max_request_size:
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail="Request too large"
+                detail="Request too large",
             )
 
         # Check user agent
@@ -425,23 +435,26 @@ class EnhancedSecurityMiddleware(BaseHTTPMiddleware):
         if self.config.require_user_agent and not user_agent:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User-Agent header required"
+                detail="User-Agent header required",
             )
 
         # Check blocked user agents
-        if any(blocked in user_agent.lower() for blocked in self.config.blocked_user_agents):
+        if any(
+            blocked in user_agent.lower() for blocked in self.config.blocked_user_agents
+        ):
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied"
+                status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
             )
 
         # Validate content type for requests with body
         if request.method in ["POST", "PUT", "PATCH"] and content_length > 0:
             content_type = request.headers.get("content-type", "").lower()
-            if not any(allowed in content_type for allowed in self.config.allowed_content_types):
+            if not any(
+                allowed in content_type for allowed in self.config.allowed_content_types
+            ):
                 raise HTTPException(
                     status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-                    detail="Unsupported content type"
+                    detail="Unsupported content type",
                 )
 
         # Check for suspicious patterns in URL and query parameters
@@ -465,12 +478,13 @@ class EnhancedSecurityMiddleware(BaseHTTPMiddleware):
                         "threat_type": "sql_injection",
                         "path": url_path,
                         "query": query_string,
-                        "client_ip": request.client.host if request.client else "unknown"
-                    }
+                        "client_ip": request.client.host
+                        if request.client
+                        else "unknown",
+                    },
                 )
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid request"
+                    status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid request"
                 )
 
         # Check for XSS patterns
@@ -483,12 +497,13 @@ class EnhancedSecurityMiddleware(BaseHTTPMiddleware):
                         "threat_type": "xss",
                         "path": url_path,
                         "query": query_string,
-                        "client_ip": request.client.host if request.client else "unknown"
-                    }
+                        "client_ip": request.client.host
+                        if request.client
+                        else "unknown",
+                    },
                 )
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid request"
+                    status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid request"
                 )
 
     def _add_security_headers(self, response: Response, nonce: str = None) -> None:
@@ -506,7 +521,7 @@ class EnhancedSecurityMiddleware(BaseHTTPMiddleware):
             "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
             "Referrer-Policy": "strict-origin-when-cross-origin",
             "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
-            "X-Permitted-Cross-Domain-Policies": "none"
+            "X-Permitted-Cross-Domain-Policies": "none",
         }
 
         # CSP Level 3 with nonce (eliminates unsafe-inline/unsafe-eval)
@@ -545,6 +560,7 @@ class EnhancedSecurityMiddleware(BaseHTTPMiddleware):
             if header not in response.headers:
                 response.headers[header] = value
 
+
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """
     Comprehensive request/response logging middleware with rate limiting.
@@ -565,20 +581,20 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         log_response_body: bool = False,
         sensitive_headers: Optional[list] = None,
         max_logs_per_second: int = 50,
-        enable_rate_limiting: bool = True
+        enable_rate_limiting: bool = True,
     ):
         super().__init__(app)
         self.log_request_body = log_request_body
         self.log_response_body = log_response_body
-        self.sensitive_headers = set(sensitive_headers or [
-            "authorization", "cookie", "x-api-key", "x-auth-token"
-        ])
-        
+        self.sensitive_headers = set(
+            sensitive_headers
+            or ["authorization", "cookie", "x-api-key", "x-auth-token"]
+        )
+
         # Initialize rate-limited logger
         if enable_rate_limiting:
             self.rate_limiter = RateLimitedLogger(
-                max_logs_per_second=max_logs_per_second,
-                enable_deduplication=True
+                max_logs_per_second=max_logs_per_second, enable_deduplication=True
             )
             self.optimized_logger = OptimizedRequestLogger(self.rate_limiter)
         else:
@@ -595,7 +611,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
         # Log incoming request with optimized logging
         client_ip = request.client.host if request.client else "unknown"
-        
+
         if self.optimized_logger:
             self.optimized_logger.log_request_start(
                 request.method, request.url.path, client_ip, correlation_id
@@ -617,18 +633,23 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             # Log response with optimized logging
             if self.optimized_logger:
                 self.optimized_logger.log_request_complete(
-                    request.method, request.url.path, response.status_code,
-                    process_time, correlation_id
+                    request.method,
+                    request.url.path,
+                    response.status_code,
+                    process_time,
+                    correlation_id,
                 )
             else:
-                await self._log_response(request, response, process_time, correlation_id)
+                await self._log_response(
+                    request, response, process_time, correlation_id
+                )
 
             return response
 
         except Exception as e:
             # Log error with optimized logging
             process_time = time.time() - start_time
-            
+
             if self.optimized_logger:
                 self.optimized_logger.log_request_error(
                     request.method, request.url.path, e, process_time, correlation_id
@@ -670,7 +691,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             "query_params": dict(request.query_params),
             "headers": headers,
             "client_ip": request.client.host if request.client else "unknown",
-            "timestamp": datetime.utcnow().isoformat() + 'Z'
+            "timestamp": datetime.utcnow().isoformat() + "Z",
         }
 
         # Add request body if enabled and appropriate
@@ -695,7 +716,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         request: Request,
         response: Response,
         process_time: float,
-        correlation_id: str
+        correlation_id: str,
     ) -> None:
         """Log response details (fallback when optimized logger not available)."""
         log_data = {
@@ -706,11 +727,11 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             "status_code": response.status_code,
             "process_time_seconds": round(process_time, 3),
             "response_size": response.headers.get("content-length", 0),
-            "timestamp": datetime.utcnow().isoformat() + 'Z'
+            "timestamp": datetime.utcnow().isoformat() + "Z",
         }
 
         # Log response body if enabled and not too large
-        if self.log_response_body and hasattr(response, 'body'):
+        if self.log_response_body and hasattr(response, "body"):
             try:
                 if len(response.body) < 10000:  # Only log if less than 10KB
                     content_type = response.headers.get("content-type", "")
@@ -722,19 +743,28 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
         # Use DEBUG level for routine requests, appropriate levels for errors
         if response.status_code >= 500:
-            logger.error(f"HTTP {request.method} {request.url.path} - {response.status_code}", extra=log_data)
+            logger.error(
+                f"HTTP {request.method} {request.url.path} - {response.status_code}",
+                extra=log_data,
+            )
         elif response.status_code >= 400:
-            logger.warning(f"HTTP {request.method} {request.url.path} - {response.status_code}", extra=log_data)
+            logger.warning(
+                f"HTTP {request.method} {request.url.path} - {response.status_code}",
+                extra=log_data,
+            )
         else:
             # Use DEBUG level for successful requests to reduce log volume
-            logger.debug(f"HTTP {request.method} {request.url.path} - {response.status_code}", extra=log_data)
+            logger.debug(
+                f"HTTP {request.method} {request.url.path} - {response.status_code}",
+                extra=log_data,
+            )
 
     async def _log_error(
         self,
         request: Request,
         error: Exception,
         process_time: float,
-        correlation_id: str
+        correlation_id: str,
     ) -> None:
         """Log request error (fallback when optimized logger not available)."""
         log_data = {
@@ -745,25 +775,30 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             "error_type": type(error).__name__,
             "error_message": str(error),
             "process_time_seconds": round(process_time, 3),
-            "timestamp": datetime.utcnow().isoformat() + 'Z'
+            "timestamp": datetime.utcnow().isoformat() + "Z",
         }
 
         # Determine if we should include stack trace based on error type
         error_type = type(error).__name__
-        expected_errors = {'ValidationError', 'HTTPException', 'AuthenticationError', 'AuthorizationError'}
+        expected_errors = {
+            "ValidationError",
+            "HTTPException",
+            "AuthenticationError",
+            "AuthorizationError",
+        }
         include_stacktrace = error_type not in expected_errors
 
         # Use appropriate log level based on error type
-        if hasattr(error, 'status_code') and 400 <= error.status_code < 500:
+        if hasattr(error, "status_code") and 400 <= error.status_code < 500:
             # Client errors - use WARNING level, no stack trace
             logger.warning(
                 f"HTTP {request.method} {request.url.path} - {error_type}: {str(error)}",
-                extra=log_data
+                extra=log_data,
             )
         else:
             # Server errors - use ERROR level with stack trace if appropriate
             logger.error(
                 f"HTTP {request.method} {request.url.path} - ERROR: {str(error)}",
                 extra=log_data,
-                exc_info=include_stacktrace
+                exc_info=include_stacktrace,
             )

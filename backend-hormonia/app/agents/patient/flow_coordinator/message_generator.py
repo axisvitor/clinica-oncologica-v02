@@ -8,7 +8,11 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from app.services.template_loader import EnhancedTemplateLoader, FlowTemplateData, MessageTemplate
+from app.services.template_loader import (
+    EnhancedTemplateLoader,
+    FlowTemplateData,
+    MessageTemplate,
+)
 from app.integrations.gemini_client import get_gemini_client
 from app.utils.template_variables import TemplateVariableProcessor
 from .models import FlowContext
@@ -22,7 +26,7 @@ class MessageGenerator:
         db_session: Session,
         agent_id: str,
         logger: logging.Logger,
-        template_loader: Optional[EnhancedTemplateLoader] = None
+        template_loader: Optional[EnhancedTemplateLoader] = None,
     ):
         self.db_session = db_session
         self.agent_id = agent_id
@@ -45,16 +49,22 @@ class MessageGenerator:
                 try:
                     template_data = self.template_loader.load_flow_template(flow_type)
                     self.flow_templates[flow_type] = template_data
-                    self.logger.info(f"Loaded {flow_type} template: {len(template_data.messages)} messages")
+                    self.logger.info(
+                        f"Loaded {flow_type} template: {len(template_data.messages)} messages"
+                    )
                 except Exception as e:
                     self.logger.warning(f"Could not load {flow_type} template: {e}")
 
-            self.logger.info(f"Successfully loaded {len(self.flow_templates)} flow templates")
+            self.logger.info(
+                f"Successfully loaded {len(self.flow_templates)} flow templates"
+            )
 
         except Exception as e:
             self.logger.error(f"Failed to load flow templates: {e}")
 
-    async def generate_daily_message(self, context: FlowContext) -> Optional[Dict[str, Any]]:
+    async def generate_daily_message(
+        self, context: FlowContext
+    ) -> Optional[Dict[str, Any]]:
         """Generate appropriate daily message using templates and AI optimization."""
         if not context.patient_data:
             return None
@@ -64,7 +74,9 @@ class MessageGenerator:
             flow_type = self._determine_flow_type(context.current_day)
 
             # Try to get message from templates first
-            template_message = await self._get_template_message(flow_type, context.current_day)
+            template_message = await self._get_template_message(
+                flow_type, context.current_day
+            )
 
             if template_message:
                 # Use AI to generate personalized content based on template
@@ -80,7 +92,9 @@ class MessageGenerator:
                 f"Patient: {context.patient_data.name if context.patient_data else 'unknown'}. "
                 "Please ensure all templates are loaded in the database."
             )
-            raise ValueError(f"Missing template: flow_type={flow_type}, day={context.current_day}")
+            raise ValueError(
+                f"Missing template: flow_type={flow_type}, day={context.current_day}"
+            )
 
         except ValueError:
             # Re-raise template missing errors
@@ -98,7 +112,9 @@ class MessageGenerator:
         else:
             return "monthly_recurring"
 
-    async def _get_template_message(self, flow_type: str, day: int) -> Optional[MessageTemplate]:
+    async def _get_template_message(
+        self, flow_type: str, day: int
+    ) -> Optional[MessageTemplate]:
         """Get message template for specific flow type and day."""
         try:
             # Check if template is already loaded
@@ -110,7 +126,9 @@ class MessageGenerator:
                 return flow_template.messages.get(day)
 
         except Exception as e:
-            self.logger.warning(f"Could not get template message for {flow_type}, day {day}: {e}")
+            self.logger.warning(
+                f"Could not get template message for {flow_type}, day {day}: {e}"
+            )
 
         return None
 
@@ -119,7 +137,9 @@ class MessageGenerator:
         try:
             template_data = self.template_loader.load_flow_template(flow_type)
             self.flow_templates[flow_type] = template_data
-            self.logger.info(f"Loaded template for {flow_type}: {len(template_data.messages)} messages")
+            self.logger.info(
+                f"Loaded template for {flow_type}: {len(template_data.messages)} messages"
+            )
         except Exception as e:
             self.logger.error(f"Failed to load template {flow_type}: {e}")
 
@@ -130,13 +150,17 @@ class MessageGenerator:
         try:
             # Prepare personalization context
             personalization_context = {
-                "patient_name": context.patient_data.name if context.patient_data else "Cliente",
+                "patient_name": context.patient_data.name
+                if context.patient_data
+                else "Cliente",
                 "current_day": context.current_day,
                 "mood_trend": context.mood_indicators.get("trend", 0),
-                "engagement_level": context.adherence_metrics.get("message_response_rate", 0.5),
+                "engagement_level": context.adherence_metrics.get(
+                    "message_response_rate", 0.5
+                ),
                 "risk_factors": context.risk_factors,
                 "personalization_hints": template.personalization_hints,
-                "core_elements": template.core_elements
+                "core_elements": template.core_elements,
             }
 
             # Generate personalized content using AI if available
@@ -152,22 +176,26 @@ class MessageGenerator:
 
             return {
                 "content": personalized_content,
-                "personalization_level": "high" if template.ai_instructions else "standard",
+                "personalization_level": "high"
+                if template.ai_instructions
+                else "standard",
                 "template_intent": template.intent,
                 "generated_at": datetime.utcnow().isoformat(),
-                "source": "template"
+                "source": "template",
             }
 
         except Exception as e:
             self.logger.error(f"Error personalizing template message: {e}")
             # Fallback to base content
             return {
-                "content": template.base_content.replace("{patient_name}",
-                    context.patient_data.name if context.patient_data else "Cliente"),
+                "content": template.base_content.replace(
+                    "{patient_name}",
+                    context.patient_data.name if context.patient_data else "Cliente",
+                ),
                 "personalization_level": "basic",
                 "template_intent": template.intent,
                 "generated_at": datetime.utcnow().isoformat(),
-                "source": "template_fallback"
+                "source": "template_fallback",
             }
 
     async def _generate_ai_content(
@@ -180,14 +208,14 @@ class MessageGenerator:
             {template.ai_instructions}
 
             Contexto do paciente:
-            - Nome: {context['patient_name']}
-            - Dia do tratamento: {context['current_day']}
-            - Tendência de humor: {context['mood_trend']}
-            - Nível de engajamento: {context['engagement_level']}
-            - Fatores de risco: {', '.join(context['risk_factors'])}
+            - Nome: {context["patient_name"]}
+            - Dia do tratamento: {context["current_day"]}
+            - Tendência de humor: {context["mood_trend"]}
+            - Nível de engajamento: {context["engagement_level"]}
+            - Fatores de risco: {", ".join(context["risk_factors"])}
 
-            Dicas de personalização: {', '.join(context['personalization_hints'])}
-            Elementos essenciais: {context['core_elements']}
+            Dicas de personalização: {", ".join(context["personalization_hints"])}
+            Elementos essenciais: {context["core_elements"]}
 
             Conteúdo base: {template.base_content}
 
@@ -197,7 +225,7 @@ class MessageGenerator:
             # Call AI service
             response = await self.gemini_client.generate_content(ai_prompt)
 
-            if response and hasattr(response, 'text'):
+            if response and hasattr(response, "text"):
                 return response.text.strip()
 
             # Fallback if AI fails

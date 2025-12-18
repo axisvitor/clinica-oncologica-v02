@@ -1,6 +1,7 @@
 """
 AI Services - Health Check and Status Endpoints
 """
+
 import logging
 from datetime import datetime
 
@@ -64,6 +65,7 @@ async def ai_health_check() -> AIHealthResponse:
         gemini_info = {"status": "unknown", "reason": "not_tested"}
         try:
             from app.config import settings
+
             if settings.AI_GEMINI_API_KEY:
                 gemini_status = "configured"
                 gemini_info = {"status": "configured", "enabled": True}
@@ -83,11 +85,20 @@ async def ai_health_check() -> AIHealthResponse:
 
         # Check actual AI service configurations
         from app.config import settings
+
         services = {
-            "humanizer": "operational" if getattr(settings, 'AI_ENABLE_HUMANIZATION', True) else "disabled",
-            "sentiment_analyzer": "operational" if getattr(settings, 'AI_ENABLE_SENTIMENT', True) else "disabled",
-            "insights_generator": "operational" if getattr(settings, 'AI_ENABLE_INSIGHTS', True) else "disabled",
-            "risk_analyzer": "operational" if getattr(settings, 'AI_ENABLE_RISK_ANALYSIS', True) else "disabled",
+            "humanizer": "operational"
+            if getattr(settings, "AI_ENABLE_HUMANIZATION", True)
+            else "disabled",
+            "sentiment_analyzer": "operational"
+            if getattr(settings, "AI_ENABLE_SENTIMENT", True)
+            else "disabled",
+            "insights_generator": "operational"
+            if getattr(settings, "AI_ENABLE_INSIGHTS", True)
+            else "disabled",
+            "risk_analyzer": "operational"
+            if getattr(settings, "AI_ENABLE_RISK_ANALYSIS", True)
+            else "disabled",
         }
 
         return AIHealthResponse(

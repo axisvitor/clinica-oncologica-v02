@@ -22,11 +22,11 @@ Usage:
         # Function implementation
         return patient
 """
+
 import functools
 import inspect
 import time
-from typing import Callable, Optional, Any, Dict
-from uuid import UUID
+from typing import Callable, Optional
 
 from app.models.audit_log import AuditEventType
 from app.services.audit import AuditService, AuditEventContext
@@ -37,7 +37,7 @@ def audit_event(
     event_category: str,
     resource_type: Optional[str] = None,
     extract_resource_id: Optional[str] = None,
-    capture_result: bool = False
+    capture_result: bool = False,
 ):
     """
     Decorator to automatically log audit events for function calls.
@@ -58,6 +58,7 @@ def audit_event(
         async def create_user(db: AsyncSession, user_id: UUID, user_data: dict):
             pass
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
@@ -80,10 +81,12 @@ def audit_event(
 
                 # Try to get database session from args/kwargs
                 db = None
-                if args and hasattr(args[0], 'execute'):  # First arg might be AsyncSession
+                if args and hasattr(
+                    args[0], "execute"
+                ):  # First arg might be AsyncSession
                     db = args[0]
-                elif 'db' in kwargs:
-                    db = kwargs['db']
+                elif "db" in kwargs:
+                    db = kwargs["db"]
 
                 # Extract resource ID if specified
                 resource_id = None
@@ -116,7 +119,7 @@ def audit_event(
                     error_message=error_message,
                     duration_ms=duration_ms,
                     description=f"Function call: {func.__name__}",
-                    metadata=metadata
+                    metadata=metadata,
                 )
 
                 # Log event if we have a database session
@@ -126,20 +129,23 @@ def audit_event(
                         await audit_service.log_event(
                             event_type=event_type,
                             event_category=event_category,
-                            context=context
+                            context=context,
                         )
                     except Exception as audit_error:
                         # Don't fail the function if audit logging fails
                         import logging
+
                         logger = logging.getLogger(__name__)
                         logger.error(
                             "Audit logging failed in decorator",
                             extra={
                                 "error": str(audit_error),
                                 "function": func.__name__,
-                                "event_type": event_type.value if hasattr(event_type, 'value') else str(event_type),
-                                "event_category": event_category
-                            }
+                                "event_type": event_type.value
+                                if hasattr(event_type, "value")
+                                else str(event_type),
+                                "event_category": event_category,
+                            },
                         )
 
         @functools.wraps(func)
@@ -160,7 +166,7 @@ def audit_event(
 def audit_phi_access(
     resource_type: str,
     extract_resource_id: str = "id",
-    event_type: Optional[AuditEventType] = None
+    event_type: Optional[AuditEventType] = None,
 ):
     """
     Decorator to automatically log PHI data access.
@@ -183,7 +189,7 @@ def audit_phi_access(
         event_type=event_type,
         event_category="PHI_ACCESS",
         resource_type=resource_type,
-        extract_resource_id=extract_resource_id
+        extract_resource_id=extract_resource_id,
     )
 
 
@@ -193,7 +199,7 @@ def audit_data_modification(
     extract_resource_id: str = "id",
     extract_before_state: Optional[str] = None,
     extract_after_state: Optional[str] = None,
-    event_type: Optional[AuditEventType] = None
+    event_type: Optional[AuditEventType] = None,
 ):
     """
     Decorator to automatically log data modifications with before/after states.
@@ -248,10 +254,10 @@ def audit_data_modification(
 
                 # Try to get database session
                 db = None
-                if args and hasattr(args[0], 'execute'):
+                if args and hasattr(args[0], "execute"):
                     db = args[0]
-                elif 'db' in kwargs:
-                    db = kwargs['db']
+                elif "db" in kwargs:
+                    db = kwargs["db"]
 
                 # Extract resource ID
                 resource_id = None
@@ -264,12 +270,12 @@ def audit_data_modification(
 
                 if extract_before_state and extract_before_state in kwargs:
                     changes_before = kwargs[extract_before_state]
-                    if hasattr(changes_before, '__dict__'):
+                    if hasattr(changes_before, "__dict__"):
                         changes_before = changes_before.__dict__
 
                 if extract_after_state and extract_after_state in kwargs:
                     changes_after = kwargs[extract_after_state]
-                    if hasattr(changes_after, '__dict__'):
+                    if hasattr(changes_after, "__dict__"):
                         changes_after = changes_after.__dict__
 
                 # Build context
@@ -286,7 +292,7 @@ def audit_data_modification(
                     metadata={
                         "function": func.__name__,
                         "module": func.__module__,
-                    }
+                    },
                 )
 
                 # Log event
@@ -296,10 +302,11 @@ def audit_data_modification(
                         await audit_service.log_event(
                             event_type=event_type,
                             event_category="DATA_MODIFICATION",
-                            context=context
+                            context=context,
                         )
                     except Exception as audit_error:
                         import logging
+
                         logger = logging.getLogger(__name__)
                         logger.error(
                             "Audit logging failed in data modification decorator",
@@ -307,8 +314,8 @@ def audit_data_modification(
                                 "error": str(audit_error),
                                 "function": func.__name__,
                                 "resource_type": resource_type,
-                                "operation": operation
-                            }
+                                "operation": operation,
+                            },
                         )
 
         if inspect.iscoroutinefunction(func):
@@ -322,14 +329,20 @@ def audit_data_modification(
 # Convenience decorators for common operations
 def audit_create(resource_type: str, **kwargs):
     """Convenience decorator for CREATE operations."""
-    return audit_data_modification(resource_type=resource_type, operation="CREATE", **kwargs)
+    return audit_data_modification(
+        resource_type=resource_type, operation="CREATE", **kwargs
+    )
 
 
 def audit_update(resource_type: str, **kwargs):
     """Convenience decorator for UPDATE operations."""
-    return audit_data_modification(resource_type=resource_type, operation="UPDATE", **kwargs)
+    return audit_data_modification(
+        resource_type=resource_type, operation="UPDATE", **kwargs
+    )
 
 
 def audit_delete(resource_type: str, **kwargs):
     """Convenience decorator for DELETE operations."""
-    return audit_data_modification(resource_type=resource_type, operation="DELETE", **kwargs)
+    return audit_data_modification(
+        resource_type=resource_type, operation="DELETE", **kwargs
+    )

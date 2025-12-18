@@ -12,10 +12,10 @@ Performance Impact:
 - After: ~2ms per request (Redis cache)
 - Improvement: 100x faster
 """
+
 import json
 import logging
-from typing import Optional, Dict, Any, List
-from datetime import datetime, timedelta
+from typing import Optional, Dict, Any
 
 from app.core.redis_unified import get_redis_client
 from app.config.template_loader import FlowTemplateConfigLoader
@@ -45,15 +45,13 @@ class FlowTemplateCacheService:
 
     def __init__(self):
         """Initialize cache service with Redis client."""
-        self.redis = get_redis_client('sync')
+        self.redis = get_redis_client("sync")
         self.loader = FlowTemplateConfigLoader()
         self._cache_hits = 0
         self._cache_misses = 0
 
     async def get_template(
-        self,
-        flow_type: str,
-        use_cache: bool = True
+        self, flow_type: str, use_cache: bool = True
     ) -> Optional[Dict[str, Any]]:
         """
         Get flow template with Redis caching.
@@ -96,8 +94,7 @@ class FlowTemplateCacheService:
         return template
 
     async def get_all_templates(
-        self,
-        use_cache: bool = True
+        self, use_cache: bool = True
     ) -> Dict[str, Dict[str, Any]]:
         """
         Get all flow templates (batch operation).
@@ -206,12 +203,10 @@ class FlowTemplateCacheService:
         cache_key = self._get_cache_key(flow_type)
 
         try:
-            self.redis.setex(
-                cache_key,
-                self.CACHE_TTL_SECONDS,
-                json.dumps(template)
+            self.redis.setex(cache_key, self.CACHE_TTL_SECONDS, json.dumps(template))
+            logger.debug(
+                f"Template cached: {flow_type} (TTL: {self.CACHE_TTL_SECONDS}s)"
             )
-            logger.debug(f"Template cached: {flow_type} (TTL: {self.CACHE_TTL_SECONDS}s)")
         except Exception as e:
             logger.error(f"Failed to cache template {flow_type}: {e}")
 

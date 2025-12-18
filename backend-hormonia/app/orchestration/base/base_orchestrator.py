@@ -146,9 +146,7 @@ class BaseOrchestrator(ABC):
             message: Log message
             extra: Additional context data
         """
-        self.logger.info(
-            message, extra={"service": self.service_name, **(extra or {})}
-        )
+        self.logger.info(message, extra={"service": self.service_name, **(extra or {})})
 
     def log_warning(self, message: str, extra: Optional[Dict] = None):
         """

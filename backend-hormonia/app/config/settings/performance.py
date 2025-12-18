@@ -22,39 +22,39 @@ class PerformanceSettings(BaseAppSettings):
         default=4,
         ge=2,
         le=10,
-        description="Connections per worker (multiplied by worker count)"
+        description="Connections per worker (multiplied by worker count)",
     )
     DATABASE_POOL_SIZE_BASE: int = Field(
         default=50,
         ge=20,
         le=100,
-        description="Base pool size (overridden by dynamic calculation if workers known)"
+        description="Base pool size (overridden by dynamic calculation if workers known)",
     )
     DATABASE_POOL_MAX_OVERFLOW: int = Field(
         default=20,
         ge=10,
         le=50,
-        description="Max overflow connections beyond pool size"
+        description="Max overflow connections beyond pool size",
     )
     DATABASE_POOL_TIMEOUT_SECONDS: int = Field(
         default=30,
         ge=10,
         le=60,
-        description="Pool connection acquisition timeout in seconds"
+        description="Pool connection acquisition timeout in seconds",
     )
     DATABASE_POOL_RECYCLE_SECONDS: int = Field(
         default=1800,  # 30 minutes (reduced from 1 hour)
         ge=600,
         le=7200,
-        description="Recycle connections after this many seconds (prevents stale connections)"
+        description="Recycle connections after this many seconds (prevents stale connections)",
     )
     DATABASE_POOL_PRE_PING: bool = Field(
         default=True,
-        description="Test connection validity before using (prevents SSL errors)"
+        description="Test connection validity before using (prevents SSL errors)",
     )
     DATABASE_POOL_RESET_ON_RETURN: str = Field(
         default="commit",
-        description="Reset mode when connection returned to pool: commit, rollback, or None"
+        description="Reset mode when connection returned to pool: commit, rollback, or None",
     )
 
     # Query Performance
@@ -62,39 +62,33 @@ class PerformanceSettings(BaseAppSettings):
         default=30000,  # 30 seconds
         ge=5000,
         le=120000,
-        description="Statement timeout in milliseconds (kill slow queries)"
+        description="Statement timeout in milliseconds (kill slow queries)",
     )
     DATABASE_SLOW_QUERY_THRESHOLD_SECONDS: float = Field(
         default=1.0,
         ge=0.1,
         le=10.0,
-        description="Log queries slower than this threshold"
+        description="Log queries slower than this threshold",
     )
     DATABASE_QUERY_CACHE_TTL_SECONDS: int = Field(
-        default=60,
-        ge=10,
-        le=600,
-        description="Default TTL for cached query results"
+        default=60, ge=10, le=600, description="Default TTL for cached query results"
     )
 
     # Connection Monitoring
     DATABASE_POOL_MONITOR_INTERVAL_SECONDS: int = Field(
-        default=60,
-        ge=30,
-        le=300,
-        description="Pool statistics monitoring interval"
+        default=60, ge=30, le=300, description="Pool statistics monitoring interval"
     )
     DATABASE_POOL_UTILIZATION_WARNING_THRESHOLD: float = Field(
         default=0.85,
         ge=0.5,
         le=0.95,
-        description="Warn when pool utilization exceeds this percentage"
+        description="Warn when pool utilization exceeds this percentage",
     )
     DATABASE_POOL_UTILIZATION_CRITICAL_THRESHOLD: float = Field(
         default=0.92,
         ge=0.8,
         le=0.99,
-        description="Critical alert when pool utilization exceeds this percentage"
+        description="Critical alert when pool utilization exceeds this percentage",
     )
 
     # ============================================================================
@@ -105,13 +99,13 @@ class PerformanceSettings(BaseAppSettings):
         default=20,
         ge=10,
         le=100,
-        description="Redis connection pool size (lower than DB pool)"
+        description="Redis connection pool size (lower than DB pool)",
     )
     REDIS_POOL_MAX_CONNECTIONS: int = Field(
         default=50,
         ge=20,
         le=200,
-        description="Redis maximum connections in pool (total limit)"
+        description="Redis maximum connections in pool (total limit)",
     )
 
     # Timeout Configuration (optimized for Redis Cloud SSL/TLS)
@@ -119,23 +113,22 @@ class PerformanceSettings(BaseAppSettings):
         default=5.0,  # Reduced from 10s (SSL handshake should be fast)
         ge=1.0,
         le=30.0,
-        description="Redis socket operation timeout in seconds"
+        description="Redis socket operation timeout in seconds",
     )
     REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS: float = Field(
         default=2.0,  # Reduced from 5s (connection should be quick)
         ge=1.0,
         le=10.0,
-        description="Redis connection timeout in seconds"
+        description="Redis connection timeout in seconds",
     )
     REDIS_RETRY_ON_TIMEOUT: bool = Field(
-        default=True,
-        description="Automatically retry operations on timeout"
+        default=True, description="Automatically retry operations on timeout"
     )
     REDIS_MAX_RETRY_ATTEMPTS: int = Field(
         default=3,
         ge=1,
         le=10,
-        description="Maximum retry attempts for failed operations"
+        description="Maximum retry attempts for failed operations",
     )
 
     # Health Check Configuration
@@ -143,27 +136,26 @@ class PerformanceSettings(BaseAppSettings):
         default=30,
         ge=10,
         le=300,
-        description="Redis connection health check interval in seconds"
+        description="Redis connection health check interval in seconds",
     )
     REDIS_ENABLE_HEALTH_CHECK: bool = Field(
-        default=True,
-        description="Enable periodic connection health checks"
+        default=True, description="Enable periodic connection health checks"
     )
 
     # SSL/TLS Optimization
     REDIS_SSL_SESSION_REUSE: bool = Field(
         default=True,
-        description="Enable SSL session reuse (reduces handshake overhead)"
+        description="Enable SSL session reuse (reduces handshake overhead)",
     )
     REDIS_SSL_CONNECTION_POOL_WARMUP: bool = Field(
         default=True,
-        description="Pre-create connections on startup (amortize SSL handshake cost)"
+        description="Pre-create connections on startup (amortize SSL handshake cost)",
     )
     REDIS_SSL_WARMUP_CONNECTIONS: int = Field(
         default=5,
         ge=1,
         le=20,
-        description="Number of connections to pre-create on startup"
+        description="Number of connections to pre-create on startup",
     )
 
     # ============================================================================
@@ -174,43 +166,43 @@ class PerformanceSettings(BaseAppSettings):
         default=300,  # 5 minutes
         ge=60,
         le=3600,
-        description="Default cache TTL for generic data"
+        description="Default cache TTL for generic data",
     )
     CACHE_QUERY_TTL_SECONDS: int = Field(
         default=60,  # 1 minute
         ge=10,
         le=600,
-        description="Cache TTL for database query results"
+        description="Cache TTL for database query results",
     )
     CACHE_SESSION_TTL_SECONDS: int = Field(
         default=900,  # 15 minutes
         ge=300,
         le=3600,
-        description="Cache TTL for user sessions"
+        description="Cache TTL for user sessions",
     )
     CACHE_STATIC_DATA_TTL_SECONDS: int = Field(
         default=3600,  # 1 hour
         ge=600,
         le=86400,
-        description="Cache TTL for static/rarely changing data"
+        description="Cache TTL for static/rarely changing data",
     )
 
     # Cache Performance
     CACHE_ENABLE_COMPRESSION: bool = Field(
         default=True,
-        description="Enable compression for cached data (reduces memory/network)"
+        description="Enable compression for cached data (reduces memory/network)",
     )
     CACHE_COMPRESSION_THRESHOLD_BYTES: int = Field(
         default=1024,  # 1 KB
         ge=512,
         le=10240,
-        description="Only compress cached values larger than this size"
+        description="Only compress cached values larger than this size",
     )
     CACHE_MAX_VALUE_SIZE_BYTES: int = Field(
         default=1048576,  # 1 MB
         ge=102400,
         le=10485760,
-        description="Maximum size for a single cached value"
+        description="Maximum size for a single cached value",
     )
 
     # ============================================================================
@@ -218,22 +210,19 @@ class PerformanceSettings(BaseAppSettings):
     # ============================================================================
 
     REQUEST_TIMEOUT_SECONDS: int = Field(
-        default=30,
-        ge=10,
-        le=120,
-        description="Default request timeout"
+        default=30, ge=10, le=120, description="Default request timeout"
     )
     REQUEST_MAX_SIZE_BYTES: int = Field(
         default=10485760,  # 10 MB
         ge=1048576,
         le=104857600,
-        description="Maximum request body size"
+        description="Maximum request body size",
     )
     RESPONSE_CACHE_CONTROL_MAX_AGE: int = Field(
         default=300,  # 5 minutes
         ge=0,
         le=3600,
-        description="Cache-Control max-age for API responses"
+        description="Cache-Control max-age for API responses",
     )
 
     # ============================================================================
@@ -241,28 +230,22 @@ class PerformanceSettings(BaseAppSettings):
     # ============================================================================
 
     CELERY_WORKER_POOL_SIZE: int = Field(
-        default=4,
-        ge=2,
-        le=16,
-        description="Celery worker pool size (CPU-bound tasks)"
+        default=4, ge=2, le=16, description="Celery worker pool size (CPU-bound tasks)"
     )
     CELERY_WORKER_PREFETCH_MULTIPLIER: int = Field(
-        default=4,
-        ge=1,
-        le=10,
-        description="Tasks to prefetch per worker"
+        default=4, ge=1, le=10, description="Tasks to prefetch per worker"
     )
     CELERY_TASK_SOFT_TIME_LIMIT_SECONDS: int = Field(
         default=300,  # 5 minutes
         ge=60,
         le=3600,
-        description="Soft time limit for tasks (raises exception)"
+        description="Soft time limit for tasks (raises exception)",
     )
     CELERY_TASK_HARD_TIME_LIMIT_SECONDS: int = Field(
         default=600,  # 10 minutes
         ge=120,
         le=7200,
-        description="Hard time limit for tasks (kills worker)"
+        description="Hard time limit for tasks (kills worker)",
     )
 
     # ============================================================================
@@ -273,21 +256,17 @@ class PerformanceSettings(BaseAppSettings):
         default=60,
         ge=10,
         le=300,
-        description="Interval for collecting performance metrics"
+        description="Interval for collecting performance metrics",
     )
     METRICS_RETENTION_DAYS: int = Field(
-        default=7,
-        ge=1,
-        le=90,
-        description="Days to retain performance metrics"
+        default=7, ge=1, le=90, description="Days to retain performance metrics"
     )
     ENABLE_PERFORMANCE_PROFILING: bool = Field(
         default=False,
-        description="Enable detailed performance profiling (adds overhead)"
+        description="Enable detailed performance profiling (adds overhead)",
     )
     ENABLE_QUERY_LOGGING: bool = Field(
-        default=True,
-        description="Enable slow query logging"
+        default=True, description="Enable slow query logging"
     )
 
     @field_validator("DATABASE_POOL_RESET_ON_RETURN")

@@ -12,20 +12,19 @@ Features:
 """
 
 import threading
-import weakref
 from contextlib import contextmanager
-from typing import Dict, Any, Optional, Callable
+from typing import Dict, Any, Callable
 from sqlalchemy.orm import Session
 import logging
 
 from app.services.auth import AuthService
-from app.services.patient import PatientService, PatientIntegrityService
+from app.services.patient import PatientIntegrityService
 from app.services.quiz import QuizService
 from app.services.reporting import ReportService
 from app.services.analytics import AnalyticsService
 from app.domain.messaging.core import MessageService
 from app.domain.flows.core import FlowService
-from app.services.flow_engine import FlowEngine
+from app.services.enhanced_flow_engine import EnhancedFlowEngine
 from app.services.notification import NotificationService
 from app.services.file import FileService
 from app.domain.quizzes import MonthlyQuizService
@@ -55,7 +54,7 @@ class ThreadSafeServiceProvider:
 
     # Class-level locks for thread safety
     _instance_lock = threading.RLock()
-    _instances: Dict[int, 'ThreadSafeServiceProvider'] = {}
+    _instances: Dict[int, "ThreadSafeServiceProvider"] = {}
     _local_data = threading.local()
 
     def __init__(self, db_session_factory: Callable[[], Session], redis_client):
@@ -81,7 +80,9 @@ class ThreadSafeServiceProvider:
         logger.info(f"ServiceProvider initialized for thread {self._thread_id}")
 
     @classmethod
-    def get_instance(cls, db_session_factory=None, redis_client=None) -> 'ThreadSafeServiceProvider':
+    def get_instance(
+        cls, db_session_factory=None, redis_client=None
+    ) -> "ThreadSafeServiceProvider":
         """
         Get or create thread-safe singleton instance.
 
@@ -93,11 +94,15 @@ class ThreadSafeServiceProvider:
         with cls._instance_lock:
             if thread_id not in cls._instances:
                 if db_session_factory is None or redis_client is None:
-                    raise ValueError("db_session_factory and redis_client required for new instance")
+                    raise ValueError(
+                        "db_session_factory and redis_client required for new instance"
+                    )
 
                 instance = cls(db_session_factory, redis_client)
                 cls._instances[thread_id] = instance
-                logger.info(f"Created new ServiceProvider instance for thread {thread_id}")
+                logger.info(
+                    f"Created new ServiceProvider instance for thread {thread_id}"
+                )
 
             return cls._instances[thread_id]
 
@@ -133,7 +138,9 @@ class ThreadSafeServiceProvider:
         with self._service_cache_lock:
             if service_name not in self._service_cache:
                 try:
-                    logger.debug(f"Creating service '{service_name}' for thread {self._thread_id}")
+                    logger.debug(
+                        f"Creating service '{service_name}' for thread {self._thread_id}"
+                    )
                     self._service_cache[service_name] = factory_func()
                     logger.debug(f"Service '{service_name}' created successfully")
                 except Exception as e:
@@ -156,7 +163,9 @@ class ThreadSafeServiceProvider:
         with self._repository_cache_lock:
             if repo_name not in self._repository_cache:
                 try:
-                    logger.debug(f"Creating repository '{repo_name}' for thread {self._thread_id}")
+                    logger.debug(
+                        f"Creating repository '{repo_name}' for thread {self._thread_id}"
+                    )
                     # Create repository with session factory for thread safety
                     self._repository_cache[repo_name] = factory_func()
                     logger.debug(f"Repository '{repo_name}' created successfully")
@@ -170,30 +179,27 @@ class ThreadSafeServiceProvider:
     @property
     def user_repository(self) -> UserRepository:
         return self._get_or_create_repository(
-            'user_repository',
-            lambda: UserRepositoryWrapper(self.db_session_factory)
+            "user_repository", lambda: UserRepositoryWrapper(self.db_session_factory)
         )
 
     @property
     def patient_repository(self) -> PatientRepository:
         return self._get_or_create_repository(
-            'patient_repository',
-            lambda: PatientRepositoryWrapper(self.db_session_factory)
+            "patient_repository",
+            lambda: PatientRepositoryWrapper(self.db_session_factory),
         )
 
     @property
     def quiz_repository(self) -> QuizRepository:
         return self._get_or_create_repository(
-            'quiz_repository',
-            lambda: QuizRepositoryWrapper(self.db_session_factory)
+            "quiz_repository", lambda: QuizRepositoryWrapper(self.db_session_factory)
         )
 
     # Thread-safe service properties with proper dependencies
     @property
     def auth_service(self) -> AuthService:
         return self._get_or_create_service(
-            'auth_service',
-            lambda: self._create_auth_service()
+            "auth_service", lambda: self._create_auth_service()
         )
 
     def _create_auth_service(self) -> AuthService:
@@ -203,7 +209,7 @@ class ThreadSafeServiceProvider:
             return AuthService(
                 db_session_factory=self.db_session_factory,
                 user_repository=self.user_repository,
-                redis_client=self.redis_client
+                redis_client=self.redis_client,
             )
         except TypeError:
             # Fallback to original constructor for backward compatibility
@@ -211,14 +217,13 @@ class ThreadSafeServiceProvider:
                 return AuthService(
                     db=session,
                     user_repository=self.user_repository,
-                    redis_client=self.redis_client
+                    redis_client=self.redis_client,
                 )
 
     @property
     def flow_engine(self) -> EnhancedFlowEngine:
         return self._get_or_create_service(
-            'flow_engine',
-            lambda: self._create_flow_engine()
+            "flow_engine", lambda: self._create_flow_engine()
         )
 
     def _create_flow_engine(self) -> EnhancedFlowEngine:
@@ -234,8 +239,8 @@ class ThreadSafeServiceProvider:
     @property
     def patient_integrity_service(self) -> PatientIntegrityService:
         return self._get_or_create_service(
-            'patient_integrity_service',
-            lambda: self._create_patient_integrity_service()
+            "patient_integrity_service",
+            lambda: self._create_patient_integrity_service(),
         )
 
     def _create_patient_integrity_service(self) -> PatientIntegrityService:
@@ -244,21 +249,19 @@ class ThreadSafeServiceProvider:
             # Try new constructor pattern
             return PatientIntegrityService(
                 db_session_factory=self.db_session_factory,
-                patient_repository=self.patient_repository
+                patient_repository=self.patient_repository,
             )
         except TypeError:
             # Fallback to original constructor
             with self.get_db_session() as session:
                 return PatientIntegrityService(
-                    db=session,
-                    patient_repository=self.patient_repository
+                    db=session, patient_repository=self.patient_repository
                 )
 
     @property
     def quiz_service(self) -> QuizService:
         return self._get_or_create_service(
-            'quiz_service',
-            lambda: self._create_quiz_service()
+            "quiz_service", lambda: self._create_quiz_service()
         )
 
     def _create_quiz_service(self) -> QuizService:
@@ -268,7 +271,7 @@ class ThreadSafeServiceProvider:
             return QuizService(
                 db_session_factory=self.db_session_factory,
                 quiz_repository=self.quiz_repository,
-                flow_engine=self.flow_engine
+                flow_engine=self.flow_engine,
             )
         except TypeError:
             try:
@@ -282,57 +285,50 @@ class ThreadSafeServiceProvider:
     @property
     def report_service(self) -> ReportService:
         return self._get_or_create_service(
-            'report_service',
-            lambda: self._create_basic_service(ReportService)
+            "report_service", lambda: self._create_basic_service(ReportService)
         )
 
     @property
     def analytics_service(self) -> AnalyticsService:
         return self._get_or_create_service(
-            'analytics_service',
-            lambda: self._create_basic_service(AnalyticsService)
+            "analytics_service", lambda: self._create_basic_service(AnalyticsService)
         )
 
     @property
     def message_service(self) -> MessageService:
         return self._get_or_create_service(
-            'message_service',
-            lambda: self._create_basic_service(MessageService)
+            "message_service", lambda: self._create_basic_service(MessageService)
         )
 
     @property
     def flow_service(self) -> FlowService:
         return self._get_or_create_service(
-            'flow_service',
-            lambda: self._create_basic_service(FlowService)
+            "flow_service", lambda: self._create_basic_service(FlowService)
         )
 
     @property
     def notification_service(self) -> NotificationService:
         return self._get_or_create_service(
-            'notification_service',
-            lambda: self._create_basic_service(NotificationService)
+            "notification_service",
+            lambda: self._create_basic_service(NotificationService),
         )
 
     @property
     def file_service(self) -> FileService:
-        return self._get_or_create_service(
-            'file_service',
-            lambda: FileService()
-        )
+        return self._get_or_create_service("file_service", lambda: FileService())
 
     @property
     def monthly_quiz_service(self) -> MonthlyQuizService:
         return self._get_or_create_service(
-            'monthly_quiz_service',
-            lambda: self._create_basic_service(MonthlyQuizService)
+            "monthly_quiz_service",
+            lambda: self._create_basic_service(MonthlyQuizService),
         )
 
     @property
     def metrics_collector_service(self) -> MetricsCollectorService:
         return self._get_or_create_service(
-            'metrics_collector_service',
-            lambda: self._create_metrics_collector_service()
+            "metrics_collector_service",
+            lambda: self._create_metrics_collector_service(),
         )
 
     def _create_metrics_collector_service(self) -> MetricsCollectorService:
@@ -341,18 +337,19 @@ class ThreadSafeServiceProvider:
             # Try new constructor pattern
             return MetricsCollectorService(
                 db_session_factory=self.db_session_factory,
-                redis_client=self.redis_client
+                redis_client=self.redis_client,
             )
         except TypeError:
             # Fallback to original constructor
             with self.get_db_session() as session:
-                return MetricsCollectorService(db=session, redis_client=self.redis_client)
+                return MetricsCollectorService(
+                    db=session, redis_client=self.redis_client
+                )
 
     @property
     def metrics_redis_storage(self) -> MetricsRedisStorage:
         return self._get_or_create_service(
-            'metrics_redis_storage',
-            lambda: MetricsRedisStorage(self.redis_client)
+            "metrics_redis_storage", lambda: MetricsRedisStorage(self.redis_client)
         )
 
     def _create_basic_service(self, service_class):
@@ -376,7 +373,7 @@ class ThreadSafeServiceProvider:
         with self._service_cache_lock:
             # Close any services that have cleanup methods
             for service_name, service in self._service_cache.items():
-                if hasattr(service, 'cleanup'):
+                if hasattr(service, "cleanup"):
                     try:
                         service.cleanup()
                         logger.debug(f"Cleaned up service '{service_name}'")
@@ -404,7 +401,9 @@ class ThreadSafeServiceProvider:
                     instance = cls._instances[thread_id]
                     instance.cleanup()
                 except Exception as e:
-                    logger.error(f"Error cleaning up ServiceProvider for thread {thread_id}: {e}")
+                    logger.error(
+                        f"Error cleaning up ServiceProvider for thread {thread_id}: {e}"
+                    )
 
             cls._instances.clear()
             logger.info("All ServiceProvider instances cleaned up")
@@ -433,13 +432,14 @@ class RepositoryWrapper:
 
     def __getattr__(self, name):
         """Proxy all method calls to the repository with session management."""
-        if name.startswith('_'):
-            raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
+        if name.startswith("_"):
+            raise AttributeError(
+                f"'{self.__class__.__name__}' object has no attribute '{name}'"
+            )
 
         def method(*args, **kwargs):
             return self._execute_with_session(
-                lambda repo, *a, **kw: getattr(repo, name)(*a, **kw),
-                *args, **kwargs
+                lambda repo, *a, **kw: getattr(repo, name)(*a, **kw), *args, **kwargs
             )
 
         return method
@@ -474,13 +474,15 @@ def get_service_provider(request) -> ThreadSafeServiceProvider:
     instance to prevent race conditions in multi-worker deployments.
     """
     # Get the global service provider factory from app state
-    if hasattr(request.app.state, 'service_provider_factory'):
+    if hasattr(request.app.state, "service_provider_factory"):
         # Use factory to get thread-safe instance
         return request.app.state.service_provider_factory()
 
     # Fallback to legacy behavior for backward compatibility
-    if hasattr(request.app.state, 'service_provider'):
-        logger.warning("Using legacy non-thread-safe ServiceProvider. Consider upgrading to factory pattern.")
+    if hasattr(request.app.state, "service_provider"):
+        logger.warning(
+            "Using legacy non-thread-safe ServiceProvider. Consider upgrading to factory pattern."
+        )
         return request.app.state.service_provider
 
     raise RuntimeError("ServiceProvider not initialized in app state")
@@ -497,10 +499,10 @@ def create_service_provider_factory(db_session_factory, redis_client):
     Returns:
         Factory function that returns thread-safe ServiceProvider instances
     """
+
     def factory() -> ThreadSafeServiceProvider:
         return ThreadSafeServiceProvider.get_instance(
-            db_session_factory=db_session_factory,
-            redis_client=redis_client
+            db_session_factory=db_session_factory, redis_client=redis_client
         )
 
     return factory
@@ -511,12 +513,12 @@ ServiceProvider = ThreadSafeServiceProvider
 
 # Legacy compatibility - use ThreadSafeServiceProvider by default
 __all__ = [
-    'ThreadSafeServiceProvider',
-    'ServiceProvider',  # Alias for backward compatibility
-    'get_service_provider',
-    'create_service_provider_factory',
-    'RepositoryWrapper',
-    'UserRepositoryWrapper',
-    'PatientRepositoryWrapper',
-    'QuizRepositoryWrapper'
+    "ThreadSafeServiceProvider",
+    "ServiceProvider",  # Alias for backward compatibility
+    "get_service_provider",
+    "create_service_provider_factory",
+    "RepositoryWrapper",
+    "UserRepositoryWrapper",
+    "PatientRepositoryWrapper",
+    "QuizRepositoryWrapper",
 ]

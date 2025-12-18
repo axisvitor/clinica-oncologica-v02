@@ -1,6 +1,7 @@
 """
 WhatsApp Integration Package for Clinica Oncológica
 """
+
 from .models.message import (
     WhatsAppMessage,
     WhatsAppContact,
@@ -12,7 +13,7 @@ from .models.message import (
     ContactResponse,
     InstanceStatus,
     WebhookPayload,
-    MessageStatusUpdate
+    MessageStatusUpdate,
 )
 
 from .services.evolution_client import EvolutionAPIClient, RateLimiter
@@ -38,7 +39,6 @@ __all__ = [
     "InstanceStatus",
     "WebhookPayload",
     "MessageStatusUpdate",
-
     # Services
     "EvolutionAPIClient",
     "RateLimiter",
@@ -46,8 +46,7 @@ __all__ = [
     "MessageQueue",
     "MockEvolutionAPIClient",
     "create_evolution_client",
-
     # Routers
     "whatsapp_router",
-    "webhook_router"
+    "webhook_router",
 ]

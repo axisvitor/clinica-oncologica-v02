@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 _HUMANIZER_EXECUTOR = ThreadPoolExecutor(max_workers=4)
 
+
 class QuizQuestionHumanizerIntegration:
     """
     Integration layer for applying intelligent humanization to quiz questions.
@@ -29,7 +30,7 @@ class QuizQuestionHumanizerIntegration:
         self,
         questions: List[Dict[str, Any]],
         patient_id: UUID,
-        quiz_type: str = "monthly"
+        quiz_type: str = "monthly",
     ) -> List[Dict[str, Any]]:
         """
         Humanize a list of quiz questions with intelligent variation.
@@ -56,8 +57,8 @@ class QuizQuestionHumanizerIntegration:
         for question in questions:
             try:
                 # Determine if this question can be humanized
-                question_id = question.get('id', '')
-                question_text = question.get('text', '')
+                question_id = question.get("id", "")
+                question_text = question.get("text", "")
                 question_type = self._determine_quiz_question_type(question)
 
                 # Check if it's a scored question that needs consistency
@@ -73,17 +74,17 @@ class QuizQuestionHumanizerIntegration:
                     question_type=question_type,
                     patient=patient,
                     context={
-                        'quiz_type': quiz_type,
-                        'question_id': question_id,
-                        'question_metadata': question.get('metadata', {})
-                    }
+                        "quiz_type": quiz_type,
+                        "question_id": question_id,
+                        "question_metadata": question.get("metadata", {}),
+                    },
                 )
 
                 # Create humanized question
                 humanized_question = question.copy()
-                humanized_question['text'] = humanized_text
-                humanized_question['original_text'] = question_text
-                humanized_question['humanized'] = True
+                humanized_question["text"] = humanized_text
+                humanized_question["original_text"] = question_text
+                humanized_question["humanized"] = True
                 humanized_questions.append(humanized_question)
 
                 logger.info(f"Question {question_id} humanized successfully")
@@ -99,7 +100,7 @@ class QuizQuestionHumanizerIntegration:
         self,
         question: Dict[str, Any],
         patient: Patient,
-        quiz_context: Optional[Dict[str, Any]] = None
+        quiz_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Humanize a single quiz question synchronously.
@@ -116,7 +117,7 @@ class QuizQuestionHumanizerIntegration:
             return question
 
         try:
-            question_text = question.get('text', '')
+            question_text = question.get("text", "")
             question_type = self._determine_quiz_question_type(question)
 
             # Check if it's a scored question
@@ -128,7 +129,7 @@ class QuizQuestionHumanizerIntegration:
                     question=question_text,
                     question_type=question_type,
                     patient=patient,
-                    context=quiz_context
+                    context=quiz_context,
                 )
 
             try:
@@ -136,13 +137,15 @@ class QuizQuestionHumanizerIntegration:
             except RuntimeError:
                 humanized_text = asyncio.run(_humanize())
             else:
-                humanized_text = _HUMANIZER_EXECUTOR.submit(lambda: asyncio.run(_humanize())).result()
+                humanized_text = _HUMANIZER_EXECUTOR.submit(
+                    lambda: asyncio.run(_humanize())
+                ).result()
 
             # Return humanized question
             humanized_question = question.copy()
-            humanized_question['text'] = humanized_text
-            humanized_question['original_text'] = question_text
-            humanized_question['humanized'] = True
+            humanized_question["text"] = humanized_text
+            humanized_question["original_text"] = question_text
+            humanized_question["humanized"] = True
 
             return humanized_question
 
@@ -160,32 +163,35 @@ class QuizQuestionHumanizerIntegration:
         Returns:
             Question type identifier
         """
-        question_text = question.get('text', '').lower()
-        question_id = question.get('id', '').lower()
-        question_type = question.get('type', '').lower()
+        question_text = question.get("text", "").lower()
+        question.get("id", "").lower()
+        question_type = question.get("type", "").lower()
 
         # Check question type field
-        if question_type in ['scale', 'rating', 'numeric']:
-            return 'symptom_tracking'  # Needs consistency for scoring
+        if question_type in ["scale", "rating", "numeric"]:
+            return "symptom_tracking"  # Needs consistency for scoring
 
         # Analyze question text for patterns
-        if any(word in question_text for word in ['medicação', 'medicamento', 'dose']):
-            return 'medication_verification'
+        if any(word in question_text for word in ["medicação", "medicamento", "dose"]):
+            return "medication_verification"
 
-        if any(word in question_text for word in ['como você está', 'como se sente']):
-            return 'daily_checkin'
+        if any(word in question_text for word in ["como você está", "como se sente"]):
+            return "daily_checkin"
 
-        if any(word in question_text for word in ['dor', 'náusea', 'fadiga']):
-            return 'symptom_tracking'
+        if any(word in question_text for word in ["dor", "náusea", "fadiga"]):
+            return "symptom_tracking"
 
-        if any(word in question_text for word in ['humor', 'ansiedade', 'tristeza']):
-            return 'mood_assessment'
+        if any(word in question_text for word in ["humor", "ansiedade", "tristeza"]):
+            return "mood_assessment"
 
-        if any(word in question_text for word in ['sugestões', 'comentários', 'observações']):
-            return 'feedback_request'
+        if any(
+            word in question_text
+            for word in ["sugestões", "comentários", "observações"]
+        ):
+            return "feedback_request"
 
         # Default to general wellbeing
-        return 'general_wellbeing'
+        return "general_wellbeing"
 
     def _is_scored_question(self, question: Dict[str, Any]) -> bool:
         """
@@ -197,22 +203,24 @@ class QuizQuestionHumanizerIntegration:
         Returns:
             True if question needs exact wording for scoring
         """
-        question_type = question.get('type', '').lower()
-        question_id = question.get('id', '').lower()
+        question_type = question.get("type", "").lower()
+        question_id = question.get("id", "").lower()
 
         # Scored question types that need consistency
-        scored_types = ['scale', 'rating', 'numeric', 'likert']
+        scored_types = ["scale", "rating", "numeric", "likert"]
         if question_type in scored_types:
             return True
 
         # Check for scoring patterns in ID
-        scoring_patterns = ['score_', 'scale_', 'rating_', 'level_']
+        scoring_patterns = ["score_", "scale_", "rating_", "level_"]
         if any(pattern in question_id for pattern in scoring_patterns):
             return True
 
         # Check if question has validation rules that depend on exact values
-        validation_rules = question.get('validation_rules', [])
-        if validation_rules and any(rule.get('type') == 'exact_match' for rule in validation_rules):
+        validation_rules = question.get("validation_rules", [])
+        if validation_rules and any(
+            rule.get("type") == "exact_match" for rule in validation_rules
+        ):
             return True
 
         return False
@@ -220,6 +228,7 @@ class QuizQuestionHumanizerIntegration:
 
 # Module-level sentinel to prevent duplicate patching
 _QUIZ_HUMANIZER_PATCHED = False
+
 
 def integrate_humanization_into_quiz_service():
     """
@@ -235,7 +244,9 @@ def integrate_humanization_into_quiz_service():
     from app.services.quiz import QuizSessionService
 
     if not hasattr(QuizSessionService, "_enrich_session_response"):
-        logger.warning("Quiz humanization patch skipped: _enrich_session_response not found on QuizSessionService")
+        logger.warning(
+            "Quiz humanization patch skipped: _enrich_session_response not found on QuizSessionService"
+        )
         return False
 
     # Save original method
@@ -247,10 +258,10 @@ def integrate_humanization_into_quiz_service():
         response = original_enrich(self, session)
 
         # Apply humanization to questions if available
-        if hasattr(session, 'quiz_template') and session.quiz_template:
+        if hasattr(session, "quiz_template") and session.quiz_template:
             try:
                 # Get patient for context
-                patient = session.patient if hasattr(session, 'patient') else None
+                patient = session.patient if hasattr(session, "patient") else None
                 if patient and is_ai_humanization_enabled():
                     integrator = QuizQuestionHumanizerIntegration(self.db)
 
@@ -261,7 +272,7 @@ def integrate_humanization_into_quiz_service():
                             humanized = integrator.humanize_single_question(
                                 question=question,
                                 patient=patient,
-                                quiz_context={'session_id': session.id}
+                                quiz_context={"session_id": session.id},
                             )
                             humanized_questions.append(humanized)
 

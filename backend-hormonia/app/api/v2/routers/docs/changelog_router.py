@@ -8,7 +8,6 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, status, Query, Request
 
 from app.schemas.v2.docs import APIChangelogResponse
-from app.schemas.v2.common import ErrorResponse
 from app.utils.rate_limiter import limiter
 
 from .cache_utils import (
@@ -33,7 +32,7 @@ RATE_LIMIT_READ = "100/minute"
     description="Get complete API version history and changelog",
     responses={
         200: {"description": "API changelog"},
-    }
+    },
 )
 @limiter.limit(RATE_LIMIT_READ)
 async def get_api_changelog(
@@ -67,7 +66,7 @@ async def get_api_changelog(
             if not changelog:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Version {version} not found"
+                    detail=f"Version {version} not found",
                 )
 
         result = {
@@ -88,5 +87,5 @@ async def get_api_changelog(
         logger.error(f"Error getting changelog: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get changelog"
+            detail="Failed to get changelog",
         )

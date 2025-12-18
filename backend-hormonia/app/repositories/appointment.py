@@ -4,14 +4,15 @@ Appointment repository with eager loading optimizations.
 PERFORMANCE OPTIMIZATION: All methods support eager loading by default to eliminate N+1 queries.
 Achieves 60-80% query reduction for read operations.
 """
+
 from datetime import datetime, timedelta
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import and_, or_
-from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy import and_
+from sqlalchemy.orm import Session, joinedload
 
-from app.models.appointment import Appointment, AppointmentStatus, AppointmentType
+from app.models.appointment import Appointment, AppointmentStatus
 from app.repositories.base import BaseRepository
 
 
@@ -51,13 +52,15 @@ class AppointmentRepository(BaseRepository[Appointment]):
         if eager_load:
             query = query.options(
                 joinedload(Appointment.patient),
-                joinedload(Appointment.practitioner)
+                joinedload(Appointment.practitioner),
                 # selectinload(Appointment.location) - Add when Location model exists
             )
 
         return query.first()
 
-    def get_all(self, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Appointment]:
+    def get_all(
+        self, skip: int = 0, limit: int = 100, eager_load: bool = True
+    ) -> List[Appointment]:
         """
         Get all appointments with eager loading enabled by default.
 
@@ -75,13 +78,14 @@ class AppointmentRepository(BaseRepository[Appointment]):
 
         if eager_load:
             query = query.options(
-                joinedload(Appointment.patient),
-                joinedload(Appointment.practitioner)
+                joinedload(Appointment.patient), joinedload(Appointment.practitioner)
             )
 
         return query.offset(skip).limit(limit).all()
 
-    def get_by_patient(self, patient_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Appointment]:
+    def get_by_patient(
+        self, patient_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True
+    ) -> List[Appointment]:
         """
         Get appointments by patient with eager loading.
 
@@ -100,13 +104,23 @@ class AppointmentRepository(BaseRepository[Appointment]):
 
         if eager_load:
             query = query.options(
-                joinedload(Appointment.patient),
-                joinedload(Appointment.practitioner)
+                joinedload(Appointment.patient), joinedload(Appointment.practitioner)
             )
 
-        return query.order_by(Appointment.scheduled_start.desc()).offset(skip).limit(limit).all()
+        return (
+            query.order_by(Appointment.scheduled_start.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
-    def get_by_practitioner(self, practitioner_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Appointment]:
+    def get_by_practitioner(
+        self,
+        practitioner_id: UUID,
+        skip: int = 0,
+        limit: int = 100,
+        eager_load: bool = True,
+    ) -> List[Appointment]:
         """
         Get appointments by practitioner with eager loading.
 
@@ -119,15 +133,21 @@ class AppointmentRepository(BaseRepository[Appointment]):
         Returns:
             List of appointments with relationships pre-loaded
         """
-        query = self.db.query(Appointment).filter(Appointment.practitioner_id == practitioner_id)
+        query = self.db.query(Appointment).filter(
+            Appointment.practitioner_id == practitioner_id
+        )
 
         if eager_load:
             query = query.options(
-                joinedload(Appointment.patient),
-                joinedload(Appointment.practitioner)
+                joinedload(Appointment.patient), joinedload(Appointment.practitioner)
             )
 
-        return query.order_by(Appointment.scheduled_start.desc()).offset(skip).limit(limit).all()
+        return (
+            query.order_by(Appointment.scheduled_start.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
     def get_upcoming(
         self,
@@ -135,7 +155,7 @@ class AppointmentRepository(BaseRepository[Appointment]):
         practitioner_id: Optional[UUID] = None,
         skip: int = 0,
         limit: int = 100,
-        eager_load: bool = True
+        eager_load: bool = True,
     ) -> List[Appointment]:
         """
         Get upcoming appointments with eager loading.
@@ -155,7 +175,9 @@ class AppointmentRepository(BaseRepository[Appointment]):
         now = datetime.utcnow()
         filters = [
             Appointment.scheduled_start >= now,
-            Appointment.status.in_([AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED])
+            Appointment.status.in_(
+                [AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED]
+            ),
         ]
 
         if patient_id:
@@ -167,11 +189,15 @@ class AppointmentRepository(BaseRepository[Appointment]):
 
         if eager_load:
             query = query.options(
-                joinedload(Appointment.patient),
-                joinedload(Appointment.practitioner)
+                joinedload(Appointment.patient), joinedload(Appointment.practitioner)
             )
 
-        return query.order_by(Appointment.scheduled_start.asc()).offset(skip).limit(limit).all()
+        return (
+            query.order_by(Appointment.scheduled_start.asc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
     def get_by_date_range(
         self,
@@ -181,7 +207,7 @@ class AppointmentRepository(BaseRepository[Appointment]):
         practitioner_id: Optional[UUID] = None,
         skip: int = 0,
         limit: int = 100,
-        eager_load: bool = True
+        eager_load: bool = True,
     ) -> List[Appointment]:
         """
         Get appointments by date range with eager loading.
@@ -200,7 +226,7 @@ class AppointmentRepository(BaseRepository[Appointment]):
         """
         filters = [
             Appointment.scheduled_start >= start_date,
-            Appointment.scheduled_start <= end_date
+            Appointment.scheduled_start <= end_date,
         ]
 
         if patient_id:
@@ -212,18 +238,22 @@ class AppointmentRepository(BaseRepository[Appointment]):
 
         if eager_load:
             query = query.options(
-                joinedload(Appointment.patient),
-                joinedload(Appointment.practitioner)
+                joinedload(Appointment.patient), joinedload(Appointment.practitioner)
             )
 
-        return query.order_by(Appointment.scheduled_start.asc()).offset(skip).limit(limit).all()
+        return (
+            query.order_by(Appointment.scheduled_start.asc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
     def get_by_status(
         self,
         status: AppointmentStatus,
         skip: int = 0,
         limit: int = 100,
-        eager_load: bool = True
+        eager_load: bool = True,
     ) -> List[Appointment]:
         """
         Get appointments by status with eager loading.
@@ -241,11 +271,15 @@ class AppointmentRepository(BaseRepository[Appointment]):
 
         if eager_load:
             query = query.options(
-                joinedload(Appointment.patient),
-                joinedload(Appointment.practitioner)
+                joinedload(Appointment.patient), joinedload(Appointment.practitioner)
             )
 
-        return query.order_by(Appointment.scheduled_start.desc()).offset(skip).limit(limit).all()
+        return (
+            query.order_by(Appointment.scheduled_start.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
     def get_pending_reminders(self, eager_load: bool = True) -> List[Appointment]:
         """
@@ -261,15 +295,16 @@ class AppointmentRepository(BaseRepository[Appointment]):
         query = self.db.query(Appointment).filter(
             and_(
                 Appointment.scheduled_start >= now,
-                Appointment.reminder_sent == False,
-                Appointment.status.in_([AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED])
+                not Appointment.reminder_sent,
+                Appointment.status.in_(
+                    [AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED]
+                ),
             )
         )
 
         if eager_load:
             query = query.options(
-                joinedload(Appointment.patient),
-                joinedload(Appointment.practitioner)
+                joinedload(Appointment.patient), joinedload(Appointment.practitioner)
             )
 
         return query.all()
@@ -279,11 +314,11 @@ class AppointmentRepository(BaseRepository[Appointment]):
         practitioner_id: UUID,
         start_time: datetime,
         end_time: datetime,
-        exclude_appointment_id: Optional[UUID] = None
+        exclude_appointment_id: Optional[UUID] = None,
     ) -> List[Appointment]:
         """
         Find conflicting appointments for a practitioner in a time range.
-        
+
         Criteria:
         - Same practitioner
         - Status is SCHEDULED, CONFIRMED, or IN_PROGRESS
@@ -291,12 +326,14 @@ class AppointmentRepository(BaseRepository[Appointment]):
         """
         query = self.db.query(Appointment).filter(
             Appointment.practitioner_id == practitioner_id,
-            Appointment.status.in_([
-                AppointmentStatus.SCHEDULED,
-                AppointmentStatus.CONFIRMED,
-                AppointmentStatus.IN_PROGRESS
-            ]),
-            Appointment.scheduled_start.isnot(None)
+            Appointment.status.in_(
+                [
+                    AppointmentStatus.SCHEDULED,
+                    AppointmentStatus.CONFIRMED,
+                    AppointmentStatus.IN_PROGRESS,
+                ]
+            ),
+            Appointment.scheduled_start.isnot(None),
         )
 
         if exclude_appointment_id:
@@ -305,26 +342,27 @@ class AppointmentRepository(BaseRepository[Appointment]):
         # Overlap logic: (StartA < EndB) and (EndA > StartB)
         # StartA = start_time, EndA = end_time
         # StartB = scheduled_start, EndB = scheduled_start + duration
-        
+
         # Since duration calculation is dynamic in SQL, we might fetch candidates and filter in python
         # OR use SQL expression if duration is a column.
         # Appointment model has duration_minutes (int).
-        
+
         # Simple approach: Fetch candidates for the day/window and filter in Python to avoid complex SQL arithmetic compatibility issues
         # Or use simple overlaps if we trust standard SQL.
-        
+
         # Optimization: Filter by start date range loosely
         candidates = query.filter(
             # Overlap check approximation
             # appt.start < end_time
             Appointment.scheduled_start < end_time
         ).all()
-        
+
         conflicts = []
         for appt in candidates:
-            if not appt.duration_minutes: continue
+            if not appt.duration_minutes:
+                continue
             appt_end = appt.scheduled_start + timedelta(minutes=appt.duration_minutes)
             if start_time < appt_end and end_time > appt.scheduled_start:
                 conflicts.append(appt)
-                
+
         return conflicts

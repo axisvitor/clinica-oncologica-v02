@@ -2,6 +2,7 @@
 Base generator for follow-up messages.
 Provides common utilities for message generation.
 """
+
 import logging
 from typing import List
 
@@ -24,10 +25,10 @@ class BaseGenerator:
             Delay in minutes
         """
         delay_mapping = {
-            ConcernLevel.CRITICAL: 0,      # Immediate
-            ConcernLevel.HIGH: 5,          # 5 minutes
-            ConcernLevel.MEDIUM: 15,       # 15 minutes
-            ConcernLevel.LOW: 30           # 30 minutes
+            ConcernLevel.CRITICAL: 0,  # Immediate
+            ConcernLevel.HIGH: 5,  # 5 minutes
+            ConcernLevel.MEDIUM: 15,  # 15 minutes
+            ConcernLevel.LOW: 30,  # 30 minutes
         }
         return delay_mapping.get(concern_level, 30)
 
@@ -45,13 +46,19 @@ class BaseGenerator:
 
         if any(word in concern_lower for word in ["pain", "hurt", "ache"]):
             return MedicalConcernType.PAIN
-        elif any(word in concern_lower for word in ["nausea", "vomit", "dizzy", "rash"]):
+        elif any(
+            word in concern_lower for word in ["nausea", "vomit", "dizzy", "rash"]
+        ):
             return MedicalConcernType.SIDE_EFFECT
-        elif any(word in concern_lower for word in ["worse", "worsening", "deteriorating"]):
+        elif any(
+            word in concern_lower for word in ["worse", "worsening", "deteriorating"]
+        ):
             return MedicalConcernType.SYMPTOM_WORSENING
         elif any(word in concern_lower for word in ["medication", "medicine", "dose"]):
             return MedicalConcernType.MEDICATION_ISSUE
-        elif any(word in concern_lower for word in ["sad", "anxious", "depressed", "worried"]):
+        elif any(
+            word in concern_lower for word in ["sad", "anxious", "depressed", "worried"]
+        ):
             return MedicalConcernType.EMOTIONAL_DISTRESS
         elif any(word in concern_lower for word in ["emergency", "urgent", "severe"]):
             return MedicalConcernType.EMERGENCY
@@ -72,20 +79,36 @@ class BaseGenerator:
 
         # Critical keywords
         critical_keywords = [
-            "emergency", "can't breathe", "chest pain", "severe bleeding",
-            "unconscious", "suicide", "overdose"
+            "emergency",
+            "can't breathe",
+            "chest pain",
+            "severe bleeding",
+            "unconscious",
+            "suicide",
+            "overdose",
         ]
 
         # High severity keywords
         high_keywords = [
-            "severe", "unbearable", "getting worse", "can't sleep",
-            "vomiting", "fever", "dizzy", "confused"
+            "severe",
+            "unbearable",
+            "getting worse",
+            "can't sleep",
+            "vomiting",
+            "fever",
+            "dizzy",
+            "confused",
         ]
 
         # Medium severity keywords
         medium_keywords = [
-            "pain", "headache", "nausea", "tired", "worried",
-            "side effect", "uncomfortable"
+            "pain",
+            "headache",
+            "nausea",
+            "tired",
+            "worried",
+            "side effect",
+            "uncomfortable",
         ]
 
         if any(keyword in concern_lower for keyword in critical_keywords):
@@ -111,32 +134,40 @@ class BaseGenerator:
         questions = []
 
         if "pain" in concern_lower:
-            questions.extend([
-                "Em uma escala de 1 a 10, como você classificaria sua dor?",
-                "A dor é constante ou vem e vai?",
-                "Quando a dor começou?"
-            ])
+            questions.extend(
+                [
+                    "Em uma escala de 1 a 10, como você classificaria sua dor?",
+                    "A dor é constante ou vem e vai?",
+                    "Quando a dor começou?",
+                ]
+            )
 
         if "nausea" in concern_lower or "vomit" in concern_lower:
-            questions.extend([
-                "A náusea está relacionada às refeições?",
-                "Você conseguiu manter líquidos?",
-                "Isso começou após tomar algum medicamento?"
-            ])
+            questions.extend(
+                [
+                    "A náusea está relacionada às refeições?",
+                    "Você conseguiu manter líquidos?",
+                    "Isso começou após tomar algum medicamento?",
+                ]
+            )
 
         if "medication" in concern_lower:
-            questions.extend([
-                "Qual medicamento está causando preocupação?",
-                "Você tomou a dose correta?",
-                "Quando foi a última vez que tomou?"
-            ])
+            questions.extend(
+                [
+                    "Qual medicamento está causando preocupação?",
+                    "Você tomou a dose correta?",
+                    "Quando foi a última vez que tomou?",
+                ]
+            )
 
         # Default questions if no specific type identified
         if not questions:
-            questions.extend([
-                "Pode me contar mais detalhes sobre isso?",
-                "Quando isso começou?",
-                "Isso está afetando suas atividades diárias?"
-            ])
+            questions.extend(
+                [
+                    "Pode me contar mais detalhes sobre isso?",
+                    "Quando isso começou?",
+                    "Isso está afetando suas atividades diárias?",
+                ]
+            )
 
         return questions[:3]  # Return max 3 questions

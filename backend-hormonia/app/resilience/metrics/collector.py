@@ -8,7 +8,7 @@ import time
 import threading
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
-from collections import defaultdict, deque
+from collections import deque
 import statistics
 import logging
 
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ResilienceMetrics:
     """Comprehensive resilience metrics"""
+
     # Circuit Breaker Metrics
     circuit_breaker_trips: int = 0
     circuit_breaker_failures: int = 0
@@ -58,42 +59,42 @@ class ResilienceMetrics:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary"""
         return {
-            'circuit_breaker': {
-                'trips': self.circuit_breaker_trips,
-                'failures': self.circuit_breaker_failures,
-                'successes': self.circuit_breaker_successes,
-                'state_changes': self.circuit_breaker_state_changes
+            "circuit_breaker": {
+                "trips": self.circuit_breaker_trips,
+                "failures": self.circuit_breaker_failures,
+                "successes": self.circuit_breaker_successes,
+                "state_changes": self.circuit_breaker_state_changes,
             },
-            'retry': {
-                'attempts': self.retry_attempts,
-                'successes': self.retry_successes,
-                'failures': self.retry_failures,
-                'dead_letters': self.retry_dead_letters
+            "retry": {
+                "attempts": self.retry_attempts,
+                "successes": self.retry_successes,
+                "failures": self.retry_failures,
+                "dead_letters": self.retry_dead_letters,
             },
-            'rate_limit': {
-                'requests': self.rate_limit_requests,
-                'allowed': self.rate_limit_allowed,
-                'denied': self.rate_limit_denied,
-                'whitelisted': self.rate_limit_whitelisted
+            "rate_limit": {
+                "requests": self.rate_limit_requests,
+                "allowed": self.rate_limit_allowed,
+                "denied": self.rate_limit_denied,
+                "whitelisted": self.rate_limit_whitelisted,
             },
-            'health_check': {
-                'total': self.health_check_total,
-                'healthy': self.health_check_healthy,
-                'degraded': self.health_check_degraded,
-                'unhealthy': self.health_check_unhealthy
+            "health_check": {
+                "total": self.health_check_total,
+                "healthy": self.health_check_healthy,
+                "degraded": self.health_check_degraded,
+                "unhealthy": self.health_check_unhealthy,
             },
-            'performance': {
-                'average_response_time': self.average_response_time,
-                'p95_response_time': self.p95_response_time,
-                'p99_response_time': self.p99_response_time,
-                'error_rate': self.error_rate
+            "performance": {
+                "average_response_time": self.average_response_time,
+                "p95_response_time": self.p95_response_time,
+                "p99_response_time": self.p99_response_time,
+                "error_rate": self.error_rate,
             },
-            'system': {
-                'uptime_seconds': self.uptime_seconds,
-                'memory_usage_mb': self.memory_usage_mb,
-                'cpu_usage_percent': self.cpu_usage_percent
+            "system": {
+                "uptime_seconds": self.uptime_seconds,
+                "memory_usage_mb": self.memory_usage_mb,
+                "cpu_usage_percent": self.cpu_usage_percent,
             },
-            'timestamp': self.timestamp
+            "timestamp": self.timestamp,
         }
 
 
@@ -109,15 +110,19 @@ class MetricsCollector:
     - Multiple data sources
     """
 
-    def __init__(self,
-                 retention_period: int = 3600,  # 1 hour
-                 collection_interval: int = 60):  # 1 minute
+    def __init__(
+        self,
+        retention_period: int = 3600,  # 1 hour
+        collection_interval: int = 60,
+    ):  # 1 minute
         self.retention_period = retention_period
         self.collection_interval = collection_interval
         self.start_time = time.time()
 
         # Metrics storage
-        self._metrics_history: deque = deque(maxlen=retention_period // collection_interval)
+        self._metrics_history: deque = deque(
+            maxlen=retention_period // collection_interval
+        )
         self._current_metrics = ResilienceMetrics()
         self._lock = threading.Lock()
 
@@ -172,20 +177,26 @@ class MetricsCollector:
         for name, cb in self._circuit_breakers.items():
             try:
                 cb_metrics = cb.get_metrics()
-                metrics.circuit_breaker_trips += cb_metrics.get('circuit_breaker_trips', 0)
-                metrics.circuit_breaker_failures += cb_metrics.get('failed_requests', 0)
-                metrics.circuit_breaker_successes += cb_metrics.get('successful_requests', 0)
+                metrics.circuit_breaker_trips += cb_metrics.get(
+                    "circuit_breaker_trips", 0
+                )
+                metrics.circuit_breaker_failures += cb_metrics.get("failed_requests", 0)
+                metrics.circuit_breaker_successes += cb_metrics.get(
+                    "successful_requests", 0
+                )
             except Exception as e:
-                logger.warning(f"Error collecting circuit breaker metrics for {name}: {e}")
+                logger.warning(
+                    f"Error collecting circuit breaker metrics for {name}: {e}"
+                )
 
         # Collect retry metrics
         for name, rm in self._retry_managers.items():
             try:
                 rm_metrics = rm.get_metrics()
-                metrics.retry_attempts += rm_metrics.get('total_attempts', 0)
-                metrics.retry_successes += rm_metrics.get('successful_executions', 0)
-                metrics.retry_failures += rm_metrics.get('failed_executions', 0)
-                metrics.retry_dead_letters += rm_metrics.get('dead_letter_count', 0)
+                metrics.retry_attempts += rm_metrics.get("total_attempts", 0)
+                metrics.retry_successes += rm_metrics.get("successful_executions", 0)
+                metrics.retry_failures += rm_metrics.get("failed_executions", 0)
+                metrics.retry_dead_letters += rm_metrics.get("dead_letter_count", 0)
             except Exception as e:
                 logger.warning(f"Error collecting retry metrics for {name}: {e}")
 
@@ -193,10 +204,12 @@ class MetricsCollector:
         for name, rl in self._rate_limiters.items():
             try:
                 rl_metrics = rl.get_metrics()
-                metrics.rate_limit_requests += rl_metrics.get('total_requests', 0)
-                metrics.rate_limit_allowed += rl_metrics.get('allowed_requests', 0)
-                metrics.rate_limit_denied += rl_metrics.get('denied_requests', 0)
-                metrics.rate_limit_whitelisted += rl_metrics.get('whitelisted_requests', 0)
+                metrics.rate_limit_requests += rl_metrics.get("total_requests", 0)
+                metrics.rate_limit_allowed += rl_metrics.get("allowed_requests", 0)
+                metrics.rate_limit_denied += rl_metrics.get("denied_requests", 0)
+                metrics.rate_limit_whitelisted += rl_metrics.get(
+                    "whitelisted_requests", 0
+                )
             except Exception as e:
                 logger.warning(f"Error collecting rate limiter metrics for {name}: {e}")
 
@@ -204,7 +217,7 @@ class MetricsCollector:
         for name, hc in self._health_checkers.items():
             try:
                 hc_metrics = hc.get_metrics()
-                metrics.health_check_total += hc_metrics.get('total_checks', 0)
+                metrics.health_check_total += hc_metrics.get("total_checks", 0)
                 # We'd need to modify health checkers to track status counts
             except Exception as e:
                 logger.warning(f"Error collecting health check metrics for {name}: {e}")
@@ -216,14 +229,20 @@ class MetricsCollector:
                 metrics.average_response_time = statistics.mean(response_times)
 
                 if len(response_times) >= 20:  # Need enough samples for percentiles
-                    metrics.p95_response_time = statistics.quantiles(response_times, n=20)[18]  # 95th percentile
-                    metrics.p99_response_time = statistics.quantiles(response_times, n=100)[98]  # 99th percentile
+                    metrics.p95_response_time = statistics.quantiles(
+                        response_times, n=20
+                    )[18]  # 95th percentile
+                    metrics.p99_response_time = statistics.quantiles(
+                        response_times, n=100
+                    )[98]  # 99th percentile
 
         # Calculate error rate
-        total_requests = (metrics.circuit_breaker_successes +
-                         metrics.circuit_breaker_failures +
-                         metrics.retry_successes +
-                         metrics.retry_failures)
+        total_requests = (
+            metrics.circuit_breaker_successes
+            + metrics.circuit_breaker_failures
+            + metrics.retry_successes
+            + metrics.retry_failures
+        )
 
         if total_requests > 0:
             total_failures = metrics.circuit_breaker_failures + metrics.retry_failures
@@ -234,6 +253,7 @@ class MetricsCollector:
 
         try:
             import psutil
+
             metrics.memory_usage_mb = psutil.Process().memory_info().rss / (1024 * 1024)
             metrics.cpu_usage_percent = psutil.Process().cpu_percent()
         except ImportError:
@@ -249,8 +269,7 @@ class MetricsCollector:
 
         self._stop_collection.clear()
         self._collection_thread = threading.Thread(
-            target=self._collection_loop,
-            daemon=True
+            target=self._collection_loop, daemon=True
         )
         self._collection_thread.start()
 
@@ -291,8 +310,9 @@ class MetricsCollector:
         with self._lock:
             return self._current_metrics
 
-    def get_metrics_history(self,
-                          last_n_minutes: Optional[int] = None) -> List[ResilienceMetrics]:
+    def get_metrics_history(
+        self, last_n_minutes: Optional[int] = None
+    ) -> List[ResilienceMetrics]:
         """Get historical metrics"""
         with self._lock:
             history = list(self._metrics_history)
@@ -304,8 +324,9 @@ class MetricsCollector:
 
         return history
 
-    def get_aggregated_metrics(self,
-                             last_n_minutes: Optional[int] = None) -> Dict[str, Any]:
+    def get_aggregated_metrics(
+        self, last_n_minutes: Optional[int] = None
+    ) -> Dict[str, Any]:
         """Get aggregated metrics over time period"""
         history = self.get_metrics_history(last_n_minutes)
 
@@ -313,48 +334,54 @@ class MetricsCollector:
             return {}
 
         # Calculate aggregations
-        response_times = [m.average_response_time for m in history if m.average_response_time > 0]
+        response_times = [
+            m.average_response_time for m in history if m.average_response_time > 0
+        ]
         error_rates = [m.error_rate for m in history if m.error_rate >= 0]
 
         aggregated = {
-            'time_period_minutes': last_n_minutes or (len(history) * self.collection_interval / 60),
-            'data_points': len(history),
-            'circuit_breaker': {
-                'total_trips': sum(m.circuit_breaker_trips for m in history),
-                'total_failures': sum(m.circuit_breaker_failures for m in history),
-                'total_successes': sum(m.circuit_breaker_successes for m in history)
+            "time_period_minutes": last_n_minutes
+            or (len(history) * self.collection_interval / 60),
+            "data_points": len(history),
+            "circuit_breaker": {
+                "total_trips": sum(m.circuit_breaker_trips for m in history),
+                "total_failures": sum(m.circuit_breaker_failures for m in history),
+                "total_successes": sum(m.circuit_breaker_successes for m in history),
             },
-            'retry': {
-                'total_attempts': sum(m.retry_attempts for m in history),
-                'total_successes': sum(m.retry_successes for m in history),
-                'total_failures': sum(m.retry_failures for m in history),
-                'total_dead_letters': sum(m.retry_dead_letters for m in history)
+            "retry": {
+                "total_attempts": sum(m.retry_attempts for m in history),
+                "total_successes": sum(m.retry_successes for m in history),
+                "total_failures": sum(m.retry_failures for m in history),
+                "total_dead_letters": sum(m.retry_dead_letters for m in history),
             },
-            'rate_limit': {
-                'total_requests': sum(m.rate_limit_requests for m in history),
-                'total_allowed': sum(m.rate_limit_allowed for m in history),
-                'total_denied': sum(m.rate_limit_denied for m in history)
+            "rate_limit": {
+                "total_requests": sum(m.rate_limit_requests for m in history),
+                "total_allowed": sum(m.rate_limit_allowed for m in history),
+                "total_denied": sum(m.rate_limit_denied for m in history),
             },
-            'performance': {
-                'avg_response_time': statistics.mean(response_times) if response_times else 0,
-                'max_response_time': max(response_times) if response_times else 0,
-                'min_response_time': min(response_times) if response_times else 0,
-                'avg_error_rate': statistics.mean(error_rates) if error_rates else 0,
-                'max_error_rate': max(error_rates) if error_rates else 0
+            "performance": {
+                "avg_response_time": statistics.mean(response_times)
+                if response_times
+                else 0,
+                "max_response_time": max(response_times) if response_times else 0,
+                "min_response_time": min(response_times) if response_times else 0,
+                "avg_error_rate": statistics.mean(error_rates) if error_rates else 0,
+                "max_error_rate": max(error_rates) if error_rates else 0,
             },
-            'latest': history[-1].to_dict() if history else {}
+            "latest": history[-1].to_dict() if history else {},
         }
 
         return aggregated
 
-    def export_metrics(self, format: str = 'json') -> str:
+    def export_metrics(self, format: str = "json") -> str:
         """Export metrics in specified format"""
         current = self.get_current_metrics()
 
-        if format == 'json':
+        if format == "json":
             import json
+
             return json.dumps(current.to_dict(), indent=2)
-        elif format == 'prometheus':
+        elif format == "prometheus":
             return self._export_prometheus_format(current)
         else:
             raise ValueError(f"Unsupported export format: {format}")
@@ -365,8 +392,12 @@ class MetricsCollector:
 
         # Circuit breaker metrics
         lines.append(f"circuit_breaker_trips_total {metrics.circuit_breaker_trips}")
-        lines.append(f"circuit_breaker_failures_total {metrics.circuit_breaker_failures}")
-        lines.append(f"circuit_breaker_successes_total {metrics.circuit_breaker_successes}")
+        lines.append(
+            f"circuit_breaker_failures_total {metrics.circuit_breaker_failures}"
+        )
+        lines.append(
+            f"circuit_breaker_successes_total {metrics.circuit_breaker_successes}"
+        )
 
         # Retry metrics
         lines.append(f"retry_attempts_total {metrics.retry_attempts}")
@@ -390,7 +421,7 @@ class MetricsCollector:
         lines.append(f"memory_usage_bytes {metrics.memory_usage_mb * 1024 * 1024}")
         lines.append(f"cpu_usage_percent {metrics.cpu_usage_percent}")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def clear_history(self):
         """Clear metrics history"""

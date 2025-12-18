@@ -2,32 +2,31 @@
 Conversation memory system using Redis for pattern tracking and anti-repetition.
 Stores and analyzes conversation patterns to avoid repetitive messaging.
 """
-import json
-import re
-import logging
-from typing import Dict, List, Optional, Any, Set
-from datetime import datetime, timedelta
-from uuid import UUID
-from redis import Redis
 
-from app.config import settings
-from app.core.redis_unified import get_sync_redis
+import json
+import logging
+from typing import Dict, List, Optional, Any
+from datetime import datetime
+from uuid import UUID
+
 
 logger = logging.getLogger(__name__)
 
 
 class ConversationPattern:
     """Represents a conversation pattern extracted from messages."""
-    
-    def __init__(self, 
-                 greeting_words: List[str] = None,
-                 question_structures: List[str] = None,
-                 emotional_words: List[str] = None,
-                 sentence_starters: List[str] = None,
-                 message_length: int = 0,
-                 emoji_count: int = 0,
-                 timestamp: datetime = None,
-                 engagement_score: float = 0.0):
+
+    def __init__(
+        self,
+        greeting_words: List[str] = None,
+        question_structures: List[str] = None,
+        emotional_words: List[str] = None,
+        sentence_starters: List[str] = None,
+        message_length: int = 0,
+        emoji_count: int = 0,
+        timestamp: datetime = None,
+        engagement_score: float = 0.0,
+    ):
         self.greeting_words = greeting_words or []
         self.question_structures = question_structures or []
         self.emotional_words = emotional_words or []
@@ -36,7 +35,7 @@ class ConversationPattern:
         self.emoji_count = emoji_count
         self.timestamp = timestamp or datetime.utcnow()
         self.engagement_score = engagement_score
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert pattern to dictionary for storage."""
         return {
@@ -47,11 +46,11 @@ class ConversationPattern:
             "message_length": self.message_length,
             "emoji_count": self.emoji_count,
             "timestamp": self.timestamp.isoformat(),
-            "engagement_score": self.engagement_score
+            "engagement_score": self.engagement_score,
         }
-    
+
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'ConversationPattern':
+    def from_dict(cls, data: Dict[str, Any]) -> "ConversationPattern":
         """Create pattern from dictionary."""
         return cls(
             greeting_words=data.get("greeting_words", []),
@@ -60,11 +59,15 @@ class ConversationPattern:
             sentence_starters=data.get("sentence_starters", []),
             message_length=data.get("message_length", 0),
             emoji_count=data.get("emoji_count", 0),
-            timestamp=datetime.fromisoformat(data.get("timestamp", datetime.utcnow().isoformat())),
-            engagement_score=data.get("engagement_score", 0.0)
+            timestamp=datetime.fromisoformat(
+                data.get("timestamp", datetime.utcnow().isoformat())
+            ),
+            engagement_score=data.get("engagement_score", 0.0),
         )
 
+
 # ... (PatternExtractor remains the same)
+
 
 class ConversationMemory:
     # ... (init and helper methods remain same)
@@ -72,7 +75,7 @@ class ConversationMemory:
     async def store_message_pattern(self, patient_id: UUID, message: str) -> None:
         """
         Store message pattern for a patient.
-        
+
         Args:
             patient_id: Patient UUID
             message: Message text to analyze and store
@@ -80,69 +83,75 @@ class ConversationMemory:
         try:
             # Extract pattern from message
             pattern = self.pattern_extractor.extract_patterns(message)
-            
+
             # Store pattern in Redis list
             key = f"msg_patterns:{patient_id}"
             pattern_data = json.dumps(pattern.to_dict())
-            
+
             # Add to list (most recent first)
             self.redis.lpush(key, pattern_data)
-            
+
             # Trim to keep only recent patterns
             self.redis.ltrim(key, 0, self.max_patterns_per_patient - 1)
-            
+
             # Set expiration
             self.redis.expire(key, self.pattern_expiry_days * 24 * 3600)
-            
+
             logger.debug(f"Stored message pattern for patient {patient_id}")
-            
+
         except Exception as e:
             logger.error(f"Failed to store message pattern: {e}")
             # Don't raise - this is not critical for flow operation
 
-    async def update_last_pattern_engagement(self, patient_id: UUID, score: float) -> None:
+    async def update_last_pattern_engagement(
+        self, patient_id: UUID, score: float
+    ) -> None:
         """
         Update the engagement score of the last stored message pattern.
-        
+
         Args:
             patient_id: Patient UUID
             score: Engagement score (0.0 to 1.0)
         """
         try:
             key = f"msg_patterns:{patient_id}"
-            
+
             # Get the last pattern (index 0)
             last_pattern_data = self.redis.lindex(key, 0)
-            
+
             if last_pattern_data:
                 pattern_dict = json.loads(last_pattern_data)
                 pattern = ConversationPattern.from_dict(pattern_dict)
-                
+
                 # Update score
                 pattern.engagement_score = score
-                
+
                 # Update in Redis
                 self.redis.lset(key, 0, json.dumps(pattern.to_dict()))
-                logger.debug(f"Updated engagement score to {score} for patient {patient_id}")
-                
+                logger.debug(
+                    f"Updated engagement score to {score} for patient {patient_id}"
+                )
+
         except Exception as e:
             logger.error(f"Failed to update engagement score: {e}")
-    
-    async def get_recent_patterns(self, patient_id: UUID, limit: int = 10) -> List[ConversationPattern]:
+
+    async def get_recent_patterns(
+        self, patient_id: UUID, limit: int = 10
+    ) -> List[ConversationPattern]:
         """
         Get recent message patterns for a patient.
-        
+
         Args:
             patient_id: Patient UUID
             limit: Maximum number of patterns to return
-            
+
         Returns:
             List of recent conversation patterns
         """
         try:
             key = f"msg_patterns:{patient_id}"
             pattern_data_list = self.redis.lrange(key, 0, limit - 1)
-            
+
             patterns = []
             for pattern_data in pattern_data_list:
                 try:
@@ -152,70 +161,80 @@ class ConversationMemory:
                 except Exception as e:
                     logger.warning(f"Failed to parse pattern data: {e}")
                     continue
-            
+
             logger.debug(f"Retrieved {len(patterns)} patterns for patient {patient_id}")
             return patterns
-            
+
         except Exception as e:
             logger.error(f"Failed to get recent patterns: {e}")
             return []
-    
-    async def check_message_repetition(self, patient_id: UUID, new_message: str, 
-                                     similarity_threshold: float = 0.7) -> Dict[str, Any]:
+
+    async def check_message_repetition(
+        self, patient_id: UUID, new_message: str, similarity_threshold: float = 0.7
+    ) -> Dict[str, Any]:
         """
         Check if a new message is too similar to recent messages.
-        
+
         Args:
             patient_id: Patient UUID
             new_message: New message to check
             similarity_threshold: Similarity threshold (0.0-1.0)
-            
+
         Returns:
             Dict with repetition analysis results
         """
         try:
             # Extract pattern from new message
             new_pattern = self.pattern_extractor.extract_patterns(new_message)
-            
+
             # Get recent patterns
             recent_patterns = await self.get_recent_patterns(patient_id, limit=5)
-            
+
             if not recent_patterns:
                 return {
                     "is_repetitive": False,
                     "max_similarity": 0.0,
                     "similar_patterns": [],
-                    "recommendation": "proceed"
+                    "recommendation": "proceed",
                 }
-            
+
             # Calculate similarities
             similarities = []
             similar_patterns = []
-            
+
             for pattern in recent_patterns:
-                similarity = self.pattern_extractor.calculate_similarity(new_pattern, pattern)
+                similarity = self.pattern_extractor.calculate_similarity(
+                    new_pattern, pattern
+                )
                 similarities.append(similarity)
-                
+
                 if similarity >= similarity_threshold:
-                    similar_patterns.append({
-                        "similarity": similarity,
-                        "pattern": pattern.to_dict(),
-                        "age_hours": (datetime.utcnow() - pattern.timestamp).total_seconds() / 3600
-                    })
-            
+                    similar_patterns.append(
+                        {
+                            "similarity": similarity,
+                            "pattern": pattern.to_dict(),
+                            "age_hours": (
+                                datetime.utcnow() - pattern.timestamp
+                            ).total_seconds()
+                            / 3600,
+                        }
+                    )
+
             max_similarity = max(similarities) if similarities else 0.0
             is_repetitive = max_similarity >= similarity_threshold
-            
+
             # Generate recommendation
             recommendation = "proceed"
             if is_repetitive:
                 if max_similarity >= 0.9:
                     recommendation = "regenerate"  # Very similar, should regenerate
                 elif max_similarity >= 0.8:
-                    recommendation = "modify"     # Somewhat similar, should modify
+                    recommendation = "modify"  # Somewhat similar, should modify
                 else:
-                    recommendation = "caution"    # Moderately similar, proceed with caution
-            
+                    recommendation = (
+                        "caution"  # Moderately similar, proceed with caution
+                    )
+
             return {
                 "is_repetitive": is_repetitive,
                 "max_similarity": max_similarity,
@@ -223,11 +242,13 @@ class ConversationMemory:
                 "recommendation": recommendation,
                 "analysis": {
                     "pattern_count": len(recent_patterns),
-                    "avg_similarity": sum(similarities) / len(similarities) if similarities else 0.0,
-                    "threshold_used": similarity_threshold
-                }
+                    "avg_similarity": sum(similarities) / len(similarities)
+                    if similarities
+                    else 0.0,
+                    "threshold_used": similarity_threshold,
+                },
             }
-            
+
         except Exception as e:
             logger.error(f"Failed to check message repetition: {e}")
             return {
@@ -235,25 +256,25 @@ class ConversationMemory:
                 "max_similarity": 0.0,
                 "similar_patterns": [],
                 "recommendation": "proceed",
-                "error": str(e)
+                "error": str(e),
             }
-    
+
     async def get_communication_preferences(self, patient_id: UUID) -> Dict[str, Any]:
         """
         Get patient's communication preferences based on pattern history.
-        
+
         Args:
             patient_id: Patient UUID
-            
+
         Returns:
             Dict with communication preferences
         """
         try:
             patterns = await self.get_recent_patterns(patient_id, limit=20)
-            
+
             if not patterns:
                 return self._get_default_preferences()
-            
+
             # Analyze patterns to determine preferences
             preferences = {
                 "formality_level": self._analyze_formality(patterns),
@@ -263,23 +284,23 @@ class ConversationMemory:
                 "emotional_tone": self._analyze_emotional_tone(patterns),
                 "message_length_preference": self._analyze_message_length(patterns),
                 "pattern_count": len(patterns),
-                "last_updated": datetime.utcnow().isoformat()
+                "last_updated": datetime.utcnow().isoformat(),
             }
-            
+
             # Cache preferences
             pref_key = f"comm_prefs:{patient_id}"
             self.redis.setex(
-                pref_key, 
+                pref_key,
                 7 * 24 * 3600,  # Cache for 7 days
-                json.dumps(preferences)
+                json.dumps(preferences),
             )
-            
+
             return preferences
-            
+
         except Exception as e:
             logger.error(f"Failed to get communication preferences: {e}")
             return self._get_default_preferences()
-    
+
     def _get_default_preferences(self) -> Dict[str, Any]:
         """Get default communication preferences."""
         return {
@@ -290,129 +311,141 @@ class ConversationMemory:
             "emotional_tone": "supportive",
             "message_length_preference": "moderate",
             "pattern_count": 0,
-            "last_updated": datetime.utcnow().isoformat()
+            "last_updated": datetime.utcnow().isoformat(),
         }
-    
+
     def _analyze_formality(self, patterns: List[ConversationPattern]) -> str:
         """Analyze formality level from patterns."""
         formal_indicators = ["você", "senhor", "senhora"]
         informal_indicators = ["tu", "vc", "voce"]
-        
+
         formal_count = 0
         informal_count = 0
-        
+
         for pattern in patterns:
             for starter in pattern.sentence_starters:
                 if any(indicator in starter for indicator in formal_indicators):
                     formal_count += 1
                 if any(indicator in starter for indicator in informal_indicators):
                     informal_count += 1
-        
+
         if formal_count > informal_count * 1.5:
             return "formal"
         elif informal_count > formal_count:
             return "informal"
         else:
             return "casual"
-    
+
     def _analyze_emoji_usage(self, patterns: List[ConversationPattern]) -> bool:
         """Analyze emoji usage preference."""
         total_messages = len(patterns)
         messages_with_emojis = sum(1 for p in patterns if p.emoji_count > 0)
-        
-        return messages_with_emojis / total_messages > 0.3 if total_messages > 0 else True
-    
-    def _analyze_preferred_greetings(self, patterns: List[ConversationPattern]) -> List[str]:
+
+        return (
+            messages_with_emojis / total_messages > 0.3 if total_messages > 0 else True
+        )
+
+    def _analyze_preferred_greetings(
+        self, patterns: List[ConversationPattern]
+    ) -> List[str]:
         """Analyze preferred greeting words."""
         greeting_counts = {}
-        
+
         for pattern in patterns:
             for greeting in pattern.greeting_words:
                 greeting_counts[greeting] = greeting_counts.get(greeting, 0) + 1
-        
+
         # Return top 3 most used greetings
-        sorted_greetings = sorted(greeting_counts.items(), key=lambda x: x[1], reverse=True)
+        sorted_greetings = sorted(
+            greeting_counts.items(), key=lambda x: x[1], reverse=True
+        )
         return [greeting for greeting, _ in sorted_greetings[:3]]
-    
+
     def _analyze_question_style(self, patterns: List[ConversationPattern]) -> str:
         """Analyze preferred question style."""
         direct_patterns = ["como está", "que tal"]
         conversational_patterns = ["me conta", "gostaria de saber"]
-        
+
         direct_count = 0
         conversational_count = 0
-        
+
         for pattern in patterns:
             for structure in pattern.question_structures:
                 if any(dp in structure for dp in direct_patterns):
                     direct_count += 1
                 if any(cp in structure for cp in conversational_patterns):
                     conversational_count += 1
-        
+
         if direct_count > conversational_count:
             return "direct"
         elif conversational_count > 0:
             return "conversational"
         else:
             return "supportive"
-    
+
     def _analyze_emotional_tone(self, patterns: List[ConversationPattern]) -> str:
         """Analyze preferred emotional tone."""
-        positive_count = sum(1 for p in patterns 
-                           for emo in p.emotional_words 
-                           if emo.startswith("positive:"))
-        
-        negative_count = sum(1 for p in patterns 
-                           for emo in p.emotional_words 
-                           if emo.startswith("negative:"))
-        
+        positive_count = sum(
+            1
+            for p in patterns
+            for emo in p.emotional_words
+            if emo.startswith("positive:")
+        )
+
+        negative_count = sum(
+            1
+            for p in patterns
+            for emo in p.emotional_words
+            if emo.startswith("negative:")
+        )
+
         if positive_count > negative_count * 2:
             return "upbeat"
         elif negative_count > positive_count:
             return "gentle"
         else:
             return "supportive"
-    
+
     def _analyze_message_length(self, patterns: List[ConversationPattern]) -> str:
         """Analyze preferred message length."""
         if not patterns:
             return "moderate"
-        
+
         avg_length = sum(p.message_length for p in patterns) / len(patterns)
-        
+
         if avg_length < 50:
             return "brief"
         elif avg_length > 150:
             return "detailed"
         else:
             return "moderate"
-    
+
     async def clear_patient_patterns(self, patient_id: UUID) -> bool:
         """
         Clear all stored patterns for a patient.
-        
+
         Args:
             patient_id: Patient UUID
-            
+
         Returns:
             True if successful, False otherwise
         """
         try:
             pattern_key = f"msg_patterns:{patient_id}"
             pref_key = f"comm_prefs:{patient_id}"
-            
+
             deleted_count = self.redis.delete(pattern_key, pref_key)
             logger.info(f"Cleared {deleted_count} keys for patient {patient_id}")
             return deleted_count > 0
-            
+
         except Exception as e:
             logger.error(f"Failed to clear patient patterns: {e}")
             return False
-    
+
     async def get_memory_stats(self) -> Dict[str, Any]:
         """
         Get conversation memory system statistics.
-        
+
         Returns:
             Dict with memory system stats
         """
@@ -420,32 +453,33 @@ class ConversationMemory:
             # Get all pattern keys
             pattern_keys = self.redis.keys("msg_patterns:*")
             pref_keys = self.redis.keys("comm_prefs:*")
-            
+
             # Calculate total patterns
             total_patterns = 0
             for key in pattern_keys:
                 total_patterns += self.redis.llen(key)
-            
+
             return {
                 "total_patients": len(pattern_keys),
                 "total_patterns": total_patterns,
                 "cached_preferences": len(pref_keys),
-                "redis_memory_usage": self.redis.memory_usage("msg_patterns:*") if pattern_keys else 0,
-                "avg_patterns_per_patient": total_patterns / len(pattern_keys) if pattern_keys else 0,
-                "timestamp": datetime.utcnow().isoformat()
+                "redis_memory_usage": self.redis.memory_usage("msg_patterns:*")
+                if pattern_keys
+                else 0,
+                "avg_patterns_per_patient": total_patterns / len(pattern_keys)
+                if pattern_keys
+                else 0,
+                "timestamp": datetime.utcnow().isoformat(),
             }
-            
+
         except Exception as e:
             logger.error(f"Failed to get memory stats: {e}")
-            return {
-                "error": str(e),
-                "timestamp": datetime.utcnow().isoformat()
-            }
-    
+            return {"error": str(e), "timestamp": datetime.utcnow().isoformat()}
+
     async def health_check(self) -> bool:
         """
         Check if Redis connection is healthy.
-        
+
         Returns:
             True if healthy, False otherwise
         """
@@ -464,7 +498,7 @@ _conversation_memory: Optional[ConversationMemory] = None
 def get_conversation_memory() -> ConversationMemory:
     """
     Get global conversation memory instance.
-    
+
     Returns:
         ConversationMemory instance
     """
@@ -478,40 +512,42 @@ async def test_conversation_memory():
     """Test conversation memory system functionality."""
     try:
         memory = get_conversation_memory()
-        
+
         # Test health check
         if not await memory.health_check():
             logger.error("Conversation memory health check failed")
             return False
-        
+
         # Test pattern storage and retrieval
         test_patient_id = UUID("12345678-1234-5678-9012-123456789012")
         test_messages = [
             "Oi Maria, como você está se sentindo hoje?",
             "Olá Maria, tudo bem por aí?",
-            "Hey Maria, me conta como foi seu dia!"
+            "Hey Maria, me conta como foi seu dia!",
         ]
-        
+
         # Store patterns
         for message in test_messages:
             await memory.store_message_pattern(test_patient_id, message)
-        
+
         # Check repetition
         new_message = "Oi Maria, como você está hoje?"
-        repetition_check = await memory.check_message_repetition(test_patient_id, new_message)
-        
+        repetition_check = await memory.check_message_repetition(
+            test_patient_id, new_message
+        )
+
         logger.info(f"Repetition check result: {repetition_check}")
-        
+
         # Get preferences
         preferences = await memory.get_communication_preferences(test_patient_id)
         logger.info(f"Communication preferences: {preferences}")
-        
+
         # Clean up test data
         await memory.clear_patient_patterns(test_patient_id)
-        
+
         logger.info("Conversation memory test completed successfully")
         return True
-        
+
     except Exception as e:
         logger.error(f"Conversation memory test failed: {e}")
         return False

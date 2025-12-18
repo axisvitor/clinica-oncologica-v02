@@ -9,8 +9,8 @@ Compliance:
 
 File: backend-hormonia/app/utils/pii_masking.py
 """
+
 import re
-from typing import Optional
 from uuid import UUID
 
 
@@ -36,7 +36,7 @@ def mask_cpf(cpf: str) -> str:
         return "***.***.***-**"
 
     # Remove all non-digit characters
-    digits_only = re.sub(r'\D', '', cpf)
+    digits_only = re.sub(r"\D", "", cpf)
 
     # Ensure we have at least some digits
     if len(digits_only) < 5:
@@ -73,7 +73,7 @@ def mask_phone(phone: str) -> str:
         return "***"
 
     # Remove all non-digit characters except +
-    cleaned = re.sub(r'[^\d+]', '', phone)
+    cleaned = re.sub(r"[^\d+]", "", phone)
 
     # Get last 4 digits
     if len(cleaned) < 4:
@@ -82,9 +82,9 @@ def mask_phone(phone: str) -> str:
     last_four = cleaned[-4:]
 
     # Check if it has country code
-    if cleaned.startswith('+55') or cleaned.startswith('55'):
+    if cleaned.startswith("+55") or cleaned.startswith("55"):
         return f"+55***{last_four}"
-    elif cleaned.startswith('+'):
+    elif cleaned.startswith("+"):
         # Other country codes
         return f"+***{last_four}"
     else:
@@ -110,11 +110,11 @@ def mask_email(email: str) -> str:
         >>> mask_email("a@example.com")
         "a***@example.com"
     """
-    if not email or '@' not in email:
+    if not email or "@" not in email:
         return "***@***.***"
 
     try:
-        local, domain = email.split('@', 1)
+        local, domain = email.split("@", 1)
 
         # Show first 1-2 characters of local part
         if len(local) <= 1:
@@ -187,10 +187,10 @@ def safe_patient_log_context(patient_id: UUID, **kwargs) -> dict:
 
     # Known PII fields to mask
     pii_maskers = {
-        'cpf': mask_cpf,
-        'phone': mask_phone,
-        'email': mask_email,
-        'name': mask_name,
+        "cpf": mask_cpf,
+        "phone": mask_phone,
+        "email": mask_email,
+        "name": mask_name,
     }
 
     for key, value in kwargs.items():
@@ -224,24 +224,20 @@ def mask_pii_in_log_message(message: str) -> str:
         "Patient 123.***.***-01 called from +55***4321"
     """
     # Mask CPF patterns (with or without formatting)
-    message = re.sub(
-        r'\b(\d{3})\.?\d{3}\.?\d{3}-?(\d{2})\b',
-        r'\1.***.***-\2',
-        message
-    )
+    message = re.sub(r"\b(\d{3})\.?\d{3}\.?\d{3}-?(\d{2})\b", r"\1.***.***-\2", message)
 
     # Mask phone patterns (Brazilian format)
     message = re.sub(
-        r'\+?55\s?\(?\d{2}\)?\s?\d{4,5}-?\d{4}',
+        r"\+?55\s?\(?\d{2}\)?\s?\d{4,5}-?\d{4}",
         lambda m: mask_phone(m.group(0)),
-        message
+        message,
     )
 
     # Mask email patterns
     message = re.sub(
-        r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
+        r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
         lambda m: mask_email(m.group(0)),
-        message
+        message,
     )
 
     return message

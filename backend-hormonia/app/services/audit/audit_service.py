@@ -25,9 +25,10 @@ Usage:
         metadata={"patient_mrn": "12345"}
     )
 """
+
 import hashlib
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional, Dict, Any, List
 from uuid import UUID
 
@@ -71,7 +72,9 @@ class AuditEventContext(BaseModel):
     resource_identifiers: Optional[Dict[str, Any]] = None
 
     # Operation context
-    operation: Optional[str] = None  # CREATE, READ, UPDATE, DELETE, EXPORT, PRINT, SHARE
+    operation: Optional[str] = (
+        None  # CREATE, READ, UPDATE, DELETE, EXPORT, PRINT, SHARE
+    )
     description: Optional[str] = None
 
     # Change tracking
@@ -133,8 +136,7 @@ class AuditService:
         # Calculate changed fields if before/after provided
         if context.changes_before and context.changes_after:
             context.changed_fields = self._calculate_changed_fields(
-                context.changes_before,
-                context.changes_after
+                context.changes_before, context.changes_after
             )
 
         # Create audit log entry
@@ -144,56 +146,46 @@ class AuditService:
             event_category=event_category,
             event_status=context.status.lower(),  # Legacy field compatibility
             status=context.status,
-
             # User identification
             user_id=context.user_id,
             user_email=context.user_email,
             user_role=context.user_role,
             firebase_uid=context.firebase_uid,
-
             # Session tracking
             session_id=context.session_id,
             session_token_hash=context.session_token_hash,
             device_fingerprint=context.device_fingerprint,
             geolocation=context.geolocation,
-
             # Network information
             ip_address=context.ip_address,
             user_agent=context.user_agent,
-
             # Request information
             http_method=context.http_method,
             endpoint=context.endpoint,
             query_params=context.query_params,
             request_body_hash=context.request_body_hash,
             http_status_code=context.http_status_code,
-
             # Resource information
             resource_type=context.resource_type,
             resource_id=context.resource_id,
             resource_identifiers=context.resource_identifiers,
             resource=context.endpoint,  # Legacy field compatibility
             action=context.operation,  # Legacy field compatibility
-
             # Operation details
             operation=context.operation,
             description=context.description,
-
             # Change tracking
             changes_before=context.changes_before,
             changes_after=context.changes_after,
             changed_fields=context.changed_fields,
-
             # Result information
             error_code=context.error_code,
             error_details=context.error_message,  # Legacy field compatibility
             error_stack_trace=context.error_stack_trace,
             message=context.description,  # Legacy field compatibility
             duration_ms=context.duration_ms,
-
             # Additional metadata
             event_metadata=context.metadata or {},
-
             # Retention (will be set by trigger)
             retention_period_years=6,
             # archive_eligible_at will be auto-calculated by trigger
@@ -210,9 +202,7 @@ class AuditService:
         return audit_log
 
     async def verify_integrity(
-        self,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
     ) -> Dict[str, Any]:
         """
         Verify the integrity of audit logs using checksums and chain of custody.
@@ -257,7 +247,7 @@ class AuditService:
         user_id: Optional[UUID] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[AuditLog]:
         """
         Retrieve PHI access logs for compliance reporting.
@@ -273,9 +263,7 @@ class AuditService:
         Returns:
             List of PHI access audit logs
         """
-        query = select(AuditLog).where(
-            AuditLog.event_category == "PHI_ACCESS"
-        )
+        query = select(AuditLog).where(AuditLog.event_category == "PHI_ACCESS")
 
         if resource_type:
             query = query.where(AuditLog.resource_type == resource_type)
@@ -300,7 +288,7 @@ class AuditService:
         operation: Optional[str] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[AuditLog]:
         """
         Retrieve data modification logs with before/after states.
@@ -316,9 +304,7 @@ class AuditService:
         Returns:
             List of data modification audit logs
         """
-        query = select(AuditLog).where(
-            AuditLog.event_category == "DATA_MODIFICATION"
-        )
+        query = select(AuditLog).where(AuditLog.event_category == "DATA_MODIFICATION")
 
         if resource_type:
             query = query.where(AuditLog.resource_type == resource_type)
@@ -341,7 +327,7 @@ class AuditService:
         user_id: UUID,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[AuditLog]:
         """
         Retrieve all activity for a specific user.
@@ -372,7 +358,7 @@ class AuditService:
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
         min_score: float = 70.0,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[AuditLog]:
         """
         Retrieve anomalous events for security review.
@@ -387,10 +373,7 @@ class AuditService:
             List of anomalous audit logs
         """
         query = select(AuditLog).where(
-            and_(
-                AuditLog.is_anomalous == True,
-                AuditLog.anomaly_score >= min_score
-            )
+            and_(AuditLog.is_anomalous, AuditLog.anomaly_score >= min_score)
         )
 
         if start_date:
@@ -398,15 +381,15 @@ class AuditService:
         if end_date:
             query = query.where(AuditLog.created_at <= end_date)
 
-        query = query.order_by(AuditLog.anomaly_score.desc(), AuditLog.created_at.desc()).limit(limit)
+        query = query.order_by(
+            AuditLog.anomaly_score.desc(), AuditLog.created_at.desc()
+        ).limit(limit)
 
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
     async def get_compliance_statistics(
-        self,
-        start_date: datetime,
-        end_date: datetime
+        self, start_date: datetime, end_date: datetime
     ) -> Dict[str, Any]:
         """
         Generate compliance statistics for reporting.
@@ -420,24 +403,19 @@ class AuditService:
         """
         # Total events
         total_query = select(func.count(AuditLog.id)).where(
-            and_(
-                AuditLog.created_at >= start_date,
-                AuditLog.created_at <= end_date
-            )
+            and_(AuditLog.created_at >= start_date, AuditLog.created_at <= end_date)
         )
         total_result = await self.db.execute(total_query)
         total_events = total_result.scalar() or 0
 
         # Events by category
-        category_query = select(
-            AuditLog.event_category,
-            func.count(AuditLog.id)
-        ).where(
-            and_(
-                AuditLog.created_at >= start_date,
-                AuditLog.created_at <= end_date
+        category_query = (
+            select(AuditLog.event_category, func.count(AuditLog.id))
+            .where(
+                and_(AuditLog.created_at >= start_date, AuditLog.created_at <= end_date)
             )
-        ).group_by(AuditLog.event_category)
+            .group_by(AuditLog.event_category)
+        )
 
         category_result = await self.db.execute(category_query)
         events_by_category = dict(category_result.all())
@@ -447,7 +425,7 @@ class AuditService:
             and_(
                 AuditLog.created_at >= start_date,
                 AuditLog.created_at <= end_date,
-                AuditLog.status.in_(['FAILURE', 'ERROR'])
+                AuditLog.status.in_(["FAILURE", "ERROR"]),
             )
         )
         failed_result = await self.db.execute(failed_query)
@@ -458,7 +436,7 @@ class AuditService:
             and_(
                 AuditLog.created_at >= start_date,
                 AuditLog.created_at <= end_date,
-                AuditLog.is_anomalous == True
+                AuditLog.is_anomalous,
             )
         )
         anomaly_result = await self.db.execute(anomaly_query)
@@ -469,27 +447,30 @@ class AuditService:
             and_(
                 AuditLog.created_at >= start_date,
                 AuditLog.created_at <= end_date,
-                AuditLog.user_id.isnot(None)
+                AuditLog.user_id.isnot(None),
             )
         )
         users_result = await self.db.execute(users_query)
         unique_users = users_result.scalar() or 0
 
         return {
-            "period": {
-                "start": start_date.isoformat(),
-                "end": end_date.isoformat()
-            },
+            "period": {"start": start_date.isoformat(), "end": end_date.isoformat()},
             "total_events": total_events,
             "events_by_category": events_by_category,
             "failed_events": failed_events,
             "anomalous_events": anomalous_events,
             "unique_users": unique_users,
-            "compliance_rate": round((total_events - failed_events) / total_events * 100, 2) if total_events > 0 else 100.0
+            "compliance_rate": round(
+                (total_events - failed_events) / total_events * 100, 2
+            )
+            if total_events > 0
+            else 100.0,
         }
 
     @staticmethod
-    def _calculate_changed_fields(before: Dict[str, Any], after: Dict[str, Any]) -> List[str]:
+    def _calculate_changed_fields(
+        before: Dict[str, Any], after: Dict[str, Any]
+    ) -> List[str]:
         """Calculate which fields changed between before and after states."""
         changed = []
         all_keys = set(before.keys()) | set(after.keys())

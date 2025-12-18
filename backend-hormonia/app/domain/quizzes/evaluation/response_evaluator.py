@@ -6,7 +6,8 @@ and generates alerts when risk thresholds are exceeded.
 
 Sprint 2 - Week 1, Task 3: Automatic Alert Evaluation
 """
-from typing import Dict, Any, List, Optional, Tuple
+
+from typing import Dict, Any, List, Tuple
 from uuid import UUID
 from datetime import datetime
 import logging
@@ -37,7 +38,7 @@ class QuizResponseEvaluator:
     SEVERITY_MAP = {
         AlertSeverity.CRITICAL: ModelAlertSeverity.CRITICAL,
         AlertSeverity.WARNING: ModelAlertSeverity.HIGH,
-        AlertSeverity.INFO: ModelAlertSeverity.MEDIUM
+        AlertSeverity.INFO: ModelAlertSeverity.MEDIUM,
     }
 
     def __init__(self, db: Session):
@@ -46,10 +47,7 @@ class QuizResponseEvaluator:
         self.audit_service = AuditService(db)
 
     async def evaluate_quiz_session(
-        self,
-        quiz_session_id: UUID,
-        patient_id: UUID,
-        responses: Dict[str, Any]
+        self, quiz_session_id: UUID, patient_id: UUID, responses: Dict[str, Any]
     ) -> Tuple[List[Alert], float]:
         """
         Evaluate quiz responses against alert rules.
@@ -97,7 +95,7 @@ class QuizResponseEvaluator:
                         quiz_session_id=quiz_session_id,
                         patient_id=patient_id,
                         rule=rule,
-                        responses=normalized_responses
+                        responses=normalized_responses,
                     )
 
                     triggered_alerts.append(alert)
@@ -105,7 +103,7 @@ class QuizResponseEvaluator:
             except Exception as e:
                 logger.error(
                     f"Error evaluating rule '{rule.rule_id}' for patient {patient_id}: {e}",
-                    exc_info=True
+                    exc_info=True,
                 )
                 # Continue with other rules even if one fails
 
@@ -128,8 +126,10 @@ class QuizResponseEvaluator:
                 "patient_id": str(patient_id),
                 "alerts_generated": len(triggered_alerts),
                 "risk_score": risk_score,
-                "triggered_rule_ids": [a.data.get("triggered_rule_id") for a in triggered_alerts]
-            }
+                "triggered_rule_ids": [
+                    a.data.get("triggered_rule_id") for a in triggered_alerts
+                ],
+            },
         )
 
         return triggered_alerts, risk_score
@@ -164,7 +164,9 @@ class QuizResponseEvaluator:
                 try:
                     value = float(value)
                 except ValueError as e:
-                    logger.debug(f"Failed to convert string to float: {value}, error: {e}")
+                    logger.debug(
+                        f"Failed to convert string to float: {value}, error: {e}"
+                    )
 
             # Normalize boolean strings
             if isinstance(value, str):
@@ -183,7 +185,7 @@ class QuizResponseEvaluator:
         quiz_session_id: UUID,
         patient_id: UUID,
         rule: QuizAlertRule,
-        responses: Dict[str, Any]
+        responses: Dict[str, Any],
     ) -> Alert:
         """
         Create alert from triggered rule.
@@ -202,7 +204,9 @@ class QuizResponseEvaluator:
         """
         try:
             # Map severity from config to model
-            model_severity = self.SEVERITY_MAP.get(rule.severity, ModelAlertSeverity.MEDIUM)
+            model_severity = self.SEVERITY_MAP.get(
+                rule.severity, ModelAlertSeverity.MEDIUM
+            )
 
             # Create alert instance
             alert = Alert(
@@ -217,9 +221,11 @@ class QuizResponseEvaluator:
                     "rule_name": rule.name,
                     "rule_description": rule.description,
                     "recommendation": rule.recommendation,
-                    "relevant_responses": self._extract_relevant_responses(responses, rule),
-                    "evaluated_at": datetime.utcnow().isoformat()
-                }
+                    "relevant_responses": self._extract_relevant_responses(
+                        responses, rule
+                    ),
+                    "evaluated_at": datetime.utcnow().isoformat(),
+                },
             )
 
             # Save to database
@@ -235,13 +241,13 @@ class QuizResponseEvaluator:
 
         except Exception as e:
             self.db.rollback()
-            logger.error(f"Failed to create alert for rule '{rule.rule_id}': {e}", exc_info=True)
+            logger.error(
+                f"Failed to create alert for rule '{rule.rule_id}': {e}", exc_info=True
+            )
             raise DatabaseError(f"Failed to create alert: {str(e)}")
 
     def _extract_relevant_responses(
-        self,
-        responses: Dict[str, Any],
-        rule: QuizAlertRule
+        self, responses: Dict[str, Any], rule: QuizAlertRule
     ) -> Dict[str, Any]:
         """
         Extract responses relevant to the triggered rule.
@@ -280,13 +286,10 @@ class QuizResponseEvaluator:
             ModelAlertSeverity.CRITICAL: 50,
             ModelAlertSeverity.HIGH: 30,
             ModelAlertSeverity.MEDIUM: 10,
-            ModelAlertSeverity.LOW: 5
+            ModelAlertSeverity.LOW: 5,
         }
 
-        total_score = sum(
-            severity_weights.get(alert.severity, 0)
-            for alert in alerts
-        )
+        total_score = sum(severity_weights.get(alert.severity, 0) for alert in alerts)
 
         # Cap at 100
         return min(float(total_score), 100.0)
@@ -304,7 +307,9 @@ class QuizResponseEvaluator:
             alert: Created alert
             rule: Triggered rule
         """
-        logger.info(f"Sending notifications for alert {alert.id} (severity: {alert.severity.value})")
+        logger.info(
+            f"Sending notifications for alert {alert.id} (severity: {alert.severity.value})"
+        )
 
         try:
             # Dashboard notification (always)
@@ -319,7 +324,9 @@ class QuizResponseEvaluator:
                 await self._send_whatsapp_notification(alert, rule)
 
         except Exception as e:
-            logger.error(f"Error sending notifications for alert {alert.id}: {e}", exc_info=True)
+            logger.error(
+                f"Error sending notifications for alert {alert.id}: {e}", exc_info=True
+            )
             # Don't raise - notification failures shouldn't block alert creation
 
     async def _send_dashboard_notification(self, alert: Alert, rule: QuizAlertRule):
@@ -333,7 +340,7 @@ class QuizResponseEvaluator:
             rule: Triggered rule with details
         """
         try:
-            from app.core.websocket import broadcast_to_room, get_connection_manager
+            from app.core.websocket import get_connection_manager
 
             # Build notification payload
             notification_payload = {
@@ -346,29 +353,32 @@ class QuizResponseEvaluator:
                 "rule_id": rule.rule_id,
                 "recommendation": rule.recommendation,
                 "timestamp": datetime.utcnow().isoformat(),
-                "requires_action": alert.severity in (ModelAlertSeverity.CRITICAL, ModelAlertSeverity.HIGH),
+                "requires_action": alert.severity
+                in (ModelAlertSeverity.CRITICAL, ModelAlertSeverity.HIGH),
             }
 
             # Broadcast to alerts room (subscribed by medical team dashboards)
             connection_manager = get_connection_manager()
             if connection_manager:
                 await connection_manager.broadcast_to_room(
-                    room="alerts",
-                    message=notification_payload
+                    room="alerts", message=notification_payload
                 )
 
                 # Also send to patient-specific room for assigned doctor
                 await connection_manager.broadcast_to_room(
-                    room=f"patient_{alert.patient_id}",
-                    message=notification_payload
+                    room=f"patient_{alert.patient_id}", message=notification_payload
                 )
 
             logger.info(f"Dashboard notification sent for alert {alert.id}")
 
         except ImportError:
-            logger.warning("WebSocket module not available, skipping dashboard notification")
+            logger.warning(
+                "WebSocket module not available, skipping dashboard notification"
+            )
         except Exception as e:
-            logger.error(f"Failed to send dashboard notification for alert {alert.id}: {e}")
+            logger.error(
+                f"Failed to send dashboard notification for alert {alert.id}: {e}"
+            )
             # Don't raise - notification failure shouldn't block processing
 
     async def _send_email_notification(self, alert: Alert, rule: QuizAlertRule):
@@ -385,7 +395,7 @@ class QuizResponseEvaluator:
             from app.services.notification_service import (
                 get_notification_service,
                 NotificationChannel,
-                NotificationPriority
+                NotificationPriority,
             )
 
             notification_service = get_notification_service()
@@ -396,14 +406,15 @@ class QuizResponseEvaluator:
 
             try:
                 from app.repositories.patient_repository import PatientRepository
+
                 patient_repo = PatientRepository(self.db)
                 patient = patient_repo.get_by_id(alert.patient_id)
                 if patient:
-                    patient_name = getattr(patient, 'full_name', patient_name)
+                    patient_name = getattr(patient, "full_name", patient_name)
 
                     # Get assigned doctor's email
-                    if hasattr(patient, 'assigned_doctor') and patient.assigned_doctor:
-                        doctor_email = getattr(patient.assigned_doctor, 'email', None)
+                    if hasattr(patient, "assigned_doctor") and patient.assigned_doctor:
+                        doctor_email = getattr(patient.assigned_doctor, "email", None)
             except Exception as e:
                 logger.warning(f"Could not fetch patient/doctor info: {e}")
 
@@ -412,7 +423,7 @@ class QuizResponseEvaluator:
                 ModelAlertSeverity.CRITICAL: "CRÍTICO",
                 ModelAlertSeverity.HIGH: "ALTO",
                 ModelAlertSeverity.MEDIUM: "MÉDIO",
-                ModelAlertSeverity.LOW: "BAIXO"
+                ModelAlertSeverity.LOW: "BAIXO",
             }
 
             severity_label = severity_labels.get(alert.severity, "MÉDIO")
@@ -436,7 +447,7 @@ Recomendação:
 Este alerta foi gerado automaticamente pelo sistema de avaliação de respostas.
 Por favor, revise o caso e tome as medidas apropriadas.
 
-Data/Hora: {datetime.utcnow().strftime('%d/%m/%Y %H:%M UTC')}
+Data/Hora: {datetime.utcnow().strftime("%d/%m/%Y %H:%M UTC")}
 ID do Alerta: {alert.id}
             """
 
@@ -445,7 +456,7 @@ ID do Alerta: {alert.id}
                 ModelAlertSeverity.CRITICAL: NotificationPriority.CRITICAL,
                 ModelAlertSeverity.HIGH: NotificationPriority.HIGH,
                 ModelAlertSeverity.MEDIUM: NotificationPriority.NORMAL,
-                ModelAlertSeverity.LOW: NotificationPriority.LOW
+                ModelAlertSeverity.LOW: NotificationPriority.LOW,
             }
             priority = priority_map.get(alert.severity, NotificationPriority.NORMAL)
 
@@ -457,7 +468,8 @@ ID do Alerta: {alert.id}
             # Add admin recipients from config if critical
             if alert.severity == ModelAlertSeverity.CRITICAL:
                 from app.config import settings
-                admin_email = getattr(settings, 'ADMIN_ALERT_EMAIL', None)
+
+                admin_email = getattr(settings, "ADMIN_ALERT_EMAIL", None)
                 if admin_email and admin_email not in recipients:
                     recipients.append(admin_email)
 
@@ -473,10 +485,12 @@ ID do Alerta: {alert.id}
                         "severity": severity_label,
                         "rule_name": rule.name,
                         "recommendation": rule.recommendation,
-                        "alert_id": str(alert.id)
-                    }
+                        "alert_id": str(alert.id),
+                    },
                 )
-                logger.info(f"Email notification sent for alert {alert.id} to {len(recipients)} recipients")
+                logger.info(
+                    f"Email notification sent for alert {alert.id} to {len(recipients)} recipients"
+                )
             else:
                 logger.warning(f"No email recipients found for alert {alert.id}")
 
@@ -500,7 +514,7 @@ ID do Alerta: {alert.id}
             from app.services.notification_service import (
                 get_notification_service,
                 NotificationChannel,
-                NotificationPriority
+                NotificationPriority,
             )
 
             notification_service = get_notification_service()
@@ -511,19 +525,22 @@ ID do Alerta: {alert.id}
 
             try:
                 from app.repositories.patient_repository import PatientRepository
+
                 patient_repo = PatientRepository(self.db)
                 patient = patient_repo.get_by_id(alert.patient_id)
                 if patient:
-                    patient_name = getattr(patient, 'full_name', patient_name)
+                    patient_name = getattr(patient, "full_name", patient_name)
 
                     # Get assigned doctor's phone
-                    if hasattr(patient, 'assigned_doctor') and patient.assigned_doctor:
-                        doctor_phone = getattr(patient.assigned_doctor, 'phone', None)
+                    if hasattr(patient, "assigned_doctor") and patient.assigned_doctor:
+                        doctor_phone = getattr(patient.assigned_doctor, "phone", None)
             except Exception as e:
                 logger.warning(f"Could not fetch patient/doctor info: {e}")
 
             # Build WhatsApp message (concise for mobile)
-            severity_emoji = "🔴" if alert.severity == ModelAlertSeverity.CRITICAL else "🟠"
+            severity_emoji = (
+                "🔴" if alert.severity == ModelAlertSeverity.CRITICAL else "🟠"
+            )
 
             message = f"""
 {severity_emoji} *ALERTA CRÍTICO* {severity_emoji}
@@ -545,7 +562,8 @@ ID do Alerta: {alert.id}
 
             # Add on-call phone for critical alerts
             from app.config import settings
-            oncall_phone = getattr(settings, 'ONCALL_WHATSAPP', None)
+
+            oncall_phone = getattr(settings, "ONCALL_WHATSAPP", None)
             if oncall_phone and oncall_phone not in recipients:
                 recipients.append(oncall_phone)
 
@@ -555,18 +573,24 @@ ID do Alerta: {alert.id}
                     subject=f"Alerta Crítico - {patient_name}",
                     message=message,
                     recipients=recipients,
-                    priority=NotificationPriority.CRITICAL
+                    priority=NotificationPriority.CRITICAL,
                 )
-                logger.info(f"WhatsApp notification sent for alert {alert.id} to {len(recipients)} recipients")
+                logger.info(
+                    f"WhatsApp notification sent for alert {alert.id} to {len(recipients)} recipients"
+                )
             else:
                 logger.warning(f"No WhatsApp recipients found for alert {alert.id}")
 
         except ImportError as e:
             logger.warning(f"NotificationService not available: {e}")
         except Exception as e:
-            logger.error(f"Failed to send WhatsApp notification for alert {alert.id}: {e}")
+            logger.error(
+                f"Failed to send WhatsApp notification for alert {alert.id}: {e}"
+            )
 
-    def get_evaluation_summary(self, patient_id: UUID, days: int = 30) -> Dict[str, Any]:
+    def get_evaluation_summary(
+        self, patient_id: UUID, days: int = 30
+    ) -> Dict[str, Any]:
         """
         Get summary of alert evaluations for a patient.
 
@@ -587,10 +611,22 @@ ID do Alerta: {alert.id}
             # Calculate statistics
             total_alerts = len(quiz_alerts)
             by_severity = {
-                "critical": len([a for a in quiz_alerts if a.severity == ModelAlertSeverity.CRITICAL]),
-                "high": len([a for a in quiz_alerts if a.severity == ModelAlertSeverity.HIGH]),
-                "medium": len([a for a in quiz_alerts if a.severity == ModelAlertSeverity.MEDIUM]),
-                "low": len([a for a in quiz_alerts if a.severity == ModelAlertSeverity.LOW])
+                "critical": len(
+                    [
+                        a
+                        for a in quiz_alerts
+                        if a.severity == ModelAlertSeverity.CRITICAL
+                    ]
+                ),
+                "high": len(
+                    [a for a in quiz_alerts if a.severity == ModelAlertSeverity.HIGH]
+                ),
+                "medium": len(
+                    [a for a in quiz_alerts if a.severity == ModelAlertSeverity.MEDIUM]
+                ),
+                "low": len(
+                    [a for a in quiz_alerts if a.severity == ModelAlertSeverity.LOW]
+                ),
             }
 
             # Get most common triggered rules
@@ -605,15 +641,18 @@ ID do Alerta: {alert.id}
                 "total_quiz_alerts": total_alerts,
                 "by_severity": by_severity,
                 "most_common_rules": sorted(
-                    rule_counts.items(),
-                    key=lambda x: x[1],
-                    reverse=True
+                    rule_counts.items(), key=lambda x: x[1], reverse=True
                 )[:5],
-                "acknowledgement_rate": self._calculate_acknowledgement_rate(quiz_alerts)
+                "acknowledgement_rate": self._calculate_acknowledgement_rate(
+                    quiz_alerts
+                ),
             }
 
         except Exception as e:
-            logger.error(f"Error generating evaluation summary for patient {patient_id}: {e}", exc_info=True)
+            logger.error(
+                f"Error generating evaluation summary for patient {patient_id}: {e}",
+                exc_info=True,
+            )
             raise DatabaseError(f"Failed to generate evaluation summary: {str(e)}")
 
     def _calculate_acknowledgement_rate(self, alerts: List[Alert]) -> float:

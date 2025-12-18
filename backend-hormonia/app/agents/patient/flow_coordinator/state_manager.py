@@ -17,6 +17,7 @@ def _get_knowledge_graph():
     """Lazy import for KnowledgeGraph to prevent startup failures."""
     try:
         from app.memory.knowledge_graph import KnowledgeGraph
+
         return KnowledgeGraph
     except ImportError as e:
         logging.warning(f"KnowledgeGraph import failed: {e}")
@@ -42,9 +43,13 @@ class StateManager:
             await self.knowledge_graph.initialize()
         else:
             self.knowledge_graph = None
-            self.logger.warning("Knowledge graph not available - some features may be limited")
+            self.logger.warning(
+                "Knowledge graph not available - some features may be limited"
+            )
 
-    async def build_flow_context(self, patient_id: UUID, current_day: int) -> FlowContext:
+    async def build_flow_context(
+        self, patient_id: UUID, current_day: int
+    ) -> FlowContext:
         """Build comprehensive context for flow decision making."""
         context = FlowContext()
         context.patient_id = patient_id
@@ -59,7 +64,9 @@ class StateManager:
 
         # Get knowledge graph context
         if self.knowledge_graph:
-            context.knowledge_context = await self.knowledge_graph.get_patient_context(patient_id)
+            context.knowledge_context = await self.knowledge_graph.get_patient_context(
+                patient_id
+            )
 
         # Analyze recent interactions
         context.recent_interactions = await self._get_recent_interactions(patient_id)
@@ -99,13 +106,15 @@ class StateManager:
 
         return mood_data
 
-    async def _calculate_adherence_metrics(self, context: FlowContext) -> Dict[str, float]:
+    async def _calculate_adherence_metrics(
+        self, context: FlowContext
+    ) -> Dict[str, float]:
         """Calculate patient adherence metrics."""
         # Placeholder - would analyze actual interaction data
         return {
             "message_response_rate": 0.8,
             "quiz_completion_rate": 0.9,
-            "scheduled_engagement_rate": 0.7
+            "scheduled_engagement_rate": 0.7,
         }
 
     async def _identify_risk_factors(self, context: FlowContext) -> List[str]:
@@ -124,7 +133,9 @@ class StateManager:
         if context.knowledge_context.get("patterns"):
             for pattern in context.knowledge_context["patterns"]:
                 if pattern.get("pattern_type") == "recurring_symptom":
-                    risk_factors.append(f"recurring_{pattern.get('description', 'symptom')}")
+                    risk_factors.append(
+                        f"recurring_{pattern.get('description', 'symptom')}"
+                    )
 
         return risk_factors
 

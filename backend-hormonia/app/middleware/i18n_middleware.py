@@ -54,7 +54,7 @@ class I18nMiddleware(BaseHTTPMiddleware):
         response: Response = await call_next(request)
 
         # Add Content-Language header to response
-        response.headers['Content-Language'] = locale
+        response.headers["Content-Language"] = locale
 
         return response
 
@@ -88,6 +88,6 @@ async def i18n_middleware(request: Request, call_next):
     response: Response = await call_next(request)
 
     # Add Content-Language header
-    response.headers['Content-Language'] = locale
+    response.headers["Content-Language"] = locale
 
     return response

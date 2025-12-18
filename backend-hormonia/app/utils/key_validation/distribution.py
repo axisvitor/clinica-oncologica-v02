@@ -24,4 +24,4 @@ def analyze_character_distribution(key: str) -> dict:
     }
 
 
-__all__ = ['analyze_character_distribution']
+__all__ = ["analyze_character_distribution"]

@@ -2,6 +2,7 @@
 Conversation context manager for follow-up system.
 Handles storage, retrieval, and updates of patient conversation context.
 """
+
 import logging
 from typing import Optional
 from datetime import datetime
@@ -28,9 +29,7 @@ class ContextManager:
         self.in_memory_contexts = in_memory_contexts
 
     async def update_context(
-        self,
-        patient_id: UUID,
-        structured_response: StructuredResponse
+        self, patient_id: UUID, structured_response: StructuredResponse
     ) -> None:
         """
         Update conversation context for continuity.
@@ -46,28 +45,38 @@ class ContextManager:
                 context = self._create_new_context(patient_id)
 
             # Add to conversation history
-            context.conversation_history.append({
-                "timestamp": structured_response.timestamp.isoformat(),
-                "message": structured_response.original_message,
-                "response_type": structured_response.response_type.value,
-                "sentiment": structured_response.sentiment_analysis.get("sentiment"),
-                "concern_level": structured_response.concern_level.value,
-                "medical_concerns": structured_response.medical_concerns
-            })
+            context.conversation_history.append(
+                {
+                    "timestamp": structured_response.timestamp.isoformat(),
+                    "message": structured_response.original_message,
+                    "response_type": structured_response.response_type.value,
+                    "sentiment": structured_response.sentiment_analysis.get(
+                        "sentiment"
+                    ),
+                    "concern_level": structured_response.concern_level.value,
+                    "medical_concerns": structured_response.medical_concerns,
+                }
+            )
 
             # Keep only last 20 messages
             context.conversation_history = context.conversation_history[-20:]
 
             # Update emotional state
-            context.emotional_state = structured_response.sentiment_analysis.get("sentiment")
+            context.emotional_state = structured_response.sentiment_analysis.get(
+                "sentiment"
+            )
 
             # Update current topic based on response category
             context.current_topic = structured_response.response_category.value
 
             # Update medical context
             if structured_response.medical_concerns:
-                context.medical_context["recent_concerns"] = structured_response.medical_concerns
-                context.medical_context["last_concern_time"] = structured_response.timestamp.isoformat()
+                context.medical_context["recent_concerns"] = (
+                    structured_response.medical_concerns
+                )
+                context.medical_context["last_concern_time"] = (
+                    structured_response.timestamp.isoformat()
+                )
 
             # Update preferences from extracted data
             if structured_response.patient_preferences:
@@ -75,7 +84,7 @@ class ContextManager:
                     context.preferences[pref.preference_type] = {
                         "value": pref.value,
                         "confidence": pref.confidence,
-                        "updated_at": pref.extracted_at.isoformat()
+                        "updated_at": pref.extracted_at.isoformat(),
                     }
 
             context.last_updated = datetime.utcnow()
@@ -107,7 +116,7 @@ class ContextManager:
                     current_topic=context_data.get("current_topic"),
                     emotional_state=context_data.get("emotional_state"),
                     medical_context=context_data.get("medical_context", {}),
-                    preferences=context_data.get("preferences", {})
+                    preferences=context_data.get("preferences", {}),
                 )
 
             # Fallback to in-memory
@@ -128,7 +137,7 @@ class ContextManager:
             current_topic=None,
             emotional_state=None,
             medical_context={},
-            preferences={}
+            preferences={},
         )
 
     async def _store_context(self, context: ConversationContext) -> None:

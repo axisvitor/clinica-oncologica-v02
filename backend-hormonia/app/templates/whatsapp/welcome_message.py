@@ -4,13 +4,14 @@ Welcome message template for new patient registration.
 This template is sent automatically when a patient is registered in the system
 to introduce them to the clinic's WhatsApp-based monitoring system.
 """
+
 from typing import Optional
 
 
 def get_welcome_message(
     patient_name: str,
     clinic_name: str = "Neoplasias Litoral",
-    support_phone: Optional[str] = None
+    support_phone: Optional[str] = None,
 ) -> str:
     """
     Generate personalized welcome message for new patients.
@@ -80,9 +81,7 @@ Vou te enviar lembretes, acompanhamentos e orientações por aqui.
 
 
 def get_registration_confirmation(
-    patient_name: str,
-    doctor_name: str,
-    treatment_type: Optional[str] = None
+    patient_name: str, doctor_name: str, treatment_type: Optional[str] = None
 ) -> str:
     """
     Generate registration confirmation message with treatment details.
@@ -110,7 +109,7 @@ Eu sou a Hormonia (IA). Seu cadastro foi concluído com sucesso e vamos começar
             "hormone_therapy": "Hormonioterapia",
             "chemotherapy": "Quimioterapia",
             "radiotherapy": "Radioterapia",
-            "immunotherapy": "Imunoterapia"
+            "immunotherapy": "Imunoterapia",
         }
         treatment_display = treatment_names.get(treatment_type, treatment_type)
         message += f"💊 *Tratamento:* {treatment_display}\n"

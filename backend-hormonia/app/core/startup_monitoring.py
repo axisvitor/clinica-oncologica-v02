@@ -239,7 +239,7 @@ def log_startup_info():
     logger.info(f"Platform: {platform.system()} {platform.release()}")
     logger.info(f"Environment: {settings.APP_ENVIRONMENT}")
     logger.info(f"Debug Mode: {settings.APP_ENABLE_DEBUG}")
-    logger.info(f"API Version: 2.0.0")
+    logger.info("API Version: 2.0.0")
     logger.info("=" * 70)
 
 
@@ -250,7 +250,6 @@ def setup_health_check(app: FastAPI):
     Args:
         app: Instância do FastAPI
     """
-    from fastapi import Response
 
     @app.get("/health/monitoring", tags=["Health"])
     async def monitoring_health():

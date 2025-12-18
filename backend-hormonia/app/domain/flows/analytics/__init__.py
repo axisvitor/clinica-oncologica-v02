@@ -4,6 +4,6 @@ from .collector import AnalyticsCollector
 from .metrics import FlowMetricsCalculator
 
 __all__ = [
-    'AnalyticsCollector',
-    'FlowMetricsCalculator',
+    "AnalyticsCollector",
+    "FlowMetricsCalculator",
 ]

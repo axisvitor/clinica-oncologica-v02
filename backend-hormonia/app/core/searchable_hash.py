@@ -116,7 +116,7 @@ class SearchableHash:
 
         # Remove common formatting characters for consistent hashing
         # Keep only digits and + (for international format)
-        normalized = ''.join(c for c in phone if c.isdigit() or c == '+')
+        normalized = "".join(c for c in phone if c.isdigit() or c == "+")
         return SearchableHash._hash_field(normalized, "phone")
 
     @staticmethod
@@ -139,11 +139,13 @@ class SearchableHash:
             return None
 
         # Remove formatting characters (dots, dashes)
-        normalized = ''.join(c for c in cpf if c.isdigit())
+        normalized = "".join(c for c in cpf if c.isdigit())
         return SearchableHash._hash_field(normalized, "cpf")
 
     @staticmethod
-    def hash_generic(value: Optional[str], field_name: str = "generic") -> Optional[str]:
+    def hash_generic(
+        value: Optional[str], field_name: str = "generic"
+    ) -> Optional[str]:
         """
         Generate hash for generic field.
 

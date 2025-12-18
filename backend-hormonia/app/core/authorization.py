@@ -6,7 +6,7 @@ authorization in API endpoints following backend API best practices.
 """
 
 from functools import wraps
-from typing import Callable, Optional, Union, List
+from typing import Callable, Optional
 from uuid import UUID
 import logging
 
@@ -28,7 +28,7 @@ def _extract_user_from_kwargs(**kwargs) -> Optional[dict]:
     Returns:
         User dict or None
     """
-    current_user = kwargs.get('current_user')
+    current_user = kwargs.get("current_user")
 
     if current_user is None:
         return None
@@ -41,7 +41,9 @@ def _extract_user_from_kwargs(**kwargs) -> Optional[dict]:
     return {
         "id": str(getattr(current_user, "id", "")),
         "email": getattr(current_user, "email", ""),
-        "role": getattr(current_user, "role", "").value if hasattr(getattr(current_user, "role", ""), "value") else str(getattr(current_user, "role", "")),
+        "role": getattr(current_user, "role", "").value
+        if hasattr(getattr(current_user, "role", ""), "value")
+        else str(getattr(current_user, "role", "")),
         "is_active": getattr(current_user, "is_active", False),
     }
 
@@ -84,24 +86,26 @@ def require_permission(*permissions: Permission):
         async def get_patient(patient_id: str, current_user = Depends(get_current_user)):
             ...
     """
+
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(*args, **kwargs):
             current_user = _extract_user_from_kwargs(**kwargs)
 
             if not current_user:
-                logger.warning(f"Permission check failed: No authenticated user for {func.__name__}")
+                logger.warning(
+                    f"Permission check failed: No authenticated user for {func.__name__}"
+                )
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required"
+                    detail="Authentication required",
                 )
 
             user_role = _get_user_role(current_user)
 
             # Check if user has any of the required permissions
             has_permission = any(
-                RolePermissions.has_permission(user_role, perm)
-                for perm in permissions
+                RolePermissions.has_permission(user_role, perm) for perm in permissions
             )
 
             if not has_permission:
@@ -112,11 +116,13 @@ def require_permission(*permissions: Permission):
                 )
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Permission denied. Required: {', '.join(permission_names)}"
+                    detail=f"Permission denied. Required: {', '.join(permission_names)}",
                 )
 
             return await func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
@@ -138,16 +144,19 @@ def require_role(*roles: UserRole):
         async def create_patient(patient_data: PatientCreate, current_user = Depends(get_current_user)):
             ...
     """
+
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(*args, **kwargs):
             current_user = _extract_user_from_kwargs(**kwargs)
 
             if not current_user:
-                logger.warning(f"Role check failed: No authenticated user for {func.__name__}")
+                logger.warning(
+                    f"Role check failed: No authenticated user for {func.__name__}"
+                )
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required"
+                    detail="Authentication required",
                 )
 
             user_role = _get_user_role(current_user)
@@ -162,11 +171,13 @@ def require_role(*roles: UserRole):
                 )
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Insufficient permissions. Required role: {', '.join(allowed_roles)}"
+                    detail=f"Insufficient permissions. Required role: {', '.join(allowed_roles)}",
                 )
 
             return await func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
@@ -230,7 +241,7 @@ def ensure_patient_access(current_user: dict, patient_doctor_id: UUID):
 
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied to this patient"
+            detail="Access denied to this patient",
         )
 
 

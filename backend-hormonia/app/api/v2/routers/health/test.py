@@ -33,7 +33,7 @@ router = APIRouter()
 async def manual_health_test(
     request_data: HealthTestRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_admin_user),
 ) -> HealthTestResponse:
     """
     Manual health test trigger (Admin only).
@@ -45,7 +45,12 @@ async def manual_health_test(
     start_time = time.time()
     test_id = f"test_{uuid4().hex[:12]}"
 
-    components_to_test = request_data.components or ["database", "redis", "workers", "storage"]
+    components_to_test = request_data.components or [
+        "database",
+        "redis",
+        "workers",
+        "storage",
+    ]
     results = {}
 
     # Run requested tests
@@ -62,10 +67,7 @@ async def manual_health_test(
         results["storage"] = (await check_storage_health()).model_dump()
 
     # Determine overall test status
-    all_healthy = all(
-        result.get("status") == "healthy"
-        for result in results.values()
-    )
+    all_healthy = all(result.get("status") == "healthy" for result in results.values())
     test_status = HealthStatus.HEALTHY if all_healthy else HealthStatus.DEGRADED
 
     duration_ms = (time.time() - start_time) * 1000

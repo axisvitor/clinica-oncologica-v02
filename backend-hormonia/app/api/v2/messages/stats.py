@@ -14,7 +14,10 @@ from app.models.message import Message, MessageStatus, MessageDirection
 from app.models.patient import Patient
 from app.models.user import UserRole
 from app.schemas.v2.messages import MessageStatsV2Response
-from app.dependencies.auth_dependencies import get_current_user_from_session, get_redis_cache
+from app.dependencies.auth_dependencies import (
+    get_current_user_from_session,
+    get_redis_cache,
+)
 from .helpers import (
     _extract_user_context,
     _get_cached_or_compute,
@@ -28,36 +31,33 @@ logger = logging.getLogger(__name__)
     "/patient/{patient_id}/stats",
     response_model=MessageStatsV2Response,
     summary="Get patient message statistics",
-    description="Get message statistics for a specific patient (cached 5min)"
+    description="Get message statistics for a specific patient (cached 5min)",
 )
 async def get_patient_message_stats(
     patient_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
-    redis_cache = Depends(get_redis_cache),
+    current_user=Depends(get_current_user_from_session),
+    redis_cache=Depends(get_redis_cache),
 ):
     """Get message statistics for a patient."""
     try:
         patient_uuid = UUID(patient_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid patient ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid patient ID format"
         )
 
     # Verify patient exists and access
     patient = db.query(Patient).filter(Patient.id == patient_uuid).first()
     if not patient:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Patient not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"
         )
 
     role_enum, user_id = _extract_user_context(current_user)
     if role_enum != UserRole.ADMIN and str(patient.doctor_id) != user_id:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
         )
 
     # Try cache
@@ -68,7 +68,9 @@ async def get_patient_message_stats(
 
         total_messages = len(messages)
         sent_count = sum(1 for m in messages if m.status == MessageStatus.SENT)
-        delivered_count = sum(1 for m in messages if m.status == MessageStatus.DELIVERED)
+        delivered_count = sum(
+            1 for m in messages if m.status == MessageStatus.DELIVERED
+        )
         read_count = sum(1 for m in messages if m.status == MessageStatus.READ)
         failed_count = sum(1 for m in messages if m.status == MessageStatus.FAILED)
 
@@ -76,12 +78,22 @@ async def get_patient_message_stats(
         read_rate = (read_count / delivered_count * 100) if delivered_count > 0 else 0
 
         # Calculate average response time for inbound messages
-        inbound_messages = [m for m in messages if m.direction == MessageDirection.INBOUND and m.created_at]
+        inbound_messages = [
+            m
+            for m in messages
+            if m.direction == MessageDirection.INBOUND and m.created_at
+        ]
         avg_response_time = None
         if len(inbound_messages) > 1:
             # Simple calculation: average time between consecutive inbound messages
-            times = [m.created_at for m in sorted(inbound_messages, key=lambda x: x.created_at)]
-            deltas = [(times[i+1] - times[i]).total_seconds() / 60 for i in range(len(times) - 1)]
+            times = [
+                m.created_at
+                for m in sorted(inbound_messages, key=lambda x: x.created_at)
+            ]
+            deltas = [
+                (times[i + 1] - times[i]).total_seconds() / 60
+                for i in range(len(times) - 1)
+            ]
             avg_response_time = sum(deltas) / len(deltas) if deltas else None
 
         last_message_at = max([m.created_at for m in messages]) if messages else None
@@ -95,7 +107,9 @@ async def get_patient_message_stats(
             "failed_count": failed_count,
             "delivery_rate": round(delivery_rate, 2),
             "read_rate": round(read_rate, 2),
-            "average_response_time_minutes": round(avg_response_time, 2) if avg_response_time else None,
+            "average_response_time_minutes": round(avg_response_time, 2)
+            if avg_response_time
+            else None,
             "last_message_at": last_message_at.isoformat() if last_message_at else None,
         }
 
@@ -105,13 +119,13 @@ async def get_patient_message_stats(
 @router.get(
     "/statistics",
     summary="Get overall message statistics",
-    description="Get overall message statistics (cached 15min)"
+    description="Get overall message statistics (cached 15min)",
 )
 async def get_statistics(
     days: int = Query(30, ge=1, le=365, description="Period in days"),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
-    redis_cache = Depends(get_redis_cache),
+    current_user=Depends(get_current_user_from_session),
+    redis_cache=Depends(get_redis_cache),
 ):
     """Get overall message statistics."""
     role_enum, user_id = _extract_user_context(current_user)
@@ -135,15 +149,19 @@ async def get_statistics(
         total_messages = len(messages)
 
         status_counts = {}
-        for status in MessageStatus:
-            status_counts[status.value] = sum(1 for m in messages if m.status == status)
+        for msg_status in MessageStatus:
+            status_counts[msg_status.value] = sum(1 for m in messages if m.status == msg_status)
 
         sent_count = status_counts.get(MessageStatus.SENT.value, 0)
         delivered_count = status_counts.get(MessageStatus.DELIVERED.value, 0)
         read_count = status_counts.get(MessageStatus.READ.value, 0)
-        failed_count = status_counts.get(MessageStatus.FAILED.value, 0)
+        status_counts.get(MessageStatus.FAILED.value, 0)
 
-        success_rate = ((sent_count + delivered_count + read_count) / total_messages * 100) if total_messages > 0 else 0
+        success_rate = (
+            ((sent_count + delivered_count + read_count) / total_messages * 100)
+            if total_messages > 0
+            else 0
+        )
 
         return {
             "period_start": start_date.isoformat(),

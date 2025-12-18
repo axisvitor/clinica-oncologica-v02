@@ -7,9 +7,8 @@ Provides database-specific health checks and metrics.
 import time
 import logging
 from typing import Any
-from datetime import datetime
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
@@ -42,7 +41,9 @@ async def check_database_health(db: Any) -> DatabaseHealth:
         # Check migrations
         migrations_current = True
         try:
-            version_result = db.execute(text("SELECT version_num FROM alembic_version")).fetchone()
+            version_result = db.execute(
+                text("SELECT version_num FROM alembic_version")
+            ).fetchone()
             migrations_current = version_result is not None
         except Exception:
             migrations_current = False  # Table may not exist yet
@@ -50,9 +51,11 @@ async def check_database_health(db: Any) -> DatabaseHealth:
         # Check RLS
         rls_enabled = False
         try:
-            rls_result = db.execute(text(
-                "SELECT COUNT(*) FROM pg_tables WHERE schemaname = 'public' AND rowsecurity = true"
-            )).fetchone()
+            rls_result = db.execute(
+                text(
+                    "SELECT COUNT(*) FROM pg_tables WHERE schemaname = 'public' AND rowsecurity = true"
+                )
+            ).fetchone()
             rls_enabled = rls_result[0] > 0 if rls_result else False
         except Exception:
             pass  # RLS check is non-critical
@@ -89,8 +92,7 @@ async def check_database_health(db: Any) -> DatabaseHealth:
 
 @router.get("/database", response_model=DatabaseHealth)
 async def database_health_check(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> DatabaseHealth:
     """
     Database health check (Authenticated).

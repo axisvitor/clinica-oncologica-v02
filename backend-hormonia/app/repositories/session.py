@@ -4,6 +4,7 @@ Session repository with eager loading optimizations.
 PERFORMANCE OPTIMIZATION: All methods support eager loading by default to eliminate N+1 queries.
 Achieves 60-80% query reduction for read operations.
 """
+
 from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
@@ -51,7 +52,9 @@ class SessionRepository(BaseRepository[Session]):
 
         return query.first()
 
-    def get_all(self, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Session]:
+    def get_all(
+        self, skip: int = 0, limit: int = 100, eager_load: bool = True
+    ) -> List[Session]:
         """
         Get all sessions with eager loading enabled by default.
 
@@ -70,9 +73,13 @@ class SessionRepository(BaseRepository[Session]):
         if eager_load:
             query = query.options(joinedload(Session.user))
 
-        return query.order_by(Session.last_activity.desc()).offset(skip).limit(limit).all()
+        return (
+            query.order_by(Session.last_activity.desc()).offset(skip).limit(limit).all()
+        )
 
-    def get_by_token(self, session_token: str, eager_load: bool = True) -> Optional[Session]:
+    def get_by_token(
+        self, session_token: str, eager_load: bool = True
+    ) -> Optional[Session]:
         """
         Get session by session token with eager loading.
 
@@ -90,7 +97,9 @@ class SessionRepository(BaseRepository[Session]):
 
         return query.first()
 
-    def get_by_refresh_token(self, refresh_token: str, eager_load: bool = True) -> Optional[Session]:
+    def get_by_refresh_token(
+        self, refresh_token: str, eager_load: bool = True
+    ) -> Optional[Session]:
         """
         Get session by refresh token with eager loading.
 
@@ -108,7 +117,9 @@ class SessionRepository(BaseRepository[Session]):
 
         return query.first()
 
-    def get_by_user(self, user_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Session]:
+    def get_by_user(
+        self, user_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True
+    ) -> List[Session]:
         """
         Get sessions by user with eager loading.
 
@@ -126,9 +137,17 @@ class SessionRepository(BaseRepository[Session]):
         if eager_load:
             query = query.options(joinedload(Session.user))
 
-        return query.order_by(Session.last_activity.desc()).offset(skip).limit(limit).all()
+        return (
+            query.order_by(Session.last_activity.desc()).offset(skip).limit(limit).all()
+        )
 
-    def get_active_sessions(self, user_id: Optional[UUID] = None, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Session]:
+    def get_active_sessions(
+        self,
+        user_id: Optional[UUID] = None,
+        skip: int = 0,
+        limit: int = 100,
+        eager_load: bool = True,
+    ) -> List[Session]:
         """
         Get active sessions with eager loading.
 
@@ -144,10 +163,7 @@ class SessionRepository(BaseRepository[Session]):
             List of active sessions with relationships pre-loaded
         """
         now = datetime.utcnow()
-        filters = [
-            Session.is_active == True,
-            Session.expires_at > now
-        ]
+        filters = [Session.is_active, Session.expires_at > now]
 
         if user_id:
             filters.append(Session.user_id == user_id)
@@ -157,9 +173,13 @@ class SessionRepository(BaseRepository[Session]):
         if eager_load:
             query = query.options(joinedload(Session.user))
 
-        return query.order_by(Session.last_activity.desc()).offset(skip).limit(limit).all()
+        return (
+            query.order_by(Session.last_activity.desc()).offset(skip).limit(limit).all()
+        )
 
-    def get_by_device(self, device_id: str, user_id: Optional[UUID] = None, eager_load: bool = True) -> List[Session]:
+    def get_by_device(
+        self, device_id: str, user_id: Optional[UUID] = None, eager_load: bool = True
+    ) -> List[Session]:
         """
         Get sessions by device with eager loading.
 
@@ -194,10 +214,7 @@ class SessionRepository(BaseRepository[Session]):
             List of suspicious sessions with relationships pre-loaded
         """
         query = self.db.query(Session).filter(
-            and_(
-                Session.is_active == True,
-                Session.is_suspicious == True
-            )
+            and_(Session.is_active, Session.is_suspicious)
         )
 
         if eager_load:
@@ -219,7 +236,7 @@ class SessionRepository(BaseRepository[Session]):
         query = self.db.query(Session).filter(
             or_(
                 Session.expires_at <= now,
-                and_(Session.is_active == True, Session.revoked_at.isnot(None))
+                and_(Session.is_active, Session.revoked_at.isnot(None)),
             )
         )
 
@@ -228,7 +245,9 @@ class SessionRepository(BaseRepository[Session]):
 
         return query.all()
 
-    def revoke_session(self, session_id: UUID, reason: Optional[str] = None) -> Optional[Session]:
+    def revoke_session(
+        self, session_id: UUID, reason: Optional[str] = None
+    ) -> Optional[Session]:
         """
         Revoke a session.
 
@@ -251,7 +270,9 @@ class SessionRepository(BaseRepository[Session]):
 
         return session
 
-    def revoke_all_user_sessions(self, user_id: UUID, reason: Optional[str] = None) -> int:
+    def revoke_all_user_sessions(
+        self, user_id: UUID, reason: Optional[str] = None
+    ) -> int:
         """
         Revoke all sessions for a user.
 
@@ -263,20 +284,16 @@ class SessionRepository(BaseRepository[Session]):
             Number of sessions revoked
         """
         now = datetime.utcnow()
-        update_data = {
-            "is_active": False,
-            "revoked_at": now
-        }
+        update_data = {"is_active": False, "revoked_at": now}
 
         if reason:
             update_data["revocation_reason"] = reason
 
-        count = self.db.query(Session).filter(
-            and_(
-                Session.user_id == user_id,
-                Session.is_active == True
-            )
-        ).update(update_data)
+        count = (
+            self.db.query(Session)
+            .filter(and_(Session.user_id == user_id, Session.is_active))
+            .update(update_data)
+        )
 
         self.db.commit()
         return count

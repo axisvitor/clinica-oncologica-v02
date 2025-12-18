@@ -13,7 +13,11 @@ router = APIRouter()
 
 # Include sub-routers
 router.include_router(crud_router, tags=["physicians-crud"])
-router.include_router(statistics_router, prefix="/{physician_id}", tags=["physicians-statistics"])
-router.include_router(availability_router, prefix="/{physician_id}", tags=["physicians-availability"])
+router.include_router(
+    statistics_router, prefix="/{physician_id}", tags=["physicians-statistics"]
+)
+router.include_router(
+    availability_router, prefix="/{physician_id}", tags=["physicians-availability"]
+)
 
 __all__ = ["router"]

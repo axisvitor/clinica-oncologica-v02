@@ -2,8 +2,8 @@
 Base action scheduler for follow-up system.
 Handles scheduling of follow-up actions in Redis or in-memory storage.
 """
+
 import logging
-from uuid import UUID
 
 from ..models import FollowUpAction
 from ..enums import FollowUpType
@@ -45,7 +45,9 @@ class ActionScheduler:
             else:
                 logger.debug(f"Stored action in Redis: {action.action_id}")
 
-            logger.info(f"Scheduled follow-up action {action.action_id} for patient {action.patient_id}")
+            logger.info(
+                f"Scheduled follow-up action {action.action_id} for patient {action.patient_id}"
+            )
             return True
 
         except Exception as e:
@@ -53,9 +55,7 @@ class ActionScheduler:
             return False
 
     async def get_pending_actions_by_type(
-        self,
-        follow_up_type: FollowUpType,
-        limit: int = 100
+        self, follow_up_type: FollowUpType, limit: int = 100
     ) -> list:
         """
         Get pending actions by type.
@@ -73,7 +73,8 @@ class ActionScheduler:
 
             # Filter by type
             filtered = [
-                action for action in all_pending
+                action
+                for action in all_pending
                 if action.get("follow_up_type") == follow_up_type.value
             ][:limit]
 

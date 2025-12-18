@@ -5,12 +5,11 @@ Business logic for system monitoring, consolidating interactions with Monitoring
 
 import logging
 from datetime import datetime
-from typing import Optional, Dict, Any, List, Union
+from typing import Optional, Dict, Any, List
 
 from fastapi import HTTPException, status
 
-from app.models.user import User, UserRole
-from app.monitoring.manager import get_monitoring_manager, MonitoringManager
+from app.monitoring.manager import get_monitoring_manager
 from app.schemas.v2.enhanced_monitoring import (
     MonitoringHealthResponse,
     SystemMetricsResponse,
@@ -42,14 +41,14 @@ from app.schemas.v2.enhanced_monitoring import (
     PerformanceOverviewResponse,
     PerformanceScore,
     GrafanaQueryResponse,
-    MonitoringConfigResponse,
     StatsResetResponse,
     ServiceActionResponse,
-    MetricType
+    MetricType,
 )
 from app.api.v2.dependencies import create_cursor, apply_field_selection
 
 logger = logging.getLogger(__name__)
+
 
 class MonitoringService:
     """Service for monitoring operations."""
@@ -150,7 +149,9 @@ class MonitoringService:
             version=health_data.get("version", "unknown"),
         )
 
-    async def get_metrics_overview(self, fields: Optional[List[str]] = None) -> SystemMetricsResponse:
+    async def get_metrics_overview(
+        self, fields: Optional[List[str]] = None
+    ) -> SystemMetricsResponse:
         metrics = await self.manager.get_system_metrics()
         response_data = {
             "timestamp": datetime.utcnow(),
@@ -184,16 +185,28 @@ class MonitoringService:
             requests_per_second=stats.get("requests_per_second", 0.0),
         )
 
-    async def get_apm_endpoints_stats(self, pagination: Dict, sort_by: str) -> APMEndpointListResponse:
+    async def get_apm_endpoints_stats(
+        self, pagination: Dict, sort_by: str
+    ) -> APMEndpointListResponse:
         apm_collector = self._check_component_availability("apm_collector")
         all_stats = apm_collector.get_all_endpoints_stats()
 
         if sort_by == "error_rate":
-            sorted_stats = sorted(all_stats.items(), key=lambda x: x[1].get("error_rate", 0), reverse=True)
+            sorted_stats = sorted(
+                all_stats.items(), key=lambda x: x[1].get("error_rate", 0), reverse=True
+            )
         elif sort_by == "avg_latency":
-            sorted_stats = sorted(all_stats.items(), key=lambda x: x[1].get("avg_response_time", 0), reverse=True)
+            sorted_stats = sorted(
+                all_stats.items(),
+                key=lambda x: x[1].get("avg_response_time", 0),
+                reverse=True,
+            )
         else:
-            sorted_stats = sorted(all_stats.items(), key=lambda x: x[1].get("total_requests", 0), reverse=True)
+            sorted_stats = sorted(
+                all_stats.items(),
+                key=lambda x: x[1].get("total_requests", 0),
+                reverse=True,
+            )
 
         limit = pagination["limit"]
         cursor_data = pagination["cursor_data"]
@@ -227,7 +240,9 @@ class MonitoringService:
             total=len(sorted_stats),
         )
 
-    async def get_apm_endpoint_stats(self, endpoint_path: str) -> APMEndpointDetailResponse:
+    async def get_apm_endpoint_stats(
+        self, endpoint_path: str
+    ) -> APMEndpointDetailResponse:
         apm_collector = self._check_component_availability("apm_collector")
         stats = apm_collector.get_endpoint_stats(endpoint_path)
         if not stats:
@@ -263,11 +278,15 @@ class MonitoringService:
             connection_pool=ConnectionPoolStatsResponse(**pool_stats),
         )
 
-    async def get_slow_queries(self, pagination: Dict, min_duration_ms: float) -> SlowQueryListResponse:
+    async def get_slow_queries(
+        self, pagination: Dict, min_duration_ms: float
+    ) -> SlowQueryListResponse:
         db_monitor = self._check_component_availability("db_monitor")
         limit = pagination["limit"]
         all_slow_queries = db_monitor.get_slow_queries(limit=1000)
-        filtered_queries = [q for q in all_slow_queries if q.get("duration_ms", 0) >= min_duration_ms]
+        filtered_queries = [
+            q for q in all_slow_queries if q.get("duration_ms", 0) >= min_duration_ms
+        ]
 
         cursor_data = pagination["cursor_data"]
         start_idx = cursor_data.get("index", 0) if cursor_data else 0
@@ -332,7 +351,9 @@ class MonitoringService:
             network=stats.get("network", {}),
         )
 
-    async def get_historical_resources(self, minutes: int) -> ResourceHistoricalResponse:
+    async def get_historical_resources(
+        self, minutes: int
+    ) -> ResourceHistoricalResponse:
         resource_monitor = self._check_component_availability("resource_monitor")
         historical_data = resource_monitor.get_historical_stats(minutes)
 
@@ -354,7 +375,9 @@ class MonitoringService:
             summary=historical_data.get("summary", {}),
         )
 
-    async def get_business_metrics_summary(self, hours: int) -> BusinessMetricsSummaryResponse:
+    async def get_business_metrics_summary(
+        self, hours: int
+    ) -> BusinessMetricsSummaryResponse:
         self.validate_time_range(hours)
         business_metrics = self._check_component_availability("business_metrics")
         summary = business_metrics.get_all_metrics_summary(hours)
@@ -364,7 +387,9 @@ class MonitoringService:
             metrics=summary,
         )
 
-    async def get_patient_metrics(self, patient_id: str, hours: int) -> PatientMetricsResponse:
+    async def get_patient_metrics(
+        self, patient_id: str, hours: int
+    ) -> PatientMetricsResponse:
         self.validate_time_range(hours)
         business_metrics = self._check_component_availability("business_metrics")
         metrics = business_metrics.get_patient_metrics(patient_id, hours)
@@ -375,7 +400,9 @@ class MonitoringService:
             metrics=metrics,
         )
 
-    async def get_business_metric_stats(self, metric_type: MetricType, hours: int) -> MetricTypeStatsResponse:
+    async def get_business_metric_stats(
+        self, metric_type: MetricType, hours: int
+    ) -> MetricTypeStatsResponse:
         self.validate_time_range(hours)
         business_metrics = self._check_component_availability("business_metrics")
         stats = business_metrics.get_metric_stats(metric_type, hours)
@@ -386,7 +413,13 @@ class MonitoringService:
             statistics=stats,
         )
 
-    async def get_recent_anomalies(self, hours: int, severity: Optional[str], metric: Optional[str], pagination: Dict) -> AnomalyListResponse:
+    async def get_recent_anomalies(
+        self,
+        hours: int,
+        severity: Optional[str],
+        metric: Optional[str],
+        pagination: Dict,
+    ) -> AnomalyListResponse:
         self.validate_time_range(hours)
         anomaly_detector = self._check_component_availability("anomaly_detector")
         anomalies_data = anomaly_detector.get_recent_anomalies(hours, severity, metric)
@@ -444,15 +477,32 @@ class MonitoringService:
             metrics_snapshot=DashboardMetricsSnapshot(**status_data.get("metrics", {})),
         )
 
-    async def get_active_alerts(self, severity: Optional[AlertSeverity]) -> AlertListResponse:
+    async def get_active_alerts(
+        self, severity: Optional[AlertSeverity]
+    ) -> AlertListResponse:
         alerts = []
-        
+
         if self.manager.apm_collector:
             apm_stats = self.manager.apm_collector.get_global_stats()
             error_rate = apm_stats.get("error_rate", 0)
             if error_rate > 5:
-                severity_level = "critical" if error_rate > 10 else "high" if error_rate > 7 else "medium"
-                alerts.append(AlertRecord(type="apm", severity=severity_level, message=f"High error rate: {error_rate:.1f}%", value=error_rate, threshold=5.0, timestamp=datetime.utcnow()))
+                severity_level = (
+                    "critical"
+                    if error_rate > 10
+                    else "high"
+                    if error_rate > 7
+                    else "medium"
+                )
+                alerts.append(
+                    AlertRecord(
+                        type="apm",
+                        severity=severity_level,
+                        message=f"High error rate: {error_rate:.1f}%",
+                        value=error_rate,
+                        threshold=5.0,
+                        timestamp=datetime.utcnow(),
+                    )
+                )
 
         if self.manager.resource_monitor:
             resource_stats = self.manager.resource_monitor.get_current_stats()
@@ -461,23 +511,55 @@ class MonitoringService:
 
             if cpu_percent > 80:
                 severity_level = "critical" if cpu_percent > 95 else "high"
-                alerts.append(AlertRecord(type="resource", severity=severity_level, message=f"High CPU usage: {cpu_percent:.1f}%", value=cpu_percent, threshold=80.0, timestamp=datetime.utcnow()))
+                alerts.append(
+                    AlertRecord(
+                        type="resource",
+                        severity=severity_level,
+                        message=f"High CPU usage: {cpu_percent:.1f}%",
+                        value=cpu_percent,
+                        threshold=80.0,
+                        timestamp=datetime.utcnow(),
+                    )
+                )
 
             if memory_percent > 85:
                 severity_level = "critical" if memory_percent > 95 else "high"
-                alerts.append(AlertRecord(type="resource", severity=severity_level, message=f"High memory usage: {memory_percent:.1f}%", value=memory_percent, threshold=85.0, timestamp=datetime.utcnow()))
+                alerts.append(
+                    AlertRecord(
+                        type="resource",
+                        severity=severity_level,
+                        message=f"High memory usage: {memory_percent:.1f}%",
+                        value=memory_percent,
+                        threshold=85.0,
+                        timestamp=datetime.utcnow(),
+                    )
+                )
 
         if severity:
             alerts = [a for a in alerts if a.severity == severity.value]
 
-        return AlertListResponse(alerts=alerts, count=len(alerts), timestamp=datetime.utcnow())
+        return AlertListResponse(
+            alerts=alerts, count=len(alerts), timestamp=datetime.utcnow()
+        )
 
     async def get_performance_overview(self) -> PerformanceOverviewResponse:
-        apm_stats = self.manager.apm_collector.get_global_stats() if self.manager.apm_collector else {}
-        db_stats = self.manager.db_monitor.get_query_stats() if self.manager.db_monitor else {}
-        resource_stats = self.manager.resource_monitor.get_current_stats() if self.manager.resource_monitor else {}
+        apm_stats = (
+            self.manager.apm_collector.get_global_stats()
+            if self.manager.apm_collector
+            else {}
+        )
+        db_stats = (
+            self.manager.db_monitor.get_query_stats() if self.manager.db_monitor else {}
+        )
+        resource_stats = (
+            self.manager.resource_monitor.get_current_stats()
+            if self.manager.resource_monitor
+            else {}
+        )
 
-        perf_score = self.calculate_performance_score(apm_stats, db_stats, resource_stats)
+        perf_score = self.calculate_performance_score(
+            apm_stats, db_stats, resource_stats
+        )
 
         return PerformanceOverviewResponse(
             timestamp=datetime.utcnow(),
@@ -509,16 +591,32 @@ class MonitoringService:
 
     async def start_monitoring_services(self, user_id: str) -> ServiceActionResponse:
         if self.manager._started:
-            return ServiceActionResponse(success=True, message="Monitoring services are already running", timestamp=datetime.utcnow())
-        
+            return ServiceActionResponse(
+                success=True,
+                message="Monitoring services are already running",
+                timestamp=datetime.utcnow(),
+            )
+
         await self.manager.start()
         logger.info(f"Monitoring services started by user {user_id}")
-        return ServiceActionResponse(success=True, message="Monitoring services started successfully", timestamp=datetime.utcnow())
+        return ServiceActionResponse(
+            success=True,
+            message="Monitoring services started successfully",
+            timestamp=datetime.utcnow(),
+        )
 
     async def stop_monitoring_services(self, user_id: str) -> ServiceActionResponse:
         if not self.manager._started:
-            return ServiceActionResponse(success=True, message="Monitoring services are not running", timestamp=datetime.utcnow())
-        
+            return ServiceActionResponse(
+                success=True,
+                message="Monitoring services are not running",
+                timestamp=datetime.utcnow(),
+            )
+
         await self.manager.stop()
         logger.info(f"Monitoring services stopped by user {user_id}")
-        return ServiceActionResponse(success=True, message="Monitoring services stopped successfully", timestamp=datetime.utcnow())
+        return ServiceActionResponse(
+            success=True,
+            message="Monitoring services stopped successfully",
+            timestamp=datetime.utcnow(),
+        )

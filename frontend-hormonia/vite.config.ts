@@ -253,6 +253,9 @@ export default defineConfig(({ mode }) => ({
           // Firebase and backend integration
           firebase: ["firebase/app", "firebase/auth"],
 
+          // Monitoring and error tracking (separated for lazy init)
+          sentry: ["@sentry/react"],
+
           // Utility libraries
           utils: ["lodash", "date-fns", "clsx", "tailwind-merge"],
 

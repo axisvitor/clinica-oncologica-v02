@@ -27,17 +27,17 @@ class StatisticalSignificance:
     """Statistical significance levels and interpretations."""
 
     HIGHLY_SIGNIFICANT = "highly_significant"  # p < 0.001
-    VERY_SIGNIFICANT = "very_significant"      # p < 0.01
-    SIGNIFICANT = "significant"                 # p < 0.05
+    VERY_SIGNIFICANT = "very_significant"  # p < 0.01
+    SIGNIFICANT = "significant"  # p < 0.05
     MARGINALLY_SIGNIFICANT = "marginally_significant"  # p < 0.1
-    NOT_SIGNIFICANT = "not_significant"        # p >= 0.1
+    NOT_SIGNIFICANT = "not_significant"  # p >= 0.1
 
 
 class EffectSizeMagnitude:
     """Effect size magnitude classifications."""
 
-    NEGLIGIBLE = "negligible"    # d < 0.2
-    SMALL = "small"             # 0.2 <= d < 0.5
-    MEDIUM = "medium"           # 0.5 <= d < 0.8
-    LARGE = "large"             # 0.8 <= d < 1.2
-    VERY_LARGE = "very_large"   # d >= 1.2
+    NEGLIGIBLE = "negligible"  # d < 0.2
+    SMALL = "small"  # 0.2 <= d < 0.5
+    MEDIUM = "medium"  # 0.5 <= d < 0.8
+    LARGE = "large"  # 0.8 <= d < 1.2
+    VERY_LARGE = "very_large"  # d >= 1.2

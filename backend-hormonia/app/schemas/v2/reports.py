@@ -7,11 +7,12 @@ from datetime import datetime, date
 from typing import Optional, List, Dict, Any, Literal
 from uuid import UUID
 from enum import Enum
-from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 class ReportFormat(str, Enum):
     """Report output formats."""
+
     CSV = "csv"
     JSON = "json"
     PDF = "pdf"
@@ -20,6 +21,7 @@ class ReportFormat(str, Enum):
 
 class ReportStatus(str, Enum):
     """Report generation status."""
+
     PENDING = "pending"
     GENERATING = "generating"
     COMPLETED = "completed"
@@ -29,6 +31,7 @@ class ReportStatus(str, Enum):
 
 class ReportType(str, Enum):
     """Pre-defined report types."""
+
     PATIENT_SUMMARY = "patient_summary"
     PATIENT_ACTIVITY = "patient_activity"
     FLOW_PERFORMANCE = "flow_performance"
@@ -40,6 +43,7 @@ class ReportType(str, Enum):
 
 class ScheduleFrequency(str, Enum):
     """Report scheduling frequency."""
+
     DAILY = "daily"
     WEEKLY = "weekly"
     MONTHLY = "monthly"
@@ -50,8 +54,10 @@ class ScheduleFrequency(str, Enum):
 # Report Generation Schemas
 # ============================================================================
 
+
 class ReportGenerateRequest(BaseModel):
     """Request to generate a custom report."""
+
     report_type: ReportType
     title: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=1000)
@@ -92,6 +98,7 @@ class ReportGenerateRequest(BaseModel):
 
 class ReportResponse(BaseModel):
     """Report response with generation details."""
+
     id: UUID
     title: str
     description: Optional[str]
@@ -123,6 +130,7 @@ class ReportResponse(BaseModel):
 
 class ReportStatusResponse(BaseModel):
     """Report generation status."""
+
     id: UUID
     status: ReportStatus
     progress_percentage: int = Field(ge=0, le=100)
@@ -133,6 +141,7 @@ class ReportStatusResponse(BaseModel):
 
 class ReportListResponse(BaseModel):
     """Paginated list of reports."""
+
     items: List[ReportResponse]
     total: int
     cursor: Optional[str] = None
@@ -143,8 +152,10 @@ class ReportListResponse(BaseModel):
 # Pre-defined Report Schemas
 # ============================================================================
 
+
 class PatientSummaryReport(BaseModel):
     """Patient summary report data."""
+
     total_patients: int
     active_patients: int
     inactive_patients: int
@@ -157,6 +168,7 @@ class PatientSummaryReport(BaseModel):
 
 class PatientActivityReport(BaseModel):
     """Patient activity report data."""
+
     total_interactions: int
     average_response_time_hours: float
     engagement_rate: float
@@ -170,6 +182,7 @@ class PatientActivityReport(BaseModel):
 
 class FlowPerformanceReport(BaseModel):
     """Flow performance metrics report."""
+
     total_flows: int
     active_flows: int
     completion_rate: float
@@ -182,6 +195,7 @@ class FlowPerformanceReport(BaseModel):
 
 class MessageDeliveryReport(BaseModel):
     """Message delivery statistics report."""
+
     total_messages: int
     delivered: int
     failed: int
@@ -195,6 +209,7 @@ class MessageDeliveryReport(BaseModel):
 
 class QuizCompletionReport(BaseModel):
     """Quiz completion statistics report."""
+
     total_quizzes: int
     completed: int
     in_progress: int
@@ -208,6 +223,7 @@ class QuizCompletionReport(BaseModel):
 
 class AnalyticsOverviewReport(BaseModel):
     """Comprehensive analytics overview."""
+
     period_start: date
     period_end: date
     patient_metrics: PatientSummaryReport
@@ -224,8 +240,10 @@ class AnalyticsOverviewReport(BaseModel):
 # Scheduled Report Schemas
 # ============================================================================
 
+
 class ScheduledReportCreate(BaseModel):
     """Create a scheduled report."""
+
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=1000)
     report_type: ReportType
@@ -262,13 +280,16 @@ class ScheduledReportCreate(BaseModel):
 
 class ScheduledReportUpdate(BaseModel):
     """Update a scheduled report."""
+
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=1000)
     format: Optional[ReportFormat] = None
 
     # Schedule
     frequency: Optional[ScheduleFrequency] = None
-    time_of_day: Optional[str] = Field(None, pattern=r"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$")
+    time_of_day: Optional[str] = Field(
+        None, pattern=r"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$"
+    )
     timezone: Optional[str] = None
     end_date: Optional[date] = None
 
@@ -282,6 +303,7 @@ class ScheduledReportUpdate(BaseModel):
 
 class ScheduledReportResponse(BaseModel):
     """Scheduled report configuration."""
+
     id: UUID
     name: str
     description: Optional[str]
@@ -313,6 +335,7 @@ class ScheduledReportResponse(BaseModel):
 
 class ScheduledReportListResponse(BaseModel):
     """Paginated list of scheduled reports."""
+
     items: List[ScheduledReportResponse]
     total: int
     cursor: Optional[str] = None
@@ -323,8 +346,10 @@ class ScheduledReportListResponse(BaseModel):
 # Report Template Schemas
 # ============================================================================
 
+
 class ReportTemplateCreate(BaseModel):
     """Create a report template."""
+
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=1000)
     report_type: ReportType
@@ -345,6 +370,7 @@ class ReportTemplateCreate(BaseModel):
 
 class ReportTemplateUpdate(BaseModel):
     """Update a report template."""
+
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=1000)
     default_format: Optional[ReportFormat] = None
@@ -358,6 +384,7 @@ class ReportTemplateUpdate(BaseModel):
 
 class ReportTemplateResponse(BaseModel):
     """Report template details."""
+
     id: UUID
     name: str
     description: Optional[str]
@@ -385,6 +412,7 @@ class ReportTemplateResponse(BaseModel):
 
 class ReportTemplateListResponse(BaseModel):
     """Paginated list of templates."""
+
     items: List[ReportTemplateResponse]
     total: int
     cursor: Optional[str] = None
@@ -395,13 +423,16 @@ class ReportTemplateListResponse(BaseModel):
 # Export Data Schemas (for streaming)
 # ============================================================================
 
+
 class ReportDataRow(BaseModel):
     """Single row of report data for streaming."""
+
     data: Dict[str, Any]
 
 
 class ReportDataChunk(BaseModel):
     """Chunk of report data for streaming."""
+
     rows: List[ReportDataRow]
     chunk_number: int
     total_chunks: Optional[int] = None

@@ -96,16 +96,22 @@ router = APIRouter(prefix="/upload", tags=["Upload v2"])
 async def upload_file(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(..., description="File to upload"),
-    generate_thumbnail: bool = Query(False, description="Generate thumbnail for images"),
+    generate_thumbnail: bool = Query(
+        False, description="Generate thumbnail for images"
+    ),
     generate_preview: bool = Query(False, description="Generate preview for images"),
-    resize_width: Optional[int] = Query(None, ge=100, le=4000, description="Resize width"),
-    resize_height: Optional[int] = Query(None, ge=100, le=4000, description="Resize height"),
+    resize_width: Optional[int] = Query(
+        None, ge=100, le=4000, description="Resize width"
+    ),
+    resize_height: Optional[int] = Query(
+        None, ge=100, le=4000, description="Resize height"
+    ),
     quality: int = Query(85, ge=1, le=100, description="Image quality"),
     scan_virus: bool = Query(True, description="Enable virus scanning"),
     public: bool = Query(False, description="Make file publicly accessible"),
     fields: Optional[str] = Query(None, description="Fields to return"),
     current_user: User = Depends(get_current_user_object_from_session),
-    db = Depends(get_db),
+    db=Depends(get_db),
 ) -> Dict[str, Any]:
     """Upload a file with optional processing."""
     return await upload_file_handler(

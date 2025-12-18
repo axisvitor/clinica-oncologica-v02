@@ -27,7 +27,7 @@ import uuid
 from app.models.base import BaseModel
 
 if TYPE_CHECKING:
-    from app.models.patient import Patient
+    pass
 
 
 class SagaStatus(str, Enum):

@@ -1,6 +1,7 @@
 """
 Alert and notification models.
 """
+
 from sqlalchemy import Column, String, Text, Boolean, DateTime, ForeignKey, Enum
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
@@ -14,6 +15,7 @@ from app.models.base import BaseModel
 
 class AlertSeverity(enum.Enum):
     """Alert severity levels."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -22,6 +24,7 @@ class AlertSeverity(enum.Enum):
 
 class AlertStatus(enum.Enum):
     """Alert status levels."""
+
     PENDING = "pending"
     ACTIVE = "active"
     ACKNOWLEDGED = "acknowledged"
@@ -31,17 +34,20 @@ class AlertStatus(enum.Enum):
 
 class Alert(BaseModel):
     """System alerts for patient monitoring.
-    
+
     This model maps to the existing database schema:
     - alert_type maps to 'type' column
-    - description maps to 'message' column  
+    - description maps to 'message' column
     - status maps to 'acknowledged' boolean
     - quiz_session_id stored in 'data' JSONB field
     """
+
     __tablename__ = "alerts"
 
     # Patient reference
-    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    patient_id = Column(
+        UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True
+    )
 
     # Alert details - mapped to existing DB columns
     alert_type = Column("type", String(100), nullable=False)  # Maps to 'type' column
@@ -51,17 +57,26 @@ class Alert(BaseModel):
 
     # Acknowledgment tracking - maps to existing boolean field
     acknowledged = Column(Boolean, default=False, nullable=False)
-    acknowledged_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
+    acknowledged_by = Column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True
+    )
     acknowledged_at = Column(DateTime(timezone=True), nullable=True)
 
     # Timestamps: align with DB (server_default now())
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
 
     # Relationships
     patient = relationship("Patient", back_populates="alerts")
     acknowledged_by_user = relationship("User", back_populates="acknowledged_alerts")
-    
+
     # Note: quiz_session relationship removed since quiz_session_id is stored in JSONB data field
 
     # Virtual properties for backward compatibility
@@ -69,7 +84,7 @@ class Alert(BaseModel):
     def status(self) -> str:
         """Map acknowledged boolean to status-like behavior."""
         return "acknowledged" if self.acknowledged else "pending"
-    
+
     @status.setter
     def status(self, value: str):
         """Set acknowledged based on status value."""
@@ -77,7 +92,7 @@ class Alert(BaseModel):
             self.acknowledged = True
         else:
             self.acknowledged = False
-    
+
     # Handle quiz_session_id via data JSONB field
     @property
     def quiz_session_id(self) -> Optional[uuid.UUID]:
@@ -88,7 +103,7 @@ class Alert(BaseModel):
             except (ValueError, TypeError):
                 return None
         return None
-    
+
     @quiz_session_id.setter
     def quiz_session_id(self, value: Optional[uuid.UUID]):
         """Store quiz_session_id in data JSONB field."""

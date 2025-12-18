@@ -8,9 +8,13 @@ This is the refactored version with modular composition.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 from uuid import UUID
 from datetime import datetime
+
+if TYPE_CHECKING:
+    from .rule_engine import RuleEngine
+    from .notification_dispatcher import NotificationDispatcher
 
 from .types import (
     Alert,

@@ -74,7 +74,9 @@ class MessageService:
             Created Message object
         """
         message_dict = message_data.dict()
-        scheduled_time = message_dict.get("scheduled_for") or datetime.now(timezone.utc).replace(microsecond=0)
+        scheduled_time = message_dict.get("scheduled_for") or datetime.now(
+            timezone.utc
+        ).replace(microsecond=0)
         message_type = message_dict.get("type", MessageType.TEXT)
         message_dict["scheduled_for"] = scheduled_time
         message_dict["idempotency_key"] = self._generate_idempotency_key(
@@ -222,7 +224,9 @@ class MessageService:
         Returns:
             Scheduled Message object
         """
-        scheduled_time = (scheduled_for or datetime.now(timezone.utc)).replace(microsecond=0)
+        scheduled_time = (scheduled_for or datetime.now(timezone.utc)).replace(
+            microsecond=0
+        )
         idempotency_key = self._generate_idempotency_key(
             patient_id=patient_id,
             content=content,

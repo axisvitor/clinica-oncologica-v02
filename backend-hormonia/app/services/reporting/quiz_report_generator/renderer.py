@@ -2,9 +2,9 @@
 Report rendering and PDF generation.
 Handles conversion of quiz analysis results into formatted reports.
 """
+
 import logging
 from typing import Any, Dict
-from datetime import datetime
 
 from app.models.patient import Patient
 from app.integrations.pdf_generator import PDFGenerator
@@ -19,17 +19,21 @@ class ReportRenderer:
     def __init__(self):
         self.pdf_generator = PDFGenerator()
 
-    async def generate_report_content(self,
-                                     analysis_result: QuizAnalysisResult,
-                                     patient: Patient) -> Dict[str, Any]:
+    async def generate_report_content(
+        self, analysis_result: QuizAnalysisResult, patient: Patient
+    ) -> Dict[str, Any]:
         """Generate structured report content."""
         try:
             content = {
                 "patient_info": {
                     "name": patient.name,
-                    "age": getattr(patient, 'age', None),
-                    "treatment_type": getattr(patient, 'treatment_type', 'Terapia hormonal'),
-                    "enrollment_date": patient.enrollment_date.isoformat() if patient.enrollment_date else None
+                    "age": getattr(patient, "age", None),
+                    "treatment_type": getattr(
+                        patient, "treatment_type", "Terapia hormonal"
+                    ),
+                    "enrollment_date": patient.enrollment_date.isoformat()
+                    if patient.enrollment_date
+                    else None,
                 },
                 "quiz_metrics": {
                     "completion_date": analysis_result.metrics.completion_date.isoformat(),
@@ -37,12 +41,12 @@ class ReportRenderer:
                     "total_questions": analysis_result.metrics.total_questions,
                     "answered_questions": analysis_result.metrics.answered_questions,
                     "response_quality_score": analysis_result.metrics.response_quality_score,
-                    "average_response_time": analysis_result.metrics.average_response_time
+                    "average_response_time": analysis_result.metrics.average_response_time,
                 },
                 "health_assessment": {
                     "overall_health_score": analysis_result.overall_health_score,
                     "concern_flags": analysis_result.concern_flags,
-                    "recommendations": analysis_result.recommendations
+                    "recommendations": analysis_result.recommendations,
                 },
                 "medical_insights": [
                     {
@@ -50,7 +54,7 @@ class ReportRenderer:
                         "description": insight.description,
                         "concern_level": insight.concern_level.value,
                         "recommendations": insight.recommendations,
-                        "confidence_score": insight.confidence_score
+                        "confidence_score": insight.confidence_score,
                     }
                     for insight in analysis_result.medical_insights
                 ],
@@ -61,14 +65,14 @@ class ReportRenderer:
                         "current_value": trend.current_value,
                         "trend_direction": trend.trend_direction.value,
                         "change_percentage": trend.change_percentage,
-                        "significance_score": trend.significance_score
+                        "significance_score": trend.significance_score,
                     }
                     for trend in analysis_result.response_trends
                 ],
                 "analysis_metadata": {
                     "analysis_timestamp": analysis_result.analysis_timestamp.isoformat(),
-                    "session_id": str(analysis_result.session_id)
-                }
+                    "session_id": str(analysis_result.session_id),
+                },
             }
 
             return content
@@ -77,10 +81,12 @@ class ReportRenderer:
             logger.error(f"Error generating report content: {e}")
             raise
 
-    async def generate_pdf_report(self,
-                                 analysis_result: QuizAnalysisResult,
-                                 patient: Patient,
-                                 content: Dict[str, Any]) -> bytes:
+    async def generate_pdf_report(
+        self,
+        analysis_result: QuizAnalysisResult,
+        patient: Patient,
+        content: Dict[str, Any],
+    ) -> bytes:
         """Generate PDF report."""
         try:
             # Prepare data for PDF generation
@@ -93,7 +99,7 @@ class ReportRenderer:
                 "trends": analysis_result.response_trends,
                 "recommendations": analysis_result.recommendations,
                 "concern_flags": analysis_result.concern_flags,
-                "metrics": analysis_result.metrics
+                "metrics": analysis_result.metrics,
             }
 
             # Generate PDF using PDF generator service

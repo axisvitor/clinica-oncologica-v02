@@ -2,6 +2,7 @@
 Medical concern detection functionality.
 Handles detection of medical concerns from patient messages.
 """
+
 import logging
 import re
 import json
@@ -29,9 +30,9 @@ class ConcernDetector:
         self.langchain_orchestrator = langchain_orchestrator
         self.patterns = MedicalPatterns()
 
-    async def detect_medical_concerns(self,
-                                     message_text: str,
-                                     patient_context: PatientContext) -> List[MedicalConcern]:
+    async def detect_medical_concerns(
+        self, message_text: str, patient_context: PatientContext
+    ) -> List[MedicalConcern]:
         """
         Detect medical concerns from patient message.
 
@@ -50,7 +51,9 @@ class ConcernDetector:
             concerns.extend(pattern_concerns)
 
             # AI-based detection
-            ai_concerns = await self.detect_concerns_by_ai(message_text, patient_context)
+            ai_concerns = await self.detect_concerns_by_ai(
+                message_text, patient_context
+            )
             concerns.extend(ai_concerns)
 
             # Remove duplicates
@@ -78,76 +81,94 @@ class ConcernDetector:
         try:
             # Emergency concerns
             emergency_patterns = [
-                (r'\b(não consigo respirar|can\'t breathe)\b', "breathing difficulty"),
-                (r'\b(dor no peito|chest pain)\b', "chest pain"),
-                (r'\b(sangramento|bleeding)\b', "bleeding"),
-                (r'\b(desmaiei|fainted|unconscious)\b', "loss of consciousness")
+                (r"\b(não consigo respirar|can\'t breathe)\b", "breathing difficulty"),
+                (r"\b(dor no peito|chest pain)\b", "chest pain"),
+                (r"\b(sangramento|bleeding)\b", "bleeding"),
+                (r"\b(desmaiei|fainted|unconscious)\b", "loss of consciousness"),
             ]
 
             for pattern, description in emergency_patterns:
                 if re.search(pattern, text_lower):
-                    concerns.append(MedicalConcern(
-                        concern_type=MedicalConcernType.EMERGENCY,
-                        description=description,
-                        severity=ConcernLevel.CRITICAL,
-                        keywords=re.findall(pattern, text_lower),
-                        confidence=0.9,
-                        requires_immediate_attention=True
-                    ))
+                    concerns.append(
+                        MedicalConcern(
+                            concern_type=MedicalConcernType.EMERGENCY,
+                            description=description,
+                            severity=ConcernLevel.CRITICAL,
+                            keywords=re.findall(pattern, text_lower),
+                            confidence=0.9,
+                            requires_immediate_attention=True,
+                        )
+                    )
 
             # Pain concerns
             pain_patterns = [
-                (r'\b(dor insuportável|unbearable pain)\b', "severe pain"),
-                (r'\b(dor forte|severe pain|intense pain)\b', "intense pain"),
-                (r'\b(dor de cabeça|headache)\b', "headache"),
-                (r'\b(dor nas costas|back pain)\b', "back pain")
+                (r"\b(dor insuportável|unbearable pain)\b", "severe pain"),
+                (r"\b(dor forte|severe pain|intense pain)\b", "intense pain"),
+                (r"\b(dor de cabeça|headache)\b", "headache"),
+                (r"\b(dor nas costas|back pain)\b", "back pain"),
             ]
 
             for pattern, description in pain_patterns:
                 if re.search(pattern, text_lower):
-                    severity = ConcernLevel.HIGH if "insuportável" in pattern or "unbearable" in pattern else ConcernLevel.MEDIUM
-                    concerns.append(MedicalConcern(
-                        concern_type=MedicalConcernType.PAIN,
-                        description=description,
-                        severity=severity,
-                        keywords=re.findall(pattern, text_lower),
-                        confidence=0.8
-                    ))
+                    severity = (
+                        ConcernLevel.HIGH
+                        if "insuportável" in pattern or "unbearable" in pattern
+                        else ConcernLevel.MEDIUM
+                    )
+                    concerns.append(
+                        MedicalConcern(
+                            concern_type=MedicalConcernType.PAIN,
+                            description=description,
+                            severity=severity,
+                            keywords=re.findall(pattern, text_lower),
+                            confidence=0.8,
+                        )
+                    )
 
             # Side effect concerns
             side_effect_patterns = [
-                (r'\b(náusea|nausea|enjoo)\b', "nausea"),
-                (r'\b(tontura|dizziness|dizzy)\b', "dizziness"),
-                (r'\b(vômito|vomiting)\b', "vomiting"),
-                (r'\b(erupção|rash|alergia|allergy)\b', "allergic reaction")
+                (r"\b(náusea|nausea|enjoo)\b", "nausea"),
+                (r"\b(tontura|dizziness|dizzy)\b", "dizziness"),
+                (r"\b(vômito|vomiting)\b", "vomiting"),
+                (r"\b(erupção|rash|alergia|allergy)\b", "allergic reaction"),
             ]
 
             for pattern, description in side_effect_patterns:
                 if re.search(pattern, text_lower):
-                    concerns.append(MedicalConcern(
-                        concern_type=MedicalConcernType.SIDE_EFFECT,
-                        description=description,
-                        severity=ConcernLevel.MEDIUM,
-                        keywords=re.findall(pattern, text_lower),
-                        confidence=0.7
-                    ))
+                    concerns.append(
+                        MedicalConcern(
+                            concern_type=MedicalConcernType.SIDE_EFFECT,
+                            description=description,
+                            severity=ConcernLevel.MEDIUM,
+                            keywords=re.findall(pattern, text_lower),
+                            confidence=0.7,
+                        )
+                    )
 
             # Emotional distress
             emotional_patterns = [
-                (r'\b(muito triste|very sad|deprimida|depressed)\b', "depression symptoms"),
-                (r'\b(ansiosa|anxious|panic|pânico)\b', "anxiety symptoms"),
-                (r'\b(não consigo dormir|can\'t sleep|insomnia|insônia)\b', "sleep issues")
+                (
+                    r"\b(muito triste|very sad|deprimida|depressed)\b",
+                    "depression symptoms",
+                ),
+                (r"\b(ansiosa|anxious|panic|pânico)\b", "anxiety symptoms"),
+                (
+                    r"\b(não consigo dormir|can\'t sleep|insomnia|insônia)\b",
+                    "sleep issues",
+                ),
             ]
 
             for pattern, description in emotional_patterns:
                 if re.search(pattern, text_lower):
-                    concerns.append(MedicalConcern(
-                        concern_type=MedicalConcernType.EMOTIONAL_DISTRESS,
-                        description=description,
-                        severity=ConcernLevel.MEDIUM,
-                        keywords=re.findall(pattern, text_lower),
-                        confidence=0.6
-                    ))
+                    concerns.append(
+                        MedicalConcern(
+                            concern_type=MedicalConcernType.EMOTIONAL_DISTRESS,
+                            description=description,
+                            severity=ConcernLevel.MEDIUM,
+                            keywords=re.findall(pattern, text_lower),
+                            confidence=0.6,
+                        )
+                    )
 
             return concerns
 
@@ -155,9 +176,9 @@ class ConcernDetector:
             logger.error(f"Pattern-based concern detection failed: {e}")
             return concerns
 
-    async def detect_concerns_by_ai(self,
-                                   message_text: str,
-                                   patient_context: PatientContext) -> List[MedicalConcern]:
+    async def detect_concerns_by_ai(
+        self, message_text: str, patient_context: PatientContext
+    ) -> List[MedicalConcern]:
         """
         Detect medical concerns using AI.
 
@@ -202,7 +223,9 @@ class ConcernDetector:
             - general_health: other health concerns
             """
 
-            ai_response = await self.langchain_orchestrator.generate_text(concern_detection_prompt)
+            ai_response = await self.langchain_orchestrator.generate_text(
+                concern_detection_prompt
+            )
 
             # Parse AI response
             try:
@@ -226,14 +249,20 @@ class ConcernDetector:
                             severity = sev
                             break
 
-                    concerns.append(MedicalConcern(
-                        concern_type=concern_type,
-                        description=concern_data.get("description", "AI detected concern"),
-                        severity=severity,
-                        keywords=concern_data.get("keywords", []),
-                        confidence=float(concern_data.get("confidence", 0.5)),
-                        requires_immediate_attention=concern_data.get("immediate_attention", False)
-                    ))
+                    concerns.append(
+                        MedicalConcern(
+                            concern_type=concern_type,
+                            description=concern_data.get(
+                                "description", "AI detected concern"
+                            ),
+                            severity=severity,
+                            keywords=concern_data.get("keywords", []),
+                            confidence=float(concern_data.get("confidence", 0.5)),
+                            requires_immediate_attention=concern_data.get(
+                                "immediate_attention", False
+                            ),
+                        )
+                    )
 
             except (json.JSONDecodeError, KeyError, ValueError) as e:
                 logger.warning(f"Failed to parse AI concern detection response: {e}")
@@ -244,7 +273,9 @@ class ConcernDetector:
             logger.error(f"AI concern detection failed: {e}")
             return concerns
 
-    def deduplicate_concerns(self, concerns: List[MedicalConcern]) -> List[MedicalConcern]:
+    def deduplicate_concerns(
+        self, concerns: List[MedicalConcern]
+    ) -> List[MedicalConcern]:
         """
         Remove duplicate medical concerns.
 
@@ -254,7 +285,6 @@ class ConcernDetector:
         Returns:
             Deduplicated list of concerns
         """
-        deduplicated: List[MedicalConcern] = []
         seen_concerns: dict[str, MedicalConcern] = {}
 
         for concern in concerns:
@@ -263,8 +293,10 @@ class ConcernDetector:
             if key in seen_concerns:
                 # Keep the one with higher severity or confidence
                 existing = seen_concerns[key]
-                if (concern.severity.value > existing.severity.value or
-                    (concern.severity == existing.severity and concern.confidence > existing.confidence)):
+                if concern.severity.value > existing.severity.value or (
+                    concern.severity == existing.severity
+                    and concern.confidence > existing.confidence
+                ):
                     seen_concerns[key] = concern
             else:
                 seen_concerns[key] = concern

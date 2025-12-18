@@ -2,30 +2,28 @@
 Unified Redis Client - Single Entry Point
 Deprecates multiple client implementations in favor of redis_manager.py
 """
+
 import logging
-from typing import Optional, Union
 
 from app.core.redis_manager import (
-    RedisManager,
-    get_redis_manager,
     get_async_redis_client,
     get_sync_redis_client,
     get_compatible_redis_client,
     cleanup_redis_connections,
-    redis_health_check
+    redis_health_check,
 )
 
 logger = logging.getLogger(__name__)
 
 # Re-export recommended functions
 __all__ = [
-    'get_redis_client',          # Unified entry point
-    'get_async_redis',           # Async client
-    'get_sync_redis',            # Sync client
-    'get_cache_redis',           # Cache-specific client
-    'get_broker_redis',          # Celery broker client
-    'cleanup_redis',             # Cleanup function
-    'redis_health',              # Health check
+    "get_redis_client",  # Unified entry point
+    "get_async_redis",  # Async client
+    "get_sync_redis",  # Sync client
+    "get_cache_redis",  # Cache-specific client
+    "get_broker_redis",  # Celery broker client
+    "cleanup_redis",  # Cleanup function
+    "redis_health",  # Health check
 ]
 
 
@@ -132,9 +130,11 @@ async def redis_health():
 # MIGRATION REFERENCE (Legacy code removed 2025-11-26)
 # ============================================================================
 
+
 def print_migration_guide():
     """Print migration guide for updating code"""
     import logging
+
     logger = logging.getLogger(__name__)
 
     guide = """

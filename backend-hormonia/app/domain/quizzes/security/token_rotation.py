@@ -12,14 +12,14 @@ INTEGRATION INSTRUCTIONS:
 5. Update frontend to handle new_token in responses
 """
 
-import secrets
 import hashlib
 from datetime import datetime, timedelta
 from typing import Tuple
 from uuid import UUID
-from sqlalchemy.orm import Session
+from sqlalchemy import and_
 
 from app.models.quiz import QuizSession
+from app.exceptions import NotFoundError, ValidationError
 
 
 # ============================================================================
@@ -27,10 +27,9 @@ from app.models.quiz import QuizSession
 # ============================================================================
 # INSERT THIS METHOD INTO MonthlyQuizService CLASS (after line 50)
 
+
 def _validate_token_with_grace_period(
-    self,
-    token: str,
-    session: QuizSession
+    self, token: str, session: QuizSession
 ) -> Tuple[bool, str]:
     """
     Validate token against session with grace period support.
@@ -79,7 +78,9 @@ def _validate_token_with_grace_period(
     # SECONDARY CHECK: Does token match previous hash? (grace period)
     if token_hash == previous_hash:
         # Check if within grace period
-        invalidated_at_str = session.session_metadata.get("previous_token_invalidated_at")
+        invalidated_at_str = session.session_metadata.get(
+            "previous_token_invalidated_at"
+        )
 
         if invalidated_at_str:
             try:
@@ -94,6 +95,7 @@ def _validate_token_with_grace_period(
                 if time_since_invalidation < grace_period:
                     # Token is within grace period - allow but log warning
                     import logging
+
                     logger = logging.getLogger(__name__)
                     logger.warning(
                         f"Token accepted within grace period for session {session.id} "
@@ -107,6 +109,7 @@ def _validate_token_with_grace_period(
             except ValueError as e:
                 # Malformed timestamp in metadata
                 import logging
+
                 logger = logging.getLogger(__name__)
                 logger.error(f"Invalid timestamp in session metadata: {e}")
                 return (False, "invalid_timestamp")
@@ -123,11 +126,12 @@ def _validate_token_with_grace_period(
 # ============================================================================
 # REPLACE submit_quiz_response METHOD (lines 316-445) WITH THIS:
 
+
 async def submit_quiz_response_with_rotation(
     self,
     submit_data,  # MonthlyQuizSubmitResponse
     ip_address=None,
-    user_agent=None
+    user_agent=None,
 ):
     """
     Submit a quiz response via token with automatic token rotation.
@@ -169,13 +173,17 @@ async def submit_quiz_response_with_rotation(
     quiz_template_id = UUID(payload["quiz_template_id"])
 
     # Find session by patient and template
-    token_hash = hashlib.sha256(submit_data.token.encode()).hexdigest()
-    sessions = self.db.query(QuizSession).filter(
-        and_(
-            QuizSession.patient_id == patient_id,
-            QuizSession.quiz_template_id == quiz_template_id
+    hashlib.sha256(submit_data.token.encode()).hexdigest()
+    sessions = (
+        self.db.query(QuizSession)
+        .filter(
+            and_(
+                QuizSession.patient_id == patient_id,
+                QuizSession.quiz_template_id == quiz_template_id,
+            )
         )
-    ).all()
+        .all()
+    )
 
     if not sessions:
         raise NotFoundError("Quiz session not found")
@@ -186,23 +194,22 @@ async def submit_quiz_response_with_rotation(
     # TOKEN VALIDATION WITH GRACE PERIOD
     # ========================================
     is_valid, validation_reason = self._validate_token_with_grace_period(
-        submit_data.token,
-        session
+        submit_data.token, session
     )
 
     if not is_valid:
         import logging
+
         logger = logging.getLogger(__name__)
         logger.warning(
             f"Invalid token for session {session.id}: {validation_reason} "
             f"(patient: {patient_id}, IP: {ip_address})"
         )
-        raise ValidationError(
-            f"Invalid or expired token: {validation_reason}"
-        )
+        raise ValidationError(f"Invalid or expired token: {validation_reason}")
 
     if validation_reason == "grace_period":
         import logging
+
         logger = logging.getLogger(__name__)
         logger.info(
             f"Token accepted within grace period for session {session.id} "
@@ -212,8 +219,7 @@ async def submit_quiz_response_with_rotation(
     # Get template to find question
     template = self.template_repository.get(quiz_template_id)
     question = next(
-        (q for q in template.questions if q.get("id") == submit_data.question_id),
-        None
+        (q for q in template.questions if q.get("id") == submit_data.question_id), None
     )
 
     if not question:
@@ -229,12 +235,17 @@ async def submit_quiz_response_with_rotation(
         """Normalize various 'other' option aliases to match question options."""
         if isinstance(value, str):
             value_lower = value.lower().strip()
-            if value_lower in ['outra', 'other', 'outro', 'otra', 'autre', 'altro']:
+            if value_lower in ["outra", "other", "outro", "otra", "autre", "altro"]:
                 question_options = question.get("options", [])
                 for opt in question_options:
                     if isinstance(opt, dict):
                         opt_value = opt.get("value", "")
-                        if opt.get("allow_other") or opt_value.lower() in ['outra', 'other', 'outro', 'otra']:
+                        if opt.get("allow_other") or opt_value.lower() in [
+                            "outra",
+                            "other",
+                            "outro",
+                            "otra",
+                        ]:
                             return opt_value
                 return "other"
         return value
@@ -243,6 +254,7 @@ async def submit_quiz_response_with_rotation(
         if isinstance(response_value, str):
             try:
                 import json
+
                 response_value = json.loads(response_value)
             except (json.JSONDecodeError, ValueError):
                 response_value = [normalize_other_value(response_value)]
@@ -263,7 +275,12 @@ async def submit_quiz_response_with_rotation(
     if self.config.MONTHLY_QUIZ_ENABLE_ENCRYPTION:
         if question.get("is_sensitive", False):
             import json
-            value_to_encrypt = json.dumps(response_value) if isinstance(response_value, list) else str(response_value)
+
+            value_to_encrypt = (
+                json.dumps(response_value)
+                if isinstance(response_value, list)
+                else str(response_value)
+            )
             encrypted_response_value = self.encryption_service.encrypt(value_to_encrypt)
             is_encrypted = True
 
@@ -283,7 +300,7 @@ async def submit_quiz_response_with_rotation(
         response_type=QuestionType(question.get("type", "open_text")),
         response_value=encrypted_response_value,
         response_metadata=response_metadata,
-        responded_at=datetime.utcnow()
+        responded_at=datetime.utcnow(),
     )
 
     response = await self.quiz_response_service.create_response(response_create)
@@ -302,7 +319,7 @@ async def submit_quiz_response_with_rotation(
                 patient_id=patient_id,
                 quiz_template_id=quiz_template_id,
                 expires_at=datetime.fromisoformat(payload["expires_at"]),
-                rotation_count=rotation_count + 1
+                rotation_count=rotation_count + 1,
             )
             new_token_hash = hashlib.sha256(new_token_value.encode()).hexdigest()
 
@@ -324,6 +341,7 @@ async def submit_quiz_response_with_rotation(
             new_token = new_token_value
 
             import logging
+
             logger = logging.getLogger(__name__)
             logger.info(
                 f"Token rotated on submission for session {session.id} "
@@ -336,15 +354,15 @@ async def submit_quiz_response_with_rotation(
                 quiz_session_id=str(session.id),
                 old_token_prefix=submit_data.token[:10],
                 new_token_prefix=new_token[:10],
-                rotation_count=rotation_count + 1
+                rotation_count=rotation_count + 1,
             )
 
         except Exception as e:
             import logging
+
             logger = logging.getLogger(__name__)
             logger.error(
-                f"Token rotation failed for session {session.id}: {e}",
-                exc_info=True
+                f"Token rotation failed for session {session.id}: {e}", exc_info=True
             )
             # Continue without rotation (security degradation but functional)
             # Frontend will continue using old token
@@ -358,7 +376,7 @@ async def submit_quiz_response_with_rotation(
         quiz_session_id=str(session.id),
         question_id=submit_data.question_id,
         response_id=str(response.id),
-        is_encrypted=is_encrypted
+        is_encrypted=is_encrypted,
     )
 
     # Audit log response submission
@@ -369,7 +387,7 @@ async def submit_quiz_response_with_rotation(
             question_id=submit_data.question_id,
             response_id=response.id,
             ip_address=ip_address,
-            user_agent=user_agent
+            user_agent=user_agent,
         )
 
     # ========================================
@@ -377,7 +395,7 @@ async def submit_quiz_response_with_rotation(
     # ========================================
     session.current_question_index += 1
     if session.current_question_index >= len(template.questions):
-        session.status = 'completed'
+        session.status = "completed"
         session.completed_at = datetime.utcnow()
 
     self.db.commit()
@@ -391,8 +409,8 @@ async def submit_quiz_response_with_rotation(
         "message": "Response submitted successfully",
         "new_token": new_token,  # ✅ Frontend will update token
         "next_question_index": session.current_question_index,
-        "is_completed": session.status == 'completed',
-        "total_questions": len(template.questions)
+        "is_completed": session.status == "completed",
+        "total_questions": len(template.questions),
     }
 
 

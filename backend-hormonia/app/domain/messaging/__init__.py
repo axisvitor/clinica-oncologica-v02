@@ -35,14 +35,11 @@ __all__ = [
     "MessageService",
     "MessageBaseService",
     "MessageFactory",
-
     # Scheduling
     "MessageScheduler",
-
     # Delivery
     "MessageSender",
     "IdempotentMessageSender",
-
     # WhatsApp
     "WhatsAppService",
 ]

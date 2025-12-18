@@ -8,7 +8,6 @@ Supports soft deletes for compliance and data retention.
 from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
-import uuid
 
 from app.models.base import BaseModel
 
@@ -31,6 +30,7 @@ class Upload(BaseModel):
         virus_clean: Whether file passed virus scan
         deleted_at: Soft delete timestamp
     """
+
     __tablename__ = "uploads"
 
     # User relationship
@@ -38,7 +38,7 @@ class Upload(BaseModel):
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
-        index=True
+        index=True,
     )
 
     # File information
@@ -49,10 +49,7 @@ class Upload(BaseModel):
     # Storage information
     storage_path = Column(String(1000), nullable=False, unique=True)
     storage_provider = Column(
-        String(50),
-        nullable=False,
-        default="local",
-        server_default="local"
+        String(50), nullable=False, default="local", server_default="local"
     )
 
     # Deduplication
@@ -65,7 +62,9 @@ class Upload(BaseModel):
     is_public = Column(Boolean, nullable=False, default=False, server_default="false")
 
     # Security
-    virus_scanned = Column(Boolean, nullable=False, default=False, server_default="false")
+    virus_scanned = Column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     virus_clean = Column(Boolean, nullable=True)  # Null if not scanned
 
     # Relationships
@@ -77,16 +76,13 @@ class Upload(BaseModel):
             "ix_uploads_user_quota",
             user_id,
             file_size,
-            postgresql_where=(Column("deleted_at").is_(None))
+            postgresql_where=(Column("deleted_at").is_(None)),
         ),
-        Index(
-            "ix_uploads_storage_path",
-            storage_path
-        ),
+        Index("ix_uploads_storage_path", storage_path),
         Index(
             "ix_uploads_content_hash",
             content_hash,
-            postgresql_where=(content_hash.isnot(None))
+            postgresql_where=(content_hash.isnot(None)),
         ),
     )
 

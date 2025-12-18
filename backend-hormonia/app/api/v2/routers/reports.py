@@ -19,16 +19,21 @@ from datetime import datetime, timedelta, date
 from typing import Optional, List, Dict, Any
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks, Response, Request
-from fastapi.responses import StreamingResponse, FileResponse
-from sqlalchemy.orm import Session,  joinedload
-from sqlalchemy import and_, or_, func, desc
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+    Query,
+    BackgroundTasks,
+    Response,
+    Request,
+)
+from sqlalchemy import func
 
 from app.database import get_db
-from app.models.user import User, UserRole
-from app.models.patient import Patient, FlowState
-from app.models.quiz import QuizSession
-from app.models.message import Message
+from app.models.user import UserRole
+from app.models.patient import Patient
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.utils.rate_limiter import limiter
 from app.utils.logging import get_logger
@@ -50,6 +55,7 @@ RATE_LIMIT_SCHEDULE = "5/minute"
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
 
 def _get_role_and_user(current_user) -> tuple[UserRole, Optional[UUID]]:
     """Extract role and user UUID from current_user."""
@@ -89,6 +95,7 @@ async def _get_cached_result(cache_key: str):
     """Get cached result from Redis."""
     try:
         from app.core.redis_unified import get_async_redis
+
         redis_client = await get_async_redis()
         if redis_client is None:
             return None
@@ -106,6 +113,7 @@ async def _set_cached_result(cache_key: str, data: dict, ttl: int = REPORT_CACHE
     """Set cached result in Redis."""
     try:
         from app.core.redis_unified import get_async_redis
+
         redis_client = await get_async_redis()
         if redis_client is None:
             return
@@ -123,9 +131,10 @@ def _create_cursor(items: List[Dict[str, Any]]) -> Optional[str]:
     last_item = items[-1]
     cursor_data = {
         "id": str(last_item.get("id", "")),
-        "created_at": last_item.get("created_at", "")
+        "created_at": last_item.get("created_at", ""),
     }
     import base64
+
     encoded = base64.urlsafe_b64encode(json.dumps(cursor_data).encode()).decode()
     return encoded
 
@@ -137,6 +146,7 @@ def _decode_cursor(cursor: Optional[str]) -> Optional[Dict[str, Any]]:
 
     try:
         import base64
+
         decoded = base64.urlsafe_b64decode(cursor.encode()).decode()
         return json.loads(decoded)
     except Exception as e:
@@ -144,15 +154,18 @@ def _decode_cursor(cursor: Optional[str]) -> Optional[Dict[str, Any]]:
         return None
 
 
-def _check_patient_access(db, role: UserRole, user_id: UUID, patient_ids: List[UUID]) -> bool:
+def _check_patient_access(
+    db, role: UserRole, user_id: UUID, patient_ids: List[UUID]
+) -> bool:
     """Check if user has access to specified patients."""
     if role == UserRole.ADMIN:
         return True
 
-    patient_count = db.query(func.count(Patient.id)).filter(
-        Patient.id.in_(patient_ids),
-        Patient.doctor_id == user_id
-    ).scalar()
+    patient_count = (
+        db.query(func.count(Patient.id))
+        .filter(Patient.id.in_(patient_ids), Patient.doctor_id == user_id)
+        .scalar()
+    )
 
     return patient_count == len(patient_ids)
 
@@ -166,8 +179,14 @@ def _filter_fields(data: Dict[str, Any], fields: Optional[List[str]]) -> Dict[st
     return {k: v for k, v in data.items() if k in field_set}
 
 
-async def _generate_report_async(report_id: UUID, title: str, report_type: str,
-                                  format_type: str, user_id: UUID, db: Any):
+async def _generate_report_async(
+    report_id: UUID,
+    title: str,
+    report_type: str,
+    format_type: str,
+    user_id: UUID,
+    db: Any,
+):
     """Background task to generate report asynchronously."""
     try:
         logger.info(f"Starting async report generation: {report_id}")
@@ -179,20 +198,21 @@ async def _generate_report_async(report_id: UUID, title: str, report_type: str,
                 "id": str(report_id),
                 "status": "generating",
                 "progress": 10,
-                "message": "Collecting data"
+                "message": "Collecting data",
             },
-            ttl=SCHEDULE_CACHE_TTL
+            ttl=SCHEDULE_CACHE_TTL,
         )
 
         # Simulate processing
         import asyncio
+
         await asyncio.sleep(1)
 
         # Generate report data
         report_data = {
             "summary": "Report data generated",
             "timestamp": datetime.utcnow().isoformat(),
-            "records": 42
+            "records": 42,
         }
 
         # Mark as completed
@@ -205,13 +225,13 @@ async def _generate_report_async(report_id: UUID, title: str, report_type: str,
             "created_at": datetime.utcnow().isoformat(),
             "generated_by": str(user_id),
             "file_url": f"/api/v2/reports/{report_id}/download",
-            "data": report_data
+            "data": report_data,
         }
 
         await _set_cached_result(
             _get_cache_key("report", report_id=str(report_id)),
             completed_data,
-            ttl=REPORT_CACHE_TTL
+            ttl=REPORT_CACHE_TTL,
         )
 
         logger.info(f"Report generation completed: {report_id}")
@@ -220,12 +240,8 @@ async def _generate_report_async(report_id: UUID, title: str, report_type: str,
         logger.error(f"Report generation failed: {report_id}, error: {e}")
         await _set_cached_result(
             _get_cache_key("status", report_id=str(report_id)),
-            {
-                "id": str(report_id),
-                "status": "failed",
-                "error": str(e)
-            },
-            ttl=SCHEDULE_CACHE_TTL
+            {"id": str(report_id), "status": "failed", "error": str(e)},
+            ttl=SCHEDULE_CACHE_TTL,
         )
 
 
@@ -242,7 +258,10 @@ def _format_csv(data: Dict[str, Any]) -> str:
         records = [data]
 
     if records:
-        writer = csv.DictWriter(output, fieldnames=records[0].keys() if isinstance(records[0], dict) else ["value"])
+        writer = csv.DictWriter(
+            output,
+            fieldnames=records[0].keys() if isinstance(records[0], dict) else ["value"],
+        )
         writer.writeheader()
         writer.writerows(records)
 
@@ -265,6 +284,7 @@ def _format_pdf(data: Dict[str, Any]) -> bytes:
 # 1. GET /api/v2/reports - List Reports with Cursor Pagination
 # ============================================================================
 
+
 @router.get(
     "",
     summary="List reports",
@@ -272,18 +292,22 @@ def _format_pdf(data: Dict[str, Any]) -> bytes:
     responses={
         200: {"description": "List of reports"},
         401: {"description": "Unauthorized"},
-    }
+    },
 )
 @limiter.limit(RATE_LIMIT_LIST)
 async def list_reports(
     request: Request,
     cursor: Optional[str] = Query(None, description="Pagination cursor"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
-    fields: Optional[str] = Query(None, description="Comma-separated fields to include"),
+    fields: Optional[str] = Query(
+        None, description="Comma-separated fields to include"
+    ),
     report_type: Optional[str] = Query(None, description="Filter by report type"),
-    status_filter: Optional[str] = Query(None, description="Filter by status (pending, generating, completed, failed)"),
+    status_filter: Optional[str] = Query(
+        None, description="Filter by status (pending, generating, completed, failed)"
+    ),
     current_user=Depends(get_current_user_from_session),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     List reports with cursor pagination.
@@ -300,7 +324,9 @@ async def list_reports(
     role, user_id = _get_role_and_user(current_user)
 
     if not user_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not found")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not found"
+        )
 
     # Generate cache key
     cache_key = _get_cache_key(
@@ -309,7 +335,7 @@ async def list_reports(
         limit=limit,
         report_type=report_type,
         status=status_filter,
-        user_id=str(user_id)
+        user_id=str(user_id),
     )
 
     # Check cache
@@ -327,7 +353,7 @@ async def list_reports(
             "created_at": (datetime.utcnow() - timedelta(days=i)).isoformat(),
             "updated_at": (datetime.utcnow() - timedelta(days=i)).isoformat(),
             "format": "json",
-            "generated_by": str(user_id)
+            "generated_by": str(user_id),
         }
         for i in range(50)
     ]
@@ -367,7 +393,7 @@ async def list_reports(
         "count": len(page_items),
         "cursor": next_cursor,
         "has_more": has_more,
-        "limit": limit
+        "limit": limit,
     }
 
     # Cache response
@@ -380,6 +406,7 @@ async def list_reports(
 # 2. POST /api/v2/reports/generate - Generate Report
 # ============================================================================
 
+
 @router.post(
     "/generate",
     status_code=status.HTTP_202_ACCEPTED,
@@ -389,20 +416,25 @@ async def list_reports(
         202: {"description": "Report generation started"},
         400: {"description": "Invalid request"},
         403: {"description": "Access denied"},
-    }
+    },
 )
 @limiter.limit(RATE_LIMIT_GENERATE)
 async def generate_report(
     request: Request,
     title: str = Query(..., description="Report title"),
-    report_type: str = Query(..., description="Type of report (patient_summary, activity, flow_performance, etc)"),
+    report_type: str = Query(
+        ...,
+        description="Type of report (patient_summary, activity, flow_performance, etc)",
+    ),
     format: str = Query("json", description="Output format (json, csv, excel, pdf)"),
-    patient_ids: Optional[str] = Query(None, description="Comma-separated patient IDs (optional)"),
+    patient_ids: Optional[str] = Query(
+        None, description="Comma-separated patient IDs (optional)"
+    ),
     date_from: Optional[date] = Query(None, description="Filter from date"),
     date_to: Optional[date] = Query(None, description="Filter to date"),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     current_user=Depends(get_current_user_from_session),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Generate a custom report asynchronously.
@@ -421,14 +453,16 @@ async def generate_report(
     role, user_id = _get_role_and_user(current_user)
 
     if not user_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not found")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not found"
+        )
 
     # Validate format
     valid_formats = ["json", "csv", "excel", "pdf"]
     if format not in valid_formats:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid format. Must be one of: {', '.join(valid_formats)}"
+            detail=f"Invalid format. Must be one of: {', '.join(valid_formats)}",
         )
 
     # Check patient access if specified
@@ -438,23 +472,20 @@ async def generate_report(
             if not _check_patient_access(db, role, user_id, pids):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Access denied to some patients"
+                    detail="Access denied to some patients",
                 )
         except ValueError:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid patient ID format")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid patient ID format",
+            )
 
     # Create report ID
     report_id = uuid4()
 
     # Schedule async generation
     background_tasks.add_task(
-        _generate_report_async,
-        report_id,
-        title,
-        report_type,
-        format,
-        user_id,
-        db
+        _generate_report_async, report_id, title, report_type, format, user_id, db
     )
 
     # Return immediate response with 202 Accepted
@@ -466,10 +497,12 @@ async def generate_report(
         "status": "pending",
         "created_at": datetime.utcnow().isoformat(),
         "status_url": f"/api/v2/reports/{report_id}",
-        "download_url": f"/api/v2/reports/{report_id}/download"
+        "download_url": f"/api/v2/reports/{report_id}/download",
     }
 
-    logger.info(f"Report generation started: {report_id}, type: {report_type}, format: {format}")
+    logger.info(
+        f"Report generation started: {report_id}, type: {report_type}, format: {format}"
+    )
 
     return response
 
@@ -477,6 +510,7 @@ async def generate_report(
 # ============================================================================
 # 3. GET /api/v2/reports/{id}/download - Download Report
 # ============================================================================
+
 
 @router.get(
     "/{report_id}/download",
@@ -486,12 +520,14 @@ async def generate_report(
         200: {"description": "Report file"},
         400: {"description": "Report not ready"},
         404: {"description": "Report not found"},
-    }
+    },
 )
 async def download_report(
     report_id: UUID,
-    format_override: Optional[str] = Query(None, description="Override output format (json, csv, excel, pdf)"),
-    current_user=Depends(get_current_user_from_session)
+    format_override: Optional[str] = Query(
+        None, description="Override output format (json, csv, excel, pdf)"
+    ),
+    current_user=Depends(get_current_user_from_session),
 ):
     """
     Download generated report in specified format.
@@ -507,19 +543,23 @@ async def download_report(
     role, user_id = _get_role_and_user(current_user)
 
     if not user_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not found")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not found"
+        )
 
     # Get report from cache
     cache_key = _get_cache_key("report", report_id=str(report_id))
     report = await _get_cached_result(cache_key)
 
     if not report:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Report not found"
+        )
 
     if report.get("status") != "completed":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Report is not ready. Current status: {report.get('status')}"
+            detail=f"Report is not ready. Current status: {report.get('status')}",
         )
 
     # Get report data
@@ -529,7 +569,9 @@ async def download_report(
     output_format = format_override or report.get("format", "json")
 
     if output_format not in ["json", "csv", "excel", "pdf"]:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid format")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid format"
+        )
 
     # Format and return
     if output_format == "json":
@@ -558,13 +600,14 @@ async def download_report(
     return Response(
         content=content,
         media_type=media_type,
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 
 # ============================================================================
 # 4. POST /api/v2/reports/schedule - Schedule Recurring Report
 # ============================================================================
+
 
 @router.post(
     "/schedule",
@@ -575,7 +618,7 @@ async def download_report(
         201: {"description": "Scheduled report created"},
         400: {"description": "Invalid request"},
         403: {"description": "Access denied"},
-    }
+    },
 )
 @limiter.limit(RATE_LIMIT_SCHEDULE)
 async def schedule_report(
@@ -588,10 +631,12 @@ async def schedule_report(
     end_date: Optional[date] = Query(None, description="End date (optional)"),
     time_of_day: Optional[str] = Query("09:00", description="Time in HH:MM format"),
     timezone: Optional[str] = Query("UTC", description="Timezone"),
-    recipient_emails: Optional[str] = Query(None, description="Comma-separated recipient emails"),
+    recipient_emails: Optional[str] = Query(
+        None, description="Comma-separated recipient emails"
+    ),
     is_active: bool = Query(True, description="Enable schedule immediately"),
     current_user=Depends(get_current_user_from_session),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Create a scheduled report that generates automatically.
@@ -613,14 +658,16 @@ async def schedule_report(
     role, user_id = _get_role_and_user(current_user)
 
     if not user_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not found")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not found"
+        )
 
     # Validate frequency
     valid_frequencies = ["daily", "weekly", "monthly"]
     if frequency not in valid_frequencies:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid frequency. Must be one of: {', '.join(valid_frequencies)}"
+            detail=f"Invalid frequency. Must be one of: {', '.join(valid_frequencies)}",
         )
 
     # Validate format
@@ -628,14 +675,14 @@ async def schedule_report(
     if format not in valid_formats:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid format. Must be one of: {', '.join(valid_formats)}"
+            detail=f"Invalid format. Must be one of: {', '.join(valid_formats)}",
         )
 
     # Validate end_date is after start_date if provided
     if end_date and end_date < start_date:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="end_date must be after start_date"
+            detail="end_date must be after start_date",
         )
 
     # Create schedule ID
@@ -643,7 +690,9 @@ async def schedule_report(
 
     # Calculate next run
     now = datetime.utcnow()
-    next_run = datetime.combine(start_date, datetime.strptime(time_of_day or "09:00", "%H:%M").time())
+    next_run = datetime.combine(
+        start_date, datetime.strptime(time_of_day or "09:00", "%H:%M").time()
+    )
     if next_run <= now:
         # If start_date is today and time has passed, schedule for tomorrow
         next_run += timedelta(days=1)
@@ -671,13 +720,15 @@ async def schedule_report(
         "run_count": 0,
         "created_at": datetime.utcnow().isoformat(),
         "created_by": str(user_id),
-        "updated_at": datetime.utcnow().isoformat()
+        "updated_at": datetime.utcnow().isoformat(),
     }
 
     # Cache schedule
     cache_key = _get_cache_key("schedule", schedule_id=str(schedule_id))
     await _set_cached_result(cache_key, response, ttl=SCHEDULE_CACHE_TTL)
 
-    logger.info(f"Report schedule created: {schedule_id}, frequency: {frequency}, next_run: {next_run}")
+    logger.info(
+        f"Report schedule created: {schedule_id}, frequency: {frequency}, next_run: {next_run}"
+    )
 
     return response

@@ -7,6 +7,4 @@ and alert analysis for oncology treatment workflows.
 
 from .flow_coordinator import FlowCoordinatorAgent
 
-__all__ = [
-    "FlowCoordinatorAgent"
-]
+__all__ = ["FlowCoordinatorAgent"]

@@ -19,7 +19,6 @@ import logging
 from ..types import (
     FlowType,
     FlowContext,
-    FlowStatus,
 )
 from ..config import get_flow_config
 

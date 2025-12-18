@@ -14,7 +14,9 @@ from fastapi import HTTPException, status
 logger = logging.getLogger(__name__)
 
 
-def _check_admin_or_owner(current_user: dict, resource_owner_id: Optional[str] = None) -> None:
+def _check_admin_or_owner(
+    current_user: dict, resource_owner_id: Optional[str] = None
+) -> None:
     """
     Check if user is admin or owns the resource.
 
@@ -33,8 +35,7 @@ def _check_admin_or_owner(current_user: dict, resource_owner_id: Optional[str] =
 
     if not (is_admin or is_owner):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
         )
 
 
@@ -53,7 +54,7 @@ def _render_template(template_content: str, variables: Dict[str, str]) -> str:
         ValueError: If required variables are missing
     """
     # Find all variables in template
-    var_pattern = r'\{\{(\w+)\}\}'
+    var_pattern = r"\{\{(\w+)\}\}"
     template_vars = set(re.findall(var_pattern, template_content))
 
     # Check for missing variables
@@ -75,7 +76,7 @@ async def _calculate_engagement_score(
     sent_at: datetime,
     delivered_at: Optional[datetime],
     read_at: Optional[datetime],
-    responded_at: Optional[datetime]
+    responded_at: Optional[datetime],
 ) -> float:
     """
     Calculate engagement score for a message.

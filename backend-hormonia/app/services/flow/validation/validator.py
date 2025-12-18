@@ -26,7 +26,6 @@ import logging
 
 from ..types import (
     FlowContext,
-    FlowTemplate,
     FlowType,
     FlowStatus,
     FlowStepType,

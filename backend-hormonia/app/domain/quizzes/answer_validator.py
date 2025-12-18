@@ -5,16 +5,15 @@ Handles answer validation, normalization, and response processing.
 Responsibilities: Input validation, answer checking, response value normalization,
 encryption handling, and validation rules enforcement.
 """
+
 import json
 from typing import Any, Dict, Optional, List
 from datetime import datetime
-from uuid import UUID
 
 from app.models.quiz import QuizTemplate
 from app.exceptions import ValidationError, NotFoundError
 from app.services.encryption import get_encryption_service
 from app.core.monthly_quiz_config import get_monthly_quiz_config
-from app.schemas.quiz import QuestionType
 import logging
 
 logger = logging.getLogger(__name__)
@@ -41,22 +40,25 @@ class AnswerValidator:
         if isinstance(value, str):
             value_lower = value.lower().strip()
             # Check if it's an "other" alias
-            if value_lower in ['outra', 'other', 'outro', 'otra', 'autre', 'altro']:
+            if value_lower in ["outra", "other", "outro", "otra", "autre", "altro"]:
                 # Find the actual "other" option value in question options
                 question_options = question.get("options", [])
                 for opt in question_options:
                     if isinstance(opt, dict):
                         opt_value = opt.get("value", "")
-                        if opt.get("allow_other") or opt_value.lower() in ['outra', 'other', 'outro', 'otra']:
+                        if opt.get("allow_other") or opt_value.lower() in [
+                            "outra",
+                            "other",
+                            "outro",
+                            "otra",
+                        ]:
                             return opt_value
                 # Fallback to standardized "other"
                 return "other"
         return value
 
     def validate_and_normalize_response(
-        self,
-        response_value: Any,
-        question: Dict[str, Any]
+        self, response_value: Any, question: Dict[str, Any]
     ) -> Any:
         """
         Validate and normalize response value based on question type.
@@ -90,9 +92,7 @@ class AnswerValidator:
             return response_value
 
     def _validate_multiple_choice(
-        self,
-        response_value: Any,
-        question: Dict[str, Any]
+        self, response_value: Any, question: Dict[str, Any]
     ) -> List[str]:
         """Validate multiple choice response."""
         if isinstance(response_value, str):
@@ -104,7 +104,9 @@ class AnswerValidator:
                 response_value = [self.normalize_other_value(response_value, question)]
         elif isinstance(response_value, list):
             # Normalize each value in the list
-            response_value = [self.normalize_other_value(v, question) for v in response_value]
+            response_value = [
+                self.normalize_other_value(v, question) for v in response_value
+            ]
         else:
             raise ValidationError("Multiple choice requires array of values")
 
@@ -118,9 +120,7 @@ class AnswerValidator:
         return response_value
 
     def _validate_single_choice(
-        self,
-        response_value: Any,
-        question: Dict[str, Any]
+        self, response_value: Any, question: Dict[str, Any]
     ) -> str:
         """Validate single choice response."""
         if not isinstance(response_value, str):
@@ -148,11 +148,7 @@ class AnswerValidator:
 
         return response_value.strip()
 
-    def _validate_numeric(
-        self,
-        response_value: Any,
-        question: Dict[str, Any]
-    ) -> float:
+    def _validate_numeric(self, response_value: Any, question: Dict[str, Any]) -> float:
         """Validate numeric response."""
         try:
             numeric_value = float(response_value)
@@ -176,7 +172,9 @@ class AnswerValidator:
                 datetime.fromisoformat(response_value)
                 return response_value
             except ValueError:
-                raise ValidationError("Invalid date format. Use ISO format (YYYY-MM-DD)")
+                raise ValidationError(
+                    "Invalid date format. Use ISO format (YYYY-MM-DD)"
+                )
         else:
             raise ValidationError("Date must be a string in ISO format")
 
@@ -186,9 +184,9 @@ class AnswerValidator:
             return response_value
         elif isinstance(response_value, str):
             value_lower = response_value.lower()
-            if value_lower in ['true', 'yes', 'sim', '1', 'y']:
+            if value_lower in ["true", "yes", "sim", "1", "y"]:
                 return True
-            elif value_lower in ['false', 'no', 'não', '0', 'n']:
+            elif value_lower in ["false", "no", "não", "0", "n"]:
                 return False
             else:
                 raise ValidationError("Invalid boolean value")
@@ -197,7 +195,9 @@ class AnswerValidator:
         else:
             raise ValidationError("Boolean value required")
 
-    def _get_allowed_option_values(self, question: Dict[str, Any]) -> Optional[List[str]]:
+    def _get_allowed_option_values(
+        self, question: Dict[str, Any]
+    ) -> Optional[List[str]]:
         """Extract allowed option values from question."""
         options = question.get("options", [])
         if not options:
@@ -213,9 +213,7 @@ class AnswerValidator:
         return allowed if allowed else None
 
     def encrypt_response_if_needed(
-        self,
-        response_value: Any,
-        question: Dict[str, Any]
+        self, response_value: Any, question: Dict[str, Any]
     ) -> tuple[Any, bool]:
         """
         Encrypt response value if question is marked as sensitive.
@@ -234,16 +232,18 @@ class AnswerValidator:
             # Encrypt if question is marked as sensitive
             if question.get("is_sensitive", False):
                 # Convert to string for encryption if it's a list
-                value_to_encrypt = json.dumps(response_value) if isinstance(response_value, list) else str(response_value)
+                value_to_encrypt = (
+                    json.dumps(response_value)
+                    if isinstance(response_value, list)
+                    else str(response_value)
+                )
                 encrypted_value = self.encryption_service.encrypt(value_to_encrypt)
                 is_encrypted = True
 
         return encrypted_value, is_encrypted
 
     def validate_question_exists(
-        self,
-        question_id: str,
-        template: QuizTemplate
+        self, question_id: str, template: QuizTemplate
     ) -> Dict[str, Any]:
         """
         Validate that a question exists in the template.
@@ -259,8 +259,7 @@ class AnswerValidator:
             NotFoundError: If question not found
         """
         question = next(
-            (q for q in template.questions if q.get("id") == question_id),
-            None
+            (q for q in template.questions if q.get("id") == question_id), None
         )
 
         if not question:
@@ -273,7 +272,7 @@ class AnswerValidator:
         is_encrypted: bool,
         other_text: Optional[str],
         question_index: int,
-        additional_metadata: Optional[Dict[str, Any]] = None
+        additional_metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Build response metadata dictionary.
@@ -287,10 +286,7 @@ class AnswerValidator:
         Returns:
             Complete metadata dictionary
         """
-        metadata = {
-            "is_encrypted": is_encrypted,
-            "question_index": question_index
-        }
+        metadata = {"is_encrypted": is_encrypted, "question_index": question_index}
 
         # Persist other_text when "Outra" option is selected
         if other_text:
@@ -303,9 +299,7 @@ class AnswerValidator:
         return metadata
 
     def validate_response_timing(
-        self,
-        session_started_at: datetime,
-        min_time_seconds: int = 2
+        self, session_started_at: datetime, min_time_seconds: int = 2
     ) -> bool:
         """
         Validate that sufficient time has passed since session start.
@@ -323,7 +317,9 @@ class AnswerValidator:
         """
         elapsed = (datetime.utcnow() - session_started_at).total_seconds()
         if elapsed < min_time_seconds:
-            raise ValidationError("Response submitted too quickly. Please take time to read the question.")
+            raise ValidationError(
+                "Response submitted too quickly. Please take time to read the question."
+            )
 
         return True
 
@@ -346,12 +342,12 @@ class AnswerValidator:
 
         # Remove potentially dangerous characters/patterns
         # (basic sanitization - more comprehensive sanitization may be needed)
-        dangerous_patterns = ['<script', 'javascript:', 'onerror=', 'onclick=']
+        dangerous_patterns = ["<script", "javascript:", "onerror=", "onclick="]
         text_lower = text.lower()
 
         for pattern in dangerous_patterns:
             if pattern in text_lower:
                 logger.warning(f"Potentially dangerous pattern detected: {pattern}")
-                text = text.replace(pattern, '')
+                text = text.replace(pattern, "")
 
         return text.strip()

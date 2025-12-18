@@ -14,11 +14,13 @@ import json
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 
-from app.dependencies.auth_dependencies import get_current_user_from_session, get_redis_cache
+from app.dependencies.auth_dependencies import (
+    get_current_user_from_session,
+    get_redis_cache,
+)
 from app.schemas.v2.enhanced_messages import (
     ABTestV2Create,
     ABTestV2Response,
-    ABTestV2List,
     ABTestResultsV2,
     ABTestStatus,
 )
@@ -33,14 +35,14 @@ logger = logging.getLogger(__name__)
     response_model=ABTestV2Response,
     status_code=status.HTTP_201_CREATED,
     summary="Create A/B test",
-    description="Create an A/B test for message optimization"
+    description="Create an A/B test for message optimization",
 )
 @limiter.limit("10/minute")
 async def create_ab_test(
     request: Request,
     test_data: ABTestV2Create,
     current_user: dict = Depends(get_current_user_from_session),
-    redis_cache = Depends(get_redis_cache)
+    redis_cache=Depends(get_redis_cache),
 ) -> ABTestV2Response:
     """
     Create an A/B test for message optimization.
@@ -57,7 +59,7 @@ async def create_ab_test(
         if role not in ["admin", "administrator"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only admins can create A/B tests"
+                detail="Only admins can create A/B tests",
             )
 
         # Create A/B test
@@ -75,7 +77,7 @@ async def create_ab_test(
             "winning_variant": None,
             "confidence_level": None,
             "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
+            "updated_at": datetime.utcnow(),
         }
 
         # Store in cache (15 min TTL for A/B tests)
@@ -88,24 +90,21 @@ async def create_ab_test(
                 "test_id": test_id,
                 "variants": len(test_data.variants),
                 "patients": len(test_data.patient_ids),
-                "user_id": current_user.get("id")
-            }
+                "user_id": current_user.get("id"),
+            },
         )
 
         return ABTestV2Response(**test_dict)
 
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error creating A/B test: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create A/B test"
+            detail="Failed to create A/B test",
         )
 
 
@@ -113,14 +112,14 @@ async def create_ab_test(
     "/ab-tests/{test_id}/results",
     response_model=ABTestV2Response,
     summary="Get A/B test results",
-    description="Get detailed results and analysis of an A/B test"
+    description="Get detailed results and analysis of an A/B test",
 )
 @limiter.limit("100/minute")
 async def get_ab_test_results(
     request: Request,
     test_id: str,
     current_user: dict = Depends(get_current_user_from_session),
-    redis_cache = Depends(get_redis_cache)
+    redis_cache=Depends(get_redis_cache),
 ) -> ABTestV2Response:
     """
     Get A/B test results with statistical analysis.
@@ -137,8 +136,7 @@ async def get_ab_test_results(
 
         if not test_data:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="A/B test not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="A/B test not found"
             )
 
         test_dict = json.loads(test_data)
@@ -156,7 +154,7 @@ async def get_ab_test_results(
                 delivery_rate=98.0,
                 read_rate=86.7,
                 response_rate=49.4,
-                average_response_time_minutes=35.2
+                average_response_time_minutes=35.2,
             )
             results.append(result)
 
@@ -169,7 +167,7 @@ async def get_ab_test_results(
 
         logger.info(
             f"A/B test results retrieved: {test_id}",
-            extra={"test_id": test_id, "user_id": current_user.get("id")}
+            extra={"test_id": test_id, "user_id": current_user.get("id")},
         )
 
         return ABTestV2Response(**test_dict)
@@ -180,5 +178,5 @@ async def get_ab_test_results(
         logger.error(f"Error getting A/B test results: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve test results"
+            detail="Failed to retrieve test results",
         )

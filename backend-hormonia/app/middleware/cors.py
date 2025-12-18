@@ -2,9 +2,9 @@
 CORS Middleware Configuration - Production Security Guard
 SECURITY: Prevents CORS regex wildcards in production
 """
+
 import json
 import os
-import re
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
 from typing import List, Optional
@@ -29,7 +29,7 @@ def is_production() -> bool:
             "ENVIRONMENT variable is deprecated since v2.1.0. Use APP_ENVIRONMENT instead. "
             "ENVIRONMENT will be removed in v3.0.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
 
     # Check APP_ENVIRONMENT first (new convention), then ENVIRONMENT (legacy)
@@ -38,8 +38,7 @@ def is_production() -> bool:
 
 
 def validate_cors_origins(
-    allow_origins: List[str],
-    allow_origin_regex: Optional[str] = None
+    allow_origins: List[str], allow_origin_regex: Optional[str] = None
 ) -> None:
     """
     Validate CORS configuration for production safety
@@ -88,7 +87,7 @@ def configure_cors(
     allowed_origin_regex: Optional[str] = None,
     allow_credentials: bool = True,
     allow_methods: Optional[List[str]] = None,
-    allow_headers: Optional[List[str]] = None
+    allow_headers: Optional[List[str]] = None,
 ) -> None:
     """
     Configure CORS middleware with production security validation
@@ -127,12 +126,13 @@ def configure_cors(
             # Support both CORS_ALLOWED_ORIGINS (preferred) and CORS_ORIGINS (deprecated v2.1.0)
             # CORS_ORIGINS will be removed in v3.0
             import warnings
+
             if os.getenv("CORS_ORIGINS") and not os.getenv("CORS_ALLOWED_ORIGINS"):
                 warnings.warn(
                     "CORS_ORIGINS is deprecated since v2.1.0. Use CORS_ALLOWED_ORIGINS instead. "
                     "CORS_ORIGINS will be removed in v3.0.",
                     DeprecationWarning,
-                    stacklevel=2
+                    stacklevel=2,
                 )
 
             cors_env = os.getenv("CORS_ALLOWED_ORIGINS", os.getenv("CORS_ORIGINS", ""))
@@ -145,7 +145,9 @@ def configure_cors(
                     allowed_origins = []
             else:
                 # Fallback to comma-separated format
-                allowed_origins = [origin.strip() for origin in cors_env.split(",") if origin.strip()]
+                allowed_origins = [
+                    origin.strip() for origin in cors_env.split(",") if origin.strip()
+                ]
 
             if not allowed_origins:
                 raise ValueError(
@@ -175,12 +177,12 @@ def configure_cors(
     # Explicit whitelist follows principle of least privilege.
     if allow_headers is None:
         allow_headers = [
-            "Content-Type",      # Standard content negotiation
-            "Authorization",     # Bearer tokens and basic auth
+            "Content-Type",  # Standard content negotiation
+            "Authorization",  # Bearer tokens and basic auth
             "X-Requested-With",  # AJAX request detection
-            "X-CSRF-Token",      # CSRF protection tokens
-            "Accept",            # Content type acceptance
-            "Origin"             # Request origin (required for CORS)
+            "X-CSRF-Token",  # CSRF protection tokens
+            "Accept",  # Content type acceptance
+            "Origin",  # Request origin (required for CORS)
         ]
 
     # Add CORS middleware
@@ -191,12 +193,19 @@ def configure_cors(
         allow_credentials=allow_credentials,
         allow_methods=allow_methods,
         allow_headers=allow_headers,
-        expose_headers=["content-type", "x-csrf-token", "x-total-count", "x-page", "x-per-page"],
+        expose_headers=[
+            "content-type",
+            "x-csrf-token",
+            "x-total-count",
+            "x-page",
+            "x-per-page",
+        ],
         max_age=3600,  # Cache preflight for 1 hour
     )
 
     # Log configuration (sanitized)
     import logging
+
     logger = logging.getLogger(__name__)
 
     if is_production():
@@ -205,8 +214,8 @@ def configure_cors(
             extra={
                 "origins_count": len(allowed_origins),
                 "environment": "production",
-                "allow_credentials": allow_credentials
-            }
+                "allow_credentials": allow_credentials,
+            },
         )
     else:
         logger.warning(
@@ -214,6 +223,6 @@ def configure_cors(
             extra={
                 "origins_count": len(allowed_origins),
                 "environment": "development",
-                "origins": allowed_origins
-            }
+                "origins": allowed_origins,
+            },
         )

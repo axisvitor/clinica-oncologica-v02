@@ -2,6 +2,7 @@
 Error audit logging and statistics tracking for flow operations.
 Handles error persistence, statistics collection, and cleanup operations.
 """
+
 import logging
 import json
 from datetime import datetime, timedelta
@@ -50,14 +51,14 @@ class ErrorAuditLogger:
                 "operation": error_record.context.operation,
                 "recovery_attempts": error_record.recovery_attempts,
                 "resolved": error_record.resolved,
-                "created_at": error_record.created_at.isoformat()
+                "created_at": error_record.created_at.isoformat(),
             }
 
             # Store with 7-day expiration
             await self.redis.setex(
                 f"flow_error:{error_record.id}",
                 ErrorHandlerConstants.REDIS_ERROR_TTL,
-                json.dumps(error_data)
+                json.dumps(error_data),
             )
 
             logger.debug(f"Stored error record: {error_record.id}")
@@ -67,9 +68,9 @@ class ErrorAuditLogger:
             logger.error(f"Failed to store error in Redis: {e}")
             return False
 
-    async def publish_error_event(self,
-                                  error_record: ErrorRecord,
-                                  recovery_result: RecoveryResult) -> bool:
+    async def publish_error_event(
+        self, error_record: ErrorRecord, recovery_result: RecoveryResult
+    ) -> bool:
         """
         Publish error event via WebSocket.
 
@@ -88,14 +89,14 @@ class ErrorAuditLogger:
                 "severity": error_record.severity.value,
                 "recovery_strategy": recovery_result.strategy_used.value,
                 "recovery_success": recovery_result.success,
-                "error_resolved": recovery_result.error_resolved
+                "error_resolved": recovery_result.error_resolved,
             }
 
             await websocket_events.publish_flow_event(
                 event_type=WebSocketEventType.FLOW_ERROR,
                 patient_id=error_record.context.patient_id,
                 flow_id=error_record.context.flow_state_id,
-                event_data=event_data
+                event_data=event_data,
             )
 
             logger.debug(f"Published error event: {error_record.id}")
@@ -105,9 +106,9 @@ class ErrorAuditLogger:
             logger.error(f"Failed to publish error event: {e}")
             return False
 
-    async def escalate_error(self,
-                            error_record: ErrorRecord,
-                            recovery_result: RecoveryResult) -> bool:
+    async def escalate_error(
+        self, error_record: ErrorRecord, recovery_result: RecoveryResult
+    ) -> bool:
         """
         Escalate error to healthcare providers via WebSocket.
 
@@ -119,7 +120,10 @@ class ErrorAuditLogger:
             Success status
         """
         try:
-            if error_record.severity == ErrorSeverity.CRITICAL or not recovery_result.success:
+            if (
+                error_record.severity == ErrorSeverity.CRITICAL
+                or not recovery_result.success
+            ):
                 escalation_message = f"Critical flow error for patient {error_record.context.patient_id}: {error_record.error_type}"
 
                 await websocket_events.publish_alert_event(
@@ -130,8 +134,8 @@ class ErrorAuditLogger:
                     message=escalation_message,
                     metadata={
                         "error_id": error_record.id,
-                        "recovery_failed": not recovery_result.success
-                    }
+                        "recovery_failed": not recovery_result.success,
+                    },
                 )
 
                 logger.critical(f"Escalated critical error: {error_record.id}")
@@ -143,9 +147,9 @@ class ErrorAuditLogger:
             logger.error(f"Failed to escalate error: {e}")
             return False
 
-    async def get_error_statistics(self,
-                                   timeframe_hours: int = 24,
-                                   use_cache: bool = True) -> dict[str, Any]:
+    async def get_error_statistics(
+        self, timeframe_hours: int = 24, use_cache: bool = True
+    ) -> dict[str, Any]:
         """
         Get error statistics for monitoring with caching.
 
@@ -185,7 +189,7 @@ class ErrorAuditLogger:
                 "pending_errors": 0,
                 "recovery_success_rate": 0.0,
                 "timeframe_hours": timeframe_hours,
-                "generated_at": datetime.utcnow().isoformat()
+                "generated_at": datetime.utcnow().isoformat(),
             }
 
             resolved_count = 0
@@ -205,11 +209,15 @@ class ErrorAuditLogger:
 
                         # Count by category
                         category = error_info["category"]
-                        stats["by_category"][category] = stats["by_category"].get(category, 0) + 1
+                        stats["by_category"][category] = (
+                            stats["by_category"].get(category, 0) + 1
+                        )
 
                         # Count by severity
                         severity = error_info["severity"]
-                        stats["by_severity"][severity] = stats["by_severity"].get(severity, 0) + 1
+                        stats["by_severity"][severity] = (
+                            stats["by_severity"].get(severity, 0) + 1
+                        )
 
                         # Count resolved
                         if error_info["resolved"]:
@@ -222,7 +230,9 @@ class ErrorAuditLogger:
             stats["total_errors"] = total_count
             stats["resolved_errors"] = resolved_count
             stats["pending_errors"] = total_count - resolved_count
-            stats["recovery_success_rate"] = (resolved_count / total_count * 100) if total_count > 0 else 0.0
+            stats["recovery_success_rate"] = (
+                (resolved_count / total_count * 100) if total_count > 0 else 0.0
+            )
 
             # Cache the results
             if use_cache:
@@ -234,9 +244,7 @@ class ErrorAuditLogger:
             logger.error(f"Failed to get error statistics: {e}")
             return {"error": str(e), "generated_at": datetime.utcnow().isoformat()}
 
-    async def cleanup_old_errors(self,
-                                error_records: dict,
-                                days_old: int = 7) -> int:
+    async def cleanup_old_errors(self, error_records: dict, days_old: int = 7) -> int:
         """
         Clean up old error records from memory.
 
@@ -316,11 +324,7 @@ class ErrorStatisticsCache:
         """
         try:
             cache_key = f"{self._cache_key}:{timeframe_hours}"
-            await self.redis.setex(
-                cache_key,
-                self.cache_ttl,
-                json.dumps(stats)
-            )
+            await self.redis.setex(cache_key, self.cache_ttl, json.dumps(stats))
             return True
         except Exception as e:
             logger.warning(f"Failed to cache stats: {e}")

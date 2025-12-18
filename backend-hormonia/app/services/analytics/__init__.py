@@ -1,4 +1,3 @@
-from typing import Any
 """
 Analytics services package.
 Facade for all analytics related services.
@@ -27,5 +26,5 @@ __all__ = [
     "MedicoStatsService",
     "MetricsCollector",
     "MetricsRedisStorage",
-    "PerformanceMetricsCollector"
+    "PerformanceMetricsCollector",
 ]

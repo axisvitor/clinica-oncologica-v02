@@ -20,7 +20,7 @@ from celery.signals import (
     task_rejected,
     task_revoked,
     worker_ready,
-    worker_shutdown
+    worker_shutdown,
 )
 import logging
 from typing import Dict, Any
@@ -35,78 +35,65 @@ logger = logging.getLogger(__name__)
 
 # Task execution metrics
 celery_task_total = Counter(
-    'celery_task_total',
-    'Total number of Celery tasks executed',
-    ['task_name', 'status']  # status: success, failure, retry, rejected, revoked
+    "celery_task_total",
+    "Total number of Celery tasks executed",
+    ["task_name", "status"],  # status: success, failure, retry, rejected, revoked
 )
 
 celery_task_duration = Histogram(
-    'celery_task_duration_seconds',
-    'Task execution duration in seconds',
-    ['task_name'],
-    buckets=[0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 300.0, 600.0, 1800.0]
+    "celery_task_duration_seconds",
+    "Task execution duration in seconds",
+    ["task_name"],
+    buckets=[0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 300.0, 600.0, 1800.0],
 )
 
 celery_task_active = Gauge(
-    'celery_task_active',
-    'Number of currently executing tasks',
-    ['task_name']
+    "celery_task_active", "Number of currently executing tasks", ["task_name"]
 )
 
 celery_task_failures = Counter(
-    'celery_task_failures_total',
-    'Total number of task failures',
-    ['task_name', 'exception_type']
+    "celery_task_failures_total",
+    "Total number of task failures",
+    ["task_name", "exception_type"],
 )
 
 celery_task_retries = Counter(
-    'celery_task_retries_total',
-    'Total number of task retries',
-    ['task_name', 'retry_count']
+    "celery_task_retries_total",
+    "Total number of task retries",
+    ["task_name", "retry_count"],
 )
 
 celery_task_rejected = Counter(
-    'celery_task_rejected_total',
-    'Total number of rejected tasks',
-    ['task_name']
+    "celery_task_rejected_total", "Total number of rejected tasks", ["task_name"]
 )
 
 celery_task_revoked = Counter(
-    'celery_task_revoked_total',
-    'Total number of revoked tasks',
-    ['task_name']
+    "celery_task_revoked_total", "Total number of revoked tasks", ["task_name"]
 )
 
 celery_queue_length = Gauge(
-    'celery_queue_length',
-    'Number of tasks in queue',
-    ['queue_name']
+    "celery_queue_length", "Number of tasks in queue", ["queue_name"]
 )
 
 celery_worker_active = Gauge(
-    'celery_worker_active',
-    'Number of active Celery workers',
-    ['worker_name']
+    "celery_worker_active", "Number of active Celery workers", ["worker_name"]
 )
 
 celery_task_latency = Histogram(
-    'celery_task_latency_seconds',
-    'Time from task submission to execution start',
-    ['task_name'],
-    buckets=[0.1, 0.5, 1.0, 5.0, 10.0, 30.0, 60.0, 300.0]
+    "celery_task_latency_seconds",
+    "Time from task submission to execution start",
+    ["task_name"],
+    buckets=[0.1, 0.5, 1.0, 5.0, 10.0, 30.0, 60.0, 300.0],
 )
 
 celery_task_wait_time = Histogram(
-    'celery_task_wait_time_seconds',
-    'Time task spent waiting in queue',
-    ['task_name'],
-    buckets=[0.1, 0.5, 1.0, 5.0, 10.0, 30.0, 60.0, 300.0]
+    "celery_task_wait_time_seconds",
+    "Time task spent waiting in queue",
+    ["task_name"],
+    buckets=[0.1, 0.5, 1.0, 5.0, 10.0, 30.0, 60.0, 300.0],
 )
 
-celery_info = Info(
-    'celery_worker_info',
-    'Information about Celery worker'
-)
+celery_info = Info("celery_worker_info", "Information about Celery worker")
 
 # Task metadata storage for duration calculation
 _task_metadata: Dict[str, Dict[str, Any]] = {}
@@ -115,8 +102,11 @@ _task_metadata: Dict[str, Dict[str, Any]] = {}
 # SIGNAL HANDLERS
 # ============================================================================
 
+
 @task_prerun.connect
-def task_prerun_handler(sender=None, task_id=None, task=None, args=None, kwargs=None, **extra):
+def task_prerun_handler(
+    sender=None, task_id=None, task=None, args=None, kwargs=None, **extra
+):
     """
     Handler called before task execution starts.
 
@@ -126,21 +116,21 @@ def task_prerun_handler(sender=None, task_id=None, task=None, args=None, kwargs=
     - Queue wait time calculation
     """
     try:
-        task_name = sender.name if sender else task.name if task else 'unknown'
+        task_name = sender.name if sender else task.name if task else "unknown"
 
         # Increment active tasks counter
         celery_task_active.labels(task_name=task_name).inc()
 
         # Store task metadata
         _task_metadata[task_id] = {
-            'task_name': task_name,
-            'start_time': time.time(),
-            'eta': kwargs.get('eta') if kwargs else None
+            "task_name": task_name,
+            "start_time": time.time(),
+            "eta": kwargs.get("eta") if kwargs else None,
         }
 
         # Calculate queue wait time if eta is available
-        if kwargs and kwargs.get('eta'):
-            wait_time = time.time() - kwargs['eta']
+        if kwargs and kwargs.get("eta"):
+            wait_time = time.time() - kwargs["eta"]
             if wait_time > 0:
                 celery_task_wait_time.labels(task_name=task_name).observe(wait_time)
 
@@ -151,7 +141,9 @@ def task_prerun_handler(sender=None, task_id=None, task=None, args=None, kwargs=
 
 
 @task_postrun.connect
-def task_postrun_handler(sender=None, task_id=None, task=None, args=None, kwargs=None, retval=None, **extra):
+def task_postrun_handler(
+    sender=None, task_id=None, task=None, args=None, kwargs=None, retval=None, **extra
+):
     """
     Handler called after task execution completes (success or failure).
 
@@ -160,7 +152,7 @@ def task_postrun_handler(sender=None, task_id=None, task=None, args=None, kwargs
     - Task duration
     """
     try:
-        task_name = sender.name if sender else task.name if task else 'unknown'
+        task_name = sender.name if sender else task.name if task else "unknown"
 
         # Decrement active tasks counter
         celery_task_active.labels(task_name=task_name).dec()
@@ -168,7 +160,7 @@ def task_postrun_handler(sender=None, task_id=None, task=None, args=None, kwargs
         # Calculate and record duration
         if task_id in _task_metadata:
             metadata = _task_metadata.pop(task_id)
-            duration = time.time() - metadata['start_time']
+            duration = time.time() - metadata["start_time"]
             celery_task_duration.labels(task_name=task_name).observe(duration)
             logger.debug(f"Task {task_name} [{task_id}] completed in {duration:.2f}s")
 
@@ -185,8 +177,8 @@ def task_success_handler(sender=None, result=None, **kwargs):
     - Success counter increment
     """
     try:
-        task_name = sender.name if sender else 'unknown'
-        celery_task_total.labels(task_name=task_name, status='success').inc()
+        task_name = sender.name if sender else "unknown"
+        celery_task_total.labels(task_name=task_name, status="success").inc()
         logger.debug(f"Task {task_name} succeeded")
 
     except Exception as e:
@@ -194,7 +186,16 @@ def task_success_handler(sender=None, result=None, **kwargs):
 
 
 @task_failure.connect
-def task_failure_handler(sender=None, task_id=None, exception=None, args=None, kwargs=None, traceback=None, einfo=None, **extra):
+def task_failure_handler(
+    sender=None,
+    task_id=None,
+    exception=None,
+    args=None,
+    kwargs=None,
+    traceback=None,
+    einfo=None,
+    **extra,
+):
     """
     Handler called when task fails.
 
@@ -203,19 +204,18 @@ def task_failure_handler(sender=None, task_id=None, exception=None, args=None, k
     - Exception type tracking
     """
     try:
-        task_name = sender.name if sender else 'unknown'
-        exception_type = type(exception).__name__ if exception else 'Unknown'
+        task_name = sender.name if sender else "unknown"
+        exception_type = type(exception).__name__ if exception else "Unknown"
 
         # Increment failure counters
-        celery_task_total.labels(task_name=task_name, status='failure').inc()
+        celery_task_total.labels(task_name=task_name, status="failure").inc()
         celery_task_failures.labels(
-            task_name=task_name,
-            exception_type=exception_type
+            task_name=task_name, exception_type=exception_type
         ).inc()
 
         logger.error(
             f"Task {task_name} [{task_id}] failed with {exception_type}: {exception}",
-            exc_info=True
+            exc_info=True,
         )
 
     except Exception as e:
@@ -232,21 +232,16 @@ def task_retry_handler(sender=None, task_id=None, reason=None, einfo=None, **kwa
     - Retry attempt number
     """
     try:
-        task_name = sender.name if sender else 'unknown'
+        task_name = sender.name if sender else "unknown"
 
         # Get retry count from request
-        retry_count = str(sender.request.retries) if hasattr(sender, 'request') else '0'
+        retry_count = str(sender.request.retries) if hasattr(sender, "request") else "0"
 
         # Increment retry counters
-        celery_task_total.labels(task_name=task_name, status='retry').inc()
-        celery_task_retries.labels(
-            task_name=task_name,
-            retry_count=retry_count
-        ).inc()
+        celery_task_total.labels(task_name=task_name, status="retry").inc()
+        celery_task_retries.labels(task_name=task_name, retry_count=retry_count).inc()
 
-        logger.warning(
-            f"Task {task_name} [{task_id}] retry #{retry_count}: {reason}"
-        )
+        logger.warning(f"Task {task_name} [{task_id}] retry #{retry_count}: {reason}")
 
     except Exception as e:
         logger.error(f"Error in task_retry_handler: {e}", exc_info=True)
@@ -262,9 +257,9 @@ def task_rejected_handler(sender=None, message=None, exc=None, **kwargs):
     """
     try:
         # Extract task name from message
-        task_name = message.headers.get('task', 'unknown') if message else 'unknown'
+        task_name = message.headers.get("task", "unknown") if message else "unknown"
 
-        celery_task_total.labels(task_name=task_name, status='rejected').inc()
+        celery_task_total.labels(task_name=task_name, status="rejected").inc()
         celery_task_rejected.labels(task_name=task_name).inc()
 
         logger.warning(f"Task {task_name} rejected: {exc}")
@@ -274,7 +269,9 @@ def task_rejected_handler(sender=None, message=None, exc=None, **kwargs):
 
 
 @task_revoked.connect
-def task_revoked_handler(sender=None, request=None, terminated=None, signum=None, expired=None, **kwargs):
+def task_revoked_handler(
+    sender=None, request=None, terminated=None, signum=None, expired=None, **kwargs
+):
     """
     Handler called when task is revoked.
 
@@ -282,9 +279,9 @@ def task_revoked_handler(sender=None, request=None, terminated=None, signum=None
     - Revoked task counter
     """
     try:
-        task_name = sender.name if sender else 'unknown'
+        task_name = sender.name if sender else "unknown"
 
-        celery_task_total.labels(task_name=task_name, status='revoked').inc()
+        celery_task_total.labels(task_name=task_name, status="revoked").inc()
         celery_task_revoked.labels(task_name=task_name).inc()
 
         reason = "expired" if expired else "terminated" if terminated else "manual"
@@ -303,14 +300,11 @@ def worker_ready_handler(sender=None, **kwargs):
     - Worker activation
     """
     try:
-        worker_name = sender.hostname if sender else 'unknown'
+        worker_name = sender.hostname if sender else "unknown"
         celery_worker_active.labels(worker_name=worker_name).set(1)
 
         # Set worker info
-        celery_info.info({
-            'worker': worker_name,
-            'status': 'ready'
-        })
+        celery_info.info({"worker": worker_name, "status": "ready"})
 
         logger.info(f"Celery worker {worker_name} is ready")
 
@@ -327,7 +321,7 @@ def worker_shutdown_handler(sender=None, **kwargs):
     - Worker deactivation
     """
     try:
-        worker_name = sender.hostname if sender else 'unknown'
+        worker_name = sender.hostname if sender else "unknown"
         celery_worker_active.labels(worker_name=worker_name).set(0)
 
         logger.info(f"Celery worker {worker_name} shutting down")
@@ -340,6 +334,7 @@ def worker_shutdown_handler(sender=None, **kwargs):
 # DECORATOR FOR TASK TIME TRACKING
 # ============================================================================
 
+
 def track_task_time(func):
     """
     Decorator to track task execution time.
@@ -350,6 +345,7 @@ def track_task_time(func):
         def my_task():
             ...
     """
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         task_name = func.__name__
@@ -363,6 +359,7 @@ def track_task_time(func):
 # ============================================================================
 # QUEUE MONITORING UTILITIES
 # ============================================================================
+
 
 def update_queue_length(queue_name: str, length: int):
     """
@@ -386,22 +383,20 @@ def get_task_metrics_summary() -> Dict[str, Any]:
         Dictionary containing metric summaries
     """
     return {
-        'active_tasks': sum(
+        "active_tasks": sum(
             metric.labels(task_name=name)._value.get()
             for name, metric in celery_task_active._metrics.items()
         ),
-        'total_failures': sum(
-            metric._value.get()
-            for metric in celery_task_failures._metrics.values()
+        "total_failures": sum(
+            metric._value.get() for metric in celery_task_failures._metrics.values()
         ),
-        'total_retries': sum(
-            metric._value.get()
-            for metric in celery_task_retries._metrics.values()
+        "total_retries": sum(
+            metric._value.get() for metric in celery_task_retries._metrics.values()
         ),
-        'queue_lengths': {
+        "queue_lengths": {
             name: metric._value.get()
             for name, metric in celery_queue_length._metrics.items()
-        }
+        },
     }
 
 

@@ -20,9 +20,17 @@ from datetime import datetime, date as date_type
 from uuid import UUID
 from enum import Enum
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict, constr, conint, confloat
+from pydantic import (
+    BaseModel,
+    Field,
+    field_validator,
+    ConfigDict,
+    constr,
+    conint,
+    confloat,
+)
 
-from app.models.alert import AlertSeverity, AlertStatus
+from app.models.alert import AlertSeverity
 from .common import CursorPaginatedResponse
 
 
@@ -30,8 +38,10 @@ from .common import CursorPaginatedResponse
 # Enums and Constants
 # ============================================================================
 
+
 class AlertTypeEnum(str, Enum):
     """Standard alert types for the system."""
+
     MISSED_MEDICATION = "missed_medication"
     ABNORMAL_VITAL_SIGNS = "abnormal_vital_signs"
     QUIZ_FAILED = "quiz_failed"
@@ -45,6 +55,7 @@ class AlertTypeEnum(str, Enum):
 
 class RiskLevel(str, Enum):
     """Patient risk levels based on alert history."""
+
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
@@ -53,6 +64,7 @@ class RiskLevel(str, Enum):
 
 class EscalationStatus(str, Enum):
     """Alert escalation workflow status."""
+
     NOT_ESCALATED = "not_escalated"
     ESCALATED_TO_PHYSICIAN = "escalated_to_physician"
     ESCALATED_TO_SPECIALIST = "escalated_to_specialist"
@@ -63,24 +75,21 @@ class EscalationStatus(str, Enum):
 # Base Schemas
 # ============================================================================
 
+
 class AlertV2Base(BaseModel):
     """Base alert schema with common fields."""
 
     alert_type: constr(min_length=1, max_length=100) = Field(
-        ...,
-        description="Type of alert (e.g., missed_medication, abnormal_vital_signs)"
+        ..., description="Type of alert (e.g., missed_medication, abnormal_vital_signs)"
     )
     severity: AlertSeverity = Field(
-        ...,
-        description="Alert severity level (LOW, MEDIUM, HIGH, CRITICAL)"
+        ..., description="Alert severity level (LOW, MEDIUM, HIGH, CRITICAL)"
     )
     description: constr(min_length=1, max_length=2000) = Field(
-        ...,
-        description="Detailed description of the alert"
+        ..., description="Detailed description of the alert"
     )
     data: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Additional structured data (JSONB field)"
+        default=None, description="Additional structured data (JSONB field)"
     )
 
     @field_validator("description")
@@ -100,7 +109,9 @@ class AlertV2Base(BaseModel):
             sensitive_keywords = ["ssn", "credit_card", "password"]
             for key in v.keys():
                 if any(keyword in key.lower() for keyword in sensitive_keywords):
-                    raise ValueError(f"Sensitive field '{key}' should not be stored in alert data")
+                    raise ValueError(
+                        f"Sensitive field '{key}' should not be stored in alert data"
+                    )
         return v
 
 
@@ -128,18 +139,14 @@ class UserV2Brief(BaseModel):
 # Request Schemas
 # ============================================================================
 
+
 class AlertV2Create(AlertV2Base):
     """Schema for creating a new alert."""
 
-    patient_id: UUID = Field(
-        ...,
-        description="UUID of the patient this alert is for"
-    )
+    patient_id: UUID = Field(..., description="UUID of the patient this alert is for")
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
                 "alert_type": "missed_medication",
@@ -148,8 +155,8 @@ class AlertV2Create(AlertV2Base):
                 "data": {
                     "medication_name": "Anastrozole",
                     "scheduled_time": "14:00",
-                    "missed_time": "14:30"
-                }
+                    "missed_time": "14:30",
+                },
             }
         }
     )
@@ -164,12 +171,10 @@ class AlertV2Update(BaseModel):
     data: Optional[Dict[str, Any]] = None
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "severity": "MEDIUM",
-                "description": "Updated: Patient took medication at 15:00 (delayed)"
+                "description": "Updated: Patient took medication at 15:00 (delayed)",
             }
         }
     )
@@ -179,14 +184,11 @@ class AlertV2Acknowledge(BaseModel):
     """Schema for acknowledging an alert."""
 
     notes: Optional[constr(max_length=1000)] = Field(
-        None,
-        description="Optional notes about the acknowledgment"
+        None, description="Optional notes about the acknowledgment"
     )
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "notes": "Reviewed with patient. Patient confirmed medication taken."
             }
@@ -198,8 +200,7 @@ class AlertV2Resolve(BaseModel):
     """Schema for resolving an alert."""
 
     notes: constr(min_length=1, max_length=2000) = Field(
-        ...,
-        description="Required notes explaining the resolution"
+        ..., description="Required notes explaining the resolution"
     )
 
     @field_validator("notes")
@@ -213,9 +214,7 @@ class AlertV2Resolve(BaseModel):
         return v.strip()
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "notes": "Patient contacted. Confirmed medication adherence plan. Will monitor for next 48 hours."
             }
@@ -227,8 +226,7 @@ class AlertV2Dismiss(BaseModel):
     """Schema for dismissing an alert (false positive)."""
 
     reason: constr(min_length=10, max_length=1000) = Field(
-        ...,
-        description="Required reason for dismissal (for audit trail)"
+        ..., description="Required reason for dismissal (for audit trail)"
     )
 
     @field_validator("reason")
@@ -240,9 +238,7 @@ class AlertV2Dismiss(BaseModel):
         return v.strip()
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "reason": "False positive: Patient had taken medication earlier than scheduled with physician approval."
             }
@@ -254,6 +250,7 @@ class AlertV2Dismiss(BaseModel):
 # Response Schemas
 # ============================================================================
 
+
 class AlertV2Response(AlertV2Base):
     """Full alert response with all fields."""
 
@@ -261,8 +258,12 @@ class AlertV2Response(AlertV2Base):
     patient_id: str = Field(description="Patient UUID")
     status: str = Field(description="Alert status (pending, acknowledged, resolved)")
     acknowledged: bool = Field(description="Whether alert has been acknowledged")
-    acknowledged_by: Optional[str] = Field(None, description="UUID of user who acknowledged")
-    acknowledged_at: Optional[datetime] = Field(None, description="When alert was acknowledged")
+    acknowledged_by: Optional[str] = Field(
+        None, description="UUID of user who acknowledged"
+    )
+    acknowledged_at: Optional[datetime] = Field(
+        None, description="When alert was acknowledged"
+    )
     created_at: datetime = Field(description="When alert was created")
     updated_at: datetime = Field(description="When alert was last updated")
 
@@ -272,7 +273,7 @@ class AlertV2Response(AlertV2Base):
 
     model_config = ConfigDict(
         from_attributes=True,
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "patient_id": "223e4567-e89b-12d3-a456-426614174001",
@@ -285,22 +286,20 @@ class AlertV2Response(AlertV2Base):
                 "acknowledged_at": "2025-01-17T15:30:00Z",
                 "created_at": "2025-01-17T14:30:00Z",
                 "updated_at": "2025-01-17T15:30:00Z",
-                "data": {
-                    "medication_name": "Anastrozole",
-                    "scheduled_time": "14:00"
-                },
+                "data": {"medication_name": "Anastrozole", "scheduled_time": "14:00"},
                 "patient": {
                     "id": "223e4567-e89b-12d3-a456-426614174001",
                     "name": "Jane Doe",
-                    "email": "jane@example.com"
-                }
+                    "email": "jane@example.com",
+                },
             }
-        }
+        },
     )
 
 
 class AlertV2List(CursorPaginatedResponse[AlertV2Response]):
     """Paginated list of alerts with cursor-based pagination."""
+
     pass
 
 
@@ -308,26 +307,31 @@ class AlertV2List(CursorPaginatedResponse[AlertV2Response]):
 # Alert Summary and Statistics Schemas
 # ============================================================================
 
+
 class PatientAlertSummaryV2(BaseModel):
     """Comprehensive alert summary for a patient."""
 
     patient_id: UUID = Field(description="Patient UUID")
     total_alerts: conint(ge=0) = Field(description="Total number of alerts")
     pending_alerts: conint(ge=0) = Field(description="Number of unresolved alerts")
-    critical_alerts: conint(ge=0) = Field(description="Number of critical severity alerts")
+    critical_alerts: conint(ge=0) = Field(
+        description="Number of critical severity alerts"
+    )
     high_alerts: conint(ge=0) = Field(description="Number of high severity alerts")
     medium_alerts: conint(ge=0) = Field(description="Number of medium severity alerts")
     low_alerts: conint(ge=0) = Field(description="Number of low severity alerts")
     recent_alerts_7d: conint(ge=0) = Field(description="Alerts in last 7 days")
-    last_alert_at: Optional[datetime] = Field(None, description="Timestamp of most recent alert")
+    last_alert_at: Optional[datetime] = Field(
+        None, description="Timestamp of most recent alert"
+    )
     risk_score: confloat(ge=0) = Field(description="Calculated risk score")
     risk_level: str = Field(description="Risk level (LOW, MEDIUM, HIGH, CRITICAL)")
-    risk_factors: List[str] = Field(default_factory=list, description="Contributing risk factors")
+    risk_factors: List[str] = Field(
+        default_factory=list, description="Contributing risk factors"
+    )
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "patient_id": "223e4567-e89b-12d3-a456-426614174001",
                 "total_alerts": 15,
@@ -343,8 +347,8 @@ class PatientAlertSummaryV2(BaseModel):
                 "risk_factors": [
                     "Recent critical alert",
                     "Unresolved high alert",
-                    "Multiple medication alerts"
-                ]
+                    "Multiple medication alerts",
+                ],
             }
         }
     )
@@ -361,17 +365,16 @@ class AlertStatisticsV2(BaseModel):
     high_count: conint(ge=0) = Field(description="High severity count")
     medium_count: conint(ge=0) = Field(description="Medium severity count")
     low_count: conint(ge=0) = Field(description="Low severity count")
-    avg_response_time_minutes: confloat(ge=0) = Field(description="Average acknowledgment time")
+    avg_response_time_minutes: confloat(ge=0) = Field(
+        description="Average acknowledgment time"
+    )
     top_alert_types: List[Dict[str, Any]] = Field(
-        default_factory=list,
-        description="Most common alert types"
+        default_factory=list, description="Most common alert types"
     )
     analysis_period_days: conint(ge=1) = Field(description="Analysis period in days")
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "total_alerts": 450,
                 "pending_alerts": 23,
@@ -385,9 +388,9 @@ class AlertStatisticsV2(BaseModel):
                 "top_alert_types": [
                     {"type": "missed_medication", "count": 120},
                     {"type": "quiz_failed", "count": 85},
-                    {"type": "treatment_delay", "count": 67}
+                    {"type": "treatment_delay", "count": 67},
                 ],
-                "analysis_period_days": 30
+                "analysis_period_days": 30,
             }
         }
     )
@@ -397,6 +400,7 @@ class AlertStatisticsV2(BaseModel):
 # Risk Scoring Schemas
 # ============================================================================
 
+
 class PatientRiskScoreV2(BaseModel):
     """Comprehensive patient risk assessment based on alert history."""
 
@@ -404,21 +408,17 @@ class PatientRiskScoreV2(BaseModel):
     risk_score: confloat(ge=0) = Field(description="Calculated risk score (0-100+)")
     risk_level: RiskLevel = Field(description="Risk level category")
     risk_factors: List[str] = Field(
-        default_factory=list,
-        description="Key factors contributing to risk score"
+        default_factory=list, description="Key factors contributing to risk score"
     )
     recommendations: List[str] = Field(
-        default_factory=list,
-        description="Actionable recommendations based on risk"
+        default_factory=list, description="Actionable recommendations based on risk"
     )
     calculated_at: datetime = Field(description="When risk score was calculated")
     alert_count_30d: conint(ge=0) = Field(description="Alert count in last 30 days")
     unresolved_count: conint(ge=0) = Field(description="Current unresolved alerts")
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "patient_id": "223e4567-e89b-12d3-a456-426614174001",
                 "risk_score": 65.5,
@@ -426,16 +426,16 @@ class PatientRiskScoreV2(BaseModel):
                 "risk_factors": [
                     "Recent critical alert",
                     "Multiple unresolved high alerts",
-                    "Pattern of missed medications"
+                    "Pattern of missed medications",
                 ],
                 "recommendations": [
                     "Immediate physician review required",
                     "Consider escalating to specialist",
-                    "Address 3 unresolved alerts"
+                    "Address 3 unresolved alerts",
                 ],
                 "calculated_at": "2025-01-17T15:00:00Z",
                 "alert_count_30d": 12,
-                "unresolved_count": 3
+                "unresolved_count": 3,
             }
         }
     )
@@ -445,6 +445,7 @@ class PatientRiskScoreV2(BaseModel):
 # Alert Rule Engine Schemas
 # ============================================================================
 
+
 class AlertRuleV2(BaseModel):
     """Alert rule configuration for automated alert generation."""
 
@@ -452,17 +453,19 @@ class AlertRuleV2(BaseModel):
     rule_type: constr(min_length=1, max_length=100) = Field(
         description="Type of rule (e.g., medication_adherence, vital_signs)"
     )
-    name: constr(min_length=1, max_length=200) = Field(description="Human-readable rule name")
+    name: constr(min_length=1, max_length=200) = Field(
+        description="Human-readable rule name"
+    )
     description: Optional[str] = Field(None, description="Rule description")
-    severity: AlertSeverity = Field(description="Severity for alerts generated by this rule")
+    severity: AlertSeverity = Field(
+        description="Severity for alerts generated by this rule"
+    )
     enabled: bool = Field(default=True, description="Whether rule is active")
     conditions: Dict[str, Any] = Field(
-        ...,
-        description="Rule conditions (threshold, time_window, etc.)"
+        ..., description="Rule conditions (threshold, time_window, etc.)"
     )
     alert_template: str = Field(
-        ...,
-        description="Template for alert description (supports variables)"
+        ..., description="Template for alert description (supports variables)"
     )
     created_at: datetime = Field(description="When rule was created")
     updated_at: datetime = Field(description="When rule was last updated")
@@ -470,7 +473,7 @@ class AlertRuleV2(BaseModel):
 
     model_config = ConfigDict(
         from_attributes=True,
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "id": "423e4567-e89b-12d3-a456-426614174003",
                 "rule_type": "medication_adherence",
@@ -480,14 +483,14 @@ class AlertRuleV2(BaseModel):
                 "enabled": True,
                 "conditions": {
                     "threshold_minutes": 30,
-                    "medications": ["Anastrozole", "Letrozole"]
+                    "medications": ["Anastrozole", "Letrozole"],
                 },
                 "alert_template": "Patient missed {medication_name} at {scheduled_time}",
                 "created_at": "2025-01-01T10:00:00Z",
                 "updated_at": "2025-01-15T14:00:00Z",
-                "created_by": "323e4567-e89b-12d3-a456-426614174002"
+                "created_by": "323e4567-e89b-12d3-a456-426614174002",
             }
-        }
+        },
     )
 
 
@@ -529,6 +532,7 @@ class AlertRuleV2Update(BaseModel):
 # Bulk Operations Schemas
 # ============================================================================
 
+
 class BulkAlertOperation(BaseModel):
     """Schema for bulk alert operations (acknowledge, resolve, etc.)."""
 
@@ -536,11 +540,10 @@ class BulkAlertOperation(BaseModel):
         ...,
         min_length=1,
         max_length=100,
-        description="List of alert UUIDs to operate on (max 100)"
+        description="List of alert UUIDs to operate on (max 100)",
     )
     notes: Optional[constr(max_length=1000)] = Field(
-        None,
-        description="Optional notes for the bulk operation"
+        None, description="Optional notes for the bulk operation"
     )
 
     @field_validator("alert_ids")
@@ -552,16 +555,14 @@ class BulkAlertOperation(BaseModel):
         return v
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "alert_ids": [
                     "123e4567-e89b-12d3-a456-426614174000",
                     "223e4567-e89b-12d3-a456-426614174001",
-                    "323e4567-e89b-12d3-a456-426614174002"
+                    "323e4567-e89b-12d3-a456-426614174002",
                 ],
-                "notes": "Bulk acknowledged after patient phone consultation"
+                "notes": "Bulk acknowledged after patient phone consultation",
             }
         }
     )
@@ -570,22 +571,17 @@ class BulkAlertOperation(BaseModel):
 class BulkAlertResult(BaseModel):
     """Result of a bulk alert operation."""
 
-    success_count: conint(ge=0) = Field(description="Number of successfully processed alerts")
+    success_count: conint(ge=0) = Field(
+        description="Number of successfully processed alerts"
+    )
     failed_count: conint(ge=0) = Field(description="Number of failed operations")
     failed_ids: List[str] = Field(
-        default_factory=list,
-        description="UUIDs of alerts that failed to process"
+        default_factory=list, description="UUIDs of alerts that failed to process"
     )
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
-            "example": {
-                "success_count": 3,
-                "failed_count": 0,
-                "failed_ids": []
-            }
+        json_schema_extra={
+            "example": {"success_count": 3, "failed_count": 0, "failed_ids": []}
         }
     )
 
@@ -593,6 +589,7 @@ class BulkAlertResult(BaseModel):
 # ============================================================================
 # Trend Analysis Schemas
 # ============================================================================
+
 
 class AlertTrendV2(BaseModel):
     """Alert trend data for analytics."""
@@ -605,16 +602,14 @@ class AlertTrendV2(BaseModel):
     low_alerts: conint(ge=0) = Field(description="Low severity alerts")
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "date": "2025-01-17",
                 "total_alerts": 45,
                 "critical_alerts": 2,
                 "high_alerts": 8,
                 "medium_alerts": 23,
-                "low_alerts": 12
+                "low_alerts": 12,
             }
         }
     )
@@ -623,6 +618,7 @@ class AlertTrendV2(BaseModel):
 # ============================================================================
 # Escalation Workflow Schemas
 # ============================================================================
+
 
 class AlertEscalationV2(BaseModel):
     """Alert escalation information."""
@@ -634,14 +630,11 @@ class AlertEscalationV2(BaseModel):
     escalated_to: Optional[str] = Field(None, description="UUID of user escalated to")
     escalation_notes: Optional[str] = Field(None, description="Escalation notes")
     resolution_deadline: Optional[datetime] = Field(
-        None,
-        description="Deadline for resolution (based on severity)"
+        None, description="Deadline for resolution (based on severity)"
     )
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "alert_id": "123e4567-e89b-12d3-a456-426614174000",
                 "escalation_status": "escalated_to_specialist",
@@ -649,7 +642,7 @@ class AlertEscalationV2(BaseModel):
                 "escalated_by": "323e4567-e89b-12d3-a456-426614174002",
                 "escalated_to": "423e4567-e89b-12d3-a456-426614174003",
                 "escalation_notes": "Patient showing severe side effects, specialist review needed",
-                "resolution_deadline": "2025-01-17T18:00:00Z"
+                "resolution_deadline": "2025-01-17T18:00:00Z",
             }
         }
     )

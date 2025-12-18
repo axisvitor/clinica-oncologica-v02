@@ -1,10 +1,12 @@
 """
 Sentry configuration and setup.
 """
+
 from app.config import settings
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
 
 def setup_sentry() -> None:
     """
@@ -22,7 +24,9 @@ def setup_sentry() -> None:
     - ENVIRONMENT: Environment name (production, staging, development)
     - SENTRY_TRACES_SAMPLE_RATE: Performance monitoring sample rate (0.0-1.0)
     """
-    sentry_dsn = settings.MONITORING_SENTRY_DSN if hasattr(settings, 'SENTRY_DSN') else None
+    sentry_dsn = (
+        settings.MONITORING_SENTRY_DSN if hasattr(settings, "SENTRY_DSN") else None
+    )
 
     if not sentry_dsn:
         logger.info("⚠️  Sentry not configured (SENTRY_DSN not set)")
@@ -35,13 +39,13 @@ def setup_sentry() -> None:
         from sentry_sdk.integrations.redis import RedisIntegration
 
         # Determine environment
-        environment = getattr(settings, 'ENVIRONMENT', 'development')
+        environment = getattr(settings, "ENVIRONMENT", "development")
 
         # Configure sample rates based on environment
         traces_sample_rate = 0.1  # 10% in production
-        if environment == 'development':
+        if environment == "development":
             traces_sample_rate = 1.0  # 100% in development
-        elif environment == 'staging':
+        elif environment == "staging":
             traces_sample_rate = 0.5  # 50% in staging
 
         # Initialize Sentry
@@ -58,15 +62,19 @@ def setup_sentry() -> None:
             # Send default PII (Personally Identifiable Information)
             send_default_pii=False,  # Don't send PII for HIPAA compliance
             # Release tracking
-            release=f"hormonia-backend@2.0.0",
+            release="hormonia-backend@2.0.0",
             # Before send callback to filter sensitive data
             before_send=_sentry_before_send,
         )
 
-        logger.info(f"✅ Sentry initialized (env: {environment}, traces: {traces_sample_rate*100}%)")
+        logger.info(
+            f"✅ Sentry initialized (env: {environment}, traces: {traces_sample_rate * 100}%)"
+        )
 
     except ImportError:
-        logger.warning("⚠️  Sentry SDK not installed. Install with: pip install sentry-sdk[fastapi]")
+        logger.warning(
+            "⚠️  Sentry SDK not installed. Install with: pip install sentry-sdk[fastapi]"
+        )
     except Exception as e:
         logger.error(f"❌ Failed to initialize Sentry: {e}")
 
@@ -88,25 +96,25 @@ def _sentry_before_send(event, hint):
         Modified event or None to drop the event
     """
     # Filter out health check errors
-    if 'request' in event:
-        url = event['request'].get('url', '')
-        if '/health' in url or '/metrics' in url:
+    if "request" in event:
+        url = event["request"].get("url", "")
+        if "/health" in url or "/metrics" in url:
             return None  # Don't send health check errors
 
     # Remove sensitive headers
-    if 'request' in event and 'headers' in event['request']:
-        sensitive_headers = ['Authorization', 'Cookie', 'X-API-Key', 'X-CSRF-Token']
+    if "request" in event and "headers" in event["request"]:
+        sensitive_headers = ["Authorization", "Cookie", "X-API-Key", "X-CSRF-Token"]
         for header in sensitive_headers:
-            if header in event['request']['headers']:
-                event['request']['headers'][header] = '[Filtered]'
+            if header in event["request"]["headers"]:
+                event["request"]["headers"][header] = "[Filtered]"
 
     # Remove sensitive query parameters
-    if 'request' in event and 'query_string' in event['request']:
-        sensitive_params = ['token', 'api_key', 'password', 'secret']
-        query_string = event['request'].get('query_string', '')
+    if "request" in event and "query_string" in event["request"]:
+        sensitive_params = ["token", "api_key", "password", "secret"]
+        query_string = event["request"].get("query_string", "")
         for param in sensitive_params:
             if param in query_string.lower():
-                event['request']['query_string'] = '[Filtered]'
+                event["request"]["query_string"] = "[Filtered]"
                 break
 
     return event

@@ -13,7 +13,6 @@ from dataclasses import dataclass
 
 from ..types import (
     Alert,
-    AlertSeverity,
     EscalationRule,
     EscalationStrategy,
     NotificationTarget,
@@ -418,7 +417,6 @@ class EscalationManager:
         )
 
         # Get alert (should be retrieved from repository in production)
-        alert_id = escalation.alert_id
 
         # Determine escalation targets based on rule
         targets = self._get_escalation_targets(rule, escalation.level)

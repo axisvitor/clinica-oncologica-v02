@@ -2,16 +2,15 @@
 FlowCore - Base class for all flow operations.
 Contains shared functionality extracted from EnhancedFlowEngine and FlowEngineIntegrationService.
 """
-import asyncio
+
 import logging
-from typing import List, Optional, Any, Tuple, Dict
+from typing import Optional, Any, Dict
 from datetime import datetime, timedelta
 from uuid import UUID
 from enum import Enum
 
 from app.models.flow import PatientFlowState, FlowKind, FlowTemplateVersion
 from app.models.patient import Patient
-from app.models.message import Message, MessageType, MessageStatus, MessageDirection
 from app.domain.messaging.core import MessageTemplate
 
 
@@ -21,16 +20,20 @@ from app.domain.flows.events import flow_event_broadcaster
 
 logger = logging.getLogger(__name__)
 
+
 class FlowType(Enum):
     INITIAL_15_DAYS = "initial_15_days"
     DAYS_16_45 = "days_16_45"
     MONTHLY_RECURRING = "monthly_recurring"
 
+
 class NotFoundError(Exception):
     pass
 
+
 class ValidationError(Exception):
     pass
+
 
 # Import ConcurrentModificationError for optimistic locking
 from app.exceptions import ConcurrentModificationError
@@ -39,21 +42,24 @@ from app.services.platform_synchronization import PlatformSynchronizationService
 from app.services.template_loader import EnhancedTemplateLoader
 from app.services.unified_cache import UnifiedCacheService
 
+
 class FlowCore:
     """
     Base class for all flow operations.
     """
-    
-    def __init__(self, 
-                 db: Any,
-                 platform_sync: Optional[PlatformSynchronizationService] = None,
-                 template_loader: Optional[EnhancedTemplateLoader] = None,
-                 template_cache: Optional[UnifiedCacheService] = None):
+
+    def __init__(
+        self,
+        db: Any,
+        platform_sync: Optional[PlatformSynchronizationService] = None,
+        template_loader: Optional[EnhancedTemplateLoader] = None,
+        template_cache: Optional[UnifiedCacheService] = None,
+    ):
         self.db = db
         self.patient_repo = PatientRepository(db)
         self.flow_state_repo = FlowStateRepository(db)
         self.flow_broadcaster = flow_event_broadcaster
-        
+
         # Dependency Injection with fallback for backward compatibility (optional, but safer during transition)
         if platform_sync:
             self.platform_sync = platform_sync
@@ -79,7 +85,9 @@ class FlowCore:
     # OPTIMISTIC LOCKING HELPER
     # =============================================================================
 
-    def _commit_flow_state_with_lock(self, flow_state: PatientFlowState, expected_version: int) -> None:
+    def _commit_flow_state_with_lock(
+        self, flow_state: PatientFlowState, expected_version: int
+    ) -> None:
         """
         Commit flow state changes with optimistic locking.
 
@@ -101,7 +109,7 @@ class FlowCore:
                 resource_type="PatientFlowState",
                 resource_id=str(flow_state.id),
                 expected_version=expected_version,
-                actual_version=flow_state.version
+                actual_version=flow_state.version,
             )
 
         # Increment version and commit
@@ -117,9 +125,9 @@ class FlowCore:
     # PATIENT ENROLLMENT
     # =============================================================================
 
-    async def enroll_patient(self,
-                           patient_id: UUID,
-                           flow_type: FlowType = FlowType.INITIAL_15_DAYS) -> PatientFlowState:
+    async def enroll_patient(
+        self, patient_id: UUID, flow_type: FlowType = FlowType.INITIAL_15_DAYS
+    ) -> PatientFlowState:
         """
         Enroll a patient in a conversation flow.
 
@@ -142,21 +150,33 @@ class FlowCore:
         # Check for existing active flow
         existing_flow = self.flow_state_repo.get_active_flow(patient_id)
         if existing_flow:
-            raise ValidationError(f"Patient already has active flow")
+            raise ValidationError("Patient already has active flow")
 
         # Get current template version for the flow type
-        flow_kind = self.db.query(FlowKind).filter(FlowKind.flow_type == flow_type.value).first()
+        flow_kind = (
+            self.db.query(FlowKind)
+            .filter(FlowKind.flow_type == flow_type.value)
+            .first()
+        )
         if not flow_kind:
-            raise ValidationError(f"No flow kind found for flow type: {flow_type.value}")
+            raise ValidationError(
+                f"No flow kind found for flow type: {flow_type.value}"
+            )
 
         # Get the active version for this flow kind (query the relationship)
-        active_version = self.db.query(FlowTemplateVersion).filter(
-            FlowTemplateVersion.kind_id == flow_kind.id,
-            FlowTemplateVersion.is_active == True
-        ).first()
+        active_version = (
+            self.db.query(FlowTemplateVersion)
+            .filter(
+                FlowTemplateVersion.kind_id == flow_kind.id,
+                FlowTemplateVersion.is_active,
+            )
+            .first()
+        )
 
         if not active_version:
-            raise ValidationError(f"No active template version found for flow type: {flow_type.value}")
+            raise ValidationError(
+                f"No active template version found for flow type: {flow_type.value}"
+            )
 
         # Create new flow state
         flow_state = PatientFlowState(
@@ -167,8 +187,8 @@ class FlowCore:
             state_data={
                 "enrollment_date": datetime.utcnow().isoformat(),
                 "ai_enabled": True,
-                "personalization_level": "high"
-            }
+                "personalization_level": "high",
+            },
         )
 
         created_flow = self.flow_state_repo.create(flow_state)
@@ -193,27 +213,33 @@ class FlowCore:
         # Get patient timezone
         timezone_str = "America/Sao_Paulo"
         if flow_state.patient and hasattr(flow_state.patient, "timezone"):
-             timezone_str = flow_state.patient.timezone
-        
+            timezone_str = flow_state.patient.timezone
+
         try:
             import pytz
+
             tz = pytz.timezone(timezone_str)
         except Exception:
-            logger.warning(f"Invalid timezone {timezone_str} for patient {patient_id}, defaulting to America/Sao_Paulo")
+            logger.warning(
+                f"Invalid timezone {timezone_str} for patient {patient_id}, defaulting to America/Sao_Paulo"
+            )
             import pytz
+
             tz = pytz.timezone("America/Sao_Paulo")
 
         # Calculate days since enrollment using local time
-        enrollment_date_str = flow_state.state_data.get("enrollment_date", flow_state.started_at.isoformat())
+        enrollment_date_str = flow_state.state_data.get(
+            "enrollment_date", flow_state.started_at.isoformat()
+        )
         enrollment_dt = datetime.fromisoformat(enrollment_date_str)
-        
+
         # Ensure enrollment_dt is timezone aware
         if enrollment_dt.tzinfo is None:
-             enrollment_dt = pytz.utc.localize(enrollment_dt)
-        
+            enrollment_dt = pytz.utc.localize(enrollment_dt)
+
         enrollment_local = enrollment_dt.astimezone(tz)
         now_local = datetime.now(tz)
-        
+
         days_elapsed = (now_local.date() - enrollment_local.date()).days + 1
 
         return max(1, days_elapsed)
@@ -236,9 +262,9 @@ class FlowCore:
         else:
             return FlowType.MONTHLY_RECURRING
 
-    async def advance_patient_flow(self,
-                                 patient_id: UUID,
-                                 force_day: Optional[int] = None) -> dict[str, Any]:
+    async def advance_patient_flow(
+        self, patient_id: UUID, force_day: Optional[int] = None
+    ) -> dict[str, Any]:
         """
         Advance patient flow to next appropriate day/state.
 
@@ -269,13 +295,19 @@ class FlowCore:
             previous_state = {
                 "flow_type": current_flow_type.value,
                 "current_day": flow_state.current_step,
-                "is_paused": flow_state.state_data.get('paused', False) if flow_state.state_data else False
+                "is_paused": flow_state.state_data.get("paused", False)
+                if flow_state.state_data
+                else False,
             }
 
             # Handle flow type transition
             if current_flow_type != required_flow_type:
-                await self._transition_flow_type(flow_state, required_flow_type, current_day)
-                logger.info(f"Patient {patient_id} transitioned from {current_flow_type.value} to {required_flow_type.value}")
+                await self._transition_flow_type(
+                    flow_state, required_flow_type, current_day
+                )
+                logger.info(
+                    f"Patient {patient_id} transitioned from {current_flow_type.value} to {required_flow_type.value}"
+                )
 
             # Update current step
             previous_day = flow_state.current_step
@@ -290,18 +322,22 @@ class FlowCore:
             await self.flow_broadcaster.broadcast_flow_state_change(
                 patient_id=patient_id,
                 flow_state=flow_state,
-                previous_state=previous_state
+                previous_state=previous_state,
             )
 
             # Broadcast flow progression if day changed
             if previous_day != current_day:
-                milestone = "flow_transition" if current_flow_type != required_flow_type else None
+                milestone = (
+                    "flow_transition"
+                    if current_flow_type != required_flow_type
+                    else None
+                )
                 await self.flow_broadcaster.broadcast_flow_progression(
                     patient_id=patient_id,
                     from_day=previous_day,
                     to_day=current_day,
                     flow_type=required_flow_type.value,
-                    milestone_reached=milestone
+                    milestone_reached=milestone,
                 )
 
             # Sync flow state change to platform
@@ -313,9 +349,9 @@ class FlowCore:
                         "current_day": current_day,
                         "flow_type": required_flow_type.value,
                         "transitioned": current_flow_type != required_flow_type,
-                        "timestamp": datetime.utcnow().isoformat()
+                        "timestamp": datetime.utcnow().isoformat(),
                     }
-                }
+                },
             )
 
             return {
@@ -324,7 +360,7 @@ class FlowCore:
                 "current_day": current_day,
                 "flow_type": required_flow_type.value,
                 "previous_flow_type": current_flow_type.value,
-                "transitioned": current_flow_type != required_flow_type
+                "transitioned": current_flow_type != required_flow_type,
             }
 
         except Exception as e:
@@ -332,7 +368,9 @@ class FlowCore:
             self.db.rollback()
             raise
 
-    async def pause_patient_flow(self, patient_id: UUID, reason: str = None) -> dict[str, Any]:
+    async def pause_patient_flow(
+        self, patient_id: UUID, reason: str = None
+    ) -> dict[str, Any]:
         """
         Pause patient flow.
 
@@ -355,7 +393,7 @@ class FlowCore:
             previous_state = {
                 "flow_type": flow_state.flow_type,
                 "current_day": flow_state.current_step,
-                "is_paused": False
+                "is_paused": False,
             }
 
             # Update state data
@@ -363,7 +401,7 @@ class FlowCore:
             flow_state.state_data["paused"] = {
                 "timestamp": datetime.utcnow().isoformat(),
                 "reason": reason or "Manual pause",
-                "current_step": flow_state.current_step
+                "current_step": flow_state.current_step,
             }
 
             # Commit with optimistic locking to prevent race conditions
@@ -373,7 +411,7 @@ class FlowCore:
             await self.flow_broadcaster.broadcast_flow_state_change(
                 patient_id=patient_id,
                 flow_state=flow_state,
-                previous_state=previous_state
+                previous_state=previous_state,
             )
 
             logger.info(f"Paused flow for patient {patient_id}")
@@ -381,7 +419,7 @@ class FlowCore:
                 "status": "paused",
                 "patient_id": str(patient_id),
                 "reason": reason,
-                "paused_at": datetime.utcnow().isoformat()
+                "paused_at": datetime.utcnow().isoformat(),
             }
 
         except Exception as e:
@@ -411,7 +449,7 @@ class FlowCore:
             previous_state = {
                 "flow_type": flow_state.flow_type,
                 "current_day": flow_state.current_step,
-                "is_paused": True
+                "is_paused": True,
             }
 
             # Remove pause data
@@ -420,7 +458,7 @@ class FlowCore:
                 flow_state.state_data["resumed"] = {
                     "timestamp": datetime.utcnow().isoformat(),
                     "was_paused_at": paused_data.get("timestamp"),
-                    "pause_reason": paused_data.get("reason")
+                    "pause_reason": paused_data.get("reason"),
                 }
 
             # Commit with optimistic locking to prevent race conditions
@@ -430,14 +468,14 @@ class FlowCore:
             await self.flow_broadcaster.broadcast_flow_state_change(
                 patient_id=patient_id,
                 flow_state=flow_state,
-                previous_state=previous_state
+                previous_state=previous_state,
             )
 
             logger.info(f"Resumed flow for patient {patient_id}")
             return {
                 "status": "resumed",
                 "patient_id": str(patient_id),
-                "resumed_at": datetime.utcnow().isoformat()
+                "resumed_at": datetime.utcnow().isoformat(),
             }
 
         except Exception as e:
@@ -465,7 +503,7 @@ class FlowCore:
                 return {
                     "status": "no_active_flow",
                     "patient_id": str(patient_id),
-                    "patient_name": patient.name
+                    "patient_name": patient.name,
                 }
 
             current_day = await self.calculate_patient_day(patient_id)
@@ -482,8 +520,8 @@ class FlowCore:
                     "current_step": flow_state.current_step,
                     "started_at": flow_state.started_at.isoformat(),
                     "is_paused": is_paused,
-                    "state_data": flow_state.state_data
-                }
+                    "state_data": flow_state.state_data,
+                },
             }
 
         except Exception as e:
@@ -494,9 +532,9 @@ class FlowCore:
     # TEMPLATE HANDLING (Shared between both services)
     # =============================================================================
 
-    async def get_message_template_for_day(self,
-                                         flow_type: FlowType,
-                                         day: int) -> Optional[MessageTemplate]:
+    async def get_message_template_for_day(
+        self, flow_type: FlowType, day: int
+    ) -> Optional[MessageTemplate]:
         """
         Get message template for specific flow type and day with comprehensive error handling.
 
@@ -512,15 +550,24 @@ class FlowCore:
             from app.services.template_loader import TemplateLoadError, FlowTemplateData
 
             try:
-                flow_template: FlowTemplateData = self.template_loader.load_flow_template(flow_type.value)
+                flow_template: FlowTemplateData = (
+                    self.template_loader.load_flow_template(flow_type.value)
+                )
             except TemplateLoadError as e:
-                logger.error(f"Template load error for {flow_type.value}: {e}. Using fallback message.")
+                logger.error(
+                    f"Template load error for {flow_type.value}: {e}. Using fallback message."
+                )
                 return await self._get_fallback_template(flow_type, day)
             except FileNotFoundError as e:
-                logger.error(f"Template file not found for {flow_type.value}: {e}. Using fallback message.")
+                logger.error(
+                    f"Template file not found for {flow_type.value}: {e}. Using fallback message."
+                )
                 return await self._get_fallback_template(flow_type, day)
             except Exception as e:
-                logger.error(f"Unexpected error loading template {flow_type.value}: {e}. Using fallback message.", exc_info=True)
+                logger.error(
+                    f"Unexpected error loading template {flow_type.value}: {e}. Using fallback message.",
+                    exc_info=True,
+                )
                 return await self._get_fallback_template(flow_type, day)
 
             # Get message for specific day from FlowTemplateData.messages dict
@@ -529,14 +576,21 @@ class FlowCore:
                 logger.debug(f"Found message template for {flow_type.value} day {day}")
                 return message_template
 
-            logger.warning(f"No message template found for {flow_type.value} day {day}. Using fallback message.")
+            logger.warning(
+                f"No message template found for {flow_type.value} day {day}. Using fallback message."
+            )
             return await self._get_fallback_template(flow_type, day)
 
         except Exception as e:
-            logger.error(f"Critical error getting message template for {flow_type.value} day {day}: {e}. Using fallback message.", exc_info=True)
+            logger.error(
+                f"Critical error getting message template for {flow_type.value} day {day}: {e}. Using fallback message.",
+                exc_info=True,
+            )
             return await self._get_fallback_template(flow_type, day)
 
-    async def _get_fallback_template(self, flow_type: FlowType, day: int) -> Optional[MessageTemplate]:
+    async def _get_fallback_template(
+        self, flow_type: FlowType, day: int
+    ) -> Optional[MessageTemplate]:
         """Provide fallback template when primary template loading fails."""
         try:
             from app.services.template_loader import MessageType as TemplateMessageType
@@ -544,45 +598,52 @@ class FlowCore:
             # Create a simple fallback message template in Portuguese
             fallback_messages = {
                 FlowType.INITIAL_15_DAYS: {
-                    'content': "Olá! Como você está se sentindo hoje?",
-                    'intent': 'daily_check_initial',
-                    'ai_instructions': 'Generate a warm, caring message asking about patient well-being'
+                    "content": "Olá! Como você está se sentindo hoje?",
+                    "intent": "daily_check_initial",
+                    "ai_instructions": "Generate a warm, caring message asking about patient well-being",
                 },
                 FlowType.DAYS_16_45: {
-                    'content': "Esperamos que você esteja bem. Como está seu tratamento?",
-                    'intent': 'treatment_followup',
-                    'ai_instructions': 'Generate an empathetic message about treatment progress'
+                    "content": "Esperamos que você esteja bem. Como está seu tratamento?",
+                    "intent": "treatment_followup",
+                    "ai_instructions": "Generate an empathetic message about treatment progress",
                 },
                 FlowType.MONTHLY_RECURRING: {
-                    'content': "Olá! É hora de fazer seu check-in mensal.",
-                    'intent': 'monthly_checkin',
-                    'ai_instructions': 'Generate a friendly monthly check-in message'
-                }
+                    "content": "Olá! É hora de fazer seu check-in mensal.",
+                    "intent": "monthly_checkin",
+                    "ai_instructions": "Generate a friendly monthly check-in message",
+                },
             }
 
             fallback_data = fallback_messages.get(
                 flow_type,
                 {
-                    'content': "Olá! Como podemos ajudá-lo hoje?",
-                    'intent': 'general_checkin',
-                    'ai_instructions': 'Generate a supportive, caring message'
-                }
+                    "content": "Olá! Como podemos ajudá-lo hoje?",
+                    "intent": "general_checkin",
+                    "ai_instructions": "Generate a supportive, caring message",
+                },
             )
 
             logger.warning(f"Using fallback template for {flow_type.value} day {day}")
 
             return MessageTemplate(
                 day=day,
-                intent=fallback_data['intent'],
-                base_content=fallback_data['content'],
+                intent=fallback_data["intent"],
+                base_content=fallback_data["content"],
                 core_elements={"greeting": True, "care": True, "support": True},
-                personalization_hints=["patient_name", "treatment_type", "patient_condition"],
-                ai_instructions=fallback_data['ai_instructions'],
+                personalization_hints=[
+                    "patient_name",
+                    "treatment_type",
+                    "patient_condition",
+                ],
+                ai_instructions=fallback_data["ai_instructions"],
                 message_type=TemplateMessageType.TEXT,
-                variations=[]  # No variations for fallback
+                variations=[],  # No variations for fallback
             )
         except Exception as e:
-            logger.error(f"Critical failure generating fallback template: {e}. Returning None.", exc_info=True)
+            logger.error(
+                f"Critical failure generating fallback template: {e}. Returning None.",
+                exc_info=True,
+            )
             return None
 
     async def reload_templates(self, flow_type: Optional[str] = None) -> Dict[str, str]:
@@ -598,10 +659,13 @@ class FlowCore:
             else:
                 # Reload all templates
                 from app.services.flow_template import FlowTemplateService
+
                 template_service = FlowTemplateService(self.db)
                 templates = template_service.get_all_templates()
                 for template in templates:
-                    await self.template_cache.invalidate_template_cache(template.flow_type)
+                    await self.template_cache.invalidate_template_cache(
+                        template.flow_type
+                    )
                     results[template.flow_type] = "reloaded"
 
             logger.info(f"Templates reloaded: {list(results.keys())}")
@@ -615,7 +679,9 @@ class FlowCore:
     # MESSAGE OPERATIONS (Shared between both services)
     # =============================================================================
 
-    async def calculate_optimal_send_time(self, patient: Patient, current_day: int) -> datetime:
+    async def calculate_optimal_send_time(
+        self, patient: Patient, current_day: int
+    ) -> datetime:
         """
         Calculate optimal send time for patient message with robust error handling.
 
@@ -629,48 +695,68 @@ class FlowCore:
         try:
             # Get patient timezone with validation
             try:
-                patient_tz = getattr(patient, 'timezone', 'UTC')
+                patient_tz = getattr(patient, "timezone", "UTC")
                 if not patient_tz or not isinstance(patient_tz, str):
-                    logger.warning(f"Invalid timezone for patient {patient.id}, using UTC")
-                    patient_tz = 'UTC'
+                    logger.warning(
+                        f"Invalid timezone for patient {patient.id}, using UTC"
+                    )
+                    patient_tz = "UTC"
             except Exception as tz_error:
                 logger.warning(f"Error reading patient timezone: {tz_error}, using UTC")
-                patient_tz = 'UTC'
+                patient_tz = "UTC"
 
             # Get patient preferences for message timing with validation
             try:
-                preferred_hour = getattr(patient, 'preferred_message_hour', 10)
-                if not isinstance(preferred_hour, int) or preferred_hour < 0 or preferred_hour > 23:
-                    logger.warning(f"Invalid preferred_hour {preferred_hour} for patient {patient.id}, using 10 AM")
+                preferred_hour = getattr(patient, "preferred_message_hour", 10)
+                if (
+                    not isinstance(preferred_hour, int)
+                    or preferred_hour < 0
+                    or preferred_hour > 23
+                ):
+                    logger.warning(
+                        f"Invalid preferred_hour {preferred_hour} for patient {patient.id}, using 10 AM"
+                    )
                     preferred_hour = 10
             except Exception as pref_error:
-                logger.warning(f"Error reading preferred hour: {pref_error}, using 10 AM default")
+                logger.warning(
+                    f"Error reading preferred hour: {pref_error}, using 10 AM default"
+                )
                 preferred_hour = 10
 
             # Calculate send time for today
             now = datetime.utcnow()
-            send_time = now.replace(hour=preferred_hour, minute=0, second=0, microsecond=0)
+            send_time = now.replace(
+                hour=preferred_hour, minute=0, second=0, microsecond=0
+            )
 
             # If the time has already passed today, schedule for tomorrow
             if send_time <= now:
                 send_time += timedelta(days=1)
-                logger.debug(f"Preferred time passed, scheduling for tomorrow: {send_time}")
+                logger.debug(
+                    f"Preferred time passed, scheduling for tomorrow: {send_time}"
+                )
 
             # Add some randomization to avoid all messages at exact same time
             try:
                 import random
+
                 random_minutes = random.randint(-30, 30)  # ±30 minutes
                 send_time += timedelta(minutes=random_minutes)
             except Exception as rand_error:
                 logger.warning(f"Randomization failed: {rand_error}, using exact hour")
 
-            logger.info(f"Calculated send time for patient {patient.id} on day {current_day}: "
-                       f"{send_time.isoformat()} (tz: {patient_tz}, hour: {preferred_hour})")
+            logger.info(
+                f"Calculated send time for patient {patient.id} on day {current_day}: "
+                f"{send_time.isoformat()} (tz: {patient_tz}, hour: {preferred_hour})"
+            )
             return send_time
 
         except Exception as e:
-            logger.error(f"Failed to calculate optimal send time for patient {patient.id} day {current_day}: {e}. "
-                        f"Using fallback: 1 hour from now", exc_info=True)
+            logger.error(
+                f"Failed to calculate optimal send time for patient {patient.id} day {current_day}: {e}. "
+                f"Using fallback: 1 hour from now",
+                exc_info=True,
+            )
             # Fallback to 1 hour from now
             return datetime.utcnow() + timedelta(hours=1)
 
@@ -685,7 +771,11 @@ class FlowCore:
             bool: True if error is transient and retry is recommended
         """
         transient_errors = [
-            'connection', 'timeout', 'temporary', 'unavailable', 'deadlock'
+            "connection",
+            "timeout",
+            "temporary",
+            "unavailable",
+            "deadlock",
         ]
         error_str = str(error).lower()
         return any(term in error_str for term in transient_errors)
@@ -705,7 +795,7 @@ class FlowCore:
             "flow_core": True,
             "database": True,
             "template_cache": False,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
         try:
@@ -725,11 +815,9 @@ class FlowCore:
             logger.error(f"Template cache health check failed: {e}")
             results["template_cache"] = False
 
-        results["overall_healthy"] = all([
-            results["flow_core"],
-            results["database"],
-            results["template_cache"]
-        ])
+        results["overall_healthy"] = all(
+            [results["flow_core"], results["database"], results["template_cache"]]
+        )
 
         return results
 
@@ -737,19 +825,22 @@ class FlowCore:
     # PRIVATE HELPER METHODS
     # =============================================================================
 
-    async def _transition_flow_type(self,
-                                  flow_state: PatientFlowState,
-                                  new_flow_type: FlowType,
-                                  current_day: int) -> None:
+    async def _transition_flow_type(
+        self, flow_state: PatientFlowState, new_flow_type: FlowType, current_day: int
+    ) -> None:
         """Transition flow to new type."""
         old_flow_type = flow_state.flow_type
 
         flow_state.flow_type = new_flow_type.value
         flow_state.state_data = flow_state.state_data or {}
-        flow_state.state_data["transitions"] = flow_state.state_data.get("transitions", [])
-        flow_state.state_data["transitions"].append({
-            "timestamp": datetime.utcnow().isoformat(),
-            "from_flow": old_flow_type,
-            "to_flow": new_flow_type.value,
-            "at_day": current_day
-        })
+        flow_state.state_data["transitions"] = flow_state.state_data.get(
+            "transitions", []
+        )
+        flow_state.state_data["transitions"].append(
+            {
+                "timestamp": datetime.utcnow().isoformat(),
+                "from_flow": old_flow_type,
+                "to_flow": new_flow_type.value,
+                "at_day": current_day,
+            }
+        )

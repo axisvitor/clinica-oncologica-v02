@@ -2,6 +2,7 @@
 Encoding Analyzer
 Detects encoding corruption patterns.
 """
+
 import re
 import logging
 from typing import Any
@@ -23,13 +24,17 @@ class EncodingAnalyzer(BaseAnalyzer):
         try:
             # Check for common encoding corruption patterns
             corruption_patterns = [
-                (r'Ã¡', 'latin1_to_utf8', 'á character corruption'),
-                (r'Ã©', 'latin1_to_utf8', 'é character corruption'),
-                (r'Ã§', 'latin1_to_utf8', 'ç character corruption'),
-                (r'â€™', 'windows1252_corruption', 'apostrophe corruption'),
-                (r'â€œ', 'windows1252_corruption', 'quote corruption'),
-                (r'\\x[0-9a-fA-F]{2}', 'hex_escape_corruption', 'hex escape sequences'),
-                (r'\\u[0-9a-fA-F]{4}', 'unicode_escape_corruption', 'unicode escape sequences'),
+                (r"Ã¡", "latin1_to_utf8", "á character corruption"),
+                (r"Ã©", "latin1_to_utf8", "é character corruption"),
+                (r"Ã§", "latin1_to_utf8", "ç character corruption"),
+                (r"â€™", "windows1252_corruption", "apostrophe corruption"),
+                (r"â€œ", "windows1252_corruption", "quote corruption"),
+                (r"\\x[0-9a-fA-F]{2}", "hex_escape_corruption", "hex escape sequences"),
+                (
+                    r"\\u[0-9a-fA-F]{4}",
+                    "unicode_escape_corruption",
+                    "unicode escape sequences",
+                ),
             ]
 
             for pattern, corruption_type, description in corruption_patterns:
@@ -42,7 +47,7 @@ class EncodingAnalyzer(BaseAnalyzer):
                         description=f"Encoding corruption: {description}",
                         detection_method="pattern_matching",
                         examples=[f"Entity {entity_id}: {text[:100]}..."],
-                        confidence=0.8
+                        confidence=0.8,
                     )
 
         except Exception as e:

@@ -5,6 +5,7 @@ The new domain model stores physician data differently, but several tests still
 import ``app.models.doctor.Doctor``. This lightweight Pydantic model provides
 the expected interface without duplicating ORM definitions.
 """
+
 from datetime import datetime
 from typing import Optional
 from uuid import UUID

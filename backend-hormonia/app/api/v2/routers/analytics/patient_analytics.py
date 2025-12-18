@@ -4,7 +4,7 @@ Handles patient engagement, risk assessment and patient-related metrics.
 """
 
 from typing import Optional, Dict
-from datetime import datetime, timedelta
+from datetime import datetime
 from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 
@@ -34,11 +34,11 @@ router = APIRouter()
     "/patient-engagement",
     response_model=PatientEngagement,
     summary="Get patient engagement metrics",
-    description="Get patient engagement statistics and distribution (ADMIN/DOCTOR only)"
+    description="Get patient engagement statistics and distribution (ADMIN/DOCTOR only)",
 )
 async def get_patient_engagement(
-    db = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user_from_session),
 ):
     """
     Get patient engagement metrics.
@@ -65,18 +65,13 @@ async def get_patient_engagement(
 
     # Get quiz counts per patient
     patient_query = db.query(
-        Patient.id,
-        func.count(QuizSession.id).label("quiz_count")
-    ).outerjoin(
-        QuizSession, Patient.id == QuizSession.patient_id
-    )
+        Patient.id, func.count(QuizSession.id).label("quiz_count")
+    ).outerjoin(QuizSession, Patient.id == QuizSession.patient_id)
 
     if role != UserRole.ADMIN and user_uuid:
         patient_query = patient_query.filter(Patient.doctor_id == user_uuid)
 
-    patient_quiz_counts = patient_query.group_by(
-        Patient.id
-    ).all()
+    patient_quiz_counts = patient_query.group_by(Patient.id).all()
 
     # Categorize patients
     no_quizzes = sum(1 for _, count in patient_quiz_counts if count == 0)
@@ -111,10 +106,12 @@ async def get_patient_engagement(
 async def get_risk_assessment(
     risk_level: Optional[RiskLevel] = Query(None, description="Filter by risk level"),
     limit: int = Query(50, ge=1, le=200, description="Maximum number of patients"),
-    lookback_days: int = Query(7, ge=1, le=90, description="Days to look back for engagement data"),
-    current_user = Depends(get_current_user_from_session),
+    lookback_days: int = Query(
+        7, ge=1, le=90, description="Days to look back for engagement data"
+    ),
+    current_user=Depends(get_current_user_from_session),
     analytics_service: FlowAnalyticsService = Depends(get_flow_analytics_service),
-    db = Depends(get_db),
+    db=Depends(get_db),
 ):
     """
     Analyze patient interactions to surface at-risk patients along with context.
@@ -147,9 +144,7 @@ async def get_risk_assessment(
     patient_lookup: Dict[UUID, Patient] = {}
     if patient_ids:
         db_patients = (
-            db.query(Patient.id, Patient.name)
-            .filter(Patient.id.in_(patient_ids))
-            .all()
+            db.query(Patient.id, Patient.name).filter(Patient.id.in_(patient_ids)).all()
         )
         patient_lookup = {row.id: row for row in db_patients}
 

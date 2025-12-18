@@ -133,9 +133,7 @@ class MetricsCollector:
 
         # Update status count
         prev_status = (
-            AlertStatus.ACKNOWLEDGED
-            if alert.acknowledged_at
-            else AlertStatus.ACTIVE
+            AlertStatus.ACKNOWLEDGED if alert.acknowledged_at else AlertStatus.ACTIVE
         )
         self._by_status[prev_status] = max(0, self._by_status[prev_status] - 1)
         self._by_status[AlertStatus.RESOLVED] += 1

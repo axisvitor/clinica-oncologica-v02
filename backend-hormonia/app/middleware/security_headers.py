@@ -125,9 +125,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 "frame-ancestors 'none'"
             )
 
-    async def dispatch(
-        self, request: Request, call_next: Callable
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """
         Process the request and add security headers to the response.
 
@@ -159,7 +157,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         # Content-Security-Policy: Prevents XSS and injection attacks
         # Check if CSP nonce is available from CSPNonceMiddleware
-        nonce = getattr(request.state, 'csp_nonce', None)
+        nonce = getattr(request.state, "csp_nonce", None)
         csp = self.csp_policy if self.csp_policy else self._get_default_csp(nonce)
 
         # Only set CSP if not already set by CSPNonceMiddleware

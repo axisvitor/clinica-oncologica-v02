@@ -14,10 +14,9 @@ Example Attack Prevented:
 """
 
 import logging
-import mimetypes
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, Set, Tuple
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +24,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MimeValidationResult:
     """MIME validation result."""
+
     is_valid: bool
     declared_mime: str
     actual_mime: str
@@ -70,17 +70,23 @@ class MimeTypeValidator:
 
     # File extensions that MUST match MIME type exactly
     STRICT_EXTENSIONS = {
-        ".exe", ".dll", ".so", ".dylib",  # Executables/libraries
-        ".sh", ".bat", ".cmd", ".ps1",  # Scripts
-        ".jar", ".war", ".ear",  # Java archives
-        ".deb", ".rpm",  # Package managers
+        ".exe",
+        ".dll",
+        ".so",
+        ".dylib",  # Executables/libraries
+        ".sh",
+        ".bat",
+        ".cmd",
+        ".ps1",  # Scripts
+        ".jar",
+        ".war",
+        ".ear",  # Java archives
+        ".deb",
+        ".rpm",  # Package managers
     }
 
     def __init__(
-        self,
-        enabled: bool = True,
-        strict: bool = False,
-        allow_variance: bool = True
+        self, enabled: bool = True, strict: bool = False, allow_variance: bool = True
     ):
         """
         Initialize MIME validator.
@@ -97,6 +103,7 @@ class MimeTypeValidator:
         # Try to import python-magic
         try:
             import magic
+
             self.magic = magic
             self._magic_available = True
             logger.info("MIME validation initialized with python-magic")
@@ -109,10 +116,7 @@ class MimeTypeValidator:
             )
 
     async def validate_file(
-        self,
-        file_path: Path,
-        declared_mime: str,
-        file_extension: Optional[str] = None
+        self, file_path: Path, declared_mime: str, file_extension: Optional[str] = None
     ) -> MimeValidationResult:
         """
         Validate file MIME type.
@@ -131,7 +135,7 @@ class MimeTypeValidator:
                 declared_mime=declared_mime,
                 actual_mime="unknown",
                 message="MIME validation disabled or python-magic unavailable",
-                confidence=0.0
+                confidence=0.0,
             )
 
         try:
@@ -153,15 +157,15 @@ class MimeTypeValidator:
                     extra={
                         "file_path": str(file_path),
                         "declared_mime": declared_mime,
-                        "actual_mime": actual_mime
-                    }
+                        "actual_mime": actual_mime,
+                    },
                 )
                 return MimeValidationResult(
                     is_valid=False,
                     declared_mime=declared_mime,
                     actual_mime=actual_mime,
                     message=f"Dangerous file type detected: {actual_normalized}",
-                    confidence=1.0
+                    confidence=1.0,
                 )
 
             # Exact match
@@ -171,7 +175,7 @@ class MimeTypeValidator:
                     declared_mime=declared_mime,
                     actual_mime=actual_mime,
                     message="MIME types match exactly",
-                    confidence=1.0
+                    confidence=1.0,
                 )
 
             # Fuzzy match (same category)
@@ -182,7 +186,7 @@ class MimeTypeValidator:
                         declared_mime=declared_mime,
                         actual_mime=actual_mime,
                         message="MIME types are similar (same category)",
-                        confidence=0.8
+                        confidence=0.8,
                     )
 
             # Mismatch detected
@@ -193,8 +197,8 @@ class MimeTypeValidator:
                     "declared_mime": declared_mime,
                     "actual_mime": actual_mime,
                     "extension": extension,
-                    "requires_strict": requires_strict
-                }
+                    "requires_strict": requires_strict,
+                },
             )
 
             return MimeValidationResult(
@@ -202,7 +206,7 @@ class MimeTypeValidator:
                 declared_mime=declared_mime,
                 actual_mime=actual_mime,
                 message=f"MIME type mismatch: declared {declared_mime}, actual {actual_mime}",
-                confidence=1.0
+                confidence=1.0,
             )
 
         except Exception as e:
@@ -213,7 +217,7 @@ class MimeTypeValidator:
                 declared_mime=declared_mime,
                 actual_mime="error",
                 message=f"Validation error (fail-open): {str(e)}",
-                confidence=0.0
+                confidence=0.0,
             )
 
     def _normalize_mime(self, mime_type: str) -> str:

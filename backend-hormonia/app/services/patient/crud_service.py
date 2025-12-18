@@ -8,6 +8,7 @@ File: backend-hormonia/app/services/patient/crud_service.py
 LOC: ~100
 Responsibility: CRUD operations only
 """
+
 from datetime import datetime
 from typing import Any, List, Optional
 from uuid import UUID
@@ -94,11 +95,7 @@ class PatientCRUDService:
         )
 
     @with_db_retry(max_retries=3)
-    def update_patient(
-        self,
-        patient_id: UUID,
-        patient_data: PatientUpdate
-    ) -> Patient:
+    def update_patient(self, patient_id: UUID, patient_data: PatientUpdate) -> Patient:
         """Update patient information."""
         patient = self.repository.get_by_id(patient_id)
         if not patient:
@@ -135,10 +132,11 @@ class PatientCRUDService:
     @with_db_retry(max_retries=3)
     def restore_patient(self, patient_id: UUID) -> bool:
         """Restore a soft-deleted patient."""
-        patient = self.db.query(Patient).filter(
-            Patient.id == patient_id,
-            Patient.deleted_at.isnot(None)
-        ).first()
+        patient = (
+            self.db.query(Patient)
+            .filter(Patient.id == patient_id, Patient.deleted_at.isnot(None))
+            .first()
+        )
 
         if not patient:
             return False

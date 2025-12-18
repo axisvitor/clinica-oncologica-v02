@@ -5,7 +5,6 @@ Handles message generation using AI services with circuit breaker protection.
 """
 
 import logging
-from typing import Dict, Any, Optional
 
 from app.models.patient import Patient
 from app.services.template_loader import MessageTemplate
@@ -27,11 +26,7 @@ class MessageComposer:
     - Build patient context for AI processing
     """
 
-    def __init__(
-        self,
-        ai_service: AIService,
-        ai_circuit_breaker: CircuitBreaker
-    ):
+    def __init__(self, ai_service: AIService, ai_circuit_breaker: CircuitBreaker):
         """
         Initialize MessageComposer.
 
@@ -49,7 +44,7 @@ class MessageComposer:
         patient: Patient,
         message_template: MessageTemplate,
         current_day: int,
-        flow_type: str
+        flow_type: str,
     ) -> str:
         """
         Generate personalized message using AI service with circuit breaker.
@@ -66,9 +61,7 @@ class MessageComposer:
         try:
             # Create patient context for AI
             patient_context = self._build_patient_context(
-                patient,
-                current_day,
-                flow_type
+                patient, current_day, flow_type
             )
 
             # Use circuit breaker for AI service call
@@ -76,7 +69,7 @@ class MessageComposer:
                 response = await self.ai_service.humanize_message(
                     template_message=message_template.base_content,
                     patient_context=patient_context,
-                    message_type=message_template.intent
+                    message_type=message_template.intent,
                 )
                 return response.personalized_message
 
@@ -89,15 +82,11 @@ class MessageComposer:
             logger.warning(f"AI personalization failed, using template: {e}")
             # Fallback to template content with basic personalization
             return self._apply_basic_personalization(
-                message_template.base_content,
-                patient
+                message_template.base_content, patient
             )
 
     def _build_patient_context(
-        self,
-        patient: Patient,
-        current_day: int,
-        flow_type: str
+        self, patient: Patient, current_day: int, flow_type: str
     ) -> PatientContext:
         """
         Build patient context for AI processing.
@@ -118,13 +107,11 @@ class MessageComposer:
             age=patient.age,
             recent_responses=[],  # Could be populated from message history
             medical_history={},
-            preferences={}
+            preferences={},
         )
 
     def _apply_basic_personalization(
-        self,
-        template_content: str,
-        patient: Patient
+        self, template_content: str, patient: Patient
     ) -> str:
         """
         Apply basic personalization to template (fallback).
@@ -137,8 +124,7 @@ class MessageComposer:
             Personalized content
         """
         personalized = template_content.replace(
-            "{patient_name}",
-            patient.name or "paciente"
+            "{patient_name}", patient.name or "paciente"
         )
 
         # Add more basic replacements as needed

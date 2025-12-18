@@ -6,13 +6,13 @@ Shared dependencies and helper functions for admin extension endpoints.
 import logging
 from typing import Dict, Any, Optional, Union
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.services.audit import AuditService
-from app.dependencies import get_request_context, RequestContext
+from app.dependencies import RequestContext
 from app.dependencies.auth_dependencies import get_current_active_admin
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 async def get_admin_user(
     admin_data: Dict[str, Any] = Depends(get_current_active_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> Union[User, Dict[str, Any]]:
     """
     Dependency to verify admin access using session-based authentication.
@@ -56,7 +56,7 @@ async def log_admin_extension_action(
     action: str,
     admin_user: Union[User, Dict[str, Any]],
     context: RequestContext,
-    additional_data: Optional[Dict[str, Any]] = None
+    additional_data: Optional[Dict[str, Any]] = None,
 ) -> None:
     """
     Log admin extension actions for audit trail.
@@ -81,7 +81,7 @@ async def log_admin_extension_action(
             "action": action,
             "admin_user_id": str(user_id) if user_id else "unknown",
             "admin_user_email": user_email,
-            **(additional_data or {})
+            **(additional_data or {}),
         }
 
         audit_service.log_event(
@@ -92,7 +92,7 @@ async def log_admin_extension_action(
             ip_address=context.ip_address,
             user_agent=context.user_agent,
             event_data=event_data,
-            result="success"
+            result="success",
         )
     except Exception as e:
         logger.error(f"Failed to log admin extension action {action}: {e}")

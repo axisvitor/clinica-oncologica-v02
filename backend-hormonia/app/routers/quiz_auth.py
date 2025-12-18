@@ -3,13 +3,14 @@ Quiz Authentication Router - Secure httpOnly cookie-based authentication
 SECURITY FIX: Replaces localStorage token storage with secure cookies
 CVSS 8.1 HIGH → RESOLVED
 """
+
 from fastapi import APIRouter, Depends, HTTPException, Response, Cookie, status
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from datetime import timedelta
 
-from app.utils.security import verify_password, create_access_token
+from app.utils.security import verify_password
 from app.models.user import User
 from app.services import ServiceProvider
 from app.dependencies.auth_dependencies import _get_service_provider
@@ -40,7 +41,7 @@ class LogoutResponse(BaseModel):
 async def quiz_login(
     request: LoginRequest,
     response: Response,
-    services: ServiceProvider = Depends(_get_service_provider)
+    services: ServiceProvider = Depends(_get_service_provider),
 ):
     """
     Quiz login with httpOnly cookie session
@@ -65,38 +66,34 @@ async def quiz_login(
 
     if not user or not verify_password(request.password, user.hashed_password):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password"
         )
 
     if not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is disabled"
+            status_code=status.HTTP_403_FORBIDDEN, detail="User account is disabled"
         )
 
     # Create session
     session_id = services.session_service.create_session(
         user_id=str(user.id),
-        metadata={
-            "email": user.email,
-            "role": user.role,
-            "login_type": "quiz"
-        }
+        metadata={"email": user.email, "role": user.role, "login_type": "quiz"},
     )
 
     # Set httpOnly cookie
-    cookie_max_age = int(timedelta(days=30).total_seconds()) if request.remember_me else None
+    cookie_max_age = (
+        int(timedelta(days=30).total_seconds()) if request.remember_me else None
+    )
 
     response.set_cookie(
         key="quiz_session",
         value=session_id,
         httponly=True,  # ✅ Prevents JavaScript access
         secure=settings.SESSION_ENABLE_COOKIE_SECURE,  # ✅ HTTPS only in production
-        samesite="lax", # ✅ CSRF protection
+        samesite="lax",  # ✅ CSRF protection
         max_age=cookie_max_age,
         path="/",
-        domain=None     # Same domain only
+        domain=None,  # Same domain only
     )
 
     return LoginResponse(
@@ -106,8 +103,8 @@ async def quiz_login(
             "id": str(user.id),
             "email": user.email,
             "name": user.name,
-            "role": user.role
-        }
+            "role": user.role,
+        },
     )
 
 
@@ -115,7 +112,7 @@ async def quiz_login(
 async def quiz_logout(
     response: Response,
     quiz_session: Optional[str] = Cookie(None),
-    services: ServiceProvider = Depends(_get_service_provider)
+    services: ServiceProvider = Depends(_get_service_provider),
 ):
     """
     Quiz logout - Clear session and cookie
@@ -132,22 +129,15 @@ async def quiz_logout(
         services.session_service.delete_session(quiz_session)
 
     # Clear cookie
-    response.delete_cookie(
-        key="quiz_session",
-        path="/",
-        domain=None
-    )
+    response.delete_cookie(key="quiz_session", path="/", domain=None)
 
-    return LogoutResponse(
-        success=True,
-        message="Logged out successfully"
-    )
+    return LogoutResponse(success=True, message="Logged out successfully")
 
 
 @router.get("/me")
 async def get_current_quiz_user(
     quiz_session: Optional[str] = Cookie(None),
-    services: ServiceProvider = Depends(_get_service_provider)
+    services: ServiceProvider = Depends(_get_service_provider),
 ):
     """
     Get current authenticated user from cookie session
@@ -164,8 +154,7 @@ async def get_current_quiz_user(
     """
     if not quiz_session:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
         )
 
     # Get user_id from session
@@ -174,7 +163,7 @@ async def get_current_quiz_user(
     if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session expired or invalid"
+            detail="Session expired or invalid",
         )
 
     # Refresh session if needed
@@ -186,7 +175,7 @@ async def get_current_quiz_user(
     if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or disabled"
+            detail="User not found or disabled",
         )
 
     return {
@@ -194,14 +183,14 @@ async def get_current_quiz_user(
         "email": user.email,
         "name": user.name,
         "role": user.role,
-        "is_active": user.is_active
+        "is_active": user.is_active,
     }
 
 
 @router.post("/refresh")
 async def refresh_quiz_session(
     quiz_session: Optional[str] = Cookie(None),
-    services: ServiceProvider = Depends(_get_service_provider)
+    services: ServiceProvider = Depends(_get_service_provider),
 ):
     """
     Manually refresh session TTL
@@ -215,8 +204,7 @@ async def refresh_quiz_session(
     """
     if not quiz_session:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
         )
 
     refreshed = services.session_service.refresh_session(quiz_session)
@@ -224,7 +212,7 @@ async def refresh_quiz_session(
     if not refreshed:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session expired or invalid"
+            detail="Session expired or invalid",
         )
 
     return {"success": True, "message": "Session refreshed"}

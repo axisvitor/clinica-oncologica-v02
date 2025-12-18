@@ -2,9 +2,9 @@
 Unified cache abstraction service for consolidating cache operations.
 Provides consistent cache interface and invalidation patterns across the system.
 """
+
 import logging
 from typing import Any, Dict, List, Optional, Union
-from datetime import timedelta
 from uuid import UUID
 
 from app.infrastructure.cache import UnifiedCacheManager, get_unified_cache_manager
@@ -32,10 +32,7 @@ class UnifiedCacheService:
 
     # Patient Cache Operations
     def cache_patient_data(
-        self,
-        patient_id: Union[str, UUID],
-        data: Any,
-        ttl: Optional[int] = None
+        self, patient_id: Union[str, UUID], data: Any, ttl: Optional[int] = None
     ) -> bool:
         """
         Cache patient data with consistent TTL and key pattern.
@@ -91,10 +88,7 @@ class UnifiedCacheService:
 
     # Flow Cache Operations
     def cache_flow_data(
-        self,
-        flow_id: Union[str, UUID],
-        data: Any,
-        ttl: Optional[int] = None
+        self, flow_id: Union[str, UUID], data: Any, ttl: Optional[int] = None
     ) -> bool:
         """
         Cache flow data with consistent TTL and key pattern.
@@ -131,7 +125,7 @@ class UnifiedCacheService:
         patient_id: Union[str, UUID],
         flow_type: str,
         state_data: Any,
-        ttl: Optional[int] = None
+        ttl: Optional[int] = None,
     ) -> bool:
         """
         Cache patient flow state data.
@@ -152,9 +146,7 @@ class UnifiedCacheService:
         return self.cache_manager.set(key, state_data, ttl=ttl, namespace="flows")
 
     def get_cached_patient_flow_state(
-        self,
-        patient_id: Union[str, UUID],
-        flow_type: str
+        self, patient_id: Union[str, UUID], flow_type: str
     ) -> Optional[Any]:
         """
         Get cached patient flow state.
@@ -183,9 +175,7 @@ class UnifiedCacheService:
         return self.cache_manager.delete(key, namespace="flows")
 
     def invalidate_patient_flow_cache(
-        self,
-        patient_id: Union[str, UUID],
-        flow_type: Optional[str] = None
+        self, patient_id: Union[str, UUID], flow_type: Optional[str] = None
     ) -> int:
         """
         Invalidate patient flow cache entries.
@@ -206,10 +196,7 @@ class UnifiedCacheService:
 
     # Template Cache Operations
     def cache_template_data(
-        self,
-        template_id: str,
-        data: Any,
-        ttl: Optional[int] = None
+        self, template_id: str, data: Any, ttl: Optional[int] = None
     ) -> bool:
         """
         Cache template data.
@@ -261,14 +248,13 @@ class UnifiedCacheService:
         Returns:
             Number of entries invalidated
         """
-        return self.cache_manager.invalidate_pattern("template:*", namespace="templates")
+        return self.cache_manager.invalidate_pattern(
+            "template:*", namespace="templates"
+        )
 
     # Quiz Cache Operations
     def cache_quiz_data(
-        self,
-        quiz_id: Union[str, UUID],
-        data: Any,
-        ttl: Optional[int] = None
+        self, quiz_id: Union[str, UUID], data: Any, ttl: Optional[int] = None
     ) -> bool:
         """
         Cache quiz data.
@@ -301,10 +287,7 @@ class UnifiedCacheService:
         return self.cache_manager.get(key, namespace="quiz")
 
     def cache_quiz_session(
-        self,
-        session_id: Union[str, UUID],
-        session_data: Any,
-        ttl: Optional[int] = None
+        self, session_id: Union[str, UUID], session_data: Any, ttl: Optional[int] = None
     ) -> bool:
         """
         Cache quiz session data.
@@ -364,10 +347,7 @@ class UnifiedCacheService:
 
     # User/Doctor Cache Operations
     def cache_user_data(
-        self,
-        user_id: Union[str, UUID],
-        data: Any,
-        ttl: Optional[int] = None
+        self, user_id: Union[str, UUID], data: Any, ttl: Optional[int] = None
     ) -> bool:
         """
         Cache user/doctor data.
@@ -413,7 +393,9 @@ class UnifiedCacheService:
         return self.cache_manager.delete(key, namespace="users")
 
     # Bulk Operations
-    def invalidate_patient_related_cache(self, patient_id: Union[str, UUID]) -> Dict[str, int]:
+    def invalidate_patient_related_cache(
+        self, patient_id: Union[str, UUID]
+    ) -> Dict[str, int]:
         """
         Invalidate all cache entries related to a specific patient.
 
@@ -433,7 +415,9 @@ class UnifiedCacheService:
 
         # Invalidate quiz sessions for patient
         pattern = f"quiz_session:*:{patient_id}:*"
-        results["quiz"] = self.cache_manager.invalidate_pattern(pattern, namespace="quiz")
+        results["quiz"] = self.cache_manager.invalidate_pattern(
+            pattern, namespace="quiz"
+        )
 
         logger.info(f"Invalidated patient {patient_id} related cache: {results}")
         return results
@@ -452,11 +436,15 @@ class UnifiedCacheService:
 
         # Invalidate flow templates
         pattern = f"template:*:{flow_type}:*"
-        results["templates"] = self.cache_manager.invalidate_pattern(pattern, namespace="templates")
+        results["templates"] = self.cache_manager.invalidate_pattern(
+            pattern, namespace="templates"
+        )
 
         # Invalidate patient flows of this type
         pattern = f"patient_flow:*:{flow_type}"
-        results["flows"] = self.cache_manager.invalidate_pattern(pattern, namespace="flows")
+        results["flows"] = self.cache_manager.invalidate_pattern(
+            pattern, namespace="flows"
+        )
 
         logger.info(f"Invalidated flow type {flow_type} related cache: {results}")
         return results
@@ -500,11 +488,7 @@ class UnifiedCacheService:
             Dictionary with cache health information
         """
         try:
-            health = {
-                "status": "healthy",
-                "namespaces": {},
-                "errors": []
-            }
+            health = {"status": "healthy", "namespaces": {}, "errors": []}
 
             namespaces = ["patients", "flows", "templates", "quiz", "users"]
 
@@ -515,29 +499,37 @@ class UnifiedCacheService:
                     set_success = self.cache_manager.set(
                         test_key, "test", ttl=60, namespace=namespace
                     )
-                    get_success = self.cache_manager.get(test_key, namespace=namespace) is not None
-                    delete_success = self.cache_manager.delete(test_key, namespace=namespace)
+                    get_success = (
+                        self.cache_manager.get(test_key, namespace=namespace)
+                        is not None
+                    )
+                    delete_success = self.cache_manager.delete(
+                        test_key, namespace=namespace
+                    )
 
                     health["namespaces"][namespace] = {
                         "set": set_success,
                         "get": get_success,
                         "delete": delete_success,
-                        "operational": set_success and get_success and delete_success
+                        "operational": set_success and get_success and delete_success,
                     }
 
                     if not (set_success and get_success and delete_success):
-                        health["errors"].append(f"Namespace {namespace} has operational issues")
+                        health["errors"].append(
+                            f"Namespace {namespace} has operational issues"
+                        )
 
                 except Exception as e:
                     health["namespaces"][namespace] = {
                         "error": str(e),
-                        "operational": False
+                        "operational": False,
                     }
                     health["errors"].append(f"Error testing namespace {namespace}: {e}")
 
             # Overall health status
             operational_namespaces = sum(
-                1 for ns_health in health["namespaces"].values()
+                1
+                for ns_health in health["namespaces"].values()
                 if ns_health.get("operational", False)
             )
 
@@ -553,7 +545,7 @@ class UnifiedCacheService:
                 "status": "critical",
                 "error": str(e),
                 "namespaces": {},
-                "errors": [f"Health check failed: {e}"]
+                "errors": [f"Health check failed: {e}"],
             }
 
     def clear_all_cache(self) -> Dict[str, int]:
@@ -576,7 +568,9 @@ class UnifiedCacheService:
                 results[namespace] = 0
 
         total_cleared = sum(results.values())
-        logger.warning(f"Cleared all cache entries: {total_cleared} total across {len(namespaces)} namespaces")
+        logger.warning(
+            f"Cleared all cache entries: {total_cleared} total across {len(namespaces)} namespaces"
+        )
 
         return results
 
@@ -638,7 +632,9 @@ def invalidate_template_cache(template_id: str) -> bool:
     return get_unified_cache_service().invalidate_template_cache(template_id)
 
 
-def invalidate_all_patient_related_cache(patient_id: Union[str, UUID]) -> Dict[str, int]:
+def invalidate_all_patient_related_cache(
+    patient_id: Union[str, UUID],
+) -> Dict[str, int]:
     """
     Convenience function to invalidate all patient-related cache.
 

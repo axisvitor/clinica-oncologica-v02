@@ -2,8 +2,8 @@
 Message-based follow-up action scheduler.
 Handles scheduling of message-based follow-ups.
 """
+
 import logging
-from datetime import datetime
 
 from ..models import FollowUpAction
 from app.models.message import Message, MessageDirection, MessageType, MessageStatus
@@ -50,8 +50,8 @@ class MessageScheduler:
                     "follow_up_action_id": str(action.action_id),
                     "follow_up_type": action.follow_up_type.value,
                     "priority": action.priority,
-                    "ai_generated": True
-                }
+                    "ai_generated": True,
+                },
             )
 
             # Save message
@@ -63,7 +63,7 @@ class MessageScheduler:
             await self.message_scheduler.schedule_message(
                 message_id=message.id,
                 send_time=action.scheduled_for,
-                priority=action.priority
+                priority=action.priority,
             )
 
             logger.info(f"Scheduled message for action {action.action_id}")

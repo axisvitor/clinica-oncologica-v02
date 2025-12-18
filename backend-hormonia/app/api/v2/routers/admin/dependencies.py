@@ -50,6 +50,5 @@ def _require_admin(current_user: User) -> None:
     """
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
         )

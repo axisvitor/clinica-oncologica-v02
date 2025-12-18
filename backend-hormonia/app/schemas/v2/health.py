@@ -5,7 +5,7 @@ Comprehensive Pydantic V2 schemas for unified health monitoring system.
 Consolidates all health check, metrics, and monitoring schemas.
 """
 
-from typing import Optional, List, Dict, Any, Literal
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
@@ -15,8 +15,10 @@ from enum import Enum
 # Enums
 # ============================================================================
 
+
 class HealthStatus(str, Enum):
     """Health status levels."""
+
     HEALTHY = "healthy"
     DEGRADED = "degraded"
     UNHEALTHY = "unhealthy"
@@ -25,6 +27,7 @@ class HealthStatus(str, Enum):
 
 class IncidentSeverity(str, Enum):
     """Incident severity levels."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -33,6 +36,7 @@ class IncidentSeverity(str, Enum):
 
 class AlertLevel(str, Enum):
     """Alert levels for health monitoring."""
+
     INFO = "info"
     WARNING = "warning"
     ERROR = "error"
@@ -42,6 +46,7 @@ class AlertLevel(str, Enum):
 # ============================================================================
 # Basic Health Responses (PUBLIC endpoints)
 # ============================================================================
+
 
 class HealthResponse(BaseModel):
     """Basic health check response (PUBLIC endpoint)."""
@@ -57,7 +62,7 @@ class HealthResponse(BaseModel):
                 "status": "healthy",
                 "timestamp": "2025-01-17T15:00:00Z",
                 "version": "2.0.0",
-                "environment": "production"
+                "environment": "production",
             }
         }
     )
@@ -74,12 +79,8 @@ class ReadinessProbe(BaseModel):
         json_schema_extra={
             "example": {
                 "ready": True,
-                "checks": {
-                    "database": True,
-                    "redis": True,
-                    "workers": True
-                },
-                "timestamp": "2025-01-17T15:00:00Z"
+                "checks": {"database": True, "redis": True, "workers": True},
+                "timestamp": "2025-01-17T15:00:00Z",
             }
         }
     )
@@ -97,7 +98,7 @@ class LivenessProbe(BaseModel):
             "example": {
                 "alive": True,
                 "uptime_seconds": 3600,
-                "timestamp": "2025-01-17T15:00:00Z"
+                "timestamp": "2025-01-17T15:00:00Z",
             }
         }
     )
@@ -106,6 +107,7 @@ class LivenessProbe(BaseModel):
 # ============================================================================
 # Component Health Checks
 # ============================================================================
+
 
 class DatabaseHealth(BaseModel):
     """Database health check details."""
@@ -129,7 +131,7 @@ class DatabaseHealth(BaseModel):
                 "available_connections": 15,
                 "pool_utilization_percent": 25.0,
                 "rls_enabled": True,
-                "migrations_current": True
+                "migrations_current": True,
             }
         }
     )
@@ -153,7 +155,7 @@ class RedisHealth(BaseModel):
                 "memory_used_mb": 128.5,
                 "memory_peak_mb": 256.0,
                 "hit_rate_percent": 85.5,
-                "connected_clients": 10
+                "connected_clients": 10,
             }
         }
     )
@@ -179,7 +181,7 @@ class WorkerHealth(BaseModel):
                 "failed_tasks_24h": 2,
                 "pending_tasks": 5,
                 "queue_size": 17,
-                "avg_task_duration_seconds": 2.5
+                "avg_task_duration_seconds": 2.5,
             }
         }
     )
@@ -201,7 +203,7 @@ class ExternalServiceHealth(BaseModel):
                 "status": "healthy",
                 "latency_ms": 150.0,
                 "last_check": "2025-01-17T15:00:00Z",
-                "error_message": None
+                "error_message": None,
             }
         }
     )
@@ -223,7 +225,7 @@ class StorageHealth(BaseModel):
                 "available_space_gb": 450.0,
                 "used_space_gb": 50.0,
                 "total_space_gb": 500.0,
-                "utilization_percent": 10.0
+                "utilization_percent": 10.0,
             }
         }
     )
@@ -232,6 +234,7 @@ class StorageHealth(BaseModel):
 # ============================================================================
 # Detailed Health Response
 # ============================================================================
+
 
 class DetailedHealthResponse(BaseModel):
     """Detailed health check with all components."""
@@ -246,7 +249,9 @@ class DetailedHealthResponse(BaseModel):
     database: DatabaseHealth = Field(description="Database health")
     redis: RedisHealth = Field(description="Redis health")
     workers: WorkerHealth = Field(description="Worker health")
-    external_services: List[ExternalServiceHealth] = Field(description="External services")
+    external_services: List[ExternalServiceHealth] = Field(
+        description="External services"
+    )
     storage: StorageHealth = Field(description="Storage health")
 
     # Performance
@@ -267,7 +272,7 @@ class DetailedHealthResponse(BaseModel):
                 "external_services": [],
                 "storage": {"status": "healthy", "utilization_percent": 10.0},
                 "response_time_ms": 25.5,
-                "uptime_seconds": 3600
+                "uptime_seconds": 3600,
             }
         }
     )
@@ -276,6 +281,7 @@ class DetailedHealthResponse(BaseModel):
 # ============================================================================
 # Metrics Responses
 # ============================================================================
+
 
 class SystemMetrics(BaseModel):
     """System resource metrics."""
@@ -301,7 +307,7 @@ class SystemMetrics(BaseModel):
                 "disk_free_gb": 450.0,
                 "network_bytes_sent": 1048576,
                 "network_bytes_recv": 2097152,
-                "process_count": 128
+                "process_count": 128,
             }
         }
     )
@@ -325,7 +331,7 @@ class ApplicationMetrics(BaseModel):
                 "avg_response_time_ms": 125.5,
                 "error_rate_percent": 0.5,
                 "active_sessions": 150,
-                "cache_hit_rate": 85.5
+                "cache_hit_rate": 85.5,
             }
         }
     )
@@ -345,7 +351,7 @@ class CustomMetrics(BaseModel):
                 "active_patients": 250,
                 "messages_sent_24h": 1500,
                 "quizzes_completed_24h": 125,
-                "alerts_triggered_24h": 5
+                "alerts_triggered_24h": 5,
             }
         }
     )
@@ -360,8 +366,8 @@ class PrometheusMetrics(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "metrics": "# HELP health_status Current health status\nhealth_status{component=\"database\"} 1.0\n",
-                "timestamp": "2025-01-17T15:00:00Z"
+                "metrics": '# HELP health_status Current health status\nhealth_status{component="database"} 1.0\n',
+                "timestamp": "2025-01-17T15:00:00Z",
             }
         }
     )
@@ -381,7 +387,7 @@ class MetricsResponse(BaseModel):
                 "system": {"cpu_percent": 45.2, "memory_percent": 62.5},
                 "application": {"total_requests": 125000, "error_rate_percent": 0.5},
                 "custom": {"active_patients": 250, "messages_sent_24h": 1500},
-                "timestamp": "2025-01-17T15:00:00Z"
+                "timestamp": "2025-01-17T15:00:00Z",
             }
         }
     )
@@ -390,6 +396,7 @@ class MetricsResponse(BaseModel):
 # ============================================================================
 # Platform-Specific Health
 # ============================================================================
+
 
 class RailwayHealth(BaseModel):
     """Railway-specific health check."""
@@ -407,7 +414,7 @@ class RailwayHealth(BaseModel):
                 "service_id": "srv_abc123",
                 "deployment_id": "dep_xyz789",
                 "region": "us-west1",
-                "environment_variables_set": True
+                "environment_variables_set": True,
             }
         }
     )
@@ -419,7 +426,9 @@ class ProductionHealth(BaseModel):
     status: HealthStatus = Field(description="Production status")
     environment: str = Field(description="Environment name")
     build_version: Optional[str] = Field(None, description="Build version")
-    deployment_time: Optional[datetime] = Field(None, description="Deployment timestamp")
+    deployment_time: Optional[datetime] = Field(
+        None, description="Deployment timestamp"
+    )
     debug_mode: bool = Field(description="Debug mode enabled")
 
     model_config = ConfigDict(
@@ -429,7 +438,7 @@ class ProductionHealth(BaseModel):
                 "environment": "production",
                 "build_version": "2.0.0-abc123",
                 "deployment_time": "2025-01-17T14:00:00Z",
-                "debug_mode": False
+                "debug_mode": False,
             }
         }
     )
@@ -451,7 +460,7 @@ class EnvironmentHealth(BaseModel):
                 "required_vars_set": 15,
                 "total_required_vars": 15,
                 "missing_vars": [],
-                "configuration_valid": True
+                "configuration_valid": True,
             }
         }
     )
@@ -461,13 +470,16 @@ class EnvironmentHealth(BaseModel):
 # Advanced Monitoring
 # ============================================================================
 
+
 class HealthHistoryEntry(BaseModel):
     """Single health history entry."""
 
     timestamp: datetime = Field(description="Entry timestamp")
     status: HealthStatus = Field(description="Health status")
     health_score: float = Field(description="Health score (0-100)")
-    component_statuses: Dict[str, HealthStatus] = Field(description="Component statuses")
+    component_statuses: Dict[str, HealthStatus] = Field(
+        description="Component statuses"
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -478,8 +490,8 @@ class HealthHistoryEntry(BaseModel):
                 "component_statuses": {
                     "database": "healthy",
                     "redis": "healthy",
-                    "workers": "healthy"
-                }
+                    "workers": "healthy",
+                },
             }
         }
     )
@@ -503,7 +515,7 @@ class HealthHistory(BaseModel):
                 "avg_health_score": 95.0,
                 "total_checks": 288,
                 "degraded_periods": 2,
-                "unhealthy_periods": 0
+                "unhealthy_periods": 0,
             }
         }
     )
@@ -531,7 +543,7 @@ class HealthIncident(BaseModel):
                 "message": "Database connection pool exhausted",
                 "resolved": True,
                 "resolved_at": "2025-01-17T14:35:00Z",
-                "duration_seconds": 300
+                "duration_seconds": 300,
             }
         }
     )
@@ -553,7 +565,7 @@ class HealthIncidentsResponse(BaseModel):
                 "total_incidents": 5,
                 "active_incidents": 1,
                 "resolved_incidents": 4,
-                "period_hours": 24
+                "period_hours": 24,
             }
         }
     )
@@ -581,7 +593,7 @@ class HealthAlert(BaseModel):
                 "threshold": 80.0,
                 "current_value": 85.5,
                 "triggered_at": "2025-01-17T15:00:00Z",
-                "acknowledged": False
+                "acknowledged": False,
             }
         }
     )
@@ -603,7 +615,7 @@ class HealthAlertsResponse(BaseModel):
                 "total_alerts": 3,
                 "critical_count": 0,
                 "warning_count": 2,
-                "info_count": 1
+                "info_count": 1,
             }
         }
     )
@@ -613,28 +625,24 @@ class HealthAlertsResponse(BaseModel):
 # Manual Test Response
 # ============================================================================
 
+
 class HealthTestRequest(BaseModel):
     """Manual health test request."""
 
     components: Optional[List[str]] = Field(
-        None,
-        description="Specific components to test (null = all)"
+        None, description="Specific components to test (null = all)"
     )
     include_detailed: bool = Field(
-        default=True,
-        description="Include detailed diagnostics"
+        default=True, description="Include detailed diagnostics"
     )
-    force_refresh: bool = Field(
-        default=False,
-        description="Force cache refresh"
-    )
+    force_refresh: bool = Field(default=False, description="Force cache refresh")
 
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "components": ["database", "redis"],
                 "include_detailed": True,
-                "force_refresh": True
+                "force_refresh": True,
             }
         }
     )
@@ -658,7 +666,7 @@ class HealthTestResponse(BaseModel):
                 "status": "healthy",
                 "components_tested": ["database", "redis", "workers"],
                 "results": {},
-                "duration_ms": 125.5
+                "duration_ms": 125.5,
             }
         }
     )

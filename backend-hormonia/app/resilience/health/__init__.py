@@ -13,25 +13,26 @@ from .checks import (
     DatabaseHealthCheck,
     DiskSpaceHealthCheck,
     MemoryHealthCheck,
-    CPUHealthCheck
+    CPUHealthCheck,
 )
 
 try:  # Optional dependency: Flask is only required when using the blueprint
     from .endpoints import create_health_blueprint  # type: ignore
+
     HAS_HEALTH_BLUEPRINT = True
 except ModuleNotFoundError:
     create_health_blueprint = None  # type: ignore
     HAS_HEALTH_BLUEPRINT = False
 
 __all__ = [
-    'HealthChecker',
-    'HealthStatus',
-    'HealthResult',
-    'DatabaseHealthCheck',
-    'DiskSpaceHealthCheck',
-    'MemoryHealthCheck',
-    'CPUHealthCheck'
+    "HealthChecker",
+    "HealthStatus",
+    "HealthResult",
+    "DatabaseHealthCheck",
+    "DiskSpaceHealthCheck",
+    "MemoryHealthCheck",
+    "CPUHealthCheck",
 ]
 
 if HAS_HEALTH_BLUEPRINT:
-    __all__.append('create_health_blueprint')
+    __all__.append("create_health_blueprint")

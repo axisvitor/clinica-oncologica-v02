@@ -31,6 +31,7 @@ Performance Impact:
 - Maintains data integrity under concurrent load
 - No performance degradation
 """
+
 import warnings
 import logging
 from typing import Any, Optional
@@ -71,14 +72,12 @@ class PatientCreationService:
             "PatientCreationService is deprecated. "
             "Use app.domain.patient.onboarding.creation_service.CreationService instead.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
         self.db = db
 
     def create_patient_safe(
-        self,
-        patient_data: PatientCreate,
-        doctor_id: UUID
+        self, patient_data: PatientCreate, doctor_id: UUID
     ) -> Patient:
         """
         Create patient with race condition protection.
@@ -148,7 +147,7 @@ class PatientCreationService:
                 extra={
                     "patient_id": str(patient.id),
                     "doctor_id": str(doctor_id),
-                }
+                },
             )
 
             return patient
@@ -161,65 +160,64 @@ class PatientCreationService:
             error_message = str(e.orig).lower()
 
             # Detect which constraint was violated
-            if 'uq_patient_cpf_doctor' in error_message or 'cpf' in error_message:
+            if "uq_patient_cpf_doctor" in error_message or "cpf" in error_message:
                 logger.warning(
                     f"Duplicate CPF detected: {patient_data.cpf}",
                     extra={
                         "cpf_masked": self._mask_cpf(patient_data.cpf),
                         "doctor_id": str(doctor_id),
-                    }
+                    },
                 )
                 raise ValidationError(
                     message="Paciente com este CPF já existe para este médico",
                     field="cpf",
-                    code="duplicate_cpf"
+                    code="duplicate_cpf",
                 )
 
-            elif 'uq_patient_phone' in error_message or 'phone' in error_message:
+            elif "uq_patient_phone" in error_message or "phone" in error_message:
                 logger.warning(
                     f"Duplicate phone detected: {patient_data.phone}",
                     extra={
                         "phone_masked": self._mask_phone(patient_data.phone),
-                    }
+                    },
                 )
                 raise ValidationError(
                     message="Paciente com este telefone já existe",
                     field="phone",
-                    code="duplicate_phone"
+                    code="duplicate_phone",
                 )
 
-            elif 'uq_patient_email_doctor' in error_message or 'email' in error_message:
+            elif "uq_patient_email_doctor" in error_message or "email" in error_message:
                 logger.warning(
                     f"Duplicate email detected: {patient_data.email}",
                     extra={
                         "email_masked": self._mask_email(patient_data.email),
                         "doctor_id": str(doctor_id),
-                    }
+                    },
                 )
                 raise ValidationError(
                     message="Paciente com este email já existe para este médico",
                     field="email",
-                    code="duplicate_email"
+                    code="duplicate_email",
                 )
 
             else:
                 # Unknown constraint violation
                 logger.error(
                     f"Unknown integrity error during patient creation: {e}",
-                    exc_info=True
+                    exc_info=True,
                 )
                 raise ValidationError(
                     message="Erro ao criar paciente: violação de restrição de unicidade",
                     field="unknown",
-                    code="integrity_error"
+                    code="integrity_error",
                 )
 
         except Exception as e:
             # Unexpected error - rollback and re-raise
             self.db.rollback()
             logger.error(
-                f"Unexpected error during patient creation: {e}",
-                exc_info=True
+                f"Unexpected error during patient creation: {e}", exc_info=True
             )
             raise
 
@@ -242,9 +240,9 @@ class PatientCreationService:
     @staticmethod
     def _mask_email(email: Optional[str]) -> str:
         """Mask email for logging (LGPD compliance)."""
-        if not email or '@' not in email:
+        if not email or "@" not in email:
             return "***@***.***"
-        local, domain = email.split('@', 1)
+        local, domain = email.split("@", 1)
         masked_local = f"{local[:2]}***" if len(local) > 2 else "***"
         return f"{masked_local}@{domain}"
 

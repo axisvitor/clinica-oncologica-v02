@@ -34,7 +34,9 @@ class MessageToneAdapter:
             stress_level = emotional_context.get("stress_level", 0.5)
 
             # Determine appropriate tone adaptation
-            target_tone = self._determine_appropriate_tone(mood_score, stress_level, target_tone)
+            target_tone = self._determine_appropriate_tone(
+                mood_score, stress_level, target_tone
+            )
 
             # Apply tone adaptation with AI
             adapted_content = await self._apply_ai_tone_adaptation(
@@ -48,10 +50,7 @@ class MessageToneAdapter:
             return payload.get("content", "")
 
     def _determine_appropriate_tone(
-        self,
-        mood_score: float,
-        stress_level: float,
-        default_tone: str
+        self, mood_score: float, stress_level: float, default_tone: str
     ) -> str:
         """Determine appropriate tone based on emotional indicators."""
         if mood_score < 0.3 or stress_level > 0.7:
@@ -64,11 +63,7 @@ class MessageToneAdapter:
             return default_tone
 
     async def _apply_ai_tone_adaptation(
-        self,
-        content: str,
-        target_tone: str,
-        mood_score: float,
-        stress_level: float
+        self, content: str, target_tone: str, mood_score: float, stress_level: float
     ) -> str:
         """Apply tone adaptation using AI."""
         try:

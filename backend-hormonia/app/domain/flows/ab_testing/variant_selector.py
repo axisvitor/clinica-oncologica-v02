@@ -6,7 +6,7 @@ Selects variants for A/B tests based on allocation strategies.
 
 import logging
 import hashlib
-from typing import Dict, Any, Optional
+from typing import Dict
 from uuid import UUID
 
 
@@ -35,7 +35,7 @@ class VariantSelector:
         patient_id: UUID,
         variants: list[str],
         allocation: Dict[str, float],
-        strategy: str = 'hash'
+        strategy: str = "hash",
     ) -> str:
         """
         Select variant for patient.
@@ -49,19 +49,15 @@ class VariantSelector:
         Returns:
             Selected variant
         """
-        if strategy == 'hash':
+        if strategy == "hash":
             return self._hash_based_selection(patient_id, variants)
-        elif strategy == 'weighted':
+        elif strategy == "weighted":
             return self._weighted_selection(patient_id, variants, allocation)
         else:
             # Default to first variant
-            return variants[0] if variants else 'control'
+            return variants[0] if variants else "control"
 
-    def _hash_based_selection(
-        self,
-        patient_id: UUID,
-        variants: list[str]
-    ) -> str:
+    def _hash_based_selection(self, patient_id: UUID, variants: list[str]) -> str:
         """
         Hash-based consistent variant selection.
 
@@ -73,7 +69,7 @@ class VariantSelector:
             Selected variant
         """
         # Create consistent hash from patient ID
-        hash_input = str(patient_id).encode('utf-8')
+        hash_input = str(patient_id).encode("utf-8")
         hash_value = int(hashlib.md5(hash_input).hexdigest(), 16)
 
         # Select variant based on hash
@@ -84,10 +80,7 @@ class VariantSelector:
         return selected
 
     def _weighted_selection(
-        self,
-        patient_id: UUID,
-        variants: list[str],
-        allocation: Dict[str, float]
+        self, patient_id: UUID, variants: list[str], allocation: Dict[str, float]
     ) -> str:
         """
         Weighted variant selection.

@@ -9,9 +9,8 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, or_, func, desc, asc, text, case, extract
+from sqlalchemy import and_, func, text, case, extract
 
-from app.models.user import User, UserRole
 from app.models.patient import Patient
 from app.models.alert import Alert, AlertSeverity
 from app.models.message import Message
@@ -22,13 +21,16 @@ logger = logging.getLogger(__name__)
 
 MAX_PATIENT_IDS_LIMIT = 1000
 
+
 class DashboardService:
     """Service for dashboard data aggregation and metrics."""
 
     def __init__(self, db: Any):
         self.db = db
 
-    def validate_patient_ids(self, patient_ids: Optional[List[UUID]]) -> Optional[List[str]]:
+    def validate_patient_ids(
+        self, patient_ids: Optional[List[UUID]]
+    ) -> Optional[List[str]]:
         """
         Validate and sanitize patient IDs to prevent SQL injection.
         """
@@ -37,16 +39,30 @@ class DashboardService:
 
         # Check length limit to prevent DoS
         if len(patient_ids) > MAX_PATIENT_IDS_LIMIT:
-            logger.warning(f"Attempted to query {len(patient_ids)} patient IDs (limit: {MAX_PATIENT_IDS_LIMIT})")
+            logger.warning(
+                f"Attempted to query {len(patient_ids)} patient IDs (limit: {MAX_PATIENT_IDS_LIMIT})"
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Too many patient IDs. Maximum allowed: {MAX_PATIENT_IDS_LIMIT}"
+                detail=f"Too many patient IDs. Maximum allowed: {MAX_PATIENT_IDS_LIMIT}",
             )
 
         validated_ids = []
         suspicious_patterns = [
-            'DROP', 'INSERT', 'DELETE', 'UPDATE', 'EXEC', 'EXECUTE',
-            'UNION', 'SELECT', '--', '/*', '*/', ';', 'xp_', 'sp_'
+            "DROP",
+            "INSERT",
+            "DELETE",
+            "UPDATE",
+            "EXEC",
+            "EXECUTE",
+            "UNION",
+            "SELECT",
+            "--",
+            "/*",
+            "*/",
+            ";",
+            "xp_",
+            "sp_",
         ]
 
         for pid in patient_ids:
@@ -58,18 +74,20 @@ class DashboardService:
                 pid_upper = pid_str.upper()
                 for pattern in suspicious_patterns:
                     if pattern in pid_upper:
-                        logger.error(f"Suspicious SQL pattern detected in patient_id: {pid_str}")
+                        logger.error(
+                            f"Suspicious SQL pattern detected in patient_id: {pid_str}"
+                        )
                         raise HTTPException(
                             status_code=status.HTTP_400_BAD_REQUEST,
-                            detail="Invalid patient_id format detected"
+                            detail="Invalid patient_id format detected",
                         )
 
                 # Validate UUID format (36 characters with hyphens)
-                if len(pid_str) != 36 or pid_str.count('-') != 4:
+                if len(pid_str) != 36 or pid_str.count("-") != 4:
                     logger.error(f"Invalid UUID format: {pid_str}")
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Invalid patient_id format"
+                        detail="Invalid patient_id format",
                     )
 
                 validated_ids.append(pid_str)
@@ -78,16 +96,16 @@ class DashboardService:
                 logger.error(f"Invalid patient_id format: {e}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid patient_id format"
+                    detail="Invalid patient_id format",
                 )
 
         return validated_ids
 
     def calculate_date_range(
-        self, 
-        time_range: TimeRangeEnum, 
-        custom_start: Optional[datetime] = None, 
-        custom_end: Optional[datetime] = None
+        self,
+        time_range: TimeRangeEnum,
+        custom_start: Optional[datetime] = None,
+        custom_end: Optional[datetime] = None,
     ) -> Tuple[datetime, datetime]:
         """Calculate start and end dates based on time range enum."""
         now = datetime.utcnow()
@@ -107,17 +125,17 @@ class DashboardService:
             if not custom_start or not custom_end:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="custom_start and custom_end required for CUSTOM time range"
+                    detail="custom_start and custom_end required for CUSTOM time range",
                 )
             return custom_start, custom_end
         else:
             return now - timedelta(days=7), now
 
     def get_patient_metrics(
-        self, 
-        patient_ids: Optional[List[UUID]] = None, 
-        start_date: Optional[datetime] = None, 
-        end_date: Optional[datetime] = None
+        self,
+        patient_ids: Optional[List[UUID]] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """Calculate patient metrics for dashboard widgets."""
         query = self.db.query(Patient)
@@ -129,7 +147,7 @@ class DashboardService:
         total_patients = query.count()
 
         # Active patients
-        active_patients = query.filter(Patient.is_active == True).count()
+        active_patients = query.filter(Patient.is_active).count()
 
         # New patients in time range
         new_patients = 0
@@ -139,11 +157,17 @@ class DashboardService:
         # High-risk patients (based on recent alerts)
         high_risk_count = 0
         if patient_ids:
-            high_risk_count = self.db.query(Patient).join(Alert).filter(
-                Patient.id.in_(patient_ids),
-                Alert.severity.in_([AlertSeverity.CRITICAL, AlertSeverity.HIGH]),
-                Alert.acknowledged == False
-            ).distinct().count()
+            high_risk_count = (
+                self.db.query(Patient)
+                .join(Alert)
+                .filter(
+                    Patient.id.in_(patient_ids),
+                    Alert.severity.in_([AlertSeverity.CRITICAL, AlertSeverity.HIGH]),
+                    not Alert.acknowledged,
+                )
+                .distinct()
+                .count()
+            )
 
         return {
             "total_patients": total_patients,
@@ -154,18 +178,22 @@ class DashboardService:
         }
 
     def get_message_metrics(
-        self, 
-        patient_ids: Optional[List[UUID]] = None, 
-        start_date: Optional[datetime] = None, 
-        end_date: Optional[datetime] = None
+        self,
+        patient_ids: Optional[List[UUID]] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """Calculate message metrics."""
         query = self.db.query(
-            func.count(Message.id).label('total_messages'),
-            func.count(case((Message.status == 'sent', 1))).label('sent_count'),
-            func.count(case((Message.status == 'delivered', 1))).label('delivered_count'),
-            func.count(case((Message.status == 'failed', 1))).label('failed_count'),
-            func.count(case((Message.patient_response_received == True, 1))).label('response_count')
+            func.count(Message.id).label("total_messages"),
+            func.count(case((Message.status == "sent", 1))).label("sent_count"),
+            func.count(case((Message.status == "delivered", 1))).label(
+                "delivered_count"
+            ),
+            func.count(case((Message.status == "failed", 1))).label("failed_count"),
+            func.count(case((Message.patient_response_received, 1))).label(
+                "response_count"
+            ),
         )
 
         if patient_ids:
@@ -193,10 +221,10 @@ class DashboardService:
         }
 
     def get_alert_metrics(
-        self, 
-        patient_ids: Optional[List[UUID]] = None, 
-        start_date: Optional[datetime] = None, 
-        end_date: Optional[datetime] = None
+        self,
+        patient_ids: Optional[List[UUID]] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """Calculate alert metrics."""
         query = self.db.query(Alert)
@@ -214,7 +242,9 @@ class DashboardService:
 
         total_alerts = len(alerts)
         pending_alerts = len([a for a in alerts if not a.acknowledged])
-        critical_alerts = len([a for a in alerts if a.severity == AlertSeverity.CRITICAL])
+        critical_alerts = len(
+            [a for a in alerts if a.severity == AlertSeverity.CRITICAL]
+        )
         high_alerts = len([a for a in alerts if a.severity == AlertSeverity.HIGH])
 
         return {
@@ -223,36 +253,41 @@ class DashboardService:
             "acknowledged_alerts": total_alerts - pending_alerts,
             "critical_alerts": critical_alerts,
             "high_alerts": high_alerts,
-            "medium_alerts": len([a for a in alerts if a.severity == AlertSeverity.MEDIUM]),
+            "medium_alerts": len(
+                [a for a in alerts if a.severity == AlertSeverity.MEDIUM]
+            ),
             "low_alerts": len([a for a in alerts if a.severity == AlertSeverity.LOW]),
         }
 
     def get_flow_metrics(
-        self, 
-        patient_ids: Optional[List[UUID]] = None, 
-        start_date: Optional[datetime] = None, 
-        end_date: Optional[datetime] = None
+        self,
+        patient_ids: Optional[List[UUID]] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """Calculate flow metrics."""
         avg_days_expr = func.avg(
             case(
                 (
                     and_(
-                        PatientFlow.status == 'completed',
-                        PatientFlow.updated_at.isnot(None)
+                        PatientFlow.status == "completed",
+                        PatientFlow.updated_at.isnot(None),
                     ),
-                    extract('epoch', PatientFlow.updated_at - PatientFlow.created_at) / 86400
+                    extract("epoch", PatientFlow.updated_at - PatientFlow.created_at)
+                    / 86400,
                 ),
-                else_=None
+                else_=None,
             )
         )
 
         query = self.db.query(
-            func.count(PatientFlow.id).label('total_flows'),
-            func.count(case((PatientFlow.status == 'active', 1))).label('active_flows'),
-            func.count(case((PatientFlow.status == 'completed', 1))).label('completed_flows'),
-            func.count(case((PatientFlow.status == 'paused', 1))).label('paused_flows'),
-            avg_days_expr.label('avg_completion_days')
+            func.count(PatientFlow.id).label("total_flows"),
+            func.count(case((PatientFlow.status == "active", 1))).label("active_flows"),
+            func.count(case((PatientFlow.status == "completed", 1))).label(
+                "completed_flows"
+            ),
+            func.count(case((PatientFlow.status == "paused", 1))).label("paused_flows"),
+            avg_days_expr.label("avg_completion_days"),
         )
 
         if patient_ids:
@@ -280,9 +315,7 @@ class DashboardService:
         }
 
     def get_recent_activity(
-        self, 
-        patient_ids: Optional[List[UUID]] = None, 
-        limit: int = 10
+        self, patient_ids: Optional[List[UUID]] = None, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """Get recent activity for dashboard feed."""
         activities = []
@@ -296,7 +329,7 @@ class DashboardService:
             params["patient_ids"] = validated_ids
 
         # Recent messages
-        message_query_sql = f'''
+        message_query_sql = f"""
             SELECT
                 'message_sent' as type,
                 CONCAT('Mensagem enviada para ', p.full_name) as description,
@@ -309,26 +342,32 @@ class DashboardService:
             {patient_filter}
             ORDER BY m.created_at DESC
             LIMIT :limit
-        '''
-        
+        """
+
         message_results = self.db.execute(text(message_query_sql), params).fetchall()
         for row in message_results:
-            activities.append({
-                "id": f"msg_{row.reference_id}",
-                "type": row.type,
-                "description": row.description,
-                "entity_name": row.entity_name,
-                "timestamp": row.timestamp.isoformat() if row.timestamp else None,
-            })
+            activities.append(
+                {
+                    "id": f"msg_{row.reference_id}",
+                    "type": row.type,
+                    "description": row.description,
+                    "entity_name": row.entity_name,
+                    "timestamp": row.timestamp.isoformat() if row.timestamp else None,
+                }
+            )
 
         # Recent alerts
-        alert_patient_filter = patient_filter.replace('m.patient_id', 'a.patient_id') if patient_filter else ""
+        alert_patient_filter = (
+            patient_filter.replace("m.patient_id", "a.patient_id")
+            if patient_filter
+            else ""
+        )
 
         alert_params = {"limit": limit // 3}
         if patient_ids:
             alert_params["patient_ids"] = params["patient_ids"]
 
-        alert_query_sql = f'''
+        alert_query_sql = f"""
             SELECT
                 'alert_created' as type,
                 CONCAT('Alerta: ', a.description) as description,
@@ -341,28 +380,28 @@ class DashboardService:
             {alert_patient_filter}
             ORDER BY a.created_at DESC
             LIMIT :limit
-        '''
+        """
 
         alert_results = self.db.execute(text(alert_query_sql), alert_params).fetchall()
         for row in alert_results:
-            activities.append({
-                "id": f"alert_{row.reference_id}",
-                "type": row.type,
-                "description": row.description,
-                "entity_name": row.entity_name,
-                "timestamp": row.timestamp.isoformat() if row.timestamp else None,
-            })
+            activities.append(
+                {
+                    "id": f"alert_{row.reference_id}",
+                    "type": row.type,
+                    "description": row.description,
+                    "entity_name": row.entity_name,
+                    "timestamp": row.timestamp.isoformat() if row.timestamp else None,
+                }
+            )
 
         activities.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
         return activities[:limit]
 
     def get_engagement_chart_data(
-        self, 
-        patient_ids: Optional[List[UUID]] = None, 
-        days: int = 7
+        self, patient_ids: Optional[List[UUID]] = None, days: int = 7
     ) -> List[Dict[str, Any]]:
         """Get engagement chart data (messages sent vs responses)."""
-        start_date = datetime.utcnow().date() - timedelta(days=days-1)
+        start_date = datetime.utcnow().date() - timedelta(days=days - 1)
 
         params = {"start_date": start_date}
         patient_filter = ""
@@ -372,7 +411,7 @@ class DashboardService:
             patient_filter = "AND patient_id = ANY(:patient_ids)"
             params["patient_ids"] = validated_ids
 
-        query_sql = f'''
+        query_sql = f"""
             WITH date_series AS (
                 SELECT generate_series(
                     :start_date::date,
@@ -399,7 +438,7 @@ class DashboardService:
             FROM date_series ds
             LEFT JOIN daily_messages dm ON ds.date = dm.date
             ORDER BY ds.date
-        '''
+        """
 
         results = self.db.execute(text(query_sql), params).fetchall()
 

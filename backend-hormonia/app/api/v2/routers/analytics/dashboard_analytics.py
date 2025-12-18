@@ -35,12 +35,14 @@ router = APIRouter()
     "/overview",
     response_model=AnalyticsOverview,
     summary="Get analytics overview",
-    description="Get high-level analytics overview with key metrics (ADMIN/DOCTOR only)"
+    description="Get high-level analytics overview with key metrics (ADMIN/DOCTOR only)",
 )
 async def get_analytics_overview(
-    db = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
-    start_date: Optional[datetime] = Query(None, description="Start date for filtering"),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user_from_session),
+    start_date: Optional[datetime] = Query(
+        None, description="Start date for filtering"
+    ),
     end_date: Optional[datetime] = Query(None, description="End date for filtering"),
 ):
     """
@@ -107,7 +109,9 @@ async def get_analytics_overview(
     completed_quizzes = completed_query.scalar()
 
     # Completion rate
-    completion_rate = (completed_quizzes / total_quizzes * 100) if total_quizzes > 0 else 0
+    completion_rate = (
+        (completed_quizzes / total_quizzes * 100) if total_quizzes > 0 else 0
+    )
 
     # Active patients (last 30 days)
     thirty_days_ago = datetime.utcnow() - timedelta(days=30)
@@ -129,7 +133,7 @@ async def get_analytics_overview(
         "period": {
             "start_date": start_date.isoformat() if start_date else None,
             "end_date": end_date.isoformat() if end_date else None,
-        }
+        },
     }
 
     # Cache the result
@@ -142,12 +146,14 @@ async def get_analytics_overview(
     "/treatment-distribution",
     response_model=TreatmentDistribution,
     summary="Get treatment distribution",
-    description="Get patient distribution by treatment type (ADMIN/DOCTOR only)"
+    description="Get patient distribution by treatment type (ADMIN/DOCTOR only)",
 )
 async def get_treatment_distribution(
-    period: str = Query("30d", pattern="^(7d|30d|90d|all)$", description="Analytics period"),
-    db = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    period: str = Query(
+        "30d", pattern="^(7d|30d|90d|all)$", description="Analytics period"
+    ),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user_from_session),
 ):
     """
     Return treatment distribution data with optional period filtering.
@@ -184,7 +190,11 @@ async def get_treatment_distribution(
 
         now = datetime.utcnow()
         period_map = {"7d": 7, "30d": 30, "90d": 90}
-        start_date = now - timedelta(days=period_map.get(period, 30)) if period != "all" else None
+        start_date = (
+            now - timedelta(days=period_map.get(period, 30))
+            if period != "all"
+            else None
+        )
         logger.info(f"Query period: {period}, start_date: {start_date}")
     except Exception as e:
         logger.error(f"Error in cache setup: {e}")
@@ -198,17 +208,20 @@ async def get_treatment_distribution(
         )
 
         if role != UserRole.ADMIN and user_uuid:
-            distribution_query = distribution_query.filter(Patient.doctor_id == user_uuid)
+            distribution_query = distribution_query.filter(
+                Patient.doctor_id == user_uuid
+            )
             logger.info(f"Filtered by doctor_id: {user_uuid}")
 
         if start_date:
-            distribution_query = distribution_query.filter(Patient.created_at >= start_date)
+            distribution_query = distribution_query.filter(
+                Patient.created_at >= start_date
+            )
             logger.info(f"Filtered by start_date: {start_date}")
 
         logger.info("Executing distribution query...")
         distribution_results = (
-            distribution_query
-            .group_by(Patient.treatment_type)
+            distribution_query.group_by(Patient.treatment_type)
             .order_by(func.count(Patient.id).desc())
             .all()
         )
@@ -234,11 +247,11 @@ async def get_treatment_distribution(
     try:
         logger.info("Building trend query...")
         # Use a subquery or alias to avoid GROUP BY issues
-        week_start_expr = func.date_trunc('week', Patient.created_at)
+        week_start_expr = func.date_trunc("week", Patient.created_at)
 
         trend_query = db.query(
-            week_start_expr.label('week_start'),
-            func.count(Patient.id).label('count'),
+            week_start_expr.label("week_start"),
+            func.count(Patient.id).label("count"),
         )
 
         if role != UserRole.ADMIN and user_uuid:
@@ -251,8 +264,7 @@ async def get_treatment_distribution(
 
         logger.info("Executing trend query...")
         trend_results = (
-            trend_query
-            .group_by(week_start_expr)
+            trend_query.group_by(week_start_expr)
             .order_by(week_start_expr)
             .limit(12)
             .all()

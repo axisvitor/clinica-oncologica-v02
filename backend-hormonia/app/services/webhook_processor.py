@@ -16,10 +16,12 @@ The original monolithic implementation (1,291 lines) has been decomposed into:
 
 This facade maintains backward compatibility while delegating to the new modules.
 """
+
 import logging
 from typing import Any, Optional, Dict
 from datetime import datetime, timedelta
-from uuid import UUID, uuid4
+from uuid import UUID
+from sqlalchemy import text
 
 from app.models.message import Message, MessageType, MessageStatus, MessageDirection
 from app.models.patient import Patient
@@ -43,7 +45,6 @@ from app.services.webhook.handlers import (
     ConnectionWebhookHandler,
 )
 from app.services.webhook.persistence import WebhookEventStore
-from app.services.webhook.utils import PhoneNormalizer, extract_message_data
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +102,9 @@ class WebhookProcessor:
         logger.info("WebhookProcessor initialized (facade mode with modular handlers)")
 
     @with_db_retry(max_retries=3)
-    async def process_message_webhook(self, event_data: dict[str, Any]) -> Optional[str]:
+    async def process_message_webhook(
+        self, event_data: dict[str, Any]
+    ) -> Optional[str]:
         """
         Process incoming message webhook from Evolution API.
 
@@ -123,8 +126,7 @@ class WebhookProcessor:
         """
         try:
             return await self.message_handler.process_message(
-                event_data=event_data,
-                webhook_store=self.webhook_store
+                event_data=event_data, webhook_store=self.webhook_store
             )
         except Exception as e:
             logger.error(f"Error processing message webhook: {e}", exc_info=True)
@@ -150,8 +152,7 @@ class WebhookProcessor:
         """
         try:
             return await self.status_handler.process_status(
-                event_data=event_data,
-                webhook_store=self.webhook_store
+                event_data=event_data, webhook_store=self.webhook_store
             )
         except Exception as e:
             logger.error(f"Error processing status webhook: {e}", exc_info=True)
@@ -162,10 +163,7 @@ class WebhookProcessor:
     # =========================================================================
 
     async def _handle_flow_message(
-        self,
-        patient: Patient,
-        message: Message,
-        flow_state: PatientFlowState
+        self, patient: Patient, message: Message, flow_state: PatientFlowState
     ) -> None:
         """
         Handle message within active flow context.
@@ -178,6 +176,7 @@ class WebhookProcessor:
         try:
             # Check if patient has an active quiz session
             from app.services.quiz import QuizSessionService
+
             quiz_session_service = QuizSessionService(self.db)
             active_quiz_session = quiz_session_service.get_active_session(patient.id)
 
@@ -188,13 +187,15 @@ class WebhookProcessor:
                 return
 
             # Calculate current day
-            current_day = await self.enhanced_flow_engine.calculate_patient_day(patient.id)
+            current_day = await self.enhanced_flow_engine.calculate_patient_day(
+                patient.id
+            )
 
             # Process response through enhanced flow engine
             response = await self.enhanced_flow_engine.process_patient_response(
                 patient_id=patient.id,
                 response_text=message.content,
-                current_day=current_day
+                current_day=current_day,
             )
 
             if response.get("should_advance"):
@@ -213,21 +214,18 @@ class WebhookProcessor:
                         "context": "flow",
                         "flow_state_id": str(flow_state.id),
                         "current_day": current_day,
-                        "response_to": str(message.id)
-                    }
+                        "response_to": str(message.id),
+                    },
                 )
 
         except Exception as e:
             logger.error(
                 f"Error handling flow message for patient {patient.id}: {e}",
-                exc_info=True
+                exc_info=True,
             )
 
     async def _handle_quiz_message(
-        self,
-        patient: Patient,
-        message: Message,
-        quiz_session: Any
+        self, patient: Patient, message: Message, quiz_session: Any
     ) -> None:
         """
         Handle message within active quiz context.
@@ -241,7 +239,9 @@ class WebhookProcessor:
             quiz_session: Active quiz session
         """
         try:
-            from app.domain.quizzes.integration.flow_integration import ConversationalQuizService
+            from app.domain.quizzes.integration.flow_integration import (
+                ConversationalQuizService,
+            )
             from app.services.quiz_response_debounce import get_quiz_debouncer
 
             # HIGH-005 FIX: Check debounce before processing
@@ -250,8 +250,10 @@ class WebhookProcessor:
             # Get current question ID from session
             current_question_id = (
                 quiz_session.current_question
-                if hasattr(quiz_session, 'current_question') and quiz_session.current_question
-                else str(quiz_session.current_question_index) if hasattr(quiz_session, 'current_question_index')
+                if hasattr(quiz_session, "current_question")
+                and quiz_session.current_question
+                else str(quiz_session.current_question_index)
+                if hasattr(quiz_session, "current_question_index")
                 else "unknown"
             )
 
@@ -260,11 +262,13 @@ class WebhookProcessor:
                 session_id=quiz_session.id,
                 question_id=current_question_id,
                 message_metadata={
-                    'message_id': str(message.id),
-                    'whatsapp_id': message.whatsapp_id,
-                    'timestamp': message.timestamp.isoformat() if message.timestamp else None,
-                    'patient_id': str(patient.id)
-                }
+                    "message_id": str(message.id),
+                    "whatsapp_id": message.whatsapp_id,
+                    "timestamp": message.timestamp.isoformat()
+                    if message.timestamp
+                    else None,
+                    "patient_id": str(patient.id),
+                },
             )
 
             if not should_process:
@@ -277,8 +281,8 @@ class WebhookProcessor:
                         "question_id": current_question_id,
                         "message_id": str(message.id),
                         "whatsapp_id": message.whatsapp_id,
-                        "debounce_reason": "duplicate_within_3s_window"
-                    }
+                        "debounce_reason": "duplicate_within_3s_window",
+                    },
                 )
                 return
 
@@ -289,10 +293,10 @@ class WebhookProcessor:
                 patient_id=patient.id,
                 response_text=message.content,
                 message_metadata={
-                    'message_id': str(message.id),
-                    'timestamp': message.timestamp,
-                    'whatsapp_id': message.whatsapp_id
-                }
+                    "message_id": str(message.id),
+                    "timestamp": message.timestamp,
+                    "whatsapp_id": message.whatsapp_id,
+                },
             )
 
             logger.info(
@@ -301,14 +305,14 @@ class WebhookProcessor:
             )
 
             # Handle result actions
-            if result.get('action') == 'quiz_completed':
+            if result.get("action") == "quiz_completed":
                 logger.info(f"Quiz completed for patient {patient.id}")
                 # Clear all debounce state for session on completion
                 await debouncer.clear_debounce(quiz_session.id)
-            elif result.get('action') == 'next_question':
+            elif result.get("action") == "next_question":
                 logger.info(f"Advanced to next question for patient {patient.id}")
                 # Debounce state automatically expires, no need to clear
-            elif result.get('action') == 'request_clarification':
+            elif result.get("action") == "request_clarification":
                 logger.info(f"Clarification requested for patient {patient.id}")
                 # Clear debounce to allow immediate retry
                 await debouncer.clear_debounce(quiz_session.id, current_question_id)
@@ -316,7 +320,7 @@ class WebhookProcessor:
         except Exception as e:
             logger.error(
                 f"Error handling quiz message for patient {patient.id}: {e}",
-                exc_info=True
+                exc_info=True,
             )
 
     async def _handle_general_chat(self, patient: Patient, message: Message) -> None:
@@ -330,8 +334,7 @@ class WebhookProcessor:
         try:
             # Get conversation history for context
             history = self.message_service.get_conversation_history(
-                patient_id=patient.id,
-                limit=10
+                patient_id=patient.id, limit=10
             )
             conversation_history = [m.content for m in history if m.content]
 
@@ -348,30 +351,24 @@ class WebhookProcessor:
             ai_response = await self.ai_client.generate_contextual_response(
                 patient_message=message.content,
                 patient_context=patient_context,
-                conversation_history=conversation_history
+                conversation_history=conversation_history,
             )
 
             # Send response
             await self._send_response(
                 patient_id=patient.id,
                 content=ai_response,
-                metadata={
-                    "context": "general_chat",
-                    "response_to": str(message.id)
-                }
+                metadata={"context": "general_chat", "response_to": str(message.id)},
             )
 
         except Exception as e:
             logger.error(
                 f"Error handling general chat for patient {patient.id}: {e}",
-                exc_info=True
+                exc_info=True,
             )
 
     async def _send_response(
-        self,
-        patient_id: UUID,
-        content: str,
-        metadata: Dict[str, Any]
+        self, patient_id: UUID, content: str, metadata: Dict[str, Any]
     ) -> Optional[Message]:
         """
         Create and send response message.
@@ -402,12 +399,14 @@ class WebhookProcessor:
                 type=MessageType.TEXT,
                 content=content,
                 message_metadata=metadata,
-                status=MessageStatus.PENDING  # Explicit PENDING status
+                status=MessageStatus.PENDING,  # Explicit PENDING status
             )
 
             # Step 2: Persist to database
             response_message = self.message_service.create_message(response_data)
-            logger.info(f"Created message {response_message.id} for patient {patient_id}")
+            logger.info(
+                f"Created message {response_message.id} for patient {patient_id}"
+            )
 
             # Step 3: Publish WebSocket event (UI will show this message)
             await self._publish_message_event(response_message, patient_id)
@@ -416,14 +415,17 @@ class WebhookProcessor:
             # Step 4: Schedule the SAME message for immediate delivery
             # Import MessageScheduler
             from app.domain.messaging.scheduling import MessageScheduler
+
             scheduler = MessageScheduler(self.db)
 
             # Schedule the existing message (status: PENDING → SCHEDULED)
-            send_time = datetime.utcnow() + timedelta(seconds=1)  # Send almost immediately
+            send_time = datetime.utcnow() + timedelta(
+                seconds=1
+            )  # Send almost immediately
             scheduling_success = await scheduler.schedule_existing_message(
                 message_id=response_message.id,
                 send_time=send_time,
-                priority='high'  # Auto-responses are high priority
+                priority="high",  # Auto-responses are high priority
             )
 
             if scheduling_success:
@@ -447,7 +449,9 @@ class WebhookProcessor:
                 logger.error(f"Rollback failed: {rollback_error}", exc_info=True)
             return None
 
-    async def _send_unauthorized_response(self, phone: str, attempt_count: int = 1) -> None:
+    async def _send_unauthorized_response(
+        self, phone: str, attempt_count: int = 1
+    ) -> None:
         """
         Send escalating unauthorized messages to non-registered numbers.
 
@@ -467,7 +471,9 @@ class WebhookProcessor:
             # Get Evolution client
             client = await get_evolution_client()
             if not client:
-                logger.warning(f"Evolution client unavailable, cannot send unauthorized response to {phone}")
+                logger.warning(
+                    f"Evolution client unavailable, cannot send unauthorized response to {phone}"
+                )
                 return
 
             # Escalating messages based on attempt count
@@ -520,7 +526,7 @@ class WebhookProcessor:
             message_type=message.type.value,
             content=message.content,
             whatsapp_id=message.whatsapp_id,
-            metadata=message.metadata
+            metadata=message.metadata,
         )
 
     # NOTE: The following methods have been moved to modular handlers/utils:
@@ -540,16 +546,20 @@ class WebhookProcessor:
             Flow type string
         """
         try:
-            template_version = self.db.query(FlowTemplateVersion).filter(
-                FlowTemplateVersion.id == flow_state.template_version_id
-            ).first()
+            template_version = (
+                self.db.query(FlowTemplateVersion)
+                .filter(FlowTemplateVersion.id == flow_state.template_version_id)
+                .first()
+            )
 
             if not template_version:
                 return "unknown"
 
-            flow_kind = self.db.query(FlowKind).filter(
-                FlowKind.id == template_version.kind_id
-            ).first()
+            flow_kind = (
+                self.db.query(FlowKind)
+                .filter(FlowKind.id == template_version.kind_id)
+                .first()
+            )
 
             return flow_kind.flow_type if flow_kind else "unknown"
 
@@ -582,8 +592,7 @@ class WebhookProcessor:
         """
         try:
             return await self.connection_handler.process_connection(
-                event_data=event_data,
-                webhook_store=self.webhook_store
+                event_data=event_data, webhook_store=self.webhook_store
             )
         except Exception as e:
             logger.error(f"Error processing connection webhook: {e}", exc_info=True)
@@ -609,8 +618,7 @@ class WebhookProcessor:
         """
         try:
             return await self.connection_handler.process_qrcode(
-                event_data=event_data,
-                webhook_store=self.webhook_store
+                event_data=event_data, webhook_store=self.webhook_store
             )
         except Exception as e:
             logger.error(f"Error processing QR code webhook: {e}", exc_info=True)
@@ -648,8 +656,8 @@ class WebhookProcessor:
                 event_type = row[1]
                 payload = row[2]
                 retry_count = row[3]
-                related_message_id = UUID(row[4]) if row[4] else None
-                related_patient_id = UUID(row[5]) if row[5] else None
+                UUID(row[4]) if row[4] else None
+                UUID(row[5]) if row[5] else None
 
                 try:
                     # Route to appropriate handler based on event type
@@ -672,11 +680,15 @@ class WebhookProcessor:
                         # Mark as processed using WebhookEventStore
                         await self.webhook_store.mark_processed(event_id, success=True)
                         retried_count += 1
-                        logger.info(f"Successfully retried webhook {event_id} (type={event_type})")
+                        logger.info(
+                            f"Successfully retried webhook {event_id} (type={event_type})"
+                        )
                     else:
                         # Increment retry count and schedule next retry
-                        next_retry_delay = 60 * (2 ** retry_count)  # 60s, 120s, 240s
-                        next_retry_at = datetime.utcnow() + timedelta(seconds=next_retry_delay)
+                        next_retry_delay = 60 * (2**retry_count)  # 60s, 120s, 240s
+                        next_retry_at = datetime.utcnow() + timedelta(
+                            seconds=next_retry_delay
+                        )
 
                         update_stmt = text("""
                             UPDATE webhook_events
@@ -686,10 +698,10 @@ class WebhookProcessor:
                             WHERE id = :event_id
                         """)
 
-                        self.db.execute(update_stmt, {
-                            "event_id": str(event_id),
-                            "next_retry_at": next_retry_at
-                        })
+                        self.db.execute(
+                            update_stmt,
+                            {"event_id": str(event_id), "next_retry_at": next_retry_at},
+                        )
                         self.db.commit()
 
                         logger.warning(
@@ -698,11 +710,16 @@ class WebhookProcessor:
                         )
 
                 except Exception as retry_error:
-                    logger.error(f"Error retrying webhook {event_id}: {retry_error}", exc_info=True)
+                    logger.error(
+                        f"Error retrying webhook {event_id}: {retry_error}",
+                        exc_info=True,
+                    )
 
                     # Update retry count and schedule next retry
-                    next_retry_delay = 60 * (2 ** retry_count)
-                    next_retry_at = datetime.utcnow() + timedelta(seconds=next_retry_delay)
+                    next_retry_delay = 60 * (2**retry_count)
+                    next_retry_at = datetime.utcnow() + timedelta(
+                        seconds=next_retry_delay
+                    )
 
                     update_stmt = text("""
                         UPDATE webhook_events
@@ -712,14 +729,19 @@ class WebhookProcessor:
                         WHERE id = :event_id
                     """)
 
-                    self.db.execute(update_stmt, {
-                        "event_id": str(event_id),
-                        "next_retry_at": next_retry_at,
-                        "error_message": str(retry_error)
-                    })
+                    self.db.execute(
+                        update_stmt,
+                        {
+                            "event_id": str(event_id),
+                            "next_retry_at": next_retry_at,
+                            "error_message": str(retry_error),
+                        },
+                    )
                     self.db.commit()
 
-            logger.info(f"Webhook retry completed: {retried_count}/{len(results)} succeeded")
+            logger.info(
+                f"Webhook retry completed: {retried_count}/{len(results)} succeeded"
+            )
             return retried_count
 
         except Exception as e:

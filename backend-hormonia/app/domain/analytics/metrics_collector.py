@@ -2,6 +2,7 @@
 Metrics collection and aggregation for analytics.
 Handles raw data collection from database with optimized queries.
 """
+
 import logging
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Any
@@ -12,8 +13,8 @@ from sqlalchemy import func, and_, cast, Date, text
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.patient import Patient, FlowState
-from app.models.message import Message, MessageStatus, MessageDirection
-from app.models.quiz import QuizResponse, QuizTemplate
+from app.models.message import Message, MessageDirection
+from app.models.quiz import QuizResponse
 from app.models.alert import Alert, AlertSeverity, AlertStatus
 from app.models.user import User
 from app.repositories.patient import PatientRepository
@@ -21,7 +22,7 @@ from app.repositories.message import MessageRepository
 from app.repositories.quiz import QuizResponseRepository
 from app.repositories.alert import AlertRepository
 from app.utils.db_retry import with_db_retry
-from app.services.query_performance_monitor import QueryPerformanceMonitor, query_performance_decorator
+from app.services.query_performance_monitor import QueryPerformanceMonitor
 from app.schemas.report import PatientAnalytics, SystemAnalytics
 
 
@@ -56,7 +57,7 @@ class MetricsCollector:
         patient_id: UUID,
         start_date: Optional[date],
         end_date: Optional[date],
-        metrics: List[str]
+        metrics: List[str],
     ) -> Optional[PatientAnalytics]:
         """
         Collect metrics for a specific patient.
@@ -86,12 +87,14 @@ class MetricsCollector:
                 patient_id=patient_id,
                 patient_name=patient.name,
                 treatment_type=patient.treatment_type,
-                current_day=patient.current_day or 0
+                current_day=patient.current_day or 0,
             )
 
             # Get engagement metrics
             if "engagement" in metrics:
-                self._add_engagement_metrics(analytics, patient_id, start_date, end_date)
+                self._add_engagement_metrics(
+                    analytics, patient_id, start_date, end_date
+                )
 
             # Get quiz metrics
             if "quiz" in metrics or "adherence" in metrics:
@@ -102,8 +105,12 @@ class MetricsCollector:
                 self._add_alert_metrics(analytics, patient_id, start_date, end_date)
 
             # Get trend data
-            analytics.engagement_trend = self.get_patient_engagement_trend(patient_id, start_date, end_date)
-            analytics.symptom_trend = self.get_patient_symptom_trend(patient_id, start_date, end_date)
+            analytics.engagement_trend = self.get_patient_engagement_trend(
+                patient_id, start_date, end_date
+            )
+            analytics.symptom_trend = self.get_patient_symptom_trend(
+                patient_id, start_date, end_date
+            )
 
             return analytics
 
@@ -113,9 +120,7 @@ class MetricsCollector:
 
     @with_db_retry(max_retries=3)
     def get_system_metrics(
-        self,
-        start_date: Optional[date],
-        end_date: Optional[date]
+        self, start_date: Optional[date], end_date: Optional[date]
     ) -> SystemAnalytics:
         """
         Collect system-wide metrics.
@@ -142,46 +147,53 @@ class MetricsCollector:
         active_patients = int(
             self.db.query(func.count(Patient.id))
             .filter(Patient.flow_state == FlowState.ACTIVE)
-            .scalar() or 0
+            .scalar()
+            or 0
         )
         total_doctors = self.db.query(User).count()
 
         # Get message metrics
-        messages_today = self.db.query(Message).filter(
-            Message.created_at >= today
-        ).count()
+        messages_today = (
+            self.db.query(Message).filter(Message.created_at >= today).count()
+        )
 
-        messages_week = self.db.query(Message).filter(
-            Message.created_at >= week_start
-        ).count()
+        messages_week = (
+            self.db.query(Message).filter(Message.created_at >= week_start).count()
+        )
 
-        messages_month = self.db.query(Message).filter(
-            Message.created_at >= month_start
-        ).count()
+        messages_month = (
+            self.db.query(Message).filter(Message.created_at >= month_start).count()
+        )
 
         # Get quiz metrics
-        quizzes_today = self.db.query(QuizResponse).filter(
-            and_(
-                QuizResponse.responded_at.isnot(None),
-                QuizResponse.created_at >= today
+        quizzes_today = (
+            self.db.query(QuizResponse)
+            .filter(
+                and_(
+                    QuizResponse.responded_at.isnot(None),
+                    QuizResponse.created_at >= today,
+                )
             )
-        ).count()
+            .count()
+        )
 
-        quizzes_week = self.db.query(QuizResponse).filter(
-            and_(
-                QuizResponse.responded_at.isnot(None),
-                QuizResponse.created_at >= week_start
+        quizzes_week = (
+            self.db.query(QuizResponse)
+            .filter(
+                and_(
+                    QuizResponse.responded_at.isnot(None),
+                    QuizResponse.created_at >= week_start,
+                )
             )
-        ).count()
+            .count()
+        )
 
         # Get alert metrics
-        alerts_today = self.db.query(Alert).filter(
-            Alert.created_at >= today
-        ).count()
+        alerts_today = self.db.query(Alert).filter(Alert.created_at >= today).count()
 
-        unresolved_alerts = self.db.query(Alert).filter(
-            Alert.status != AlertStatus.RESOLVED
-        ).count()
+        unresolved_alerts = (
+            self.db.query(Alert).filter(Alert.status != AlertStatus.RESOLVED).count()
+        )
 
         return SystemAnalytics(
             total_patients=total_patients,
@@ -195,7 +207,7 @@ class MetricsCollector:
             alerts_generated_today=alerts_today,
             unresolved_alerts=unresolved_alerts,
             avg_response_time_ms=50.0,
-            system_uptime_hours=24.0
+            system_uptime_hours=24.0,
         )
 
     def get_quick_stats_consolidated(self, doctor_id: Optional[UUID]) -> Dict[str, int]:
@@ -221,7 +233,9 @@ class MetricsCollector:
                 )
                 SELECT total_patients, active_patients, messages_today, alerts_pending FROM stats
             """)
-            result = self.db.execute(query, {"doctor_id": str(doctor_id), "today": today}).fetchone()
+            result = self.db.execute(
+                query, {"doctor_id": str(doctor_id), "today": today}
+            ).fetchone()
         else:
             query = text("""
                 WITH stats AS (
@@ -240,52 +254,51 @@ class MetricsCollector:
 
         if result:
             return {
-                'total_patients': int(result.total_patients or 0),
-                'active_patients': int(result.active_patients or 0),
-                'messages_today': int(result.messages_today or 0),
-                'alerts_pending': int(result.alerts_pending or 0)
+                "total_patients": int(result.total_patients or 0),
+                "active_patients": int(result.active_patients or 0),
+                "messages_today": int(result.messages_today or 0),
+                "alerts_pending": int(result.alerts_pending or 0),
             }
         else:
             return {
-                'total_patients': 0,
-                'active_patients': 0,
-                'messages_today': 0,
-                'alerts_pending': 0
+                "total_patients": 0,
+                "active_patients": 0,
+                "messages_today": 0,
+                "alerts_pending": 0,
             }
 
-    def get_quizzes_completed_last_days(self, days: int, doctor_id: Optional[UUID]) -> int:
+    def get_quizzes_completed_last_days(
+        self, days: int, doctor_id: Optional[UUID]
+    ) -> int:
         """Return total quizzes completed in the last N days, optionally filtered by doctor."""
         end_date = datetime.utcnow().date()
         start_date = end_date - timedelta(days=days)
         query = self.db.query(QuizResponse).filter(
             and_(
                 QuizResponse.responded_at.isnot(None),
-                QuizResponse.created_at >= start_date
+                QuizResponse.created_at >= start_date,
             )
         )
         if doctor_id:
             query = query.join(Patient).filter(Patient.doctor_id == doctor_id)
         return query.count()
 
-    def get_filtered_patients_with_relations(self, doctor_id: Optional[UUID]) -> List[Patient]:
+    def get_filtered_patients_with_relations(
+        self, doctor_id: Optional[UUID]
+    ) -> List[Patient]:
         """
         Get patients with eager-loaded relationships to prevent N+1 queries.
 
         OPTIMIZATION: Uses joinedload to load related doctor, messages, and flow_states
         in a single query instead of N+1 separate queries.
         """
-        query = self.db.query(Patient).options(
-            joinedload(Patient.doctor)
-        )
+        query = self.db.query(Patient).options(joinedload(Patient.doctor))
         if doctor_id:
             query = query.filter(Patient.doctor_id == doctor_id)
         return query.all()
 
     def calculate_avg_response_time(
-        self,
-        patient_id: UUID,
-        start_date: date,
-        end_date: date
+        self, patient_id: UUID, start_date: date, end_date: date
     ) -> Optional[float]:
         """Calculate average response time for a patient."""
         messages = (
@@ -314,7 +327,7 @@ class MetricsCollector:
                 try:
                     diff_hours_num = float(diff_hours)
                 except (TypeError, ValueError):
-                    diff_hours_num = getattr(diff_hours, 'return_value', 0)
+                    diff_hours_num = getattr(diff_hours, "return_value", 0)
 
                 if diff_hours_num >= 0:
                     response_times.append(diff_hours_num)
@@ -325,10 +338,7 @@ class MetricsCollector:
         return round(sum(response_times) / len(response_times), 2)
 
     def get_patient_engagement_trend(
-        self,
-        patient_id: UUID,
-        start_date: date,
-        end_date: date
+        self, patient_id: UUID, start_date: date, end_date: date
     ) -> List[Dict[str, Any]]:
         """
         Get patient engagement trend over time.
@@ -338,14 +348,14 @@ class MetricsCollector:
         # Single query with date grouping
         daily_counts = (
             self.db.query(
-                cast(Message.created_at, Date).label('date'),
-                func.count(Message.id).label('count')
+                cast(Message.created_at, Date).label("date"),
+                func.count(Message.id).label("count"),
             )
             .filter(
                 and_(
                     Message.patient_id == patient_id,
                     Message.created_at >= start_date,
-                    Message.created_at <= end_date + timedelta(days=1)
+                    Message.created_at <= end_date + timedelta(days=1),
                 )
             )
             .group_by(cast(Message.created_at, Date))
@@ -355,11 +365,19 @@ class MetricsCollector:
         # Convert to dict for lookup
         count_by_date = {}
         for result_date, count in daily_counts:
-            date_key = result_date.isoformat() if hasattr(result_date, 'isoformat') else str(result_date)
+            date_key = (
+                result_date.isoformat()
+                if hasattr(result_date, "isoformat")
+                else str(result_date)
+            )
             try:
                 count_num = int(count) if count is not None else 0
             except (TypeError, ValueError):
-                count_num = getattr(count, 'return_value', 0) if hasattr(count, 'return_value') else 0
+                count_num = (
+                    getattr(count, "return_value", 0)
+                    if hasattr(count, "return_value")
+                    else 0
+                )
             count_by_date[date_key] = count_num
 
         # Build trend data with all dates
@@ -369,19 +387,20 @@ class MetricsCollector:
             date_key = current_date.isoformat()
             message_count_num = count_by_date.get(date_key, 0)
 
-            trend_data.append({
-                "date": date_key,
-                "engagement_score": min(message_count_num * 10, 100)  # Simple scoring
-            })
+            trend_data.append(
+                {
+                    "date": date_key,
+                    "engagement_score": min(
+                        message_count_num * 10, 100
+                    ),  # Simple scoring
+                }
+            )
             current_date += timedelta(days=1)
 
         return trend_data
 
     def get_patient_symptom_trend(
-        self,
-        patient_id: UUID,
-        start_date: date,
-        end_date: date
+        self, patient_id: UUID, start_date: date, end_date: date
     ) -> List[Dict[str, Any]]:
         """
         Get patient symptom trend over time.
@@ -391,14 +410,14 @@ class MetricsCollector:
         # Single query with date grouping
         daily_counts = (
             self.db.query(
-                cast(Alert.created_at, Date).label('date'),
-                func.count(Alert.id).label('count')
+                cast(Alert.created_at, Date).label("date"),
+                func.count(Alert.id).label("count"),
             )
             .filter(
                 and_(
                     Alert.patient_id == patient_id,
                     Alert.created_at >= start_date,
-                    Alert.created_at <= end_date + timedelta(days=1)
+                    Alert.created_at <= end_date + timedelta(days=1),
                 )
             )
             .group_by(cast(Alert.created_at, Date))
@@ -408,11 +427,19 @@ class MetricsCollector:
         # Convert to dict for lookup
         count_by_date = {}
         for result_date, count in daily_counts:
-            date_key = result_date.isoformat() if hasattr(result_date, 'isoformat') else str(result_date)
+            date_key = (
+                result_date.isoformat()
+                if hasattr(result_date, "isoformat")
+                else str(result_date)
+            )
             try:
                 count_num = int(count) if count is not None else 0
             except (TypeError, ValueError):
-                count_num = getattr(count, 'return_value', 0) if hasattr(count, 'return_value') else 0
+                count_num = (
+                    getattr(count, "return_value", 0)
+                    if hasattr(count, "return_value")
+                    else 0
+                )
             count_by_date[date_key] = count_num
 
         # Build trend data with all dates
@@ -422,10 +449,12 @@ class MetricsCollector:
             date_key = current_date.isoformat()
             alert_count_num = count_by_date.get(date_key, 0)
 
-            trend_data.append({
-                "date": date_key,
-                "symptom_score": alert_count_num * 20  # Simple scoring
-            })
+            trend_data.append(
+                {
+                    "date": date_key,
+                    "symptom_score": alert_count_num * 20,  # Simple scoring
+                }
+            )
             current_date += timedelta(days=1)
 
         return trend_data
@@ -437,20 +466,17 @@ class MetricsCollector:
         analytics: PatientAnalytics,
         patient_id: UUID,
         start_date: date,
-        end_date: date
+        end_date: date,
     ):
         """Add engagement metrics to patient analytics."""
         # OPTIMIZATION: Single query using GROUP BY instead of 2 separate count queries
         direction_counts = (
-            self.db.query(
-                Message.direction,
-                func.count(Message.id).label('count')
-            )
+            self.db.query(Message.direction, func.count(Message.id).label("count"))
             .filter(
                 and_(
                     Message.patient_id == patient_id,
                     Message.created_at >= start_date,
-                    Message.created_at <= end_date
+                    Message.created_at <= end_date,
                 )
             )
             .group_by(Message.direction)
@@ -470,7 +496,9 @@ class MetricsCollector:
             analytics.response_rate = round((inbound_count / outbound_count) * 100, 2)
 
         # Calculate average response time
-        avg_response_time = self.calculate_avg_response_time(patient_id, start_date, end_date)
+        avg_response_time = self.calculate_avg_response_time(
+            patient_id, start_date, end_date
+        )
         analytics.avg_response_time_hours = avg_response_time
 
     def _add_quiz_metrics(
@@ -478,17 +506,21 @@ class MetricsCollector:
         analytics: PatientAnalytics,
         patient_id: UUID,
         start_date: date,
-        end_date: date
+        end_date: date,
     ):
         """Add quiz metrics to patient analytics."""
         # Get quiz responses
-        quiz_responses = self.db.query(QuizResponse).filter(
-            and_(
-                QuizResponse.patient_id == patient_id,
-                QuizResponse.created_at >= start_date,
-                QuizResponse.created_at <= end_date
+        quiz_responses = (
+            self.db.query(QuizResponse)
+            .filter(
+                and_(
+                    QuizResponse.patient_id == patient_id,
+                    QuizResponse.created_at >= start_date,
+                    QuizResponse.created_at <= end_date,
+                )
             )
-        ).all()
+            .all()
+        )
 
         completed_quizzes = [r for r in quiz_responses if r.completed_at is not None]
 
@@ -499,7 +531,9 @@ class MetricsCollector:
         expected_quizzes = min(days_in_period, analytics.current_day)
 
         if expected_quizzes > 0:
-            analytics.quiz_completion_rate = round((len(completed_quizzes) / expected_quizzes) * 100, 2)
+            analytics.quiz_completion_rate = round(
+                (len(completed_quizzes) / expected_quizzes) * 100, 2
+            )
 
         # Calculate average quiz score (if scoring is implemented)
         if completed_quizzes:
@@ -511,18 +545,26 @@ class MetricsCollector:
         analytics: PatientAnalytics,
         patient_id: UUID,
         start_date: date,
-        end_date: date
+        end_date: date,
     ):
         """Add alert metrics to patient analytics."""
         # Get alerts
-        alerts = self.db.query(Alert).filter(
-            and_(
-                Alert.patient_id == patient_id,
-                Alert.created_at >= start_date,
-                Alert.created_at <= end_date
+        alerts = (
+            self.db.query(Alert)
+            .filter(
+                and_(
+                    Alert.patient_id == patient_id,
+                    Alert.created_at >= start_date,
+                    Alert.created_at <= end_date,
+                )
             )
-        ).all()
+            .all()
+        )
 
         analytics.total_alerts = len(alerts)
-        analytics.high_priority_alerts = len([a for a in alerts if a.severity == AlertSeverity.HIGH])
-        analytics.resolved_alerts = len([a for a in alerts if a.status == AlertStatus.RESOLVED])
+        analytics.high_priority_alerts = len(
+            [a for a in alerts if a.severity == AlertSeverity.HIGH]
+        )
+        analytics.resolved_alerts = len(
+            [a for a in alerts if a.status == AlertStatus.RESOLVED]
+        )

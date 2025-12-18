@@ -12,6 +12,7 @@ from app.models.flow import PatientFlowState
 
 class FlowDecision(Enum):
     """Types of flow decisions."""
+
     CONTINUE_CURRENT = "continue_current"
     ADVANCE_PHASE = "advance_phase"
     ADJUST_TIMING = "adjust_timing"

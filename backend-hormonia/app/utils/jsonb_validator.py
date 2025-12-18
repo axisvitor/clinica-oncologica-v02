@@ -15,7 +15,11 @@ Usage:
 """
 
 from typing import Dict, Any, List, Optional
-from jsonschema import validate, ValidationError as JsonSchemaValidationError, Draft7Validator
+from jsonschema import (
+    validate,
+    ValidationError as JsonSchemaValidationError,
+    Draft7Validator,
+)
 from app.core.exceptions import ValidationError
 
 
@@ -36,29 +40,29 @@ PATIENT_METADATA_SCHEMA = {
                 "language": {
                     "type": "string",
                     "enum": ["pt-BR", "en-US", "es-ES"],
-                    "description": "Preferred language for communications"
+                    "description": "Preferred language for communications",
                 },
                 "timezone": {
                     "type": "string",
                     "description": "Patient timezone (e.g., 'America/Sao_Paulo')",
-                    "pattern": "^[A-Za-z]+/[A-Za-z_]+$"
+                    "pattern": "^[A-Za-z]+/[A-Za-z_]+$",
                 },
                 "notification_enabled": {
                     "type": "boolean",
-                    "description": "Whether notifications are enabled"
+                    "description": "Whether notifications are enabled",
                 },
                 "notification_time": {
                     "type": "string",
                     "description": "Preferred notification time (HH:MM format)",
-                    "pattern": "^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
+                    "pattern": "^([01]?[0-9]|2[0-3]):[0-5][0-9]$",
                 },
                 "communication_channel": {
                     "type": "string",
                     "enum": ["whatsapp", "email", "sms", "phone"],
-                    "description": "Preferred communication channel"
-                }
+                    "description": "Preferred communication channel",
+                },
             },
-            "additionalProperties": False
+            "additionalProperties": False,
         },
         "medical_history": {
             "type": "object",
@@ -68,25 +72,25 @@ PATIENT_METADATA_SCHEMA = {
                     "type": "array",
                     "items": {"type": "string"},
                     "description": "List of known allergies",
-                    "uniqueItems": True
+                    "uniqueItems": True,
                 },
                 "medications": {
                     "type": "array",
                     "items": {"type": "string"},
                     "description": "Current medications",
-                    "uniqueItems": True
+                    "uniqueItems": True,
                 },
                 "conditions": {
                     "type": "array",
                     "items": {"type": "string"},
                     "description": "Pre-existing medical conditions (comorbidities)",
-                    "uniqueItems": True
+                    "uniqueItems": True,
                 },
                 "family_history": {
                     "type": "array",
                     "items": {"type": "string"},
                     "description": "Family medical history",
-                    "uniqueItems": True
+                    "uniqueItems": True,
                 },
                 "surgeries": {
                     "type": "array",
@@ -95,19 +99,19 @@ PATIENT_METADATA_SCHEMA = {
                         "properties": {
                             "type": {"type": "string"},
                             "date": {"type": "string", "format": "date"},
-                            "notes": {"type": "string"}
+                            "notes": {"type": "string"},
                         },
-                        "required": ["type", "date"]
+                        "required": ["type", "date"],
                     },
-                    "description": "Past surgical procedures"
-                }
+                    "description": "Past surgical procedures",
+                },
             },
-            "additionalProperties": False
+            "additionalProperties": False,
         },
         "blood_type": {
             "type": "string",
             "pattern": "^(A|B|AB|O)[+-]$",
-            "description": "Blood type in standard format (A+, B-, AB+, O-, etc.)"
+            "description": "Blood type in standard format (A+, B-, AB+, O-, etc.)",
         },
         "emergency_contact": {
             "type": "object",
@@ -117,15 +121,12 @@ PATIENT_METADATA_SCHEMA = {
                 "relationship": {"type": "string"},
                 "phone": {
                     "type": "string",
-                    "pattern": "^\\+[1-9]\\d{1,14}$"  # E.164 format
+                    "pattern": "^\\+[1-9]\\d{1,14}$",  # E.164 format
                 },
-                "email": {
-                    "type": "string",
-                    "format": "email"
-                }
+                "email": {"type": "string", "format": "email"},
             },
             "required": ["name", "phone"],
-            "additionalProperties": False
+            "additionalProperties": False,
         },
         "insurance": {
             "type": "object",
@@ -134,39 +135,30 @@ PATIENT_METADATA_SCHEMA = {
                 "provider": {"type": "string"},
                 "policy_number": {"type": "string"},
                 "group_number": {"type": "string"},
-                "expiration_date": {
-                    "type": "string",
-                    "format": "date"
-                }
+                "expiration_date": {"type": "string", "format": "date"},
             },
-            "additionalProperties": False
+            "additionalProperties": False,
         },
         "onboarding": {
             "type": "object",
             "description": "Onboarding process metadata",
             "properties": {
                 "completed": {"type": "boolean"},
-                "completed_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "steps_completed": {
-                    "type": "array",
-                    "items": {"type": "string"}
-                },
+                "completed_at": {"type": "string", "format": "date-time"},
+                "steps_completed": {"type": "array", "items": {"type": "string"}},
                 "welcome_sent": {"type": "boolean"},
-                "initial_assessment_done": {"type": "boolean"}
+                "initial_assessment_done": {"type": "boolean"},
             },
-            "additionalProperties": False
+            "additionalProperties": False,
         },
         "custom_fields": {
             "type": "object",
             "description": "Custom fields for clinic-specific data",
-            "additionalProperties": True  # Allow any custom fields
+            "additionalProperties": True,  # Allow any custom fields
         },
         "doctor_name": {
             "type": "string",
-            "description": "Cached doctor name for performance"
+            "description": "Cached doctor name for performance",
         },
         "system": {
             "type": "object",
@@ -175,22 +167,22 @@ PATIENT_METADATA_SCHEMA = {
                 "source": {
                     "type": "string",
                     "enum": ["whatsapp", "web", "api", "import"],
-                    "description": "How the patient was created"
+                    "description": "How the patient was created",
                 },
                 "version": {
                     "type": "string",
-                    "description": "Schema version for migrations"
+                    "description": "Schema version for migrations",
                 },
                 "last_sync": {
                     "type": "string",
                     "format": "date-time",
-                    "description": "Last sync timestamp"
-                }
+                    "description": "Last sync timestamp",
+                },
             },
-            "additionalProperties": False
-        }
+            "additionalProperties": False,
+        },
     },
-    "additionalProperties": False  # Strict: no unknown top-level keys
+    "additionalProperties": False,  # Strict: no unknown top-level keys
 }
 
 
@@ -200,8 +192,7 @@ PATIENT_METADATA_SCHEMA = {
 
 
 def validate_patient_metadata(
-    metadata: Dict[str, Any],
-    strict: bool = True
+    metadata: Dict[str, Any], strict: bool = True
 ) -> Dict[str, Any]:
     """
     Validate patient metadata against JSON schema.
@@ -233,10 +224,14 @@ def validate_patient_metadata(
     except JsonSchemaValidationError as e:
         error_message = f"Invalid metadata: {e.message}"
         error_details = {
-            "field": ".".join(str(p) for p in e.absolute_path) if e.absolute_path else "root",
+            "field": ".".join(str(p) for p in e.absolute_path)
+            if e.absolute_path
+            else "root",
             "error": e.message,
-            "schema_path": ".".join(str(p) for p in e.absolute_schema_path) if e.absolute_schema_path else None,
-            "failed_value": e.instance
+            "schema_path": ".".join(str(p) for p in e.absolute_schema_path)
+            if e.absolute_schema_path
+            else None,
+            "failed_value": e.instance,
         }
 
         if strict:
@@ -267,12 +262,16 @@ def get_validation_errors(metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
     errors = []
 
     for error in validator.iter_errors(metadata):
-        errors.append({
-            "field": ".".join(str(p) for p in error.absolute_path) if error.absolute_path else "root",
-            "message": error.message,
-            "schema_path": ".".join(str(p) for p in error.absolute_schema_path),
-            "failed_value": error.instance
-        })
+        errors.append(
+            {
+                "field": ".".join(str(p) for p in error.absolute_path)
+                if error.absolute_path
+                else "root",
+                "message": error.message,
+                "schema_path": ".".join(str(p) for p in error.absolute_schema_path),
+                "failed_value": error.instance,
+            }
+        )
 
     return errors
 
@@ -339,7 +338,7 @@ def sanitize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
 def merge_metadata(
     existing: Optional[Dict[str, Any]],
     updates: Dict[str, Any],
-    validate_result: bool = True
+    validate_result: bool = True,
 ) -> Dict[str, Any]:
     """
     Safely merge metadata updates into existing metadata.

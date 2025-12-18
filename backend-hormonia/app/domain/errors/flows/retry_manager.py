@@ -2,6 +2,7 @@
 Retry management and backoff strategies for flow error recovery.
 Handles scheduling retries, calculating backoff delays, and managing retry state.
 """
+
 import logging
 import json
 from datetime import datetime, timedelta
@@ -9,11 +10,7 @@ from uuid import UUID
 from dataclasses import dataclass, field
 from typing import Optional, Any
 
-from .classifier import (
-    ErrorHandlerConstants,
-    RecoveryStrategy,
-    ErrorCategory
-)
+from .classifier import ErrorHandlerConstants, RecoveryStrategy, ErrorCategory
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +18,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ErrorContext:
     """Context information for error handling."""
+
     patient_id: UUID
     flow_state_id: Optional[UUID] = None
     message_id: Optional[UUID] = None
@@ -32,6 +30,7 @@ class ErrorContext:
 @dataclass
 class ErrorRecord:
     """Record of an error occurrence."""
+
     id: str
     error_type: str
     category: ErrorCategory
@@ -50,6 +49,7 @@ class ErrorRecord:
 @dataclass
 class RecoveryResult:
     """Result of error recovery attempt."""
+
     success: bool
     strategy_used: RecoveryStrategy
     attempts_made: int
@@ -74,7 +74,8 @@ class RetryManager:
         self.redis = redis_client
         self.retry_delays = retry_delays or {
             RecoveryStrategy.RETRY_EXPONENTIAL: ErrorHandlerConstants.DEFAULT_EXPONENTIAL_DELAYS,
-            RecoveryStrategy.RETRY_LINEAR: [ErrorHandlerConstants.DEFAULT_LINEAR_DELAY] * 5,
+            RecoveryStrategy.RETRY_LINEAR: [ErrorHandlerConstants.DEFAULT_LINEAR_DELAY]
+            * 5,
         }
 
     def calculate_exponential_backoff(self, attempt: int) -> int:
@@ -103,9 +104,9 @@ class RetryManager:
         """
         return ErrorHandlerConstants.DEFAULT_LINEAR_DELAY
 
-    def calculate_next_retry_time(self,
-                                  strategy: RecoveryStrategy,
-                                  attempt: int) -> datetime:
+    def calculate_next_retry_time(
+        self, strategy: RecoveryStrategy, attempt: int
+    ) -> datetime:
         """
         Calculate next retry time based on strategy and attempt.
 
@@ -125,9 +126,9 @@ class RetryManager:
 
         return datetime.utcnow() + timedelta(seconds=delay_seconds)
 
-    async def schedule_retry(self,
-                            error_record: ErrorRecord,
-                            retry_at: datetime) -> bool:
+    async def schedule_retry(
+        self, error_record: ErrorRecord, retry_at: datetime
+    ) -> bool:
         """
         Schedule retry operation in Redis.
 
@@ -144,17 +145,18 @@ class RetryManager:
                 "patient_id": str(error_record.context.patient_id),
                 "operation": error_record.context.operation,
                 "retry_at": retry_at.isoformat(),
-                "attempt": error_record.recovery_attempts
+                "attempt": error_record.recovery_attempts,
             }
 
             # Calculate TTL with buffer
-            ttl_seconds = int((retry_at - datetime.utcnow()).total_seconds()) + ErrorHandlerConstants.REDIS_RETRY_BUFFER
+            ttl_seconds = (
+                int((retry_at - datetime.utcnow()).total_seconds())
+                + ErrorHandlerConstants.REDIS_RETRY_BUFFER
+            )
 
             # Store in Redis
             await self.redis.setex(
-                f"flow_retry:{error_record.id}",
-                ttl_seconds,
-                json.dumps(retry_data)
+                f"flow_retry:{error_record.id}", ttl_seconds, json.dumps(retry_data)
             )
 
             logger.info(f"Scheduled retry for error {error_record.id} at {retry_at}")
@@ -164,9 +166,7 @@ class RetryManager:
             logger.error(f"Failed to schedule retry: {e}")
             return False
 
-    async def schedule_flow_resume(self,
-                                   patient_id: UUID,
-                                   resume_at: datetime) -> bool:
+    async def schedule_flow_resume(self, patient_id: UUID, resume_at: datetime) -> bool:
         """
         Schedule flow resume operation.
 
@@ -181,20 +181,23 @@ class RetryManager:
             resume_data = {
                 "patient_id": str(patient_id),
                 "resume_at": resume_at.isoformat(),
-                "reason": "error_recovery"
+                "reason": "error_recovery",
             }
 
             # Calculate TTL with buffer
-            ttl_seconds = int((resume_at - datetime.utcnow()).total_seconds()) + ErrorHandlerConstants.REDIS_RETRY_BUFFER
+            ttl_seconds = (
+                int((resume_at - datetime.utcnow()).total_seconds())
+                + ErrorHandlerConstants.REDIS_RETRY_BUFFER
+            )
 
             # Store in Redis
             await self.redis.setex(
-                f"flow_resume:{patient_id}",
-                ttl_seconds,
-                json.dumps(resume_data)
+                f"flow_resume:{patient_id}", ttl_seconds, json.dumps(resume_data)
             )
 
-            logger.info(f"Scheduled flow resume for patient {patient_id} at {resume_at}")
+            logger.info(
+                f"Scheduled flow resume for patient {patient_id} at {resume_at}"
+            )
             return True
 
         except Exception as e:

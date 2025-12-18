@@ -5,9 +5,8 @@ All configuration modules inherit from this base.
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import List, Optional, ClassVar, Any
+from typing import Any
 import os
-import json
 
 
 class BaseAppSettings(BaseSettings):
@@ -26,25 +25,19 @@ class BaseAppSettings(BaseSettings):
     )
 
     # Environment - Direct ENV names (no validation_alias)
-    APP_ENVIRONMENT: str = Field(
-        default="development",
-        description="Environment name"
-    )
-    APP_ENABLE_DEBUG: bool = Field(
-        default=True,
-        description="Debug mode"
-    )
+    APP_ENVIRONMENT: str = Field(default="development", description="Environment name")
+    APP_ENABLE_DEBUG: bool = Field(default=True, description="Debug mode")
 
     # API Versioning (System is 100% V2)
     API_V2_STR: str = Field(
         default="/api/v2",
-        description="API v2 prefix (system is 100% V2, V1 has been deprecated)"
+        description="API v2 prefix (system is 100% V2, V1 has been deprecated)",
     )
 
     # Admin Dashboard
     APP_ADMIN_DASHBOARD_URL: str = Field(
         default="http://localhost:5173/admin",
-        description="Admin dashboard base URL for links in notifications"
+        description="Admin dashboard base URL for links in notifications",
     )
 
     @model_validator(mode="before")

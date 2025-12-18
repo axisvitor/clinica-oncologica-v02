@@ -1,14 +1,16 @@
 """
 Message Template model.
 """
+
 from sqlalchemy import Column, String, Text, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
 from app.models.base import BaseModel
 
+
 class MessageTemplate(BaseModel):
     """
     Message Template model for WhatsApp messages.
-    
+
     Attributes:
         name (str): Unique name of the template.
         content (str): The message content with placeholders.
@@ -17,6 +19,7 @@ class MessageTemplate(BaseModel):
         media_url (str): Optional URL for media messages.
         is_active (bool): Whether the template is active.
     """
+
     __tablename__ = "message_templates"
 
     name = Column(String, unique=True, nullable=False, index=True)

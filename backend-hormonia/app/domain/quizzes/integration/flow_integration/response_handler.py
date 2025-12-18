@@ -1,6 +1,7 @@
 """
 Conversational quiz service for managing quiz presentation via WhatsApp.
 """
+
 import logging
 from typing import Any, Optional, List, Dict
 from datetime import datetime
@@ -9,8 +10,11 @@ import re
 
 from sqlalchemy.orm import Session
 
-from app.models.quiz import QuizTemplate
-from app.services.quiz import QuizSessionService, QuizResponseService, QuizTemplateService
+from app.services.quiz import (
+    QuizSessionService,
+    QuizResponseService,
+    QuizTemplateService,
+)
 from app.domain.messaging.delivery import MessageSender
 from app.domain.messaging.core import MessageFactory
 from app.repositories.flow import FlowStateRepository
@@ -37,10 +41,12 @@ class ConversationalQuizService:
         self.patient_repo = PatientRepository(db)
         self.message_factory = MessageFactory(db)
 
-    async def process_quiz_response(self,
-                                  patient_id: UUID,
-                                  response_text: str,
-                                  message_metadata: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    async def process_quiz_response(
+        self,
+        patient_id: UUID,
+        response_text: str,
+        message_metadata: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         """
         Process patient response to quiz question.
 
@@ -60,18 +66,20 @@ class ConversationalQuizService:
                 return {
                     "success": False,
                     "error": "No active quiz session found",
-                    "action": "ignore"
+                    "action": "ignore",
                 }
 
             # Get quiz template
-            template = self.quiz_template_service.get_template(active_session.quiz_template_id)
+            template = self.quiz_template_service.get_template(
+                active_session.quiz_template_id
+            )
             questions = template.questions
 
             if active_session.current_question_index >= len(questions):
                 return {
                     "success": False,
                     "error": "Quiz already completed",
-                    "action": "complete_session"
+                    "action": "complete_session",
                 }
 
             current_question = questions[active_session.current_question_index]
@@ -90,45 +98,47 @@ class ConversationalQuizService:
                 return {
                     "success": False,
                     "error": processed_response["error"],
-                    "action": "request_clarification"
+                    "action": "request_clarification",
                 }
 
             # Save response
             response_data = QuizResponseCreate(
                 patient_id=patient_id,
                 quiz_template_id=active_session.quiz_template_id,
-                question_id=current_question['id'],
-                question_text=current_question['text'],
-                response_type=current_question['type'],
+                question_id=current_question["id"],
+                question_text=current_question["text"],
+                response_type=current_question["type"],
                 response_value=processed_response["value"],
                 response_metadata={
                     "original_text": response_text,
                     "processed_value": processed_response["value"],
                     "session_id": str(active_session.id),
-                    "question_index": active_session.current_question_index
+                    "question_index": active_session.current_question_index,
                 },
-                responded_at=datetime.utcnow()
+                responded_at=datetime.utcnow(),
             )
 
-            quiz_response = await self.quiz_response_service.create_response(response_data)
+            await self.quiz_response_service.create_response(response_data)
 
             # Record response latency metric
             try:
                 # Calculate latency from question sent to response received
                 # (message_metadata should contain question_sent_at timestamp)
-                if message_metadata and 'question_sent_at' in message_metadata:
-                    question_sent_at = message_metadata['question_sent_at']
+                if message_metadata and "question_sent_at" in message_metadata:
+                    question_sent_at = message_metadata["question_sent_at"]
                     if isinstance(question_sent_at, str):
                         question_sent_at = datetime.fromisoformat(question_sent_at)
 
-                    response_latency = (datetime.utcnow() - question_sent_at).total_seconds()
+                    response_latency = (
+                        datetime.utcnow() - question_sent_at
+                    ).total_seconds()
 
                     metrics = await get_quiz_metrics_collector()
                     await metrics.record_response_latency(
                         template_id=active_session.quiz_template_id,
-                        question_id=current_question['id'],
+                        question_id=current_question["id"],
                         session_id=active_session.id,
-                        latency_seconds=response_latency
+                        latency_seconds=response_latency,
                     )
             except Exception as e:
                 logger.debug(f"Failed to record response latency metric: {e}")
@@ -141,7 +151,7 @@ class ConversationalQuizService:
                 return {
                     "success": True,
                     "action": "quiz_completed",
-                    "session_id": str(active_session.id)
+                    "session_id": str(active_session.id),
                 }
             else:
                 # Advance to next question
@@ -149,43 +159,36 @@ class ConversationalQuizService:
 
                 # Send next question
                 await self._send_next_question(
-                    patient_id, active_session, questions,
-                    active_session.current_question_index + 1
+                    patient_id,
+                    active_session,
+                    questions,
+                    active_session.current_question_index + 1,
                 )
 
                 return {
                     "success": True,
                     "action": "next_question",
-                    "question_index": active_session.current_question_index + 1
+                    "question_index": active_session.current_question_index + 1,
                 }
 
         except Exception as e:
             logger.error(f"Error processing quiz response: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "action": "error"
-            }
+            return {"success": False, "error": str(e), "action": "error"}
 
-    async def _process_question_response(self,
-                                       question: dict[str, Any],
-                                       response_text: str,
-                                       patient_id: UUID) -> dict[str, Any]:
+    async def _process_question_response(
+        self, question: dict[str, Any], response_text: str, patient_id: UUID
+    ) -> dict[str, Any]:
         """Process and validate question response."""
         try:
-            question_type = question['type']
+            question_type = question["type"]
             response_text = response_text.strip()
 
             if question_type == QuestionType.OPEN_TEXT.value:
-                return {
-                    "valid": True,
-                    "value": response_text,
-                    "type": "text"
-                }
+                return {"valid": True, "value": response_text, "type": "text"}
 
             elif question_type == QuestionType.SCALE.value:
                 # Try to extract number from response
-                numbers = re.findall(r'\d+', response_text)
+                numbers = re.findall(r"\d+", response_text)
 
                 if not numbers:
                     # Use AI to interpret response
@@ -197,39 +200,37 @@ class ConversationalQuizService:
                             "valid": True,
                             "value": str(interpreted_value),
                             "type": "scale",
-                            "interpreted": True
+                            "interpreted": True,
                         }
 
                     return {
                         "valid": False,
-                        "error": "Por favor, responda com um número de 1 a 5"
+                        "error": "Por favor, responda com um número de 1 a 5",
                     }
 
                 scale_value = int(numbers[0])
                 if 1 <= scale_value <= 5:
-                    return {
-                        "valid": True,
-                        "value": str(scale_value),
-                        "type": "scale"
-                    }
+                    return {"valid": True, "value": str(scale_value), "type": "scale"}
                 else:
                     return {
                         "valid": False,
-                        "error": "Por favor, escolha um número entre 1 e 5"
+                        "error": "Por favor, escolha um número entre 1 e 5",
                     }
 
             elif question_type == QuestionType.MULTIPLE_CHOICE.value:
                 # Try to match response with options
-                options = question.get('options', [])
+                options = question.get("options", [])
 
                 # Direct text match
                 for option in options:
-                    if response_text.lower() in option['text'].lower() or \
-                       option['text'].lower() in response_text.lower():
+                    if (
+                        response_text.lower() in option["text"].lower()
+                        or option["text"].lower() in response_text.lower()
+                    ):
                         return {
                             "valid": True,
-                            "value": option['value'],
-                            "type": "multiple_choice"
+                            "value": option["value"],
+                            "type": "multiple_choice",
                         }
 
                 # Use AI to interpret response
@@ -242,56 +243,42 @@ class ConversationalQuizService:
                         "valid": True,
                         "value": interpreted_option,
                         "type": "multiple_choice",
-                        "interpreted": True
+                        "interpreted": True,
                     }
 
                 # Show options again
                 options_text = "\n".join([f"• {opt['text']}" for opt in options])
                 return {
                     "valid": False,
-                    "error": f"Por favor, escolha uma das opções:\n{options_text}"
+                    "error": f"Por favor, escolha uma das opções:\n{options_text}",
                 }
 
             elif question_type == QuestionType.YES_NO.value:
                 response_lower = response_text.lower()
 
-                yes_words = ['sim', 'yes', 's', 'claro', 'certamente', 'com certeza']
-                no_words = ['não', 'nao', 'no', 'n', 'nunca', 'jamais']
+                yes_words = ["sim", "yes", "s", "claro", "certamente", "com certeza"]
+                no_words = ["não", "nao", "no", "n", "nunca", "jamais"]
 
                 if any(word in response_lower for word in yes_words):
-                    return {
-                        "valid": True,
-                        "value": "yes",
-                        "type": "yes_no"
-                    }
+                    return {"valid": True, "value": "yes", "type": "yes_no"}
                 elif any(word in response_lower for word in no_words):
-                    return {
-                        "valid": True,
-                        "value": "no",
-                        "type": "yes_no"
-                    }
+                    return {"valid": True, "value": "no", "type": "yes_no"}
                 else:
                     return {
                         "valid": False,
-                        "error": "Por favor, responda com 'sim' ou 'não'"
+                        "error": "Por favor, responda com 'sim' ou 'não'",
                     }
 
             else:
-                return {
-                    "valid": False,
-                    "error": "Tipo de pergunta não suportado"
-                }
+                return {"valid": False, "error": "Tipo de pergunta não suportado"}
 
         except Exception as e:
             logger.error(f"Error processing question response: {e}")
-            return {
-                "valid": False,
-                "error": "Erro ao processar resposta"
-            }
+            return {"valid": False, "error": "Erro ao processar resposta"}
 
-    async def _interpret_scale_response(self,
-                                      response_text: str,
-                                      question: dict[str, Any]) -> Optional[int]:
+    async def _interpret_scale_response(
+        self, response_text: str, question: dict[str, Any]
+    ) -> Optional[int]:
         """Use AI to interpret scale response."""
         try:
             gemini_client = get_gemini_client()
@@ -299,7 +286,7 @@ class ConversationalQuizService:
             prompt = f"""
             Analise a resposta do paciente para uma pergunta de escala de 1 a 5:
 
-            Pergunta: {question['text']}
+            Pergunta: {question["text"]}
             Resposta do paciente: "{response_text}"
 
             Escala:
@@ -326,14 +313,16 @@ class ConversationalQuizService:
             logger.error(f"Error interpreting scale response: {e}")
             return None
 
-    async def _interpret_multiple_choice_response(self,
-                                                response_text: str,
-                                                options: List[dict[str, Any]]) -> Optional[str]:
+    async def _interpret_multiple_choice_response(
+        self, response_text: str, options: List[dict[str, Any]]
+    ) -> Optional[str]:
         """Use AI to interpret multiple choice response."""
         try:
             gemini_client = get_gemini_client()
 
-            options_text = "\n".join([f"- {opt['value']}: {opt['text']}" for opt in options])
+            options_text = "\n".join(
+                [f"- {opt['value']}: {opt['text']}" for opt in options]
+            )
 
             prompt = f"""
             Analise a resposta do paciente e determine qual opção ela melhor representa:
@@ -351,7 +340,7 @@ class ConversationalQuizService:
 
             if response and response.strip() != "INVALID":
                 # Validate that returned value exists in options
-                option_values = [opt['value'] for opt in options]
+                option_values = [opt["value"] for opt in options]
                 if response.strip() in option_values:
                     return response.strip()
 
@@ -361,10 +350,9 @@ class ConversationalQuizService:
             logger.error(f"Error interpreting multiple choice response: {e}")
             return None
 
-    async def _send_clarification_message(self,
-                                        patient_id: UUID,
-                                        question: dict[str, Any],
-                                        error_message: str):
+    async def _send_clarification_message(
+        self, patient_id: UUID, question: dict[str, Any], error_message: str
+    ):
         """Send clarification message for invalid response."""
         try:
             patient = self.patient_repo.get(patient_id)
@@ -376,7 +364,7 @@ class ConversationalQuizService:
                 patient_id=patient_id,
                 patient_name=patient.name,
                 question=question,
-                error_message=error_message
+                error_message=error_message,
             )
 
             await self.message_sender.send_message(message)
@@ -384,11 +372,13 @@ class ConversationalQuizService:
         except Exception as e:
             logger.error(f"Error sending clarification message: {e}")
 
-    async def _send_next_question(self,
-                                patient_id: UUID,
-                                session: Any,
-                                questions: List[Dict[str, Any]],
-                                question_index: int):
+    async def _send_next_question(
+        self,
+        patient_id: UUID,
+        session: Any,
+        questions: List[Dict[str, Any]],
+        question_index: int,
+    ):
         """Send next quiz question."""
         try:
             if question_index >= len(questions):
@@ -407,7 +397,7 @@ class ConversationalQuizService:
                 session_id=str(session.id),
                 question_index=question_index,
                 total_questions=len(questions),
-                patient_name=patient.name
+                patient_name=patient.name,
             )
 
             await self.message_sender.send_message(message)
@@ -423,6 +413,7 @@ class ConversationalQuizService:
 
             # Schedule report generation
             from app.tasks.flows import generate_quiz_report
+
             report_task = generate_quiz_report.delay(str(session.id))
             logger.info(f"Scheduled quiz report generation: task {report_task.id}")
 
@@ -430,13 +421,18 @@ class ConversationalQuizService:
             delivery_method = "whatsapp_conversational"  # default
             flow_states = self.flow_repo.get_by_patient_id(patient_id)
             for flow_state in flow_states:
-                if flow_state.state_data and \
-                   flow_state.state_data.get("quiz_session_id") == str(session.id):
+                if flow_state.state_data and flow_state.state_data.get(
+                    "quiz_session_id"
+                ) == str(session.id):
                     flow_state.state_data["quiz_state"] = QuizFlowState.COMPLETED.value
-                    flow_state.state_data["quiz_completed_at"] = datetime.utcnow().isoformat()
+                    flow_state.state_data["quiz_completed_at"] = (
+                        datetime.utcnow().isoformat()
+                    )
 
                     # Get delivery method from flow state
-                    delivery_method = flow_state.state_data.get("quiz_delivery_method", "whatsapp_conversational")
+                    delivery_method = flow_state.state_data.get(
+                        "quiz_delivery_method", "whatsapp_conversational"
+                    )
                     break
 
             self.db.commit()
@@ -446,23 +442,30 @@ class ConversationalQuizService:
             if patient:
                 if delivery_method == "link":
                     # Use MonthlyQuizMessageIntegration for link completion
-                    from app.services.monthly_quiz_message_integration import MonthlyQuizMessageIntegration
+                    from app.services.monthly_quiz_message_integration import (
+                        MonthlyQuizMessageIntegration,
+                    )
+
                     quiz_integration = MonthlyQuizMessageIntegration(self.db)
 
                     await quiz_integration.send_completion_confirmation(
                         quiz_session_id=session.id
                     )
-                    logger.info(f"Sent link-based completion message for patient {patient_id}")
+                    logger.info(
+                        f"Sent link-based completion message for patient {patient_id}"
+                    )
                 else:
                     # Use MessageFactory for conversational completion
                     message = self.message_factory.create_quiz_completion(
                         patient_id=patient_id,
                         patient_name=patient.name,
-                        session_id=str(session.id)
+                        session_id=str(session.id),
                     )
 
                     await self.message_sender.send_message(message)
-                    logger.info(f"Sent conversational completion message for patient {patient_id}")
+                    logger.info(
+                        f"Sent conversational completion message for patient {patient_id}"
+                    )
 
         except Exception as e:
             logger.error(f"Error completing quiz session: {e}")
@@ -473,18 +476,18 @@ class ConversationalQuizService:
             active_session = self.quiz_session_service.get_active_session(patient_id)
 
             if not active_session:
-                return {
-                    "success": False,
-                    "error": "No active quiz session found"
-                }
+                return {"success": False, "error": "No active quiz session found"}
 
             # Update flow state
             flow_states = self.flow_repo.get_by_patient_id(patient_id)
             for flow_state in flow_states:
-                if flow_state.state_data and \
-                   flow_state.state_data.get("quiz_session_id") == str(active_session.id):
+                if flow_state.state_data and flow_state.state_data.get(
+                    "quiz_session_id"
+                ) == str(active_session.id):
                     flow_state.state_data["quiz_state"] = QuizFlowState.PAUSED.value
-                    flow_state.state_data["quiz_paused_at"] = datetime.utcnow().isoformat()
+                    flow_state.state_data["quiz_paused_at"] = (
+                        datetime.utcnow().isoformat()
+                    )
                     break
 
             self.db.commit()
@@ -496,7 +499,7 @@ class ConversationalQuizService:
                 message = self.message_factory.create_quiz_pause(
                     patient_id=patient_id,
                     patient_name=patient.name,
-                    session_id=str(active_session.id)
+                    session_id=str(active_session.id),
                 )
 
                 await self.message_sender.send_message(message)
@@ -504,15 +507,12 @@ class ConversationalQuizService:
             return {
                 "success": True,
                 "session_id": str(active_session.id),
-                "action": "paused"
+                "action": "paused",
             }
 
         except Exception as e:
             logger.error(f"Error pausing quiz session: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     async def resume_quiz_session(self, patient_id: UUID) -> Dict[str, Any]:
         """Resume paused quiz session."""
@@ -520,52 +520,55 @@ class ConversationalQuizService:
             active_session = self.quiz_session_service.get_active_session(patient_id)
 
             if not active_session:
-                return {
-                    "success": False,
-                    "error": "No active quiz session found"
-                }
+                return {"success": False, "error": "No active quiz session found"}
 
             # Check if session is paused
             flow_states = self.flow_repo.get_by_patient_id(patient_id)
             is_paused = False
 
             for flow_state in flow_states:
-                if flow_state.state_data and \
-                   flow_state.state_data.get("quiz_session_id") == str(active_session.id):
-                    if flow_state.state_data.get("quiz_state") == QuizFlowState.PAUSED.value:
+                if flow_state.state_data and flow_state.state_data.get(
+                    "quiz_session_id"
+                ) == str(active_session.id):
+                    if (
+                        flow_state.state_data.get("quiz_state")
+                        == QuizFlowState.PAUSED.value
+                    ):
                         is_paused = True
-                        flow_state.state_data["quiz_state"] = QuizFlowState.IN_PROGRESS.value
-                        flow_state.state_data["quiz_resumed_at"] = datetime.utcnow().isoformat()
+                        flow_state.state_data["quiz_state"] = (
+                            QuizFlowState.IN_PROGRESS.value
+                        )
+                        flow_state.state_data["quiz_resumed_at"] = (
+                            datetime.utcnow().isoformat()
+                        )
                     break
 
             if not is_paused:
-                return {
-                    "success": False,
-                    "error": "Quiz session is not paused"
-                }
+                return {"success": False, "error": "Quiz session is not paused"}
 
             self.db.commit()
 
             # Get current question and send it
-            template = self.quiz_template_service.get_template(active_session.quiz_template_id)
+            template = self.quiz_template_service.get_template(
+                active_session.quiz_template_id
+            )
             questions = template.questions
 
             if active_session.current_question_index < len(questions):
                 await self._send_next_question(
-                    patient_id, active_session, questions,
-                    active_session.current_question_index
+                    patient_id,
+                    active_session,
+                    questions,
+                    active_session.current_question_index,
                 )
 
             return {
                 "success": True,
                 "session_id": str(active_session.id),
                 "action": "resumed",
-                "current_question": active_session.current_question_index
+                "current_question": active_session.current_question_index,
             }
 
         except Exception as e:
             logger.error(f"Error resuming quiz session: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}

@@ -14,7 +14,7 @@ Features:
 
 import logging
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List
 from uuid import UUID
 
 from celery import shared_task

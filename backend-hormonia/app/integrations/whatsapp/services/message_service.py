@@ -1,6 +1,7 @@
 """
 WhatsApp message service with queue management and retry logic.
 """
+
 import asyncio
 import json
 import logging
@@ -10,16 +11,18 @@ from typing import Optional, Dict, Any, List
 from uuid import uuid4
 import redis.asyncio as redis
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
-from sqlalchemy.orm import selectinload
+from sqlalchemy import select
 
 from .evolution_client import EvolutionAPIClient, validate_phone_number
 from ..models.message import (
-    WhatsAppMessage, WhatsAppContact, WhatsAppInstance,
-    MessageRequest, MessageResponse, MessageStatus, MessageType
+    WhatsAppMessage,
+    WhatsAppContact,
+    MessageRequest,
+    MessageResponse,
+    MessageStatus,
+    MessageType,
 )
 from app.services.circuit_breaker import CircuitBreaker, CircuitOpenError
-from app.core.retry import retry_with_backoff, RetryStrategies
 from app.core.tracing import get_tracer, trace
 from app.core.distributed_lock import acquire_lock, LockAcquisitionError, LockKeys
 
@@ -31,7 +34,7 @@ class MessageQueue:
 
     def __init__(self, redis_url: Optional[str] = None):
         # Use REDIS_URL from environment (Redis Cloud URL)
-        self.redis_url = redis_url or os.getenv('REDIS_URL')
+        self.redis_url = redis_url or os.getenv("REDIS_URL")
         self.redis_client: Optional[redis.Redis] = None
         self.queue_name = "whatsapp:messages"
         self.retry_queue_name = "whatsapp:messages:retry"
@@ -48,10 +51,7 @@ class MessageQueue:
             await self.redis_client.close()
 
     async def enqueue_message(
-        self,
-        message_data: Dict[str, Any],
-        priority: int = 0,
-        delay_seconds: int = 0
+        self, message_data: Dict[str, Any], priority: int = 0, delay_seconds: int = 0
     ):
         """Enqueue message for processing."""
         await self.connect()
@@ -62,7 +62,7 @@ class MessageQueue:
             "priority": priority,
             "enqueued_at": datetime.utcnow().isoformat(),
             "retry_count": 0,
-            "max_retries": 3
+            "max_retries": 3,
         }
 
         if delay_seconds > 0:
@@ -70,14 +70,11 @@ class MessageQueue:
             execute_at = datetime.utcnow() + timedelta(seconds=delay_seconds)
             await self.redis_client.zadd(
                 f"{self.queue_name}:scheduled",
-                {json.dumps(message_payload): execute_at.timestamp()}
+                {json.dumps(message_payload): execute_at.timestamp()},
             )
         else:
             # Immediate processing
-            await self.redis_client.lpush(
-                self.queue_name,
-                json.dumps(message_payload)
-            )
+            await self.redis_client.lpush(self.queue_name, json.dumps(message_payload))
 
     async def dequeue_message(self, timeout: int = 30) -> Optional[Dict[str, Any]]:
         """Dequeue message for processing."""
@@ -93,7 +90,9 @@ class MessageQueue:
             return json.loads(message_data)
         return None
 
-    async def retry_message(self, message_payload: Dict[str, Any], delay_seconds: int = 60):
+    async def retry_message(
+        self, message_payload: Dict[str, Any], delay_seconds: int = 60
+    ):
         """Retry failed message with exponential backoff."""
         await self.connect()
 
@@ -104,19 +103,21 @@ class MessageQueue:
         # Previous code used > which allowed one extra retry beyond max_retries
         if retry_count >= max_retries:
             # Move to dead letter queue
-            message_id = message_payload.get('id', 'unknown')
+            message_id = message_payload.get("id", "unknown")
             await self.redis_client.lpush(
                 self.dlq_name,
-                json.dumps({**message_payload, "failed_at": datetime.utcnow().isoformat()})
+                json.dumps(
+                    {**message_payload, "failed_at": datetime.utcnow().isoformat()}
+                ),
             )
             logger.error(
-                f"Message moved to DLQ after max retries",
+                "Message moved to DLQ after max retries",
                 extra={
                     "message_id": message_id,
                     "retry_count": retry_count,
                     "max_retries": max_retries,
-                    "action": "dlq_moved"
-                }
+                    "action": "dlq_moved",
+                },
             )
             return False
 
@@ -127,23 +128,23 @@ class MessageQueue:
         retry_payload = {
             **message_payload,
             "retry_count": retry_count,
-            "retried_at": datetime.utcnow().isoformat()
+            "retried_at": datetime.utcnow().isoformat(),
         }
 
         await self.redis_client.zadd(
             f"{self.retry_queue_name}:scheduled",
-            {json.dumps(retry_payload): execute_at.timestamp()}
+            {json.dumps(retry_payload): execute_at.timestamp()},
         )
 
         logger.info(
-            f"Message scheduled for retry with exponential backoff",
+            "Message scheduled for retry with exponential backoff",
             extra={
-                "message_id": message_payload.get('id', 'unknown'),
+                "message_id": message_payload.get("id", "unknown"),
                 "retry_count": retry_count,
                 "max_retries": max_retries,
                 "backoff_delay_seconds": backoff_delay,
-                "execute_at": execute_at.isoformat()
-            }
+                "execute_at": execute_at.isoformat(),
+            },
         )
         return True
 
@@ -167,7 +168,9 @@ class MessageQueue:
 
         for message_data, score in ready_retries:
             await self.redis_client.lpush(self.queue_name, message_data)
-            await self.redis_client.zrem(f"{self.retry_queue_name}:scheduled", message_data)
+            await self.redis_client.zrem(
+                f"{self.retry_queue_name}:scheduled", message_data
+            )
 
     async def get_queue_stats(self) -> Dict[str, int]:
         """Get queue statistics."""
@@ -176,8 +179,10 @@ class MessageQueue:
         return {
             "pending": await self.redis_client.llen(self.queue_name),
             "scheduled": await self.redis_client.zcard(f"{self.queue_name}:scheduled"),
-            "retry_scheduled": await self.redis_client.zcard(f"{self.retry_queue_name}:scheduled"),
-            "dead_letter": await self.redis_client.llen(self.dlq_name)
+            "retry_scheduled": await self.redis_client.zcard(
+                f"{self.retry_queue_name}:scheduled"
+            ),
+            "dead_letter": await self.redis_client.llen(self.dlq_name),
         }
 
 
@@ -195,7 +200,7 @@ class WhatsAppMessageService:
         evolution_client: EvolutionAPIClient,
         db_session: AsyncSession,
         message_queue: MessageQueue,
-        message_status_handler: Optional[Any] = None  # Avoid circular import
+        message_status_handler: Optional[Any] = None,  # Avoid circular import
     ):
         self.evolution_client = evolution_client
         self.db_session = db_session
@@ -208,7 +213,7 @@ class WhatsAppMessageService:
             name="evolution_api_queue",
             failure_threshold=5,
             recovery_timeout=60,
-            expected_exception=Exception
+            expected_exception=Exception,
         )
 
         # Tracer for distributed tracing
@@ -234,24 +239,26 @@ class WhatsAppMessageService:
             media_url=request.media_url,
             media_caption=request.media_caption,
             status=MessageStatus.PENDING,
-            message_data=request.message_data or {}
+            message_data=request.message_data or {},
         )
 
         self.db_session.add(message)
         await self.db_session.commit()
 
         # Queue message for processing
-        await self.message_queue.enqueue_message({
-            "message_id": message_id,
-            "action": "send_message",
-            "request": request.dict()
-        })
+        await self.message_queue.enqueue_message(
+            {
+                "message_id": message_id,
+                "action": "send_message",
+                "request": request.dict(),
+            }
+        )
 
         return MessageResponse(
             id=message_id,
             status=MessageStatus.PENDING,
             message="Message queued for delivery",
-            timestamp=datetime.utcnow()
+            timestamp=datetime.utcnow(),
         )
 
     async def process_message_queue(self):
@@ -271,7 +278,9 @@ class WhatsAppMessageService:
                 try:
                     await self._process_message(message_payload)
                 except Exception as e:
-                    logger.error(f"Error processing message {message_payload.get('id')}: {e}")
+                    logger.error(
+                        f"Error processing message {message_payload.get('id')}: {e}"
+                    )
                     await self.message_queue.retry_message(message_payload)
 
         except asyncio.CancelledError:
@@ -297,17 +306,18 @@ class WhatsAppMessageService:
         lock_key = LockKeys.message_processing(message_id)
         try:
             async with acquire_lock(lock_key, timeout=5.0, ttl=120):
-                await self._process_message_internal(message_payload, message_id, action)
+                await self._process_message_internal(
+                    message_payload, message_id, action
+                )
         except LockAcquisitionError:
             # Another worker is processing this message, skip
-            logger.info(f"Message {message_id} already being processed by another worker")
+            logger.info(
+                f"Message {message_id} already being processed by another worker"
+            )
             return
 
     async def _process_message_internal(
-        self,
-        message_payload: Dict[str, Any],
-        message_id: str,
-        action: str
+        self, message_payload: Dict[str, Any], message_id: str, action: str
     ):
         """Internal message processing (called within lock context)."""
         # Get message from database
@@ -326,7 +336,9 @@ class WhatsAppMessageService:
 
         try:
             if action == "send_message":
-                await self._send_message_impl(message, message_payload["data"]["request"])
+                await self._send_message_impl(
+                    message, message_payload["data"]["request"]
+                )
 
             # Update retry count
             message.retry_count = message_payload.get("retry_count", 0)
@@ -341,18 +353,21 @@ class WhatsAppMessageService:
 
             # Sync failure status to domain if handler is present
             if self.message_status_handler and message.message_data:
-                domain_id = message.message_data.get('domain_message_id')
+                domain_id = message.message_data.get("domain_message_id")
                 if domain_id:
                     from app.models.message import MessageStatus as DomainMessageStatus
+
                     await self.message_status_handler.handle_status_update(
                         domain_message_id=domain_id,
                         new_status=DomainMessageStatus.FAILED,
-                        error_message=str(e)
+                        error_message=str(e),
                     )
             raise
 
     @trace(name="send_message_impl", attributes={"service": "evolution_api"})
-    async def _send_message_impl(self, message: WhatsAppMessage, request_data: Dict[str, Any]):
+    async def _send_message_impl(
+        self, message: WhatsAppMessage, request_data: Dict[str, Any]
+    ):
         """Implementation of message sending with circuit breaker and retry."""
         request = MessageRequest(**request_data)
 
@@ -363,7 +378,7 @@ class WhatsAppMessageService:
                     instance_name=request.instance_name,
                     to=request.to,
                     text=request.text,
-                    message_data=request.message_data
+                    message_data=request.message_data,
                 )
             else:
                 response = await self.evolution_client.send_media_message(
@@ -373,7 +388,7 @@ class WhatsAppMessageService:
                     media_type=request.message_type,
                     caption=request.media_caption,
                     filename=request.filename,
-                    message_data=request.message_data
+                    message_data=request.message_data,
                 )
             return response
 
@@ -387,19 +402,21 @@ class WhatsAppMessageService:
             message.sent_at = datetime.utcnow()
 
             logger.info(f"Message {message.id} sent successfully")
-            
+
             # Sync sent status to domain if handler is present
             if self.message_status_handler and message.message_data:
-                domain_id = message.message_data.get('domain_message_id')
+                domain_id = message.message_data.get("domain_message_id")
                 if domain_id:
                     from app.models.message import MessageStatus as DomainMessageStatus
+
                     await self.message_status_handler.handle_status_update(
-                        domain_message_id=domain_id,
-                        new_status=DomainMessageStatus.SENT
+                        domain_message_id=domain_id, new_status=DomainMessageStatus.SENT
                     )
 
         except CircuitOpenError:
-            logger.error(f"Circuit breaker open for Evolution API, message {message.id} cannot be sent")
+            logger.error(
+                f"Circuit breaker open for Evolution API, message {message.id} cannot be sent"
+            )
             raise
         except Exception as e:
             logger.error(f"Failed to send message {message.id}: {e}")
@@ -409,7 +426,7 @@ class WhatsAppMessageService:
         self,
         external_id: str,
         status: MessageStatus,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ):
         """Update message status from webhook."""
         stmt = select(WhatsAppMessage).where(WhatsAppMessage.external_id == external_id)
@@ -437,13 +454,13 @@ class WhatsAppMessageService:
         await self.db_session.commit()
 
         logger.info(f"Updated message {message.id} status to {status}")
-        
+
         # Sync status to domain if handler is present
         if self.message_status_handler and message.message_data:
-            domain_id = message.message_data.get('domain_message_id')
+            domain_id = message.message_data.get("domain_message_id")
             if domain_id:
                 from app.models.message import MessageStatus as DomainMessageStatus
-                
+
                 # Map WhatsApp status to Domain status
                 domain_status = None
                 if status == MessageStatus.DELIVERED:
@@ -452,27 +469,23 @@ class WhatsAppMessageService:
                     domain_status = DomainMessageStatus.READ
                 elif status == MessageStatus.FAILED:
                     domain_status = DomainMessageStatus.FAILED
-                
+
                 if domain_status:
                     await self.message_status_handler.handle_status_update(
                         domain_message_id=domain_id,
                         new_status=domain_status,
-                        error_message=error_message
+                        error_message=error_message,
                     )
 
     async def get_message_history(
-        self,
-        instance_name: str,
-        chat_id: str,
-        limit: int = 50,
-        offset: int = 0
+        self, instance_name: str, chat_id: str, limit: int = 50, offset: int = 0
     ) -> List[WhatsAppMessage]:
         """Get message history for a chat."""
         stmt = (
             select(WhatsAppMessage)
             .where(
                 WhatsAppMessage.instance_name == instance_name,
-                WhatsAppMessage.chat_id == chat_id
+                WhatsAppMessage.chat_id == chat_id,
             )
             .order_by(WhatsAppMessage.created_at.desc())
             .limit(limit)
@@ -486,10 +499,12 @@ class WhatsAppMessageService:
         self,
         instance_name: str,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
     ) -> Dict[str, int]:
         """Get message statistics."""
-        stmt = select(WhatsAppMessage).where(WhatsAppMessage.instance_name == instance_name)
+        stmt = select(WhatsAppMessage).where(
+            WhatsAppMessage.instance_name == instance_name
+        )
 
         if start_date:
             stmt = stmt.where(WhatsAppMessage.created_at >= start_date)
@@ -502,10 +517,12 @@ class WhatsAppMessageService:
         stats = {
             "total": len(messages),
             "sent": sum(1 for m in messages if m.status == MessageStatus.SENT),
-            "delivered": sum(1 for m in messages if m.status == MessageStatus.DELIVERED),
+            "delivered": sum(
+                1 for m in messages if m.status == MessageStatus.DELIVERED
+            ),
             "read": sum(1 for m in messages if m.status == MessageStatus.READ),
             "failed": sum(1 for m in messages if m.status == MessageStatus.FAILED),
-            "pending": sum(1 for m in messages if m.status == MessageStatus.PENDING)
+            "pending": sum(1 for m in messages if m.status == MessageStatus.PENDING),
         }
 
         return stats
@@ -520,7 +537,7 @@ class WhatsAppMessageService:
                 # Check if contact exists
                 stmt = select(WhatsAppContact).where(
                     WhatsAppContact.instance_name == instance_name,
-                    WhatsAppContact.phone_number == contact_response.phone_number
+                    WhatsAppContact.phone_number == contact_response.phone_number,
                 )
                 result = await self.db_session.execute(stmt)
                 existing_contact = result.scalar_one_or_none()
@@ -528,7 +545,9 @@ class WhatsAppMessageService:
                 if existing_contact:
                     # Update existing contact
                     existing_contact.name = contact_response.name
-                    existing_contact.profile_picture_url = contact_response.profile_picture_url
+                    existing_contact.profile_picture_url = (
+                        contact_response.profile_picture_url
+                    )
                     existing_contact.updated_at = datetime.utcnow()
                 else:
                     # Create new contact
@@ -538,14 +557,16 @@ class WhatsAppMessageService:
                         phone_number=contact_response.phone_number,
                         formatted_number=contact_response.formatted_number,
                         name=contact_response.name,
-                        profile_picture_url=contact_response.profile_picture_url
+                        profile_picture_url=contact_response.profile_picture_url,
                     )
                     self.db_session.add(contact)
 
                 synced_count += 1
 
             await self.db_session.commit()
-            logger.info(f"Synchronized {synced_count} contacts for instance {instance_name}")
+            logger.info(
+                f"Synchronized {synced_count} contacts for instance {instance_name}"
+            )
             return synced_count
 
         except Exception as e:

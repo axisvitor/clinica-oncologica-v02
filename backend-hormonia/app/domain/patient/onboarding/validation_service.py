@@ -85,39 +85,36 @@ class ValidationService:
             # Priority 1: Check by CPF (most unique identifier for Brazilian patients)
             if cpf:
                 patient = await loop.run_in_executor(
-                    self._executor,
-                    lambda: self._query_by_cpf(cpf, doctor_id)
+                    self._executor, lambda: self._query_by_cpf(cpf, doctor_id)
                 )
                 if patient:
                     logger.info(
                         f"Found existing patient by CPF: {patient.id}",
-                        extra={"cpf": cpf, "doctor_id": str(doctor_id)}
+                        extra={"cpf": cpf, "doctor_id": str(doctor_id)},
                     )
                     return patient
 
             # Priority 2: Check by email (if provided)
             if email:
                 patient = await loop.run_in_executor(
-                    self._executor,
-                    lambda: self._query_by_email(email, doctor_id)
+                    self._executor, lambda: self._query_by_email(email, doctor_id)
                 )
                 if patient:
                     logger.info(
                         f"Found existing patient by email: {patient.id}",
-                        extra={"email": email, "doctor_id": str(doctor_id)}
+                        extra={"email": email, "doctor_id": str(doctor_id)},
                     )
                     return patient
 
             # Priority 3: Check by phone (always provided)
             if phone:
                 patient = await loop.run_in_executor(
-                    self._executor,
-                    lambda: self._query_by_phone(phone, doctor_id)
+                    self._executor, lambda: self._query_by_phone(phone, doctor_id)
                 )
                 if patient:
                     logger.info(
                         f"Found existing patient by phone: {patient.id}",
-                        extra={"phone": phone, "doctor_id": str(doctor_id)}
+                        extra={"phone": phone, "doctor_id": str(doctor_id)},
                     )
                     return patient
 
@@ -130,9 +127,9 @@ class ValidationService:
                     "cpf": cpf,
                     "email": email,
                     "phone": phone,
-                    "doctor_id": str(doctor_id)
+                    "doctor_id": str(doctor_id),
                 },
-                exc_info=True
+                exc_info=True,
             )
             # On error, return None to allow creation attempt
             # Database constraints will catch any actual duplicates
@@ -151,6 +148,7 @@ class ValidationService:
         """
         # LGPD: Use cpf_hash for lookup (plaintext column removed in migration 030)
         from app.services.encryption import get_cpf_encryption_service
+
         service = get_cpf_encryption_service()
         cpf_hash = service.hash_cpf(cpf)
 
@@ -159,7 +157,7 @@ class ValidationService:
             .filter(
                 Patient.cpf_hash == cpf_hash,
                 Patient.doctor_id == doctor_id,
-                Patient.deleted_at.is_(None)  # Only active patients
+                Patient.deleted_at.is_(None),  # Only active patients
             )
             .first()
         )
@@ -178,6 +176,7 @@ class ValidationService:
             Patient object or None
         """
         from app.services.encryption import get_lgpd_encryption_service
+
         service = get_lgpd_encryption_service()
         email_hash = service.hash_email(email.lower())
 
@@ -186,7 +185,7 @@ class ValidationService:
             .filter(
                 Patient.email_hash == email_hash,
                 Patient.doctor_id == doctor_id,
-                Patient.deleted_at.is_(None)
+                Patient.deleted_at.is_(None),
             )
             .first()
         )
@@ -204,6 +203,7 @@ class ValidationService:
         """
         # LGPD: Use phone_hash for lookup (plaintext column removed in migration 030)
         from app.services.encryption import get_lgpd_encryption_service
+
         service = get_lgpd_encryption_service()
         phone_hash = service.hash_phone(phone)
 
@@ -212,7 +212,7 @@ class ValidationService:
             .filter(
                 Patient.phone_hash == phone_hash,
                 Patient.doctor_id == doctor_id,
-                Patient.deleted_at.is_(None)
+                Patient.deleted_at.is_(None),
             )
             .first()
         )
@@ -259,7 +259,7 @@ class ValidationService:
             raise ValidationError("Phone number is required")
 
         # Remove all non-digit characters
-        digits_only = ''.join(filter(str.isdigit, phone))
+        digits_only = "".join(filter(str.isdigit, phone))
 
         # Brazilian phone validation: must have 10-11 digits
         if len(digits_only) < 10 or len(digits_only) > 11:
@@ -281,7 +281,7 @@ class ValidationService:
             return  # CPF is optional
 
         # Remove all non-digit characters
-        digits_only = ''.join(filter(str.isdigit, cpf))
+        digits_only = "".join(filter(str.isdigit, cpf))
 
         # CPF must have exactly 11 digits
         if len(digits_only) != 11:
@@ -307,7 +307,7 @@ class ValidationService:
             return  # Email is optional
 
         # Basic email validation
-        if '@' not in email or '.' not in email:
+        if "@" not in email or "." not in email:
             raise ValidationError("Invalid email format")
 
         # Check for minimum length

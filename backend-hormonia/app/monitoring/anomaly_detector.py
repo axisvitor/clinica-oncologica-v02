@@ -5,9 +5,7 @@ Machine learning-based anomaly detection for performance metrics
 and business metrics.
 """
 
-import asyncio
 import logging
-import numpy as np
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 from collections import deque
@@ -22,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 class AnomalyType(Enum):
     """Types of anomalies."""
+
     SPIKE = "spike"
     DROP = "drop"
     TREND_CHANGE = "trend_change"
@@ -32,6 +31,7 @@ class AnomalyType(Enum):
 @dataclass
 class Anomaly:
     """Detected anomaly."""
+
     metric_name: str
     anomaly_type: AnomalyType
     timestamp: datetime
@@ -51,7 +51,9 @@ class SimpleStatisticalDetector:
         self.z_threshold = z_threshold
         self.metric_windows: Dict[str, deque] = {}
 
-    def add_value(self, metric_name: str, value: float, timestamp: datetime) -> Optional[Anomaly]:
+    def add_value(
+        self, metric_name: str, value: float, timestamp: datetime
+    ) -> Optional[Anomaly]:
         """Add a value and check for anomalies."""
         if metric_name not in self.metric_windows:
             self.metric_windows[metric_name] = deque(maxlen=self.window_size)
@@ -68,8 +70,13 @@ class SimpleStatisticalDetector:
 
         return anomaly
 
-    def _detect_anomaly(self, metric_name: str, value: float, timestamp: datetime,
-                       historical_values: List[Tuple[float, datetime]]) -> Optional[Anomaly]:
+    def _detect_anomaly(
+        self,
+        metric_name: str,
+        value: float,
+        timestamp: datetime,
+        historical_values: List[Tuple[float, datetime]],
+    ) -> Optional[Anomaly]:
         """Detect anomaly using statistical methods."""
         values = [v[0] for v in historical_values]
 
@@ -115,8 +122,8 @@ class SimpleStatisticalDetector:
                     "z_score": z_score,
                     "std_dev": std_dev,
                     "historical_mean": mean,
-                    "detection_method": "z_score"
-                }
+                    "detection_method": "z_score",
+                },
             )
 
         return None
@@ -130,7 +137,9 @@ class TrendDetector:
         self.trend_threshold = trend_threshold
         self.metric_windows: Dict[str, deque] = {}
 
-    def add_value(self, metric_name: str, value: float, timestamp: datetime) -> Optional[Anomaly]:
+    def add_value(
+        self, metric_name: str, value: float, timestamp: datetime
+    ) -> Optional[Anomaly]:
         """Add value and check for trend changes."""
         if metric_name not in self.metric_windows:
             self.metric_windows[metric_name] = deque(maxlen=self.window_size)
@@ -143,8 +152,9 @@ class TrendDetector:
 
         return None
 
-    def _detect_trend_change(self, metric_name: str,
-                           values: List[Tuple[float, datetime]]) -> Optional[Anomaly]:
+    def _detect_trend_change(
+        self, metric_name: str, values: List[Tuple[float, datetime]]
+    ) -> Optional[Anomaly]:
         """Detect trend changes using linear regression."""
         if len(values) < 20:
             return None
@@ -181,8 +191,8 @@ class TrendDetector:
                     "first_trend": first_trend,
                     "second_trend": second_trend,
                     "trend_difference": trend_diff,
-                    "detection_method": "trend_analysis"
-                }
+                    "detection_method": "trend_analysis",
+                },
             )
 
         return None
@@ -225,11 +235,12 @@ class AnomalyDetector:
             "cpu_percent": {"enable_trend": True, "z_threshold": 2.0},
             "memory_percent": {"enable_trend": True, "z_threshold": 2.0},
             "db_query_time": {"enable_trend": True, "z_threshold": 3.0},
-            "message_delivery_rate": {"enable_trend": True, "z_threshold": 2.0}
+            "message_delivery_rate": {"enable_trend": True, "z_threshold": 2.0},
         }
 
-    async def process_metric(self, metric_name: str, value: float,
-                           timestamp: Optional[datetime] = None) -> List[Anomaly]:
+    async def process_metric(
+        self, metric_name: str, value: float, timestamp: Optional[datetime] = None
+    ) -> List[Anomaly]:
         """Process a metric value and detect anomalies."""
         if timestamp is None:
             timestamp = datetime.utcnow()
@@ -240,7 +251,9 @@ class AnomalyDetector:
         config = self.metric_configs.get(metric_name, {})
 
         # Statistical anomaly detection
-        statistical_anomaly = self.statistical_detector.add_value(metric_name, value, timestamp)
+        statistical_anomaly = self.statistical_detector.add_value(
+            metric_name, value, timestamp
+        )
         if statistical_anomaly:
             anomalies.append(statistical_anomaly)
 
@@ -274,12 +287,11 @@ class AnomalyDetector:
                 "confidence": anomaly.confidence,
                 "severity": anomaly.severity,
                 "description": anomaly.description,
-                "metadata": str(anomaly.metadata)
+                "metadata": str(anomaly.metadata),
             }
 
             await self.redis_client.lpush(
-                "anomaly_detector:anomalies",
-                str(anomaly_data)
+                "anomaly_detector:anomalies", str(anomaly_data)
             )
 
             # Keep only last 1000 anomalies
@@ -287,12 +299,10 @@ class AnomalyDetector:
 
             # Update counters
             await self.redis_client.hincrby(
-                "anomaly_detector:counters",
-                f"total_{anomaly.severity}", 1
+                "anomaly_detector:counters", f"total_{anomaly.severity}", 1
             )
             await self.redis_client.hincrby(
-                "anomaly_detector:counters",
-                f"type_{anomaly.anomaly_type.value}", 1
+                "anomaly_detector:counters", f"type_{anomaly.anomaly_type.value}", 1
             )
 
             # Set expiration
@@ -301,9 +311,12 @@ class AnomalyDetector:
         except Exception as e:
             logger.error(f"Failed to store anomaly in Redis: {e}")
 
-    def get_recent_anomalies(self, hours: int = 24,
-                           severity_filter: Optional[str] = None,
-                           metric_filter: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_recent_anomalies(
+        self,
+        hours: int = 24,
+        severity_filter: Optional[str] = None,
+        metric_filter: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         """Get recent anomalies with optional filtering."""
         cutoff_time = datetime.utcnow() - timedelta(hours=hours)
 
@@ -318,17 +331,19 @@ class AnomalyDetector:
             if metric_filter and anomaly.metric_name != metric_filter:
                 continue
 
-            filtered_anomalies.append({
-                "metric_name": anomaly.metric_name,
-                "anomaly_type": anomaly.anomaly_type.value,
-                "timestamp": anomaly.timestamp.isoformat(),
-                "value": anomaly.value,
-                "expected_value": anomaly.expected_value,
-                "confidence": anomaly.confidence,
-                "severity": anomaly.severity,
-                "description": anomaly.description,
-                "metadata": anomaly.metadata
-            })
+            filtered_anomalies.append(
+                {
+                    "metric_name": anomaly.metric_name,
+                    "anomaly_type": anomaly.anomaly_type.value,
+                    "timestamp": anomaly.timestamp.isoformat(),
+                    "value": anomaly.value,
+                    "expected_value": anomaly.expected_value,
+                    "confidence": anomaly.confidence,
+                    "severity": anomaly.severity,
+                    "description": anomaly.description,
+                    "metadata": anomaly.metadata,
+                }
+            )
 
         # Sort by timestamp (newest first)
         return sorted(filtered_anomalies, key=lambda x: x["timestamp"], reverse=True)
@@ -338,8 +353,7 @@ class AnomalyDetector:
         cutoff_time = datetime.utcnow() - timedelta(hours=hours)
 
         recent_anomalies = [
-            a for a in self.recent_anomalies
-            if a.timestamp >= cutoff_time
+            a for a in self.recent_anomalies if a.timestamp >= cutoff_time
         ]
 
         if not recent_anomalies:
@@ -349,7 +363,7 @@ class AnomalyDetector:
                 "by_severity": {},
                 "by_type": {},
                 "by_metric": {},
-                "trend": "stable"
+                "trend": "stable",
             }
 
         # Count by severity
@@ -390,7 +404,7 @@ class AnomalyDetector:
             "by_severity": by_severity,
             "by_type": by_type,
             "by_metric": by_metric,
-            "trend": trend
+            "trend": trend,
         }
 
     def update_metric_config(self, metric_name: str, config: Dict[str, Any]) -> None:

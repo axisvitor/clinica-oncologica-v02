@@ -1,9 +1,9 @@
 """
 Rate limiting functionality for Evolution API requests.
 """
+
 import time
-import logging
-from typing import Dict, List
+from typing import List
 
 import structlog
 
@@ -40,9 +40,7 @@ class RateLimiter:
 
         # Remove requests older than 1 second (optimization: use list comprehension)
         cutoff_time = current_time - 1
-        self.request_times = [
-            t for t in self.request_times if t > cutoff_time
-        ]
+        self.request_times = [t for t in self.request_times if t > cutoff_time]
 
         # Check if we're under the limit
         current_requests = len(self.request_times)
@@ -51,7 +49,7 @@ class RateLimiter:
                 "Evolution API rate limit exceeded",
                 requests_in_last_second=current_requests,
                 limit=self.requests_per_second,
-                wait_time=1.0 - (current_time - min(self.request_times))
+                wait_time=1.0 - (current_time - min(self.request_times)),
             )
             return False
 

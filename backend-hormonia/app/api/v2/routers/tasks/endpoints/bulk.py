@@ -41,8 +41,8 @@ logger = logging.getLogger(__name__)
 async def bulk_cancel_tasks(
     operation: BulkTaskOperation,
     request: Request,
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> BulkTaskResult:
     """
@@ -60,7 +60,7 @@ async def bulk_cancel_tasks(
         if operation.operation != "cancel":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="This endpoint only supports 'cancel' operation"
+                detail="This endpoint only supports 'cancel' operation",
             )
 
         role = _extract_user_role(current_user)
@@ -102,10 +102,12 @@ async def bulk_cancel_tasks(
                 celery_app.control.revoke(celery_task_id, terminate=True)
 
                 # Update registry
-                task_registry[celery_task_id].update({
-                    "status": TaskStatus.CANCELLED,
-                    "completed_at": datetime.utcnow(),
-                })
+                task_registry[celery_task_id].update(
+                    {
+                        "status": TaskStatus.CANCELLED,
+                        "completed_at": datetime.utcnow(),
+                    }
+                )
 
                 success_count += 1
 
@@ -120,15 +122,13 @@ async def bulk_cancel_tasks(
         await redis_cache.delete_pattern("task:*")
 
         # Log bulk operation
-        logger.info(
-            f"Bulk cancel: {success_count} tasks by user {current_user_id}"
-        )
+        logger.info(f"Bulk cancel: {success_count} tasks by user {current_user_id}")
 
         return BulkTaskResult(
             success_count=success_count,
             failed_count=failed_count,
             failed_ids=failed_ids,
-            errors=errors
+            errors=errors,
         )
 
     except HTTPException:
@@ -137,7 +137,7 @@ async def bulk_cancel_tasks(
         logger.error(f"Error in bulk cancel: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to bulk cancel tasks"
+            detail="Failed to bulk cancel tasks",
         )
 
 
@@ -146,8 +146,8 @@ async def bulk_cancel_tasks(
 async def cleanup_old_tasks(
     cleanup_config: TaskCleanupConfigV2,
     request: Request,
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> TaskCleanupResultV2:
     """
@@ -218,7 +218,7 @@ async def cleanup_old_tasks(
             tasks_analyzed=tasks_analyzed,
             space_freed_mb=round(space_freed_mb, 2),
             dry_run=cleanup_config.dry_run,
-            completion_time=datetime.utcnow()
+            completion_time=datetime.utcnow(),
         )
 
         # Log cleanup
@@ -235,5 +235,5 @@ async def cleanup_old_tasks(
         logger.error(f"Error in task cleanup: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to cleanup tasks"
+            detail="Failed to cleanup tasks",
         )

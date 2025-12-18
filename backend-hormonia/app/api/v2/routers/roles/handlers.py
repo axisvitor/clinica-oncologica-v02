@@ -4,7 +4,6 @@ Business logic for role management operations.
 """
 
 import logging
-from datetime import datetime
 from typing import Optional
 from fastapi import Request
 from sqlalchemy.orm import Session
@@ -23,7 +22,7 @@ async def log_role_change(
     old_role: str,
     new_role: str,
     reason: Optional[str],
-    request: Request
+    request: Request,
 ) -> None:
     """
     Log role change to audit trail.
@@ -50,7 +49,7 @@ async def log_role_change(
             "old_role": old_role,
             "new_role": new_role,
             "reason": reason,
-            **client_info
+            **client_info,
         }
 
         audit_service.log_event(
@@ -58,7 +57,7 @@ async def log_role_change(
             event_category="security",
             severity="info",
             user_id=admin_user.id,
-            metadata=event_data
+            metadata=event_data,
         )
     except Exception as e:
         logger.error(f"Failed to log role change: {e}")

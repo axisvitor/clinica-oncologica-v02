@@ -2,6 +2,7 @@
 Quiz report generator service.
 Main service for generating comprehensive medical reports from quiz analysis.
 """
+
 import logging
 from typing import Any
 from uuid import UUID
@@ -46,7 +47,9 @@ class QuizReportGenerator:
             logger.info(f"Generating quiz report for session {session_id}")
 
             # Process quiz analysis
-            analysis_result = await self.response_processor.process_completed_quiz(session_id)
+            analysis_result = await self.response_processor.process_completed_quiz(
+                session_id
+            )
 
             # Get patient information
             patient = self.patient_repo.get(analysis_result.patient_id)
@@ -54,10 +57,14 @@ class QuizReportGenerator:
                 raise NotFoundError(f"Patient {analysis_result.patient_id} not found")
 
             # Generate report content
-            report_content = await self.renderer.generate_report_content(analysis_result, patient)
+            report_content = await self.renderer.generate_report_content(
+                analysis_result, patient
+            )
 
             # Generate PDF
-            pdf_data = await self.renderer.generate_pdf_report(analysis_result, patient, report_content)
+            pdf_data = await self.renderer.generate_pdf_report(
+                analysis_result, patient, report_content
+            )
 
             # Create report record
             report = Report(
@@ -73,8 +80,8 @@ class QuizReportGenerator:
                     "analysis_timestamp": analysis_result.analysis_timestamp.isoformat(),
                     "health_score": analysis_result.overall_health_score,
                     "concern_flags": analysis_result.concern_flags,
-                    "insights_count": len(analysis_result.medical_insights)
-                }
+                    "insights_count": len(analysis_result.medical_insights),
+                },
             )
 
             created_report = self.report_repo.create(report)
@@ -87,7 +94,7 @@ class QuizReportGenerator:
                     patient_id=analysis_result.patient_id,
                     report_id=created_report.id,  # type: ignore[arg-type]
                     report_type=ReportType.QUIZ_ANALYSIS.value,
-                    title=created_report.title
+                    title=created_report.title,
                 )
 
             # Notify healthcare providers if concerns identified
@@ -101,9 +108,9 @@ class QuizReportGenerator:
             logger.error(f"Error generating quiz report: {e}")
             raise
 
-    async def _notify_healthcare_providers(self,
-                                         report: Report,
-                                         analysis_result: QuizAnalysisResult):
+    async def _notify_healthcare_providers(
+        self, report: Report, analysis_result: QuizAnalysisResult
+    ):
         """Notify healthcare providers about concerning findings."""
         try:
             # Determine notification priority
@@ -120,7 +127,7 @@ class QuizReportGenerator:
                 "concern_flags": analysis_result.concern_flags,
                 "health_score": analysis_result.overall_health_score,
                 "priority": priority,
-                "summary": f"Questionário completado com {len(analysis_result.concern_flags)} indicadores de atenção"
+                "summary": f"Questionário completado com {len(analysis_result.concern_flags)} indicadores de atenção",
             }
 
             # Publish notification event
@@ -131,10 +138,12 @@ class QuizReportGenerator:
                     alert_type="quiz_concerns",
                     priority=priority,
                     message=notification_data["summary"],
-                    metadata=notification_data
+                    metadata=notification_data,
                 )
 
-            logger.info(f"Healthcare providers notified about quiz concerns for patient {analysis_result.patient_id}")
+            logger.info(
+                f"Healthcare providers notified about quiz concerns for patient {analysis_result.patient_id}"
+            )
 
         except Exception as e:
             logger.error(f"Error notifying healthcare providers: {e}")

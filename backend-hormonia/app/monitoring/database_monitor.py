@@ -8,14 +8,13 @@ and transaction monitoring.
 import time
 import asyncio
 import logging
-from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
 import threading
-import statistics
 import redis.asyncio as redis
-from sqlalchemy import event, text
+from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import Pool
 
@@ -26,6 +25,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class QueryMetrics:
     """Metrics for a database query."""
+
     query_hash: str
     query_text: str
     execution_time: float
@@ -41,6 +41,7 @@ class QueryMetrics:
 @dataclass
 class ConnectionPoolStats:
     """Connection pool statistics."""
+
     pool_size: int = 0
     checked_out: int = 0
     overflow: int = 0
@@ -69,30 +70,40 @@ class DatabasePerformanceMonitor:
         """Setup SQLAlchemy event listeners for monitoring."""
 
         @event.listens_for(engine, "before_cursor_execute")
-        def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        def before_cursor_execute(
+            conn, cursor, statement, parameters, context, executemany
+        ):
             """Track query start time."""
             context._query_start_time = time.time()
             context._query_statement = statement
 
         @event.listens_for(engine, "after_cursor_execute")
-        def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        def after_cursor_execute(
+            conn, cursor, statement, parameters, context, executemany
+        ):
             """Track query completion and metrics."""
-            if hasattr(context, '_query_start_time'):
+            if hasattr(context, "_query_start_time"):
                 execution_time = time.time() - context._query_start_time
 
-                asyncio.create_task(self._record_query_async(
-                    statement=statement,
-                    execution_time=execution_time,
-                    rows_affected=cursor.rowcount if hasattr(cursor, 'rowcount') else None
-                ))
+                asyncio.create_task(
+                    self._record_query_async(
+                        statement=statement,
+                        execution_time=execution_time,
+                        rows_affected=cursor.rowcount
+                        if hasattr(cursor, "rowcount")
+                        else None,
+                    )
+                )
 
         @event.listens_for(engine, "dbapi_error")
         def dbapi_error(exception_context):
             """Track database errors."""
-            asyncio.create_task(self._record_query_error_async(
-                statement=exception_context.statement,
-                error=str(exception_context.original_exception)
-            ))
+            asyncio.create_task(
+                self._record_query_error_async(
+                    statement=exception_context.statement,
+                    error=str(exception_context.original_exception),
+                )
+            )
 
         # Pool events
         @event.listens_for(Pool, "connect")
@@ -115,8 +126,9 @@ class DatabasePerformanceMonitor:
                 if self.connection_stats.checked_out > 0:
                     self.connection_stats.checked_out -= 1
 
-    async def _record_query_async(self, statement: str, execution_time: float,
-                                 rows_affected: Optional[int] = None) -> None:
+    async def _record_query_async(
+        self, statement: str, execution_time: float, rows_affected: Optional[int] = None
+    ) -> None:
         """Record query metrics asynchronously."""
         try:
             query_hash = str(hash(self._normalize_query(statement)))
@@ -130,7 +142,7 @@ class DatabasePerformanceMonitor:
                 timestamp=datetime.utcnow(),
                 table_names=table_names,
                 operation_type=operation_type,
-                rows_affected=rows_affected
+                rows_affected=rows_affected,
             )
 
             await self.record_query(metrics)
@@ -151,7 +163,7 @@ class DatabasePerformanceMonitor:
                 timestamp=datetime.utcnow(),
                 table_names=table_names,
                 operation_type=operation_type,
-                error=error
+                error=error,
             )
 
             await self.record_query(metrics)
@@ -185,12 +197,11 @@ class DatabasePerformanceMonitor:
                 "timestamp": timestamp,
                 "operation_type": metrics.operation_type,
                 "table_names": ",".join(metrics.table_names),
-                "error": metrics.error or ""
+                "error": metrics.error or "",
             }
 
             await self.redis_client.lpush(
-                "db_monitor:slow_queries",
-                str(slow_query_data)
+                "db_monitor:slow_queries", str(slow_query_data)
             )
 
             # Keep only last 1000 slow queries
@@ -198,15 +209,16 @@ class DatabasePerformanceMonitor:
 
         # Update query counters
         await self.redis_client.hincrby("db_monitor:counters", "total_queries", 1)
-        await self.redis_client.hincrby("db_monitor:counters", f"op_{metrics.operation_type}", 1)
+        await self.redis_client.hincrby(
+            "db_monitor:counters", f"op_{metrics.operation_type}", 1
+        )
 
         if metrics.error:
             await self.redis_client.hincrby("db_monitor:counters", "errors", 1)
 
         # Store execution time for averages
         await self.redis_client.lpush(
-            "db_monitor:execution_times",
-            metrics.execution_time
+            "db_monitor:execution_times", metrics.execution_time
         )
         await self.redis_client.ltrim("db_monitor:execution_times", 0, 9999)
 
@@ -225,19 +237,21 @@ class DatabasePerformanceMonitor:
                     "slow_query_percentage": 0.0,
                     "queries_per_second": 0.0,
                     "error_count": 0,
-                    "error_percentage": 0.0
+                    "error_percentage": 0.0,
                 }
 
             # Calculate slow queries
             slow_query_count = sum(
-                1 for queries in self.query_stats.values()
+                1
+                for queries in self.query_stats.values()
                 for query in queries
                 if query.execution_time > self.slow_query_threshold
             )
 
             # Calculate errors
             error_count = sum(
-                1 for queries in self.query_stats.values()
+                1
+                for queries in self.query_stats.values()
                 for query in queries
                 if query.error is not None
             )
@@ -249,7 +263,7 @@ class DatabasePerformanceMonitor:
                 "slow_query_percentage": (slow_query_count / self.query_count) * 100,
                 "queries_per_second": self._calculate_qps(),
                 "error_count": error_count,
-                "error_percentage": (error_count / self.query_count) * 100
+                "error_percentage": (error_count / self.query_count) * 100,
             }
 
     def get_slow_queries(self, limit: int = 10) -> List[Dict[str, Any]]:
@@ -264,7 +278,7 @@ class DatabasePerformanceMonitor:
         slow_queries = sorted(
             [q for q in all_queries if q.execution_time > self.slow_query_threshold],
             key=lambda x: x.execution_time,
-            reverse=True
+            reverse=True,
         )[:limit]
 
         return [
@@ -276,7 +290,7 @@ class DatabasePerformanceMonitor:
                 "operation_type": q.operation_type,
                 "table_names": q.table_names,
                 "rows_affected": q.rows_affected,
-                "error": q.error
+                "error": q.error,
             }
             for q in slow_queries
         ]
@@ -284,13 +298,13 @@ class DatabasePerformanceMonitor:
     def get_connection_pool_stats(self) -> Dict[str, Any]:
         """Get connection pool statistics."""
         with self._lock:
-            total = (self.connection_stats.checked_out +
-                    self.connection_stats.checked_in)
+            (self.connection_stats.checked_out + self.connection_stats.checked_in)
 
             utilization = 0.0
             if self.connection_stats.pool_size > 0:
-                utilization = (self.connection_stats.checked_out /
-                             self.connection_stats.pool_size) * 100
+                utilization = (
+                    self.connection_stats.checked_out / self.connection_stats.pool_size
+                ) * 100
 
             return {
                 "pool_size": self.connection_stats.pool_size,
@@ -300,17 +314,20 @@ class DatabasePerformanceMonitor:
                 "total_connections": self.connection_stats.total_connections,
                 "invalidated": self.connection_stats.invalidated,
                 "utilization_percentage": utilization,
-                "is_healthy": utilization < 90 and self.connection_stats.invalidated == 0
+                "is_healthy": utilization < 90
+                and self.connection_stats.invalidated == 0,
             }
 
     def get_table_stats(self) -> Dict[str, Dict[str, Any]]:
         """Get statistics by table."""
-        table_stats = defaultdict(lambda: {
-            "query_count": 0,
-            "total_time": 0.0,
-            "avg_time": 0.0,
-            "operations": defaultdict(int)
-        })
+        table_stats = defaultdict(
+            lambda: {
+                "query_count": 0,
+                "total_time": 0.0,
+                "avg_time": 0.0,
+                "operations": defaultdict(int),
+            }
+        )
 
         with self._lock:
             for queries in self.query_stats.values():
@@ -337,8 +354,7 @@ class DatabasePerformanceMonitor:
         with self._lock:
             for queries in self.query_stats.values():
                 recent_queries += sum(
-                    1 for query in queries
-                    if query.timestamp >= minute_ago
+                    1 for query in queries if query.timestamp >= minute_ago
                 )
 
         return recent_queries / 60.0
@@ -352,10 +368,10 @@ class DatabasePerformanceMonitor:
         query = re.sub(r"'[^']*'", "'?'", query)
 
         # Remove numeric literals
-        query = re.sub(r'\b\d+\b', '?', query)
+        query = re.sub(r"\b\d+\b", "?", query)
 
         # Remove whitespace variations
-        query = re.sub(r'\s+', ' ', query.strip())
+        query = re.sub(r"\s+", " ", query.strip())
 
         return query.upper()
 
@@ -365,11 +381,11 @@ class DatabasePerformanceMonitor:
 
         # Simple regex patterns for table extraction
         patterns = [
-            r'FROM\s+(\w+)',
-            r'UPDATE\s+(\w+)',
-            r'INSERT\s+INTO\s+(\w+)',
-            r'DELETE\s+FROM\s+(\w+)',
-            r'JOIN\s+(\w+)'
+            r"FROM\s+(\w+)",
+            r"UPDATE\s+(\w+)",
+            r"INSERT\s+INTO\s+(\w+)",
+            r"DELETE\s+FROM\s+(\w+)",
+            r"JOIN\s+(\w+)",
         ]
 
         tables = set()
@@ -385,22 +401,22 @@ class DatabasePerformanceMonitor:
         """Get operation type from query."""
         query_upper = query.strip().upper()
 
-        if query_upper.startswith('SELECT'):
-            return 'SELECT'
-        elif query_upper.startswith('INSERT'):
-            return 'INSERT'
-        elif query_upper.startswith('UPDATE'):
-            return 'UPDATE'
-        elif query_upper.startswith('DELETE'):
-            return 'DELETE'
-        elif query_upper.startswith('CREATE'):
-            return 'CREATE'
-        elif query_upper.startswith('DROP'):
-            return 'DROP'
-        elif query_upper.startswith('ALTER'):
-            return 'ALTER'
+        if query_upper.startswith("SELECT"):
+            return "SELECT"
+        elif query_upper.startswith("INSERT"):
+            return "INSERT"
+        elif query_upper.startswith("UPDATE"):
+            return "UPDATE"
+        elif query_upper.startswith("DELETE"):
+            return "DELETE"
+        elif query_upper.startswith("CREATE"):
+            return "CREATE"
+        elif query_upper.startswith("DROP"):
+            return "DROP"
+        elif query_upper.startswith("ALTER"):
+            return "ALTER"
         else:
-            return 'OTHER'
+            return "OTHER"
 
     def reset_stats(self) -> None:
         """Reset all statistics."""

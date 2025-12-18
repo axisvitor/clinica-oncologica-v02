@@ -2,15 +2,16 @@
 Alerts API v2
 Clinical alerts with cursor pagination and caching.
 """
+
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-from sqlalchemy.orm import Session,  joinedload
+from sqlalchemy.orm import joinedload
 from typing import Optional, List, Dict, Any
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime
 import logging
 
 from app.database import get_db
-from app.models.alert import Alert, AlertSeverity, AlertStatus
+from app.models.alert import Alert, AlertSeverity
 from app.models.user import User, UserRole
 from app.models.patient import Patient
 from app.schemas.v2.alerts import (
@@ -40,37 +41,37 @@ CACHE_TTL_SINGLE = 300  # 5 minutes for single alert
 async def get_redis_cache():
     """Get Redis cache dependency."""
     from app.core.redis_manager import RedisManager
+
     redis_manager = RedisManager()
     return redis_manager
 
 
 async def get_current_user_simple(
-    request: Request,
-    db = Depends(get_db),
-    redis_cache=Depends(get_redis_cache)
+    request: Request, db=Depends(get_db), redis_cache=Depends(get_redis_cache)
 ) -> Dict[str, Any]:
     """Simplified session validation for V2 endpoints."""
     # Try session ID from header first
-    session_id = request.headers.get("X-Session-ID") or request.headers.get("x-session-id")
+    session_id = request.headers.get("X-Session-ID") or request.headers.get(
+        "x-session-id"
+    )
 
     if not session_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session ID not provided in X-Session-ID header"
+            detail="Session ID not provided in X-Session-ID header",
         )
 
     session_data = await redis_cache.get_session(session_id)
     if not session_data:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session"
+            detail="Invalid or expired session",
         )
 
     firebase_uid = session_data.get("firebase_uid")
     if not firebase_uid:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid session data"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session data"
         )
 
     # Get user from cache or DB
@@ -79,23 +80,21 @@ async def get_current_user_simple(
         user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found"
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
             )
         user_data = {
             "id": str(user.id),
             "firebase_uid": user.firebase_uid,
             "email": user.email,
             "full_name": user.full_name,
-            "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
-            "is_active": user.is_active
+            "role": user.role.value if hasattr(user.role, "value") else str(user.role),
+            "is_active": user.is_active,
         }
         await redis_cache.cache_user_data(firebase_uid, user_data, ttl=900)
 
     if not user_data.get("is_active", False):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is inactive"
+            status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive"
         )
 
     return user_data
@@ -118,11 +117,13 @@ def _check_physician_or_admin(current_user: Dict[str, Any]) -> None:
     if role not in [UserRole.DOCTOR, UserRole.ADMIN]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only physicians and administrators can perform this action"
+            detail="Only physicians and administrators can perform this action",
         )
 
 
-def _check_patient_access(current_user: Dict[str, Any], patient_id: UUID, db: Any) -> None:
+def _check_patient_access(
+    current_user: Dict[str, Any], patient_id: UUID, db: Any
+) -> None:
     """
     Ensure user has access to patient data.
     - Admins can access all patients
@@ -139,19 +140,20 @@ def _check_patient_access(current_user: Dict[str, Any], patient_id: UUID, db: An
         patient = db.query(Patient).filter(Patient.id == patient_id).first()
         if not patient:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Patient not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"
             )
         if patient.doctor_id != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have access to this patient"
+                detail="You do not have access to this patient",
             )
 
     # FIXED: Removed UserRole.PATIENT check - only ADMIN and DOCTOR roles exist
 
 
-def _serialize_alert(alert: Alert, fields: Optional[List[str]] = None) -> Dict[str, Any]:
+def _serialize_alert(
+    alert: Alert, fields: Optional[List[str]] = None
+) -> Dict[str, Any]:
     """Serialize Alert model to dictionary with optional field selection."""
     data = {
         "id": str(alert.id),
@@ -162,8 +164,12 @@ def _serialize_alert(alert: Alert, fields: Optional[List[str]] = None) -> Dict[s
         "status": alert.status,
         "data": alert.data or {},
         "acknowledged": alert.acknowledged,
-        "acknowledged_by": str(alert.acknowledged_by) if alert.acknowledged_by else None,
-        "acknowledged_at": alert.acknowledged_at.isoformat() if alert.acknowledged_at else None,
+        "acknowledged_by": str(alert.acknowledged_by)
+        if alert.acknowledged_by
+        else None,
+        "acknowledged_at": alert.acknowledged_at.isoformat()
+        if alert.acknowledged_at
+        else None,
         "created_at": alert.created_at.isoformat(),
         "updated_at": alert.updated_at.isoformat(),
     }
@@ -173,14 +179,14 @@ def _serialize_alert(alert: Alert, fields: Optional[List[str]] = None) -> Dict[s
         data["patient"] = {
             "id": str(alert.patient.id),
             "name": alert.patient.name,
-            "email": alert.patient.email
+            "email": alert.patient.email,
         }
 
     if hasattr(alert, "acknowledged_by_user") and alert.acknowledged_by_user:
         data["acknowledged_by_user"] = {
             "id": str(alert.acknowledged_by_user.id),
             "name": alert.acknowledged_by_user.full_name,
-            "email": alert.acknowledged_by_user.email
+            "email": alert.acknowledged_by_user.email,
         }
 
     return apply_field_selection(data, fields) if fields else data
@@ -194,10 +200,12 @@ async def list_alerts(
     fields: Optional[List[str]] = Depends(get_field_selection),
     include: Optional[List[str]] = Depends(get_eager_load_params),
     severity: Optional[AlertSeverity] = Query(None, description="Filter by severity"),
-    status: Optional[str] = Query(None, description="Filter by status (pending/acknowledged)"),
+    status: Optional[str] = Query(
+        None, description="Filter by status (pending/acknowledged)"
+    ),
     patient_id: Optional[UUID] = Query(None, description="Filter by patient ID"),
     alert_type: Optional[str] = Query(None, description="Filter by alert type"),
-    db = Depends(get_db),
+    db=Depends(get_db),
     redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(get_current_user_simple),
 ) -> AlertV2List:
@@ -251,9 +259,9 @@ async def list_alerts(
 
         if status:
             if status.lower() == "pending":
-                query = query.filter(Alert.acknowledged == False)
+                query = query.filter(not Alert.acknowledged)
             elif status.lower() == "acknowledged":
-                query = query.filter(Alert.acknowledged == True)
+                query = query.filter(Alert.acknowledged)
 
         if patient_id:
             _check_patient_access(current_user, patient_id, db)
@@ -264,7 +272,9 @@ async def list_alerts(
             user_id = UUID(current_user.get("id"))
 
             if role == UserRole.DOCTOR:
-                patient_ids = db.query(Patient.id).filter(Patient.doctor_id == user_id).all()
+                patient_ids = (
+                    db.query(Patient.id).filter(Patient.doctor_id == user_id).all()
+                )
                 patient_ids = [p[0] for p in patient_ids]
                 query = query.filter(Alert.patient_id.in_(patient_ids))
             # FIXED: Removed UserRole.PATIENT check - only ADMIN and DOCTOR roles exist
@@ -298,7 +308,7 @@ async def list_alerts(
             data=data,
             next_cursor=next_cursor,
             has_more=has_more,
-            total=None  # Total count is expensive for large datasets
+            total=None,  # Total count is expensive for large datasets
         )
 
         # Cache the result
@@ -312,7 +322,7 @@ async def list_alerts(
         logger.error(f"Error listing alerts: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve alerts"
+            detail="Failed to retrieve alerts",
         )
 
 
@@ -321,7 +331,7 @@ async def list_alerts(
 async def create_alert(
     alert_data: AlertV2Create,
     request: Request,
-    db = Depends(get_db),
+    db=Depends(get_db),
     redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(get_current_user_simple),
 ) -> Dict[str, Any]:
@@ -347,8 +357,7 @@ async def create_alert(
         patient = db.query(Patient).filter(Patient.id == alert_data.patient_id).first()
         if not patient:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Patient not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"
             )
 
         # Create alert
@@ -358,7 +367,7 @@ async def create_alert(
             severity=alert_data.severity,
             description=alert_data.description,
             data=alert_data.data or {},
-            acknowledged=False
+            acknowledged=False,
         )
 
         db.add(alert)
@@ -366,7 +375,7 @@ async def create_alert(
         db.refresh(alert)
 
         # Invalidate caches
-        await redis_cache.delete_pattern(f"alerts:v2:list:*")
+        await redis_cache.delete_pattern("alerts:v2:list:*")
 
         # Log creation
         logger.info(
@@ -383,7 +392,7 @@ async def create_alert(
         logger.error(f"Error creating alert: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create alert"
+            detail="Failed to create alert",
         )
 
 
@@ -394,7 +403,7 @@ async def get_alert(
     request: Request,
     fields: Optional[List[str]] = Depends(get_field_selection),
     include: Optional[List[str]] = Depends(get_eager_load_params),
-    db = Depends(get_db),
+    db=Depends(get_db),
     redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(get_current_user_simple),
 ) -> Dict[str, Any]:
@@ -429,8 +438,7 @@ async def get_alert(
 
         if not alert:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Alert not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found"
             )
 
         # Check access
@@ -450,7 +458,7 @@ async def get_alert(
         logger.error(f"Error retrieving alert {alert_id}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve alert"
+            detail="Failed to retrieve alert",
         )
 
 
@@ -460,7 +468,7 @@ async def update_alert(
     alert_id: UUID,
     alert_data: AlertV2Update,
     request: Request,
-    db = Depends(get_db),
+    db=Depends(get_db),
     redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(get_current_user_simple),
 ) -> Dict[str, Any]:
@@ -483,8 +491,7 @@ async def update_alert(
         alert = db.query(Alert).filter(Alert.id == alert_id).first()
         if not alert:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Alert not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found"
             )
 
         # Check access
@@ -504,9 +511,7 @@ async def update_alert(
         await redis_cache.delete_pattern("alerts:v2:list:*")
 
         # Log update
-        logger.info(
-            f"Alert updated: {alert_id} by user {current_user.get('id')}"
-        )
+        logger.info(f"Alert updated: {alert_id} by user {current_user.get('id')}")
 
         return _serialize_alert(alert)
 
@@ -517,7 +522,7 @@ async def update_alert(
         logger.error(f"Error updating alert {alert_id}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update alert"
+            detail="Failed to update alert",
         )
 
 
@@ -526,7 +531,7 @@ async def update_alert(
 async def delete_alert(
     alert_id: UUID,
     request: Request,
-    db = Depends(get_db),
+    db=Depends(get_db),
     redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(get_current_user_simple),
 ):
@@ -549,8 +554,7 @@ async def delete_alert(
         alert = db.query(Alert).filter(Alert.id == alert_id).first()
         if not alert:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Alert not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found"
             )
 
         # Check access
@@ -565,9 +569,7 @@ async def delete_alert(
         await redis_cache.delete_pattern("alerts:v2:list:*")
 
         # Log deletion
-        logger.info(
-            f"Alert deleted: {alert_id} by user {current_user.get('id')}"
-        )
+        logger.info(f"Alert deleted: {alert_id} by user {current_user.get('id')}")
 
         return None
 
@@ -578,7 +580,7 @@ async def delete_alert(
         logger.error(f"Error deleting alert {alert_id}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete alert"
+            detail="Failed to delete alert",
         )
 
 
@@ -588,7 +590,7 @@ async def mark_alert_read(
     alert_id: UUID,
     acknowledge_data: AlertV2Acknowledge,
     request: Request,
-    db = Depends(get_db),
+    db=Depends(get_db),
     redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(get_current_user_simple),
 ) -> Dict[str, Any]:
@@ -611,8 +613,7 @@ async def mark_alert_read(
         alert = db.query(Alert).filter(Alert.id == alert_id).first()
         if not alert:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Alert not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found"
             )
 
         # Check access
@@ -622,7 +623,7 @@ async def mark_alert_read(
         if alert.acknowledged:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Alert already marked as read"
+                detail="Alert already marked as read",
             )
 
         # Mark as read
@@ -645,9 +646,7 @@ async def mark_alert_read(
         await redis_cache.delete_pattern("alerts:v2:list:*")
 
         # Log acknowledgment
-        logger.info(
-            f"Alert marked as read: {alert_id} by user {user_id}"
-        )
+        logger.info(f"Alert marked as read: {alert_id} by user {user_id}")
 
         return _serialize_alert(alert)
 
@@ -658,7 +657,7 @@ async def mark_alert_read(
         logger.error(f"Error marking alert as read {alert_id}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to mark alert as read"
+            detail="Failed to mark alert as read",
         )
 
 
@@ -666,8 +665,10 @@ async def mark_alert_read(
 @limiter.limit("10/minute")
 async def mark_all_alerts_read(
     request: Request,
-    patient_id: Optional[UUID] = Query(None, description="Optional: Mark all alerts for specific patient"),
-    db = Depends(get_db),
+    patient_id: Optional[UUID] = Query(
+        None, description="Optional: Mark all alerts for specific patient"
+    ),
+    db=Depends(get_db),
     redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(get_current_user_simple),
 ) -> Dict[str, Any]:
@@ -688,7 +689,7 @@ async def mark_all_alerts_read(
         _check_physician_or_admin(current_user)
 
         # Build query for unread alerts
-        query = db.query(Alert).filter(Alert.acknowledged == False)
+        query = db.query(Alert).filter(not Alert.acknowledged)
 
         # Apply patient filter if provided
         if patient_id:
@@ -700,7 +701,9 @@ async def mark_all_alerts_read(
             user_id = UUID(current_user.get("id"))
 
             if role == UserRole.DOCTOR:
-                patient_ids = db.query(Patient.id).filter(Patient.doctor_id == user_id).all()
+                patient_ids = (
+                    db.query(Patient.id).filter(Patient.doctor_id == user_id).all()
+                )
                 patient_ids = [p[0] for p in patient_ids]
                 query = query.filter(Alert.patient_id.in_(patient_ids))
             # FIXED: Removed UserRole.PATIENT check - only ADMIN and DOCTOR roles exist
@@ -712,7 +715,7 @@ async def mark_all_alerts_read(
             return {
                 "success": True,
                 "count": 0,
-                "message": "No unread alerts to mark as read"
+                "message": "No unread alerts to mark as read",
             }
 
         # Mark all as read
@@ -741,7 +744,7 @@ async def mark_all_alerts_read(
         return {
             "success": True,
             "count": count,
-            "message": f"Successfully marked {count} alert(s) as read"
+            "message": f"Successfully marked {count} alert(s) as read",
         }
 
     except HTTPException:
@@ -751,5 +754,5 @@ async def mark_all_alerts_read(
         logger.error(f"Error marking all alerts as read: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to mark all alerts as read"
+            detail="Failed to mark all alerts as read",
         )

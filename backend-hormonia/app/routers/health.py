@@ -31,18 +31,18 @@ START_TIME = time.time()
 async def health_check() -> Dict[str, Any]:
     """
     Simple health check endpoint for Railway and load balancers.
-    
+
     Returns basic health status without checking dependencies.
     Use /health/ready for comprehensive dependency checks.
-    
+
     Returns:
         dict: Basic health status
     """
     return {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat() + 'Z',
+        "timestamp": datetime.utcnow().isoformat() + "Z",
         "version": "2.0.0",
-        "uptime_seconds": round(time.time() - START_TIME, 2)
+        "uptime_seconds": round(time.time() - START_TIME, 2),
     }
 
 
@@ -59,8 +59,8 @@ async def liveness_check() -> Dict[str, Any]:
     """
     return {
         "status": "alive",
-        "timestamp": datetime.utcnow().isoformat() + 'Z',
-        "uptime_seconds": round(time.time() - START_TIME, 2)
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "uptime_seconds": round(time.time() - START_TIME, 2),
     }
 
 
@@ -102,23 +102,15 @@ async def readiness_check(
 
         dependencies["database"] = {
             "status": "healthy",
-            "response_time_ms": round(db_duration, 2)
+            "response_time_ms": round(db_duration, 2),
         }
         logger.info(
-            "Database health check passed",
-            response_time_ms=round(db_duration, 2)
+            "Database health check passed", response_time_ms=round(db_duration, 2)
         )
     except Exception as e:
         all_healthy = False
-        dependencies["database"] = {
-            "status": "unhealthy",
-            "error": str(e)
-        }
-        logger.error(
-            "Database health check failed",
-            exc_info=e,
-            error=str(e)
-        )
+        dependencies["database"] = {"status": "unhealthy", "error": str(e)}
+        logger.error("Database health check failed", exc_info=e, error=str(e))
 
     # Check Redis connection (non-critical)
     try:
@@ -129,37 +121,33 @@ async def readiness_check(
 
         dependencies["redis"] = {
             "status": "healthy",
-            "response_time_ms": round(redis_duration, 2)
+            "response_time_ms": round(redis_duration, 2),
         }
         logger.info(
-            "Redis health check passed",
-            response_time_ms=round(redis_duration, 2)
+            "Redis health check passed", response_time_ms=round(redis_duration, 2)
         )
     except Exception as e:
         # Redis is optional, don't fail readiness check
         dependencies["redis"] = {
             "status": "degraded",
             "error": str(e),
-            "note": "Non-critical - caching disabled"
+            "note": "Non-critical - caching disabled",
         }
-        logger.warning(
-            "Redis health check failed (non-critical)",
-            error=str(e)
-        )
+        logger.warning("Redis health check failed (non-critical)", error=str(e))
 
     # Check Firebase configuration (environment variables)
     try:
         from app.config import settings
 
         firebase_healthy = bool(
-            getattr(settings, 'FIREBASE_ADMIN_PROJECT_ID', None) and
-            getattr(settings, 'FIREBASE_ADMIN_PRIVATE_KEY', None) and
-            getattr(settings, 'FIREBASE_ADMIN_CLIENT_EMAIL', None)
+            getattr(settings, "FIREBASE_ADMIN_PROJECT_ID", None)
+            and getattr(settings, "FIREBASE_ADMIN_PRIVATE_KEY", None)
+            and getattr(settings, "FIREBASE_ADMIN_CLIENT_EMAIL", None)
         )
 
         dependencies["firebase"] = {
             "status": "healthy" if firebase_healthy else "unhealthy",
-            "note": "Configuration validated"
+            "note": "Configuration validated",
         }
 
         if not firebase_healthy:
@@ -167,39 +155,25 @@ async def readiness_check(
             logger.error("Firebase configuration incomplete")
     except Exception as e:
         all_healthy = False
-        dependencies["firebase"] = {
-            "status": "unhealthy",
-            "error": str(e)
-        }
-        logger.error(
-            "Firebase configuration check failed",
-            exc_info=e,
-            error=str(e)
-        )
+        dependencies["firebase"] = {"status": "unhealthy", "error": str(e)}
+        logger.error("Firebase configuration check failed", exc_info=e, error=str(e))
 
     total_duration = (time.perf_counter() - start_time) * 1000
 
     response = {
         "status": "ready" if all_healthy else "not_ready",
-        "timestamp": datetime.utcnow().isoformat() + 'Z',
+        "timestamp": datetime.utcnow().isoformat() + "Z",
         "dependencies": dependencies,
-        "total_check_time_ms": round(total_duration, 2)
+        "total_check_time_ms": round(total_duration, 2),
     }
 
     if not all_healthy:
-        logger.error(
-            "Readiness check failed",
-            dependencies=dependencies
-        )
+        logger.error("Readiness check failed", dependencies=dependencies)
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=response
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=response
         )
 
-    logger.info(
-        "Readiness check passed",
-        total_check_time_ms=round(total_duration, 2)
-    )
+    logger.info("Readiness check passed", total_check_time_ms=round(total_duration, 2))
     return response
 
 
@@ -237,7 +211,7 @@ async def metrics_endpoint() -> Dict[str, Any]:
         uptime_seconds = time.time() - START_TIME
 
         metrics = {
-            "timestamp": datetime.utcnow().isoformat() + 'Z',
+            "timestamp": datetime.utcnow().isoformat() + "Z",
             "application": {
                 "uptime_seconds": round(uptime_seconds, 2),
                 "python_version": sys.version,
@@ -278,20 +252,16 @@ async def metrics_endpoint() -> Dict[str, Any]:
             operation="metrics_collection",
             duration_ms=0,
             cpu_percent=cpu_percent,
-            memory_percent=memory_percent
+            memory_percent=memory_percent,
         )
 
         return metrics
 
     except Exception as e:
-        logger.error(
-            "Failed to collect metrics",
-            exc_info=e,
-            error=str(e)
-        )
+        logger.error("Failed to collect metrics", exc_info=e, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": "Failed to collect metrics", "message": str(e)}
+            detail={"error": "Failed to collect metrics", "message": str(e)},
         )
 
 
@@ -324,12 +294,12 @@ async def startup_validation(
     try:
         # Check critical tables exist
         critical_tables = [
-            'users',
-            'patients',
-            'flows',
-            'messages',
-            'quiz_submissions',
-            'alerts'
+            "users",
+            "patients",
+            "flows",
+            "messages",
+            "quiz_submissions",
+            "alerts",
         ]
 
         for table in critical_tables:
@@ -349,25 +319,14 @@ async def startup_validation(
 
     except Exception as e:
         all_valid = False
-        validation_results["database_schema"] = {
-            "status": "error",
-            "error": str(e)
-        }
-        logger.error(
-            "Database schema validation failed",
-            exc_info=e,
-            error=str(e)
-        )
+        validation_results["database_schema"] = {"status": "error", "error": str(e)}
+        logger.error("Database schema validation failed", exc_info=e, error=str(e))
 
     # Validate configuration
     try:
         from app.config import settings
 
-        required_settings = [
-            'FIREBASE_PROJECT_ID',
-            'DATABASE_URL',
-            'SECRET_KEY'
-        ]
+        required_settings = ["FIREBASE_PROJECT_ID", "DATABASE_URL", "SECRET_KEY"]
 
         for setting in required_settings:
             value = getattr(settings, setting, None)
@@ -377,34 +336,25 @@ async def startup_validation(
                 all_valid = False
                 logger.error(f"Required setting missing: {setting}")
 
-            validation_results[f"config_{setting.lower()}"] = "set" if is_set else "missing"
+            validation_results[f"config_{setting.lower()}"] = (
+                "set" if is_set else "missing"
+            )
 
     except Exception as e:
         all_valid = False
-        validation_results["configuration"] = {
-            "status": "error",
-            "error": str(e)
-        }
-        logger.error(
-            "Configuration validation failed",
-            exc_info=e,
-            error=str(e)
-        )
+        validation_results["configuration"] = {"status": "error", "error": str(e)}
+        logger.error("Configuration validation failed", exc_info=e, error=str(e))
 
     response = {
         "status": "valid" if all_valid else "invalid",
-        "timestamp": datetime.utcnow().isoformat() + 'Z',
-        "validation_results": validation_results
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "validation_results": validation_results,
     }
 
     if not all_valid:
-        logger.error(
-            "Startup validation failed",
-            validation_results=validation_results
-        )
+        logger.error("Startup validation failed", validation_results=validation_results)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=response
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=response
         )
 
     logger.info("Startup validation passed")
@@ -435,19 +385,15 @@ async def performance_metrics() -> Dict[str, Any]:
 
         logger.info(
             "Performance metrics retrieved",
-            total_requests=metrics.get('requests', {}).get('total', 0),
-            cache_hit_rate=metrics.get('cache', {}).get('hit_rate_percent', 0)
+            total_requests=metrics.get("requests", {}).get("total", 0),
+            cache_hit_rate=metrics.get("cache", {}).get("hit_rate_percent", 0),
         )
 
         return metrics
 
     except Exception as e:
-        logger.error(
-            "Failed to retrieve performance metrics",
-            exc_info=e,
-            error=str(e)
-        )
+        logger.error("Failed to retrieve performance metrics", exc_info=e, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": "Failed to retrieve metrics", "message": str(e)}
+            detail={"error": "Failed to retrieve metrics", "message": str(e)},
         )

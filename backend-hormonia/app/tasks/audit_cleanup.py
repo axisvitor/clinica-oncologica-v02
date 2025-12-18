@@ -45,7 +45,7 @@ def cleanup_expired_audit_logs():
             WHERE event_type IN ('ai_cache_hit', 'ai_cache_miss')
             AND timestamp < :cutoff_date
             """,
-            {"cutoff_date": datetime.utcnow() - timedelta(days=30)}
+            {"cutoff_date": datetime.utcnow() - timedelta(days=30)},
         ).rowcount
         db.commit()
 
@@ -57,7 +57,7 @@ def cleanup_expired_audit_logs():
             "deleted_cache_logs": cache_deleted,
             "total_deleted": deleted_count + cache_deleted,
             "duration_seconds": duration,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
         logger.info(
@@ -100,7 +100,7 @@ def refresh_ai_performance_metrics():
         result = {
             "status": "success",
             "duration_seconds": duration,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
         logger.info(f"AI metrics refreshed in {duration:.2f} seconds")
@@ -141,9 +141,7 @@ def generate_daily_audit_report():
 
         # Get security events
         security_events = audit_service.get_ai_security_events(
-            start_date,
-            end_date,
-            severity="warning"
+            start_date, end_date, severity="warning"
         )
 
         report = {
@@ -155,11 +153,11 @@ def generate_daily_audit_report():
                     "event_type": event.event_type,
                     "timestamp": event.timestamp.isoformat(),
                     "severity": event.severity,
-                    "result": event.result
+                    "result": event.result,
                 }
                 for event in security_events[:10]  # Top 10
             ],
-            "generated_at": datetime.utcnow().isoformat()
+            "generated_at": datetime.utcnow().isoformat(),
         }
 
         logger.info(
@@ -227,13 +225,15 @@ def check_hipaa_compliance():
         ).scalar()
 
         compliance_status = {
-            "compliant": missing_retention == 0 and missing_legal_basis == 0 and excessive_retention == 0,
+            "compliant": missing_retention == 0
+            and missing_legal_basis == 0
+            and excessive_retention == 0,
             "issues": {
                 "missing_retention_dates": missing_retention,
                 "missing_legal_basis": missing_legal_basis,
-                "excessive_retention_periods": excessive_retention
+                "excessive_retention_periods": excessive_retention,
             },
-            "checked_at": datetime.utcnow().isoformat()
+            "checked_at": datetime.utcnow().isoformat(),
         }
 
         if not compliance_status["compliant"]:

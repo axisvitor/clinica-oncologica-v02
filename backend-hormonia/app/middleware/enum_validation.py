@@ -4,13 +4,13 @@ Enum validation middleware for database operations.
 This middleware automatically validates enum values before database operations
 to prevent InvalidTextRepresentation errors.
 """
+
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 from sqlalchemy import event
 from sqlalchemy.orm import Session
-from sqlalchemy.orm.events import InstanceEvents
 
-from app.models.message import Message, MessageDirection, MessageType, MessageStatus
+from app.models.message import Message
 from app.services.enum_validation import EnumValidationService, EnumValidationError
 
 
@@ -19,12 +19,12 @@ logger = logging.getLogger(__name__)
 
 class EnumValidationMiddleware:
     """Middleware for automatic enum validation in database operations."""
-    
+
     @staticmethod
     def validate_message_enums(mapper, connection, target: Message) -> None:
         """
         Validate enum values for Message model before database operations.
-        
+
         Args:
             mapper: SQLAlchemy mapper
             connection: Database connection
@@ -32,84 +32,98 @@ class EnumValidationMiddleware:
         """
         try:
             # Validate direction enum
-            if hasattr(target, 'direction') and target.direction is not None:
-                target.direction = EnumValidationService.validate_message_direction(target.direction)
-            
+            if hasattr(target, "direction") and target.direction is not None:
+                target.direction = EnumValidationService.validate_message_direction(
+                    target.direction
+                )
+
             # Validate type enum
-            if hasattr(target, 'type') and target.type is not None:
+            if hasattr(target, "type") and target.type is not None:
                 target.type = EnumValidationService.validate_message_type(target.type)
-            
+
             # Validate status enum
-            if hasattr(target, 'status') and target.status is not None:
-                target.status = EnumValidationService.validate_message_status(target.status)
-                
+            if hasattr(target, "status") and target.status is not None:
+                target.status = EnumValidationService.validate_message_status(
+                    target.status
+                )
+
         except EnumValidationError as e:
             logger.error(f"Enum validation failed for Message: {e}")
             # Log the error but don't raise to prevent breaking the operation
             # The database will still catch invalid values if they slip through
             EnumValidationService.handle_enum_validation_error(
-                e, 
+                e,
                 context={
                     "model": "Message",
                     "operation": "before_insert_or_update",
-                    "message_id": getattr(target, 'id', None)
-                }
+                    "message_id": getattr(target, "id", None),
+                },
             )
-    
+
     @staticmethod
     def setup_enum_validation_events() -> None:
         """Set up SQLAlchemy events for automatic enum validation."""
         # Register validation for Message model
-        event.listen(Message, 'before_insert', EnumValidationMiddleware.validate_message_enums)
-        event.listen(Message, 'before_update', EnumValidationMiddleware.validate_message_enums)
-        
+        event.listen(
+            Message, "before_insert", EnumValidationMiddleware.validate_message_enums
+        )
+        event.listen(
+            Message, "before_update", EnumValidationMiddleware.validate_message_enums
+        )
+
         logger.info("Enum validation events registered for database operations")
-    
+
     @staticmethod
-    def validate_query_filters(session: Session, query_filters: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_query_filters(
+        session: Session, query_filters: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Validate enum values in query filters before executing queries.
-        
+
         Args:
             session: Database session
             query_filters: Dictionary of query filters
-            
+
         Returns:
             Dict with validated enum values
         """
         validated_filters = query_filters.copy()
-        
+
         try:
             # Validate message direction filters
-            if 'direction' in validated_filters:
-                validated_filters['direction'] = EnumValidationService.validate_message_direction(
-                    validated_filters['direction']
+            if "direction" in validated_filters:
+                validated_filters["direction"] = (
+                    EnumValidationService.validate_message_direction(
+                        validated_filters["direction"]
+                    )
                 )
-            
+
             # Validate message type filters
-            if 'type' in validated_filters:
-                validated_filters['type'] = EnumValidationService.validate_message_type(
-                    validated_filters['type']
+            if "type" in validated_filters:
+                validated_filters["type"] = EnumValidationService.validate_message_type(
+                    validated_filters["type"]
                 )
-            
+
             # Validate message status filters
-            if 'status' in validated_filters:
-                validated_filters['status'] = EnumValidationService.validate_message_status(
-                    validated_filters['status']
+            if "status" in validated_filters:
+                validated_filters["status"] = (
+                    EnumValidationService.validate_message_status(
+                        validated_filters["status"]
+                    )
                 )
-                
+
         except EnumValidationError as e:
             logger.error(f"Query filter validation failed: {e}")
             EnumValidationService.handle_enum_validation_error(
                 e,
                 context={
                     "operation": "query_filter_validation",
-                    "original_filters": query_filters
-                }
+                    "original_filters": query_filters,
+                },
             )
             # Re-raise to prevent invalid queries
             raise
-        
+
         return validated_filters
 
 
@@ -126,7 +140,7 @@ def setup_enum_validation() -> None:
 def validate_query_enum_filters(session: Session, **filters) -> Dict[str, Any]:
     """
     Convenience function to validate enum filters in queries.
-    
+
     Usage:
         filters = validate_query_enum_filters(db, direction='OUTBOUND', status='sent')
         messages = db.query(Message).filter_by(**filters).all()

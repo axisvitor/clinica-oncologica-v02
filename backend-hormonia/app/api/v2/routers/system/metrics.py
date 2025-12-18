@@ -8,15 +8,13 @@ Provides system performance metrics endpoints:
 Security: Admin role required for all endpoints.
 """
 
-from typing import Dict, Any
 from datetime import datetime
 import sys
 import json
-import logging
 
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 
-from app.models.user import User, UserRole
+from app.models.user import UserRole
 from app.schemas.v2.system import (
     SystemInfoResponse,
     SystemMetrics,
@@ -38,6 +36,7 @@ CACHE_TTL_INFO = 600  # 10 minutes (moderate)
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
 
 async def _get_redis_client():
     """Get async Redis client for caching."""
@@ -64,6 +63,7 @@ def _is_admin(current_user) -> bool:
 # System Metrics Endpoint (ADMIN ONLY)
 # ============================================================================
 
+
 @router.get(
     "/metrics",
     response_model=SystemMetrics,
@@ -80,13 +80,13 @@ def _is_admin(current_user) -> bool:
     - Database metrics
     - Cache metrics
     - Application metrics
-    """
+    """,
 )
 @limiter.limit("20/minute")
 async def get_system_metrics(
     request: Request,
     current_user=Depends(get_current_user_from_session),
-    db = Depends(get_db),
+    db=Depends(get_db),
 ):
     """
     Get system-level performance metrics.
@@ -101,7 +101,7 @@ async def get_system_metrics(
     if not _is_admin(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin privileges required for system metrics"
+            detail="Admin privileges required for system metrics",
         )
 
     try:
@@ -118,7 +118,7 @@ async def get_system_metrics(
         memory_percent = memory.percent
 
         # Disk metrics
-        disk = psutil.disk_usage('/')
+        disk = psutil.disk_usage("/")
         disk_total_gb = disk.total / (1024 * 1024 * 1024)
         disk_used_gb = disk.used / (1024 * 1024 * 1024)
         disk_percent = disk.percent
@@ -131,6 +131,7 @@ async def get_system_metrics(
         db_pool_size = 0
         try:
             from app.database import engine
+
             pool = engine.pool
             db_pool_size = pool.size()
             db_connections = pool.checkedout()
@@ -141,7 +142,10 @@ async def get_system_metrics(
         active_sessions = 0
         try:
             from sqlalchemy import text
-            result = db.execute(text("SELECT COUNT(*) FROM sessions WHERE expires_at > NOW()"))
+
+            result = db.execute(
+                text("SELECT COUNT(*) FROM sessions WHERE expires_at > NOW()")
+            )
             active_sessions = result.scalar() or 0
         except Exception as e:
             logger.debug(f"Could not count sessions: {e}")
@@ -183,25 +187,26 @@ async def get_system_metrics(
             db_connections=db_connections,
             db_pool_size=db_pool_size,
             cache_hit_rate=cache_hit_rate,
-            cache_memory_mb=cache_memory_mb
+            cache_memory_mb=cache_memory_mb,
         )
 
     except ImportError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="psutil not available - metrics unavailable"
+            detail="psutil not available - metrics unavailable",
         )
     except Exception as e:
         logger.error(f"Failed to get system metrics: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve system metrics"
+            detail="Failed to retrieve system metrics",
         )
 
 
 # ============================================================================
 # System Information Endpoint (ADMIN ONLY)
 # ============================================================================
+
 
 @router.get(
     "/info",
@@ -213,7 +218,7 @@ async def get_system_metrics(
     **Authentication:** Admin role required
     **Caching:** 10 minutes (moderate)
     **Rate limit:** 30 requests/minute
-    """
+    """,
 )
 @limiter.limit("30/minute")
 async def get_system_info(
@@ -229,7 +234,7 @@ async def get_system_info(
     if not _is_admin(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin privileges required for system info"
+            detail="Admin privileges required for system info",
         )
 
     cache_key = "system:info"
@@ -251,6 +256,7 @@ async def get_system_info(
         uptime = "N/A"
         try:
             import psutil
+
             boot_time = datetime.fromtimestamp(psutil.boot_time())
             uptime_delta = datetime.now() - boot_time
             days = uptime_delta.days
@@ -272,18 +278,17 @@ async def get_system_info(
                 "ai_humanization": settings.AI_ENABLE_HUMANIZATION,
                 "monitoring": settings.MONITORING_ENABLE_SERVICE,
                 "rate_limiting": settings.RATE_LIMIT_ENABLE_SERVICE,
-                "monthly_quiz_links": settings.QUIZ_ENABLE_VIA_LINK
+                "monthly_quiz_links": settings.QUIZ_ENABLE_VIA_LINK,
             },
-            "build_info": {
-                "api_version": "v2",
-                "migration_phase": "9"
-            }
+            "build_info": {"api_version": "v2", "migration_phase": "9"},
         }
 
         # Cache the result
         if redis:
             try:
-                await redis.setex(cache_key, CACHE_TTL_INFO, json.dumps(system_info, default=str))
+                await redis.setex(
+                    cache_key, CACHE_TTL_INFO, json.dumps(system_info, default=str)
+                )
                 logger.debug("Cached system info")
             except Exception as e:
                 logger.warning(f"Redis set error: {e}")
@@ -294,5 +299,5 @@ async def get_system_info(
         logger.error(f"Failed to get system info: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve system information"
+            detail="Failed to retrieve system information",
         )

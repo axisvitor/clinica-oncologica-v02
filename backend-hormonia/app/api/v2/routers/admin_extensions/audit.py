@@ -47,7 +47,7 @@ logger = logging.getLogger(__name__)
     "/",
     response_model=AuditLogListResponse,
     summary="List Audit Logs",
-    description="Retrieve paginated list of audit logs with cursor-based pagination and comprehensive filters."
+    description="Retrieve paginated list of audit logs with cursor-based pagination and comprehensive filters.",
 )
 @limiter.limit("60/minute")
 @cache_response(ttl=CACHE_TTL_AUDIT_LOGS, key_prefix="admin_ext:audit:list")
@@ -55,9 +55,13 @@ async def list_audit_logs(
     request: Request,
     cursor: Optional[str] = Query(None, description="Pagination cursor"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
-    fields: Optional[str] = Query(None, description="Comma-separated fields to include"),
+    fields: Optional[str] = Query(
+        None, description="Comma-separated fields to include"
+    ),
     event_type: Optional[str] = Query(None, description="Filter by event type"),
-    event_status: Optional[str] = Query(None, description="Filter by status (success/failure)"),
+    event_status: Optional[str] = Query(
+        None, description="Filter by status (success/failure)"
+    ),
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
     user_email: Optional[str] = Query(None, description="Filter by user email"),
     ip_address: Optional[str] = Query(None, description="Filter by IP address"),
@@ -66,7 +70,7 @@ async def list_audit_logs(
     search: Optional[str] = Query(None, description="Search in messages"),
     db: Session = Depends(get_db),
     admin_user: User = Depends(get_admin_user),
-    context: RequestContext = Depends(get_request_context)
+    context: RequestContext = Depends(get_request_context),
 ):
     """
     List audit logs with cursor pagination and comprehensive filters.
@@ -125,7 +129,7 @@ async def list_audit_logs(
                 or_(
                     AuditLog.message.ilike(search_pattern),
                     AuditLog.action.ilike(search_pattern),
-                    AuditLog.resource.ilike(search_pattern)
+                    AuditLog.resource.ilike(search_pattern),
                 )
             )
 
@@ -151,26 +155,32 @@ async def list_audit_logs(
         # Log action
         audit_service = AuditService(db)
         await log_admin_extension_action(
-            audit_service, "audit_list", admin_user, context,
-            additional_data={"count": len(logs), "filters": {
-                "event_type": event_type,
-                "user_email": user_email,
-                "ip_address": ip_address
-            }}
+            audit_service,
+            "audit_list",
+            admin_user,
+            context,
+            additional_data={
+                "count": len(logs),
+                "filters": {
+                    "event_type": event_type,
+                    "user_email": user_email,
+                    "ip_address": ip_address,
+                },
+            },
         )
 
         return {
             "data": serialized_logs,
             "next_cursor": next_cursor,
             "has_more": has_more,
-            "total": None  # Cursor pagination doesn't include total for performance
+            "total": None,  # Cursor pagination doesn't include total for performance
         }
 
     except Exception as e:
         logger.error(f"Error listing audit logs: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error retrieving audit logs"
+            detail="Error retrieving audit logs",
         )
 
 
@@ -178,16 +188,18 @@ async def list_audit_logs(
     "/{log_id}",
     response_model=AuditLogResponse,
     summary="Get Audit Log",
-    description="Retrieve detailed information about a specific audit log. Cached for 15 minutes."
+    description="Retrieve detailed information about a specific audit log. Cached for 15 minutes.",
 )
 @cache_response(ttl=CACHE_TTL_AUDIT_SINGLE, key_prefix="admin_ext:audit:item")
 async def get_audit_log(
     log_id: UUID,
-    fields: Optional[str] = Query(None, description="Comma-separated fields to include"),
+    fields: Optional[str] = Query(
+        None, description="Comma-separated fields to include"
+    ),
     redact_sensitive: bool = Query(True, description="Redact sensitive data"),
     db: Session = Depends(get_db),
     admin_user: User = Depends(get_admin_user),
-    context: RequestContext = Depends(get_request_context)
+    context: RequestContext = Depends(get_request_context),
 ):
     """
     Get detailed information about a specific audit log.
@@ -212,8 +224,7 @@ async def get_audit_log(
 
         if not log:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Audit log not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Audit log not found"
             )
 
         # Parse field selection
@@ -222,8 +233,11 @@ async def get_audit_log(
         # Log action
         audit_service = AuditService(db)
         await log_admin_extension_action(
-            audit_service, "audit_view", admin_user, context,
-            additional_data={"log_id": str(log_id)}
+            audit_service,
+            "audit_view",
+            admin_user,
+            context,
+            additional_data={"log_id": str(log_id)},
         )
 
         return serialize_audit_log(log, field_list, redact_sensitive)
@@ -234,14 +248,14 @@ async def get_audit_log(
         logger.error(f"Error retrieving audit log {log_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error retrieving audit log"
+            detail="Error retrieving audit log",
         )
 
 
 @router.post(
     "/export",
     summary="Export Audit Logs",
-    description="Export audit logs to CSV or JSON format with filters."
+    description="Export audit logs to CSV or JSON format with filters.",
 )
 @limiter.limit("10/hour")
 async def export_audit_logs(
@@ -254,7 +268,7 @@ async def export_audit_logs(
     end_date: Optional[datetime] = Query(None),
     db: Session = Depends(get_db),
     admin_user: User = Depends(get_admin_user),
-    context: RequestContext = Depends(get_request_context)
+    context: RequestContext = Depends(get_request_context),
 ):
     """
     Export audit logs to CSV or JSON format.
@@ -306,16 +320,32 @@ async def export_audit_logs(
 
         # Determine fields
         all_fields = [
-            "id", "event_type", "event_status", "user_id", "user_email",
-            "firebase_uid", "ip_address", "user_agent", "resource", "action",
-            "event_metadata", "message", "error_details", "created_at"
+            "id",
+            "event_type",
+            "event_status",
+            "user_id",
+            "user_email",
+            "firebase_uid",
+            "ip_address",
+            "user_agent",
+            "resource",
+            "action",
+            "event_metadata",
+            "message",
+            "error_details",
+            "created_at",
         ]
-        fields_to_export = export_request.fields if export_request.fields else all_fields
+        fields_to_export = (
+            export_request.fields if export_request.fields else all_fields
+        )
 
         # Log action
         audit_service = AuditService(db)
         await log_admin_extension_action(
-            audit_service, "audit_export", admin_user, context,
+            audit_service,
+            "audit_export",
+            admin_user,
+            context,
             additional_data={
                 "format": export_request.format,
                 "count": len(logs),
@@ -323,12 +353,16 @@ async def export_audit_logs(
                 "filters": {
                     "event_type": event_type,
                     "user_email": user_email,
-                    "date_range": f"{start_date} to {end_date}" if start_date or end_date else None
-                }
-            }
+                    "date_range": f"{start_date} to {end_date}"
+                    if start_date or end_date
+                    else None,
+                },
+            },
         )
 
-        logger.warning(f"Admin {admin_user.email} exported {len(logs)} audit logs in {export_request.format} format")
+        logger.warning(
+            f"Admin {admin_user.email} exported {len(logs)} audit logs in {export_request.format} format"
+        )
 
         if export_request.format == AuditLogExportFormat.CSV:
             # Generate CSV
@@ -337,7 +371,9 @@ async def export_audit_logs(
             writer.writeheader()
 
             for log in logs:
-                row_data = serialize_audit_log(log, redact_sensitive=export_request.redact_sensitive)
+                row_data = serialize_audit_log(
+                    log, redact_sensitive=export_request.redact_sensitive
+                )
                 row = {}
                 for field in fields_to_export:
                     value = row_data.get(field)
@@ -356,15 +392,19 @@ async def export_audit_logs(
                 media_type="text/csv",
                 headers={
                     "Content-Disposition": f"attachment; filename=audit_logs_export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
-                }
+                },
             )
 
         else:  # JSON
             data = []
             for log in logs:
-                row_data = serialize_audit_log(log, redact_sensitive=export_request.redact_sensitive)
+                row_data = serialize_audit_log(
+                    log, redact_sensitive=export_request.redact_sensitive
+                )
                 # Filter fields
-                filtered_data = {k: v for k, v in row_data.items() if k in fields_to_export}
+                filtered_data = {
+                    k: v for k, v in row_data.items() if k in fields_to_export
+                }
                 # Convert datetime to ISO format
                 for k, v in filtered_data.items():
                     if isinstance(v, datetime):
@@ -378,12 +418,12 @@ async def export_audit_logs(
                 media_type="application/json",
                 headers={
                     "Content-Disposition": f"attachment; filename=audit_logs_export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
-                }
+                },
             )
 
     except Exception as e:
         logger.error(f"Error exporting audit logs: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error exporting audit logs: {str(e)}"
+            detail=f"Error exporting audit logs: {str(e)}",
         )

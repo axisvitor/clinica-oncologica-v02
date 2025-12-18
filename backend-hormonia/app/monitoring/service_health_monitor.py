@@ -7,7 +7,7 @@ import asyncio
 import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from enum import Enum
 import logging
 import aiohttp
@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 class ServiceType(str, Enum):
     """Service type categories"""
+
     API = "api"
     DATABASE = "database"
     CACHE = "cache"
@@ -30,6 +31,7 @@ class ServiceType(str, Enum):
 
 class HealthStatus(str, Enum):
     """Health check status"""
+
     UP = "up"
     DOWN = "down"
     DEGRADED = "degraded"
@@ -39,6 +41,7 @@ class HealthStatus(str, Enum):
 @dataclass
 class HealthCheckResult:
     """Result of a health check"""
+
     service_name: str
     service_type: ServiceType
     status: HealthStatus
@@ -53,6 +56,7 @@ class HealthCheckResult:
 @dataclass
 class SLAMetrics:
     """Service Level Agreement metrics"""
+
     service_name: str
     availability_target: float  # e.g., 99.9%
     response_time_target_ms: float  # e.g., 1000ms
@@ -82,7 +86,7 @@ class EndpointHealthChecker:
         url: str,
         method: str = "GET",
         expected_status: int = 200,
-        headers: Optional[Dict] = None
+        headers: Optional[Dict] = None,
     ) -> HealthCheckResult:
         """Check a single endpoint"""
         await self.ensure_session()
@@ -103,9 +107,9 @@ class EndpointHealthChecker:
                     error = f"Unexpected status: {response.status}"
 
                 details = {
-                    'status_code': response.status,
-                    'headers': dict(response.headers),
-                    'url': str(response.url)
+                    "status_code": response.status,
+                    "headers": dict(response.headers),
+                    "url": str(response.url),
                 }
 
         except asyncio.TimeoutError:
@@ -125,7 +129,7 @@ class EndpointHealthChecker:
             response_time_ms=response_time,
             checked_at=datetime.utcnow(),
             details=details,
-            error=error
+            error=error,
         )
 
     async def close(self):
@@ -138,9 +142,7 @@ class DatabaseHealthChecker:
     """Check database health"""
 
     async def check_postgres(
-        self,
-        db: AsyncSession,
-        timeout_seconds: int = 5
+        self, db: AsyncSession, timeout_seconds: int = 5
     ) -> HealthCheckResult:
         """Check PostgreSQL health"""
         start_time = time.time()
@@ -166,8 +168,8 @@ class DatabaseHealthChecker:
             status = HealthStatus.UP
 
             details = {
-                'database_size_mb': row[0] / 1024 / 1024 if row else 0,
-                'active_connections': row[1] if row else 0
+                "database_size_mb": row[0] / 1024 / 1024 if row else 0,
+                "active_connections": row[1] if row else 0,
             }
 
         except asyncio.TimeoutError:
@@ -187,17 +189,14 @@ class DatabaseHealthChecker:
             response_time_ms=response_time,
             checked_at=datetime.utcnow(),
             details=details,
-            error=error
+            error=error,
         )
 
 
 class CacheHealthChecker:
     """Check Redis cache health"""
 
-    async def check_redis(
-        self,
-        timeout_seconds: int = 5
-    ) -> HealthCheckResult:
+    async def check_redis(self, timeout_seconds: int = 5) -> HealthCheckResult:
         """Check Redis health using unified client"""
         start_time = time.time()
         status = HealthStatus.UNKNOWN
@@ -218,10 +217,10 @@ class CacheHealthChecker:
             status = HealthStatus.UP
 
             details = {
-                'redis_version': info.get('redis_version'),
-                'used_memory_mb': info.get('used_memory', 0) / 1024 / 1024,
-                'connected_clients': info.get('connected_clients', 0),
-                'uptime_seconds': info.get('uptime_in_seconds', 0)
+                "redis_version": info.get("redis_version"),
+                "used_memory_mb": info.get("used_memory", 0) / 1024 / 1024,
+                "connected_clients": info.get("connected_clients", 0),
+                "uptime_seconds": info.get("uptime_in_seconds", 0),
             }
 
         except asyncio.TimeoutError:
@@ -241,7 +240,7 @@ class CacheHealthChecker:
             response_time_ms=response_time,
             checked_at=datetime.utcnow(),
             details=details,
-            error=error
+            error=error,
         )
 
 
@@ -258,17 +257,17 @@ class ServiceHealthMonitor:
 
         # SLA targets
         self.sla_targets = {
-            'api_availability': 99.9,
-            'api_response_time_ms': 1000,
-            'database_availability': 99.95,
-            'cache_availability': 99.9
+            "api_availability": 99.9,
+            "api_response_time_ms": 1000,
+            "database_availability": 99.95,
+            "cache_availability": 99.9,
         }
 
     async def check_all_services(
         self,
         api_endpoints: List[str],
         db_session: Optional[AsyncSession] = None,
-        check_redis: bool = True
+        check_redis: bool = True,
     ) -> Dict[str, HealthCheckResult]:
         """Check health of all configured services"""
         results = {}
@@ -282,14 +281,14 @@ class ServiceHealthMonitor:
         # Check database
         if db_session:
             result = await self.db_checker.check_postgres(db_session)
-            results['database'] = result
-            self._update_history('database', result)
+            results["database"] = result
+            self._update_history("database", result)
 
         # Check Redis using unified client
         if check_redis:
             result = await self.cache_checker.check_redis()
-            results['redis'] = result
-            self._update_history('redis', result)
+            results["redis"] = result
+            self._update_history("redis", result)
 
         return results
 
@@ -302,13 +301,12 @@ class ServiceHealthMonitor:
 
         # Trim history if needed
         if len(self.health_history[service_name]) > self.max_history:
-            self.health_history[service_name] = \
-                self.health_history[service_name][-self.max_history:]
+            self.health_history[service_name] = self.health_history[service_name][
+                -self.max_history :
+            ]
 
     async def calculate_sla_metrics(
-        self,
-        service_name: str,
-        hours: int = 24
+        self, service_name: str, hours: int = 24
     ) -> Optional[SLAMetrics]:
         """Calculate SLA metrics for a service"""
         if service_name not in self.health_history:
@@ -316,7 +314,8 @@ class ServiceHealthMonitor:
 
         cutoff_time = datetime.utcnow() - timedelta(hours=hours)
         recent_checks = [
-            check for check in self.health_history[service_name]
+            check
+            for check in self.health_history[service_name]
             if check.checked_at >= cutoff_time
         ]
 
@@ -328,30 +327,33 @@ class ServiceHealthMonitor:
         availability = (len(up_checks) / len(recent_checks)) * 100
 
         # Calculate average response time
-        response_times = [c.response_time_ms for c in recent_checks if c.status == HealthStatus.UP]
-        avg_response_time = sum(response_times) / len(response_times) if response_times else 0
+        response_times = [
+            c.response_time_ms for c in recent_checks if c.status == HealthStatus.UP
+        ]
+        avg_response_time = (
+            sum(response_times) / len(response_times) if response_times else 0
+        )
 
         # Calculate error rate
         error_checks = [c for c in recent_checks if c.status == HealthStatus.DOWN]
         error_rate = (len(error_checks) / len(recent_checks)) * 100
 
         # Determine if SLA is met
-        sla_met = (
-            availability >= self.sla_targets.get('api_availability', 99.9) and
-            avg_response_time <= self.sla_targets.get('api_response_time_ms', 1000)
-        )
+        sla_met = availability >= self.sla_targets.get(
+            "api_availability", 99.9
+        ) and avg_response_time <= self.sla_targets.get("api_response_time_ms", 1000)
 
         return SLAMetrics(
             service_name=service_name,
-            availability_target=self.sla_targets.get('api_availability', 99.9),
-            response_time_target_ms=self.sla_targets.get('api_response_time_ms', 1000),
+            availability_target=self.sla_targets.get("api_availability", 99.9),
+            response_time_target_ms=self.sla_targets.get("api_response_time_ms", 1000),
             error_rate_target=0.1,
             current_availability=availability,
             current_response_time=avg_response_time,
             current_error_rate=error_rate,
             sla_met=sla_met,
             period_start=cutoff_time,
-            period_end=datetime.utcnow()
+            period_end=datetime.utcnow(),
         )
 
     async def get_uptime_report(self, hours: int = 24) -> Dict[str, Any]:
@@ -360,9 +362,7 @@ class ServiceHealthMonitor:
         cutoff_time = datetime.utcnow() - timedelta(hours=hours)
 
         for service_name, history in self.health_history.items():
-            recent_checks = [
-                c for c in history if c.checked_at >= cutoff_time
-            ]
+            recent_checks = [c for c in history if c.checked_at >= cutoff_time]
 
             if not recent_checks:
                 continue
@@ -372,7 +372,9 @@ class ServiceHealthMonitor:
             uptime_percentage = (up_time / total_time) * 100 if total_time > 0 else 0
 
             # Get current status
-            current_status = recent_checks[-1].status if recent_checks else HealthStatus.UNKNOWN
+            current_status = (
+                recent_checks[-1].status if recent_checks else HealthStatus.UNKNOWN
+            )
 
             # Calculate consecutive failures
             consecutive_failures = 0
@@ -383,12 +385,14 @@ class ServiceHealthMonitor:
                     break
 
             report[service_name] = {
-                'status': current_status,
-                'uptime_percentage': uptime_percentage,
-                'total_checks': total_time,
-                'successful_checks': up_time,
-                'consecutive_failures': consecutive_failures,
-                'last_check': recent_checks[-1].checked_at.isoformat() if recent_checks else None
+                "status": current_status,
+                "uptime_percentage": uptime_percentage,
+                "total_checks": total_time,
+                "successful_checks": up_time,
+                "consecutive_failures": consecutive_failures,
+                "last_check": recent_checks[-1].checked_at.isoformat()
+                if recent_checks
+                else None,
             }
 
         return report
@@ -398,17 +402,17 @@ class ServiceHealthMonitor:
         api_endpoints: List[str],
         check_interval_seconds: int = 60,
         db_session: Optional[AsyncSession] = None,
-        check_redis: bool = True
+        check_redis: bool = True,
     ):
         """Start continuous service health monitoring"""
-        logger.info(f"Starting service health monitoring (interval: {check_interval_seconds}s)")
+        logger.info(
+            f"Starting service health monitoring (interval: {check_interval_seconds}s)"
+        )
 
         while True:
             try:
                 results = await self.check_all_services(
-                    api_endpoints,
-                    db_session,
-                    check_redis
+                    api_endpoints, db_session, check_redis
                 )
 
                 # Log results

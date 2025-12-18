@@ -2,12 +2,13 @@
 Dead Letter Queue (DLQ) handler for failed WhatsApp messages.
 Routes failed messages to DLQ storage for manual review and retry.
 """
+
 import logging
 from typing import Dict, Any, Optional, List
 from uuid import UUID
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy import and_
 
 from app.models.failed_message import FailedMessage, FailureReason, DLQStatus
 from app.models.message import Message, MessageStatus
@@ -50,7 +51,7 @@ class DLQHandler:
         failure_reason: FailureReason,
         failure_details: Dict[str, Any],
         retry_count: int = 0,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> FailedMessage:
         """
         Route a failed message to the Dead Letter Queue.
@@ -100,7 +101,7 @@ class DLQHandler:
                 last_retry_at=datetime.utcnow() if retry_count > 0 else None,
                 failed_at=datetime.utcnow(),
                 dlq_status=DLQStatus.PENDING_REVIEW,
-                dlq_metadata=metadata or {}
+                dlq_metadata=metadata or {},
             )
 
             self.db.add(failed_message)
@@ -132,7 +133,9 @@ class DLQHandler:
                 message.status = MessageStatus.FAILED
                 if not message.message_metadata:
                     message.message_metadata = {}
-                message.message_metadata["dlq_routed_at"] = datetime.utcnow().isoformat()
+                message.message_metadata["dlq_routed_at"] = (
+                    datetime.utcnow().isoformat()
+                )
                 self.db.commit()
         except Exception as e:
             logger.error(f"Failed to update message {message_id} status: {e}")
@@ -141,7 +144,7 @@ class DLQHandler:
         self,
         limit: int = 50,
         offset: int = 0,
-        failure_reason: Optional[FailureReason] = None
+        failure_reason: Optional[FailureReason] = None,
     ) -> List[FailedMessage]:
         """
         Get messages pending review in DLQ.
@@ -162,9 +165,16 @@ class DLQHandler:
             if failure_reason:
                 query = query.filter(FailedMessage.failure_reason == failure_reason)
 
-            messages = query.order_by(FailedMessage.failed_at.desc()).limit(limit).offset(offset).all()
+            messages = (
+                query.order_by(FailedMessage.failed_at.desc())
+                .limit(limit)
+                .offset(offset)
+                .all()
+            )
 
-            logger.info(f"Retrieved {len(messages)} pending DLQ messages (limit={limit}, offset={offset})")
+            logger.info(
+                f"Retrieved {len(messages)} pending DLQ messages (limit={limit}, offset={offset})"
+            )
             return messages
 
         except Exception as e:
@@ -176,7 +186,7 @@ class DLQHandler:
         dlq_id: UUID,
         reviewer_id: UUID,
         approve_retry: bool,
-        notes: Optional[str] = None
+        notes: Optional[str] = None,
     ) -> FailedMessage:
         """
         Review a failed message and approve/reject retry.
@@ -199,7 +209,10 @@ class DLQHandler:
             if not failed_message:
                 raise NotFoundError(f"Failed message {dlq_id} not found in DLQ")
 
-            if failed_message.dlq_status not in [DLQStatus.PENDING_REVIEW, DLQStatus.UNDER_REVIEW]:
+            if failed_message.dlq_status not in [
+                DLQStatus.PENDING_REVIEW,
+                DLQStatus.UNDER_REVIEW,
+            ]:
                 raise ValidationError(
                     f"Message {dlq_id} has status {failed_message.dlq_status.value}, cannot review"
                 )
@@ -221,9 +234,7 @@ class DLQHandler:
             raise
 
     async def requeue_for_retry(
-        self,
-        dlq_id: UUID,
-        immediate: bool = False
+        self, dlq_id: UUID, immediate: bool = False
     ) -> Dict[str, Any]:
         """
         Re-queue a failed message for retry delivery.
@@ -264,8 +275,8 @@ class DLQHandler:
                     "dlq_entry_id": str(failed_message.id),
                     "original_failure_reason": failed_message.failure_reason.value,
                     "requeue_count": failed_message.requeue_count + 1,
-                    "requeued_at": datetime.utcnow().isoformat()
-                }
+                    "requeued_at": datetime.utcnow().isoformat(),
+                },
             )
 
             self.db.add(retry_message)
@@ -283,9 +294,7 @@ class DLQHandler:
                 send_time = datetime.utcnow() + timedelta(hours=1)
 
             await scheduler.schedule_existing_message(
-                message_id=retry_message.id,
-                send_time=send_time,
-                priority='high'
+                message_id=retry_message.id, send_time=send_time, priority="high"
             )
 
             # Update DLQ entry
@@ -302,7 +311,7 @@ class DLQHandler:
                 "new_message_id": str(retry_message.id),
                 "scheduled_for": send_time.isoformat(),
                 "immediate": immediate,
-                "requeue_count": failed_message.requeue_count
+                "requeue_count": failed_message.requeue_count,
             }
 
         except Exception as e:
@@ -310,10 +319,7 @@ class DLQHandler:
             self.db.rollback()
             raise
 
-    async def get_dlq_metrics(
-        self,
-        days_back: int = 7
-    ) -> Dict[str, Any]:
+    async def get_dlq_metrics(self, days_back: int = 7) -> Dict[str, Any]:
         """
         Get DLQ metrics and analytics.
 
@@ -327,9 +333,11 @@ class DLQHandler:
             cutoff_date = datetime.utcnow() - timedelta(days=days_back)
 
             # Get all DLQ entries in period
-            entries = self.db.query(FailedMessage).filter(
-                FailedMessage.failed_at >= cutoff_date
-            ).all()
+            entries = (
+                self.db.query(FailedMessage)
+                .filter(FailedMessage.failed_at >= cutoff_date)
+                .all()
+            )
 
             if not entries:
                 return {
@@ -338,7 +346,7 @@ class DLQHandler:
                     "status_distribution": {},
                     "avg_retry_count": 0,
                     "requeue_rate": 0,
-                    "period_days": days_back
+                    "period_days": days_back,
                 }
 
             # Calculate metrics
@@ -362,8 +370,12 @@ class DLQHandler:
                 if entry.requeue_count > 0:
                     requeued_count += 1
 
-            avg_retry_count = total_retries / total_failures if total_failures > 0 else 0
-            requeue_rate = (requeued_count / total_failures * 100) if total_failures > 0 else 0
+            avg_retry_count = (
+                total_retries / total_failures if total_failures > 0 else 0
+            )
+            requeue_rate = (
+                (requeued_count / total_failures * 100) if total_failures > 0 else 0
+            )
 
             return {
                 "total_failures": total_failures,
@@ -372,7 +384,7 @@ class DLQHandler:
                 "avg_retry_count": round(avg_retry_count, 2),
                 "requeue_rate": round(requeue_rate, 2),
                 "period_days": days_back,
-                "analysis_date": datetime.utcnow().isoformat()
+                "analysis_date": datetime.utcnow().isoformat(),
             }
 
         except Exception as e:
@@ -380,9 +392,7 @@ class DLQHandler:
             return {"error": str(e)}
 
     async def get_critical_failures(
-        self,
-        hours_back: int = 24,
-        limit: int = 20
+        self, hours_back: int = 24, limit: int = 20
     ) -> List[FailedMessage]:
         """
         Get critical failures that require immediate attention.
@@ -402,16 +412,21 @@ class DLQHandler:
         try:
             cutoff_time = datetime.utcnow() - timedelta(hours=hours_back)
 
-            critical_failures = self.db.query(FailedMessage).filter(
-                and_(
-                    FailedMessage.failed_at >= cutoff_time,
-                    FailedMessage.retry_count >= 3,
-                    FailedMessage.dlq_status == DLQStatus.PENDING_REVIEW
+            critical_failures = (
+                self.db.query(FailedMessage)
+                .filter(
+                    and_(
+                        FailedMessage.failed_at >= cutoff_time,
+                        FailedMessage.retry_count >= 3,
+                        FailedMessage.dlq_status == DLQStatus.PENDING_REVIEW,
+                    )
                 )
-            ).order_by(
-                FailedMessage.retry_count.desc(),
-                FailedMessage.failed_at.desc()
-            ).limit(limit).all()
+                .order_by(
+                    FailedMessage.retry_count.desc(), FailedMessage.failed_at.desc()
+                )
+                .limit(limit)
+                .all()
+            )
 
             logger.info(
                 f"Found {len(critical_failures)} critical DLQ failures "

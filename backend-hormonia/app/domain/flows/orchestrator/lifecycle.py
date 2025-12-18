@@ -5,11 +5,10 @@ Handles flow lifecycle operations: start, pause, resume, stop, restart.
 """
 
 import logging
-from typing import Dict, Any, Optional, Callable, List
+from typing import Dict, Any, Optional, Callable
 from uuid import UUID
 from datetime import datetime
 
-from app.models.patient import Patient
 from app.repositories.patient import PatientRepository
 from ..state import FlowStateManager, FlowStateValidator
 from ..templates import TemplateRenderer
@@ -31,7 +30,7 @@ class FlowLifecycleManager:
         state_validator: FlowStateValidator,
         template_renderer: TemplateRenderer,
         rules_engine: FlowRulesEngine,
-        analytics_collector: AnalyticsCollector
+        analytics_collector: AnalyticsCollector,
     ):
         """
         Initialize FlowLifecycleManager.
@@ -60,7 +59,7 @@ class FlowLifecycleManager:
         callback_executor: Callable,
         error_tracker: Callable,
         execution_tracker: Callable,
-        logger_instance: Optional[logging.Logger] = None
+        logger_instance: Optional[logging.Logger] = None,
     ) -> FlowExecutionResult:
         """
         Start a new flow for a patient.
@@ -85,11 +84,11 @@ class FlowLifecycleManager:
             flow_type=flow_type or "auto_detect",
             operation=FlowOperationType.START,
             current_day=0,
-            metadata=metadata or {}
+            metadata=metadata or {},
         )
 
         try:
-            await callback_executor('before_execution', context)
+            await callback_executor("before_execution", context)
 
             # Get patient information
             patient = self.patient_repo.get(patient_id)
@@ -100,7 +99,7 @@ class FlowLifecycleManager:
                     patient_id=patient_id,
                     operation=FlowOperationType.START,
                     message="Patient not found",
-                    errors=["Patient not found"]
+                    errors=["Patient not found"],
                 )
 
             # Calculate current treatment day
@@ -123,7 +122,7 @@ class FlowLifecycleManager:
                     patient_id=patient_id,
                     operation=FlowOperationType.START,
                     message=error_msg,
-                    errors=[error_msg]
+                    errors=[error_msg],
                 )
 
             # Create new flow state
@@ -132,57 +131,61 @@ class FlowLifecycleManager:
                 flow_type=context.flow_type,
                 current_day=current_day,
                 operation=context.operation.value,
-                metadata=context.metadata
+                metadata=context.metadata,
             )
 
             # Load and validate flow template
-            template_config = await self.template_renderer.load_flow_template(context.flow_type)
+            template_config = await self.template_renderer.load_flow_template(
+                context.flow_type
+            )
             if not template_config:
                 return FlowExecutionResult(
                     success=False,
                     patient_id=patient_id,
                     operation=FlowOperationType.START,
                     message=f"Flow template not found for type: {context.flow_type}",
-                    errors=[f"Template not found: {context.flow_type}"]
+                    errors=[f"Template not found: {context.flow_type}"],
                 )
 
             # Execute initial flow step
-            execution_result = await flow_step_executor(context, flow_state, template_config)
+            execution_result = await flow_step_executor(
+                context, flow_state, template_config
+            )
 
             # Track analytics
             await self.analytics_collector.track_flow_start(
                 patient_id=patient_id,
                 flow_type=context.flow_type,
                 current_day=current_day,
-                metadata=context.metadata
+                metadata=context.metadata,
             )
 
-            await callback_executor('after_execution', context)
+            await callback_executor("after_execution", context)
             execution_tracker()
 
             return FlowExecutionResult(
-                success=execution_result.get('success', False),
+                success=execution_result.get("success", False),
                 patient_id=patient_id,
                 operation=FlowOperationType.START,
                 message=f"Flow started successfully: {context.flow_type}",
                 data={
-                    'flow_state_id': str(flow_state.id),
-                    'flow_type': context.flow_type,
-                    'current_day': current_day,
-                    'execution_result': execution_result
-                }
+                    "flow_state_id": str(flow_state.id),
+                    "flow_type": context.flow_type,
+                    "current_day": current_day,
+                    "execution_result": execution_result,
+                },
             )
 
         except Exception as e:
             log.error(f"Error starting flow for patient {patient_id}: {e}")
-            await callback_executor('on_error', context, error=e)
+            await callback_executor("on_error", context, error=e)
 
             return FlowExecutionResult(
                 success=False,
                 patient_id=patient_id,
                 operation=FlowOperationType.START,
                 message=f"Flow start failed: {str(e)}",
-                errors=[str(e)]
+                errors=[str(e)],
             )
 
     async def advance_flow(
@@ -194,7 +197,7 @@ class FlowLifecycleManager:
         callback_executor: Callable,
         execution_tracker: Callable,
         db_commit: Callable,
-        logger_instance: Optional[logging.Logger] = None
+        logger_instance: Optional[logging.Logger] = None,
     ) -> FlowExecutionResult:
         """
         Advance patient flow to next step or specific day.
@@ -223,7 +226,7 @@ class FlowLifecycleManager:
                     patient_id=patient_id,
                     operation=FlowOperationType.ADVANCE,
                     message="No active flow found",
-                    errors=["No active flow state"]
+                    errors=["No active flow state"],
                 )
 
             # Get patient for day calculation
@@ -245,7 +248,7 @@ class FlowLifecycleManager:
                     patient_id=patient_id,
                     operation=FlowOperationType.ADVANCE,
                     message=error_msg,
-                    errors=[error_msg]
+                    errors=[error_msg],
                 )
 
             context = FlowExecutionContext(
@@ -253,60 +256,74 @@ class FlowLifecycleManager:
                 flow_type=flow_state.flow_type,
                 operation=FlowOperationType.ADVANCE,
                 current_day=current_day,
-                target_day=target_day
+                target_day=target_day,
             )
 
-            await callback_executor('before_execution', context)
+            await callback_executor("before_execution", context)
 
             # Check if flow type should change
-            needs_transition, new_flow_type = self.rules_engine.should_transition_flow_type(
-                flow_state.flow_type, target_day
+            needs_transition, new_flow_type = (
+                self.rules_engine.should_transition_flow_type(
+                    flow_state.flow_type, target_day
+                )
             )
 
             if needs_transition:
                 # Transition to new flow type
                 transition_result = await self.state_manager.transition_flow_type(
-                    flow_state, new_flow_type, patient_id, target_day,
-                    analytics_callback=self.analytics_collector.track_flow_event
+                    flow_state,
+                    new_flow_type,
+                    patient_id,
+                    target_day,
+                    analytics_callback=self.analytics_collector.track_flow_event,
                 )
-                if not transition_result.get('success'):
+                if not transition_result.get("success"):
                     return FlowExecutionResult(
                         success=False,
                         patient_id=patient_id,
                         operation=FlowOperationType.ADVANCE,
                         message="Flow type transition failed",
-                        errors=transition_result.get('errors', [])
+                        errors=transition_result.get("errors", []),
                     )
 
             # Update flow state
             flow_state.current_step = target_day
             flow_state.state_data = flow_state.state_data or {}
-            flow_state.state_data.update({
-                'last_advanced': datetime.utcnow().isoformat(),
-                'advanced_to_day': target_day,
-                'status': 'active'
-            })
+            flow_state.state_data.update(
+                {
+                    "last_advanced": datetime.utcnow().isoformat(),
+                    "advanced_to_day": target_day,
+                    "status": "active",
+                }
+            )
 
             db_commit()
             self.state_manager.invalidate_flow_cache(patient_id)
 
             # Load template for new day
-            template_config = await self.template_renderer.load_flow_template(flow_state.flow_type)
+            template_config = await self.template_renderer.load_flow_template(
+                flow_state.flow_type
+            )
             if template_config:
                 # Execute flow step for new day
-                execution_result = await flow_step_executor(context, flow_state, template_config)
+                execution_result = await flow_step_executor(
+                    context, flow_state, template_config
+                )
             else:
-                execution_result = {'success': True, 'message': 'Advanced without template execution'}
+                execution_result = {
+                    "success": True,
+                    "message": "Advanced without template execution",
+                }
 
             # Track analytics
             await self.analytics_collector.track_flow_advance(
                 patient_id=patient_id,
                 flow_type=flow_state.flow_type,
                 from_day=current_day,
-                to_day=target_day
+                to_day=target_day,
             )
 
-            await callback_executor('after_execution', context)
+            await callback_executor("after_execution", context)
             execution_tracker()
 
             return FlowExecutionResult(
@@ -315,11 +332,11 @@ class FlowLifecycleManager:
                 operation=FlowOperationType.ADVANCE,
                 message=f"Flow advanced to day {target_day}",
                 data={
-                    'from_day': current_day,
-                    'to_day': target_day,
-                    'flow_type': flow_state.flow_type,
-                    'execution_result': execution_result
-                }
+                    "from_day": current_day,
+                    "to_day": target_day,
+                    "flow_type": flow_state.flow_type,
+                    "execution_result": execution_result,
+                },
             )
 
         except Exception as e:
@@ -330,7 +347,7 @@ class FlowLifecycleManager:
                 patient_id=patient_id,
                 operation=FlowOperationType.ADVANCE,
                 message=f"Flow advancement failed: {str(e)}",
-                errors=[str(e)]
+                errors=[str(e)],
             )
 
     async def pause_flow(
@@ -339,7 +356,7 @@ class FlowLifecycleManager:
         reason: Optional[str],
         metadata: Optional[Dict[str, Any]],
         execution_tracker: Callable,
-        logger_instance: Optional[logging.Logger] = None
+        logger_instance: Optional[logging.Logger] = None,
     ) -> FlowExecutionResult:
         """
         Pause patient flow execution.
@@ -366,12 +383,12 @@ class FlowLifecycleManager:
                     patient_id=patient_id,
                     operation=FlowOperationType.PAUSE,
                     message=error_msg,
-                    errors=[error_msg]
+                    errors=[error_msg],
                 )
 
             # Update flow state to paused
             success = self.state_manager.update_flow_state_status(
-                flow_state, 'paused', reason, metadata
+                flow_state, "paused", reason, metadata
             )
 
             if success:
@@ -380,7 +397,7 @@ class FlowLifecycleManager:
                     patient_id=patient_id,
                     flow_type=flow_state.flow_type,
                     current_day=flow_state.current_step,
-                    reason=reason
+                    reason=reason,
                 )
 
                 execution_tracker()
@@ -391,10 +408,10 @@ class FlowLifecycleManager:
                     operation=FlowOperationType.PAUSE,
                     message="Flow paused successfully",
                     data={
-                        'flow_type': flow_state.flow_type,
-                        'current_day': flow_state.current_step,
-                        'reason': reason
-                    }
+                        "flow_type": flow_state.flow_type,
+                        "current_day": flow_state.current_step,
+                        "reason": reason,
+                    },
                 )
             else:
                 return FlowExecutionResult(
@@ -402,7 +419,7 @@ class FlowLifecycleManager:
                     patient_id=patient_id,
                     operation=FlowOperationType.PAUSE,
                     message="Failed to update flow state",
-                    errors=["State update failed"]
+                    errors=["State update failed"],
                 )
 
         except Exception as e:
@@ -413,7 +430,7 @@ class FlowLifecycleManager:
                 patient_id=patient_id,
                 operation=FlowOperationType.PAUSE,
                 message=f"Flow pause failed: {str(e)}",
-                errors=[str(e)]
+                errors=[str(e)],
             )
 
     async def resume_flow(
@@ -421,7 +438,7 @@ class FlowLifecycleManager:
         patient_id: UUID,
         metadata: Optional[Dict[str, Any]],
         execution_tracker: Callable,
-        logger_instance: Optional[logging.Logger] = None
+        logger_instance: Optional[logging.Logger] = None,
     ) -> FlowExecutionResult:
         """
         Resume paused patient flow.
@@ -448,12 +465,12 @@ class FlowLifecycleManager:
                     operation=FlowOperationType.RESUME,
                     message=error_msg,
                     warnings=[error_msg] if flow_state else [],
-                    errors=[error_msg] if not flow_state else []
+                    errors=[error_msg] if not flow_state else [],
                 )
 
             # Update flow state to active
             success = self.state_manager.update_flow_state_status(
-                flow_state, 'active', None, metadata
+                flow_state, "active", None, metadata
             )
 
             if success:
@@ -461,7 +478,7 @@ class FlowLifecycleManager:
                 await self.analytics_collector.track_flow_resume(
                     patient_id=patient_id,
                     flow_type=flow_state.flow_type,
-                    current_day=flow_state.current_step
+                    current_day=flow_state.current_step,
                 )
 
                 execution_tracker()
@@ -472,9 +489,9 @@ class FlowLifecycleManager:
                     operation=FlowOperationType.RESUME,
                     message="Flow resumed successfully",
                     data={
-                        'flow_type': flow_state.flow_type,
-                        'current_day': flow_state.current_step
-                    }
+                        "flow_type": flow_state.flow_type,
+                        "current_day": flow_state.current_step,
+                    },
                 )
             else:
                 return FlowExecutionResult(
@@ -482,7 +499,7 @@ class FlowLifecycleManager:
                     patient_id=patient_id,
                     operation=FlowOperationType.RESUME,
                     message="Failed to update flow state",
-                    errors=["State update failed"]
+                    errors=["State update failed"],
                 )
 
         except Exception as e:
@@ -493,7 +510,7 @@ class FlowLifecycleManager:
                 patient_id=patient_id,
                 operation=FlowOperationType.RESUME,
                 message=f"Flow resume failed: {str(e)}",
-                errors=[str(e)]
+                errors=[str(e)],
             )
 
     async def stop_flow(
@@ -502,7 +519,7 @@ class FlowLifecycleManager:
         reason: Optional[str],
         metadata: Optional[Dict[str, Any]],
         execution_tracker: Callable,
-        logger_instance: Optional[logging.Logger] = None
+        logger_instance: Optional[logging.Logger] = None,
     ) -> FlowExecutionResult:
         """
         Stop patient flow execution.
@@ -529,12 +546,12 @@ class FlowLifecycleManager:
                     patient_id=patient_id,
                     operation=FlowOperationType.STOP,
                     message=error_msg,
-                    errors=[error_msg]
+                    errors=[error_msg],
                 )
 
             # Update flow state to completed
             success = self.state_manager.update_flow_state_status(
-                flow_state, 'completed', reason, metadata
+                flow_state, "completed", reason, metadata
             )
 
             if success:
@@ -543,7 +560,7 @@ class FlowLifecycleManager:
                     patient_id=patient_id,
                     flow_type=flow_state.flow_type,
                     final_day=flow_state.current_step,
-                    reason=reason
+                    reason=reason,
                 )
 
                 execution_tracker()
@@ -554,10 +571,10 @@ class FlowLifecycleManager:
                     operation=FlowOperationType.STOP,
                     message="Flow stopped successfully",
                     data={
-                        'flow_type': flow_state.flow_type,
-                        'final_day': flow_state.current_step,
-                        'reason': reason
-                    }
+                        "flow_type": flow_state.flow_type,
+                        "final_day": flow_state.current_step,
+                        "reason": reason,
+                    },
                 )
             else:
                 return FlowExecutionResult(
@@ -565,7 +582,7 @@ class FlowLifecycleManager:
                     patient_id=patient_id,
                     operation=FlowOperationType.STOP,
                     message="Failed to update flow state",
-                    errors=["State update failed"]
+                    errors=["State update failed"],
                 )
 
         except Exception as e:
@@ -576,5 +593,5 @@ class FlowLifecycleManager:
                 patient_id=patient_id,
                 operation=FlowOperationType.STOP,
                 message=f"Flow stop failed: {str(e)}",
-                errors=[str(e)]
+                errors=[str(e)],
             )

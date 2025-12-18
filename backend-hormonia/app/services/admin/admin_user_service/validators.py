@@ -3,11 +3,11 @@ Validation utilities for user administration.
 
 Contains email validation, password generation, and other validation functions.
 """
+
 import re
 import secrets
 import string
 import logging
-from typing import Dict, List
 
 from app.utils.security import validate_password_strength
 from .schemas import EmailValidationRequest, EmailValidationResult
@@ -30,12 +30,12 @@ def validate_email_format(email: str) -> str:
     """
     try:
         # Basic regex validation for email format
-        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         if not re.match(email_pattern, email):
             raise ValueError("Invalid email format")
 
         # Normalize email (lowercase domain)
-        local, domain = email.split('@')
+        local, domain = email.split("@")
         normalized_email = f"{local}@{domain.lower()}"
         return normalized_email
     except Exception as e:
@@ -57,10 +57,12 @@ def validate_full_name(name: str) -> str:
     """
     if name is not None:
         # Remove extra whitespace
-        name = ' '.join(name.split())
+        name = " ".join(name.split())
         # Check for valid characters (letters, spaces, hyphens, apostrophes, accented characters)
         if not re.match(r"^[a-zA-Z\s\-\'\u00C0-\u017F]+$", name):
-            raise ValueError("Full name can only contain letters, spaces, hyphens, and apostrophes")
+            raise ValueError(
+                "Full name can only contain letters, spaces, hyphens, and apostrophes"
+            )
     return name
 
 
@@ -75,11 +77,15 @@ def validate_password(password: str) -> None:
         ValueError: If password doesn't meet strength requirements
     """
     validation_result = validate_password_strength(password)
-    if not validation_result['is_valid']:
-        raise ValueError(f"Password validation failed: {'; '.join(validation_result['issues'])}")
+    if not validation_result["is_valid"]:
+        raise ValueError(
+            f"Password validation failed: {'; '.join(validation_result['issues'])}"
+        )
 
 
-async def validate_email_advanced(email_request: EmailValidationRequest) -> EmailValidationResult:
+async def validate_email_advanced(
+    email_request: EmailValidationRequest,
+) -> EmailValidationResult:
     """
     Perform advanced email validation with domain checking.
 
@@ -94,20 +100,20 @@ async def validate_email_advanced(email_request: EmailValidationRequest) -> Emai
 
     try:
         # Basic format validation
-        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         if not re.match(email_pattern, email_request.email):
             issues.append("Invalid email format")
 
         # Normalize email
-        local, domain = email_request.email.split('@')
+        local, domain = email_request.email.split("@")
         normalized_email = f"{local}@{domain.lower()}"
 
         # Check for common typos in popular domains
         domain_suggestions = {
-            'gmail.com': ['gmai.com', 'gmial.com', 'gmail.co'],
-            'yahoo.com': ['yaho.com', 'yahoo.co'],
-            'hotmail.com': ['hotmai.com', 'hotmal.com'],
-            'outlook.com': ['outloo.com', 'outlook.co']
+            "gmail.com": ["gmai.com", "gmial.com", "gmail.co"],
+            "yahoo.com": ["yaho.com", "yahoo.co"],
+            "hotmail.com": ["hotmai.com", "hotmal.com"],
+            "outlook.com": ["outloo.com", "outlook.co"],
         }
 
         for correct_domain, typos in domain_suggestions.items():
@@ -116,8 +122,12 @@ async def validate_email_advanced(email_request: EmailValidationRequest) -> Emai
 
         # Check for disposable email domains (basic list)
         disposable_domains = {
-            '10minutemail.com', 'tempmail.org', 'guerrillamail.com',
-            'mailinator.com', 'throwaway.email', 'temp-mail.org'
+            "10minutemail.com",
+            "tempmail.org",
+            "guerrillamail.com",
+            "mailinator.com",
+            "throwaway.email",
+            "temp-mail.org",
         }
         if domain in disposable_domains:
             issues.append("Disposable email addresses are not allowed")
@@ -135,7 +145,7 @@ async def validate_email_advanced(email_request: EmailValidationRequest) -> Emai
             is_valid=is_valid,
             normalized_email=normalized_email,
             issues=issues,
-            suggestions=suggestions
+            suggestions=suggestions,
         )
 
     except Exception as e:
@@ -145,7 +155,7 @@ async def validate_email_advanced(email_request: EmailValidationRequest) -> Emai
             is_valid=False,
             normalized_email=email_request.email,
             issues=[f"Validation error: {str(e)}"],
-            suggestions=[]
+            suggestions=[],
         )
 
 
@@ -167,7 +177,7 @@ def generate_temporary_password(length: int = 12) -> str:
         secrets.choice(string.ascii_uppercase),
         secrets.choice(string.ascii_lowercase),
         secrets.choice(string.digits),
-        secrets.choice("!@#$%^&*")
+        secrets.choice("!@#$%^&*"),
     ]
 
     # Fill the rest randomly
@@ -176,4 +186,4 @@ def generate_temporary_password(length: int = 12) -> str:
 
     # Shuffle the password
     secrets.SystemRandom().shuffle(password)
-    return ''.join(password)
+    return "".join(password)

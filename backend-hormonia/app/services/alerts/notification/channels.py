@@ -23,7 +23,6 @@ from ..types import (
     NotificationChannel,
 )
 from ..config import (
-    get_config,
     EmailChannelConfig,
     WebSocketChannelConfig,
     WebhookChannelConfig,

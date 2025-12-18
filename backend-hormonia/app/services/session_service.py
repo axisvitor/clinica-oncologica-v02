@@ -29,6 +29,9 @@ from typing import Optional, Dict, Any, List
 from fastapi import HTTPException, status
 import redis.asyncio as redis
 
+# Type alias for the session service return type
+AnyService = Any
+
 from app.config import settings
 from app.models.user import User, UserRole
 
@@ -44,10 +47,7 @@ class SessionService:
     """
 
     def __init__(
-        self,
-        db: Any,
-        redis_client: Optional[redis.Redis] = None,
-        firebase_service = None
+        self, db: Any, redis_client: Optional[redis.Redis] = None, firebase_service=None
     ):
         """
         Initialize session service.
@@ -66,13 +66,12 @@ class SessionService:
         """Get or create FirebaseRedisCache instance."""
         if self._firebase_cache is None and self.redis_client is not None:
             from app.core.redis_manager import FirebaseRedisCache
+
             self._firebase_cache = FirebaseRedisCache(self.redis_client)
         return self._firebase_cache
 
     async def create_session_from_firebase_token(
-        self,
-        firebase_token: str,
-        device_info: Optional[Dict[str, str]] = None
+        self, firebase_token: str, device_info: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
         """
         Create new session from Firebase ID token.
@@ -93,7 +92,7 @@ class SessionService:
         if self.firebase_service is None:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Firebase authentication is not configured"
+                detail="Firebase authentication is not configured",
             )
 
         # Validate Firebase token (~200ms)
@@ -105,7 +104,7 @@ class SessionService:
             logger.error(f"Firebase token validation failed: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid Firebase token"
+                detail="Invalid Firebase token",
             )
 
         logger.info(f"Creating session for user: {email}")
@@ -116,8 +115,7 @@ class SessionService:
         # Check if user is active
         if not user.is_active:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User account is inactive"
+                status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive"
             )
 
         # Create Redis session
@@ -125,7 +123,7 @@ class SessionService:
         if firebase_cache is None:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Redis session storage is not available"
+                detail="Redis session storage is not available",
             )
 
         # Generate session ID
@@ -134,24 +132,24 @@ class SessionService:
         # Session metadata
         metadata = {
             "email": user.email,
-            "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
-            **(device_info or {})
+            "role": user.role.value if hasattr(user.role, "value") else str(user.role),
+            **(device_info or {}),
         }
 
         # Create session (24 hours TTL by default)
-        ttl = getattr(settings, 'FIREBASE_SESSION_TTL', 86400)
+        ttl = getattr(settings, "FIREBASE_SESSION_TTL", 86400)
         success = await firebase_cache.create_session(
             session_id=session_id,
             user_id=str(user.id),
             firebase_uid=firebase_uid,
-            metadata=metadata
+            metadata=metadata,
         )
 
         if not success:
             logger.error(f"Failed to create Redis session for {email}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create session in Redis"
+                detail="Failed to create session in Redis",
             )
 
         # Cache user object (Layer 2 cache)
@@ -168,7 +166,7 @@ class SessionService:
             "user": user_dict,
             "expires_at": expires_at.isoformat(),
             "ttl": ttl,
-            "status": "authenticated"
+            "status": "authenticated",
         }
 
     async def validate_session(self, session_id: str) -> Optional[Dict[str, Any]]:
@@ -211,11 +209,7 @@ class SessionService:
                     return None
                 user_data = self._user_to_dict(user)
 
-            return {
-                "valid": True,
-                "user": user_data,
-                "session_data": session_data
-            }
+            return {"valid": True, "user": user_data, "session_data": session_data}
 
         except Exception as e:
             logger.error(f"Session validation error: {str(e)}", exc_info=True)
@@ -262,7 +256,9 @@ class SessionService:
 
         try:
             deleted = await firebase_cache.invalidate_all_user_sessions(firebase_uid)
-            logger.info(f"Global logout: {deleted} sessions deleted for uid {firebase_uid[:8]}...")
+            logger.info(
+                f"Global logout: {deleted} sessions deleted for uid {firebase_uid[:8]}..."
+            )
             return deleted
         except Exception as e:
             logger.error(f"Global logout error: {str(e)}", exc_info=True)
@@ -307,7 +303,9 @@ class SessionService:
 
         try:
             stats = firebase_cache.get_cache_stats()
-            logger.info(f"Session cleanup check - Active sessions: {stats.get('active_sessions', 0)}")
+            logger.info(
+                f"Session cleanup check - Active sessions: {stats.get('active_sessions', 0)}"
+            )
             return 0  # Redis handles expiration automatically
         except Exception as e:
             logger.error(f"Session cleanup error: {str(e)}", exc_info=True)
@@ -327,6 +325,7 @@ class SessionService:
             str: CSRF token
         """
         import secrets
+
         csrf_token = secrets.token_urlsafe(32)
 
         # Store CSRF token in session data
@@ -381,9 +380,7 @@ class SessionService:
     # =========================================================================
 
     async def _get_or_create_user(
-        self,
-        firebase_uid: str,
-        user_data: Dict[str, Any]
+        self, firebase_uid: str, user_data: Dict[str, Any]
     ) -> User:
         """Get existing user or create new one from Firebase data."""
         from sqlalchemy import select
@@ -401,9 +398,11 @@ class SessionService:
             user = User(
                 firebase_uid=firebase_uid,
                 email=email,
-                full_name=user_data.get("name", email.split("@")[0] if email else "Unknown"),
+                full_name=user_data.get(
+                    "name", email.split("@")[0] if email else "Unknown"
+                ),
                 is_active=True,
-                role=user_role
+                role=user_role,
             )
             self.db.add(user)
             await self.db.commit()
@@ -427,7 +426,7 @@ class SessionService:
             "firebase_uid": user.firebase_uid,
             "email": user.email,
             "full_name": user.full_name,
-            "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
+            "role": user.role.value if hasattr(user.role, "value") else str(user.role),
             "is_active": user.is_active,
         }
 
@@ -436,10 +435,9 @@ class SessionService:
 # FACTORY FUNCTIONS FOR DEPENDENCY INJECTION
 # =============================================================================
 
+
 def create_session_service(
-    db: Any,
-    redis_client: Optional[redis.Redis] = None,
-    firebase_service = None
+    db: Any, redis_client: Optional[redis.Redis] = None, firebase_service=None
 ) -> AnyService:
     """
     Factory function to create SessionService instance.
@@ -453,9 +451,7 @@ def create_session_service(
         SessionService: Configured session service
     """
     return SessionService(
-        db=db,
-        redis_client=redis_client,
-        firebase_service=firebase_service
+        db=db, redis_client=redis_client, firebase_service=firebase_service
     )
 
 
@@ -463,10 +459,9 @@ def create_session_service(
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
+
 async def get_session_from_request(
-    session_id: Optional[str],
-    db: Any,
-    redis_client: Optional[redis.Redis] = None
+    session_id: Optional[str], db: Any, redis_client: Optional[redis.Redis] = None
 ) -> Optional[Dict[str, Any]]:
     """
     Convenience function to validate session from request.
@@ -484,7 +479,7 @@ async def get_session_from_request(
 
 
 __all__ = [
-    'SessionService',
-    'create_session_service',
-    'get_session_from_request',
+    "SessionService",
+    "create_session_service",
+    "get_session_from_request",
 ]

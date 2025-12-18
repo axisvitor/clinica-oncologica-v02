@@ -30,14 +30,14 @@ logger = logging.getLogger(__name__)
     "/bulk/send",
     response_model=BulkMessageV2Response,
     summary="Send bulk messages",
-    description="Send messages to multiple patients at once"
+    description="Send messages to multiple patients at once",
 )
 @limiter.limit("10/minute")
 async def bulk_send_messages(
     request: Request,
     bulk_request: BulkMessageV2Request,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
 ):
     """Send bulk messages to multiple patients."""
     role_enum, user_id = _extract_user_context(current_user)
@@ -79,7 +79,7 @@ async def bulk_send_messages(
                 content=bulk_request.content,
                 scheduled_for=bulk_request.scheduled_for or datetime.utcnow(),
                 message_type=MessageType.TEXT,
-                message_metadata=metadata
+                message_metadata=metadata,
             )
             scheduled_count += 1
         except Exception as e:
@@ -93,5 +93,9 @@ async def bulk_send_messages(
         "scheduled_count": scheduled_count,
         "failed_count": len(failed_patients),
         "failed_patients": failed_patients,
-        "estimated_completion": (bulk_request.scheduled_for or datetime.utcnow() + timedelta(minutes=5)).isoformat() if scheduled_count > 0 else None,
+        "estimated_completion": (
+            bulk_request.scheduled_for or datetime.utcnow() + timedelta(minutes=5)
+        ).isoformat()
+        if scheduled_count > 0
+        else None,
     }

@@ -3,7 +3,7 @@ Quiz schemas for API v2
 Enhanced quiz models with field selection and eager loading support.
 """
 
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
@@ -37,13 +37,15 @@ class QuizV2Base(BaseModel):
 class QuizV2Create(QuizV2Base):
     """Schema for creating a quiz session"""
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
                 "quiz_template_id": "223e4567-e89b-12d3-a456-426614174001",
-                "status": "started"
+                "status": "started",
             }
-        })
+        }
+    )
 
     patient_id: str = Field(..., description="Patient UUID")
     quiz_template_id: str = Field(..., description="Quiz template UUID")
@@ -52,15 +54,17 @@ class QuizV2Create(QuizV2Base):
 class QuizV2Update(BaseModel):
     """Schema for updating a quiz session"""
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "status": "completed",
                 "score": 85.5,
                 "max_score": 100.0,
                 "passed": True,
-                "completed_at": "2025-01-17T15:00:00Z"
+                "completed_at": "2025-01-17T15:00:00Z",
             }
-        })
+        }
+    )
 
     status: Optional[str] = None
     score: Optional[float] = None
@@ -99,10 +103,10 @@ class QuizV2Response(QuizV2Base):
                 "patient": {
                     "id": "123e4567-e89b-12d3-a456-426614174000",
                     "name": "João Silva",
-                    "email": "joao@example.com"
-                }
+                    "email": "joao@example.com",
+                },
             }
-        }
+        },
     )
 
     id: str
@@ -130,7 +134,8 @@ class QuizV2Response(QuizV2Base):
 class QuizV2List(CursorPaginatedResponse[QuizV2Response]):
     """Paginated list of quizzes"""
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "data": [
                     {
@@ -141,11 +146,12 @@ class QuizV2List(CursorPaginatedResponse[QuizV2Response]):
                         "created_at": "2025-01-01T10:00:00Z",
                         "updated_at": "2025-01-17T15:00:00Z",
                         "started_at": "2025-01-01T10:00:00Z",
-                        "completed_at": "2025-01-17T15:00:00Z"
+                        "completed_at": "2025-01-17T15:00:00Z",
                     }
                 ],
                 "next_cursor": "eyJpZCI6IjQ1NmU0NTY3LWU4OWItMTJkMy1hNDU2LTQyNjYxNDE3NDAwMiJ9",
                 "has_more": True,
-                "total": 75
+                "total": 75,
             }
-        })
+        }
+    )

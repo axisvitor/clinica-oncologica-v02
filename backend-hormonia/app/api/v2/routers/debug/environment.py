@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 # Environment & System Diagnostics
 # ============================================================================
 
+
 @router.get(
     "/environment",
     response_model=DebugResponse,
@@ -51,13 +52,11 @@ logger = logging.getLogger(__name__)
     - Only whitelisted variables exposed
     - Sensitive values masked
     - Full audit trail
-    """
+    """,
 )
 @limiter.limit("5/minute")
 async def get_environment_info(
-    request: Request,
-    admin_user: User = Depends(get_admin_user),
-    db = Depends(get_db)
+    request: Request, admin_user: User = Depends(get_admin_user), db=Depends(get_db)
 ):
     """
     Get environment information with masked sensitive values.
@@ -74,26 +73,24 @@ async def get_environment_info(
             value = os.getenv(key)
             if value is not None:
                 masked_value, is_masked = mask_sensitive_value(key, value)
-                env_vars.append(EnvironmentVariable(
-                    key=key,
-                    value=masked_value,
-                    is_set=True,
-                    is_masked=is_masked
-                ))
+                env_vars.append(
+                    EnvironmentVariable(
+                        key=key, value=masked_value, is_set=True, is_masked=is_masked
+                    )
+                )
             else:
-                env_vars.append(EnvironmentVariable(
-                    key=key,
-                    value="<not set>",
-                    is_set=False,
-                    is_masked=False
-                ))
+                env_vars.append(
+                    EnvironmentVariable(
+                        key=key, value="<not set>", is_set=False, is_masked=False
+                    )
+                )
 
         env_info = EnvironmentInfo(
             environment=os.getenv("ENVIRONMENT", "unknown"),
             debug_mode=DEBUG_ENDPOINTS_ENABLED,
             python_version=f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
             variables=env_vars,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.utcnow(),
         )
 
         # Audit log
@@ -103,7 +100,7 @@ async def get_environment_info(
             endpoint="/environment",
             parameters={},
             result_summary=f"Retrieved {len(env_vars)} environment variables",
-            request=request
+            request=request,
         )
 
         return DebugResponse(
@@ -111,12 +108,12 @@ async def get_environment_info(
             data=env_info.dict(),
             audit_logged=True,
             timestamp=datetime.utcnow(),
-            warning="Debug mode active - disable in production"
+            warning="Debug mode active - disable in production",
         )
 
     except Exception as e:
         logger.error(f"Environment info error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve environment info: {str(e)}"
+            detail=f"Failed to retrieve environment info: {str(e)}",
         )

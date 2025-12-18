@@ -12,8 +12,8 @@ from .breaker import CircuitBreaker, CircuitBreakerStates, CircuitBreakerConfig
 from .cache_fallback import CacheFallback
 
 __all__ = [
-    'CircuitBreaker',
-    'CircuitBreakerStates',
-    'CircuitBreakerConfig',
-    'CacheFallback'
+    "CircuitBreaker",
+    "CircuitBreakerStates",
+    "CircuitBreakerConfig",
+    "CacheFallback",
 ]

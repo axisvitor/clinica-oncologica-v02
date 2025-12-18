@@ -6,12 +6,17 @@ Exports metrics in Prometheus format and provides Grafana-compatible API.
 
 import asyncio
 import logging
-from typing import Dict, List, Optional, Any, Generator
-from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any
+from datetime import datetime
 from dataclasses import dataclass
-import json
 import redis.asyncio as redis
-from prometheus_client import CollectorRegistry, Gauge, Counter, Histogram, generate_latest
+from prometheus_client import (
+    CollectorRegistry,
+    Gauge,
+    Counter,
+    Histogram,
+    generate_latest,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -20,6 +25,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MetricPoint:
     """A single metric data point."""
+
     timestamp: datetime
     value: float
     labels: Dict[str, str]
@@ -48,159 +54,153 @@ class PrometheusExporter:
         """Setup Prometheus metrics."""
         # APM Metrics
         self.http_requests_total = Counter(
-            'http_requests_total',
-            'Total HTTP requests',
-            ['method', 'endpoint', 'status'],
-            registry=self.registry
+            "http_requests_total",
+            "Total HTTP requests",
+            ["method", "endpoint", "status"],
+            registry=self.registry,
         )
 
         self.http_request_duration = Histogram(
-            'http_request_duration_seconds',
-            'HTTP request duration',
-            ['method', 'endpoint'],
-            registry=self.registry
+            "http_request_duration_seconds",
+            "HTTP request duration",
+            ["method", "endpoint"],
+            registry=self.registry,
         )
 
         self.http_errors_total = Counter(
-            'http_errors_total',
-            'Total HTTP errors',
-            ['method', 'endpoint', 'error_type'],
-            registry=self.registry
+            "http_errors_total",
+            "Total HTTP errors",
+            ["method", "endpoint", "error_type"],
+            registry=self.registry,
         )
 
         # Database Metrics
         self.db_queries_total = Counter(
-            'db_queries_total',
-            'Total database queries',
-            ['operation', 'table'],
-            registry=self.registry
+            "db_queries_total",
+            "Total database queries",
+            ["operation", "table"],
+            registry=self.registry,
         )
 
         self.db_query_duration = Histogram(
-            'db_query_duration_seconds',
-            'Database query duration',
-            ['operation', 'table'],
-            registry=self.registry
+            "db_query_duration_seconds",
+            "Database query duration",
+            ["operation", "table"],
+            registry=self.registry,
         )
 
         self.db_connections_active = Gauge(
-            'db_connections_active',
-            'Active database connections',
-            registry=self.registry
+            "db_connections_active",
+            "Active database connections",
+            registry=self.registry,
         )
 
         self.db_connections_pool_size = Gauge(
-            'db_connections_pool_size',
-            'Database connection pool size',
-            registry=self.registry
+            "db_connections_pool_size",
+            "Database connection pool size",
+            registry=self.registry,
         )
 
         # Resource Metrics
         self.cpu_usage_percent = Gauge(
-            'cpu_usage_percent',
-            'CPU usage percentage',
-            registry=self.registry
+            "cpu_usage_percent", "CPU usage percentage", registry=self.registry
         )
 
         self.memory_usage_percent = Gauge(
-            'memory_usage_percent',
-            'Memory usage percentage',
-            registry=self.registry
+            "memory_usage_percent", "Memory usage percentage", registry=self.registry
         )
 
         self.memory_usage_bytes = Gauge(
-            'memory_usage_bytes',
-            'Memory usage in bytes',
-            registry=self.registry
+            "memory_usage_bytes", "Memory usage in bytes", registry=self.registry
         )
 
         self.disk_io_bytes = Counter(
-            'disk_io_bytes_total',
-            'Total disk I/O bytes',
-            ['direction'],  # read/write
-            registry=self.registry
+            "disk_io_bytes_total",
+            "Total disk I/O bytes",
+            ["direction"],  # read/write
+            registry=self.registry,
         )
 
         self.network_io_bytes = Counter(
-            'network_io_bytes_total',
-            'Total network I/O bytes',
-            ['direction'],  # sent/received
-            registry=self.registry
+            "network_io_bytes_total",
+            "Total network I/O bytes",
+            ["direction"],  # sent/received
+            registry=self.registry,
         )
 
         # Business Metrics
         self.patient_flows_total = Counter(
-            'patient_flows_total',
-            'Total patient flows',
-            ['flow_type', 'status'],
-            registry=self.registry
+            "patient_flows_total",
+            "Total patient flows",
+            ["flow_type", "status"],
+            registry=self.registry,
         )
 
         self.messages_total = Counter(
-            'messages_total',
-            'Total messages',
-            ['type', 'status'],
-            registry=self.registry
+            "messages_total",
+            "Total messages",
+            ["type", "status"],
+            registry=self.registry,
         )
 
         self.ai_responses_total = Counter(
-            'ai_responses_total',
-            'Total AI responses',
-            ['response_type'],
-            registry=self.registry
+            "ai_responses_total",
+            "Total AI responses",
+            ["response_type"],
+            registry=self.registry,
         )
 
         self.ai_accuracy_score = Gauge(
-            'ai_accuracy_score',
-            'AI response accuracy score',
-            ['response_type'],
-            registry=self.registry
+            "ai_accuracy_score",
+            "AI response accuracy score",
+            ["response_type"],
+            registry=self.registry,
         )
 
         # System Health
         self.system_health_score = Gauge(
-            'system_health_score',
-            'Overall system health score',
-            registry=self.registry
+            "system_health_score", "Overall system health score", registry=self.registry
         )
 
         self.component_health = Gauge(
-            'component_health',
-            'Component health status (1=healthy, 0=unhealthy)',
-            ['component'],
-            registry=self.registry
+            "component_health",
+            "Component health status (1=healthy, 0=unhealthy)",
+            ["component"],
+            registry=self.registry,
         )
 
     def update_apm_metrics(self, apm_stats: Dict[str, Any]) -> None:
         """Update APM metrics."""
         try:
             # Global stats - always use default labels for aggregated metrics
-            avg_response_time = apm_stats.get('avg_response_time', 0) / 1000  # Convert to seconds
+            avg_response_time = (
+                apm_stats.get("avg_response_time", 0) / 1000
+            )  # Convert to seconds
 
             # Use safe histogram observe with default labels
             self._safe_histogram_observe(
                 self.http_request_duration,
                 avg_response_time,
-                {'method': 'ALL', 'endpoint': 'ALL'}
+                {"method": "ALL", "endpoint": "ALL"},
             )
 
             # Update HTTP request counters with default labels for global stats
-            total_requests = apm_stats.get('total_requests', 0)
+            total_requests = apm_stats.get("total_requests", 0)
             if total_requests > 0:
                 # Use increment based on current vs previous total (simplified approach)
-                for status_code, count in apm_stats.get('status_codes', {}).items():
+                for status_code, count in apm_stats.get("status_codes", {}).items():
                     self._safe_counter_increment(
                         self.http_requests_total,
                         count,
                         {
-                            'method': 'ALL',
-                            'endpoint': 'ALL',
-                            'status': str(status_code)
-                        }
+                            "method": "ALL",
+                            "endpoint": "ALL",
+                            "status": str(status_code),
+                        },
                     )
 
             # Update error metrics if error rate is available
-            error_rate = apm_stats.get('error_rate', 0)
+            error_rate = apm_stats.get("error_rate", 0)
             if error_rate > 0:
                 # Update error counter with default labels
                 error_count = int(total_requests * error_rate / 100)
@@ -208,10 +208,10 @@ class PrometheusExporter:
                     self.http_errors_total,
                     error_count,
                     {
-                        'method': 'ALL',
-                        'endpoint': 'ALL',
-                        'error_type': 'application_error'
-                    }
+                        "method": "ALL",
+                        "endpoint": "ALL",
+                        "error_type": "application_error",
+                    },
                 )
 
         except Exception as e:
@@ -220,33 +220,30 @@ class PrometheusExporter:
     def update_database_metrics(self, db_stats: Dict[str, Any]) -> None:
         """Update database metrics."""
         try:
-            pool_stats = db_stats.get('connection_pool', {})
+            pool_stats = db_stats.get("connection_pool", {})
 
-            self.db_connections_active.set(pool_stats.get('checked_out', 0))
-            self.db_connections_pool_size.set(pool_stats.get('pool_size', 0))
+            self.db_connections_active.set(pool_stats.get("checked_out", 0))
+            self.db_connections_pool_size.set(pool_stats.get("pool_size", 0))
 
             # Update database query metrics with default labels for global stats
-            query_stats = db_stats.get('query_stats', {})
-            avg_query_time = query_stats.get('avg_query_time', 0)
+            query_stats = db_stats.get("query_stats", {})
+            avg_query_time = query_stats.get("avg_query_time", 0)
 
             # Use safe histogram observe for database query duration
             self._safe_histogram_observe(
                 self.db_query_duration,
                 avg_query_time / 1000,  # Convert to seconds
-                {'operation': 'ALL', 'table': 'ALL'}
+                {"operation": "ALL", "table": "ALL"},
             )
 
             # Update database query counters with default labels
-            total_queries = query_stats.get('total_queries', 0)
+            total_queries = query_stats.get("total_queries", 0)
             if total_queries > 0:
-                for operation, count in query_stats.get('operations', {}).items():
+                for operation, count in query_stats.get("operations", {}).items():
                     self._safe_counter_increment(
                         self.db_queries_total,
                         count,
-                        {
-                            'operation': operation,
-                            'table': 'ALL'
-                        }
+                        {"operation": operation, "table": "ALL"},
                     )
 
         except Exception as e:
@@ -255,12 +252,12 @@ class PrometheusExporter:
     def update_resource_metrics(self, resource_stats: Dict[str, Any]) -> None:
         """Update resource metrics."""
         try:
-            cpu_stats = resource_stats.get('cpu', {})
-            memory_stats = resource_stats.get('memory', {})
+            cpu_stats = resource_stats.get("cpu", {})
+            memory_stats = resource_stats.get("memory", {})
 
-            self.cpu_usage_percent.set(cpu_stats.get('percent', 0))
-            self.memory_usage_percent.set(memory_stats.get('percent', 0))
-            self.memory_usage_bytes.set(memory_stats.get('used_gb', 0) * 1024**3)
+            self.cpu_usage_percent.set(cpu_stats.get("percent", 0))
+            self.memory_usage_percent.set(memory_stats.get("percent", 0))
+            self.memory_usage_bytes.set(memory_stats.get("used_gb", 0) * 1024**3)
 
         except Exception as e:
             logger.error(f"Failed to update resource metrics: {e}")
@@ -268,16 +265,16 @@ class PrometheusExporter:
     def update_business_metrics(self, business_stats: Dict[str, Any]) -> None:
         """Update business metrics."""
         try:
-            metrics = business_stats.get('metrics', {})
+            metrics = business_stats.get("metrics", {})
 
             # Update patient flow metrics
-            flow_metrics = metrics.get('patient_flow', {})
+            flow_metrics = metrics.get("patient_flow", {})
             if flow_metrics:
                 # These would need to be updated incrementally
                 pass
 
             # Update message metrics
-            message_metrics = metrics.get('message_delivery', {})
+            message_metrics = metrics.get("message_delivery", {})
             if message_metrics:
                 # These would need to be updated incrementally
                 pass
@@ -288,17 +285,19 @@ class PrometheusExporter:
     def update_system_health(self, health_stats: Dict[str, Any]) -> None:
         """Update system health metrics."""
         try:
-            self.system_health_score.set(health_stats.get('score', 0))
+            self.system_health_score.set(health_stats.get("score", 0))
 
-            components = health_stats.get('components', {})
+            components = health_stats.get("components", {})
             for component, status in components.items():
-                health_value = 1 if status == 'healthy' else 0
+                health_value = 1 if status == "healthy" else 0
                 self.component_health.labels(component=component).set(health_value)
 
         except Exception as e:
             logger.error(f"Failed to update system health metrics: {e}")
 
-    def _safe_histogram_observe(self, histogram, value: float, default_labels: Dict[str, str]) -> None:
+    def _safe_histogram_observe(
+        self, histogram, value: float, default_labels: Dict[str, str]
+    ) -> None:
         """
         Safely observe a histogram value with default labels.
 
@@ -316,7 +315,9 @@ class PrometheusExporter:
         except Exception as e:
             logger.error(f"Failed to observe histogram metric: {e}")
 
-    def _safe_counter_increment(self, counter, increment: int, default_labels: Dict[str, str]) -> None:
+    def _safe_counter_increment(
+        self, counter, increment: int, default_labels: Dict[str, str]
+    ) -> None:
         """
         Safely increment a counter with default labels.
 
@@ -334,7 +335,7 @@ class PrometheusExporter:
 
     def get_metrics(self) -> str:
         """Get metrics in Prometheus format."""
-        return generate_latest(self.registry).decode('utf-8')
+        return generate_latest(self.registry).decode("utf-8")
 
 
 class GrafanaExporter:
@@ -343,8 +344,13 @@ class GrafanaExporter:
     def __init__(self, redis_client: Optional[redis.Redis] = None):
         self.redis_client = redis_client
 
-    async def query_metrics(self, target: str, from_time: datetime,
-                          to_time: datetime, max_data_points: int = 1000) -> List[Dict[str, Any]]:
+    async def query_metrics(
+        self,
+        target: str,
+        from_time: datetime,
+        to_time: datetime,
+        max_data_points: int = 1000,
+    ) -> List[Dict[str, Any]]:
         """Query metrics for Grafana."""
         try:
             # Parse target to determine metric type
@@ -355,10 +361,7 @@ class GrafanaExporter:
                 metric_type, metric_name, from_time, to_time, max_data_points
             )
 
-            return [{
-                "target": target,
-                "datapoints": data_points
-            }]
+            return [{"target": target, "datapoints": data_points}]
 
         except Exception as e:
             logger.error(f"Failed to query metrics for Grafana: {e}")
@@ -372,15 +375,20 @@ class GrafanaExporter:
         # resources.cpu.percent
         # business.patient_flow.completion_rate
 
-        parts = target.split('.')
+        parts = target.split(".")
         if len(parts) >= 2:
-            return parts[0], '.'.join(parts[1:])
+            return parts[0], ".".join(parts[1:])
         else:
             return "unknown", target
 
-    async def _get_metric_data(self, metric_type: str, metric_name: str,
-                             from_time: datetime, to_time: datetime,
-                             max_data_points: int) -> List[List[float]]:
+    async def _get_metric_data(
+        self,
+        metric_type: str,
+        metric_name: str,
+        from_time: datetime,
+        to_time: datetime,
+        max_data_points: int,
+    ) -> List[List[float]]:
         """Get metric data points."""
         if not self.redis_client:
             return []
@@ -397,7 +405,9 @@ class GrafanaExporter:
                 timestamp_ms = int(current_time.timestamp() * 1000)
 
                 # Get value for this timestamp
-                value = await self._get_metric_value(metric_type, metric_name, current_time)
+                value = await self._get_metric_value(
+                    metric_type, metric_name, current_time
+                )
 
                 if value is not None:
                     data_points.append([value, timestamp_ms])
@@ -410,8 +420,9 @@ class GrafanaExporter:
             logger.error(f"Failed to get metric data: {e}")
             return []
 
-    async def _get_metric_value(self, metric_type: str, metric_name: str,
-                              timestamp: datetime) -> Optional[float]:
+    async def _get_metric_value(
+        self, metric_type: str, metric_name: str, timestamp: datetime
+    ) -> Optional[float]:
         """Get metric value for a specific timestamp."""
         try:
             if metric_type == "apm":
@@ -429,23 +440,31 @@ class GrafanaExporter:
             logger.error(f"Failed to get metric value: {e}")
             return None
 
-    async def _get_apm_metric(self, metric_name: str, timestamp: datetime) -> Optional[float]:
+    async def _get_apm_metric(
+        self, metric_name: str, timestamp: datetime
+    ) -> Optional[float]:
         """Get APM metric value."""
         # This would fetch from Redis APM data
         # For now, return dummy data
         return 100.0  # Placeholder
 
-    async def _get_database_metric(self, metric_name: str, timestamp: datetime) -> Optional[float]:
+    async def _get_database_metric(
+        self, metric_name: str, timestamp: datetime
+    ) -> Optional[float]:
         """Get database metric value."""
         # This would fetch from Redis database data
         return 50.0  # Placeholder
 
-    async def _get_resource_metric(self, metric_name: str, timestamp: datetime) -> Optional[float]:
+    async def _get_resource_metric(
+        self, metric_name: str, timestamp: datetime
+    ) -> Optional[float]:
         """Get resource metric value."""
         # This would fetch from Redis resource data
         return 75.0  # Placeholder
 
-    async def _get_business_metric(self, metric_name: str, timestamp: datetime) -> Optional[float]:
+    async def _get_business_metric(
+        self, metric_name: str, timestamp: datetime
+    ) -> Optional[float]:
         """Get business metric value."""
         # This would fetch from Redis business data
         return 85.0  # Placeholder
@@ -454,8 +473,14 @@ class GrafanaExporter:
 class MetricsExporter:
     """Main metrics exporter for external monitoring systems."""
 
-    def __init__(self, apm_collector, db_monitor, resource_monitor,
-                 business_metrics, redis_client: Optional[redis.Redis] = None):
+    def __init__(
+        self,
+        apm_collector,
+        db_monitor,
+        resource_monitor,
+        business_metrics,
+        redis_client: Optional[redis.Redis] = None,
+    ):
         self.apm_collector = apm_collector
         self.db_monitor = db_monitor
         self.resource_monitor = resource_monitor
@@ -513,7 +538,9 @@ class MetricsExporter:
             db_pool_stats = self.db_monitor.get_connection_pool_stats()
             db_stats.update({"connection_pool": db_pool_stats})
             resource_stats = self.resource_monitor.get_current_stats()
-            business_stats = self.business_metrics.get_all_metrics_summary(time_range_hours=1)
+            business_stats = self.business_metrics.get_all_metrics_summary(
+                time_range_hours=1
+            )
 
             # Calculate system health
             system_health = self._calculate_system_health(
@@ -530,10 +557,13 @@ class MetricsExporter:
         except Exception as e:
             logger.error(f"Failed to update Prometheus metrics: {e}")
 
-    def _calculate_system_health(self, apm_stats: Dict[str, Any],
-                               db_stats: Dict[str, Any],
-                               resource_stats: Dict[str, Any],
-                               business_stats: Dict[str, Any]) -> Dict[str, Any]:
+    def _calculate_system_health(
+        self,
+        apm_stats: Dict[str, Any],
+        db_stats: Dict[str, Any],
+        resource_stats: Dict[str, Any],
+        business_stats: Dict[str, Any],
+    ) -> Dict[str, Any]:
         """Calculate system health metrics."""
         health_score = 100
         components = {}
@@ -570,17 +600,19 @@ class MetricsExporter:
         else:
             components["business"] = "healthy"
 
-        return {
-            "score": max(0, health_score),
-            "components": components
-        }
+        return {"score": max(0, health_score), "components": components}
 
     def get_prometheus_metrics(self) -> str:
         """Get metrics in Prometheus format."""
         return self.prometheus_exporter.get_metrics()
 
-    async def query_grafana_metrics(self, targets: List[str], from_time: datetime,
-                                  to_time: datetime, max_data_points: int = 1000) -> List[Dict[str, Any]]:
+    async def query_grafana_metrics(
+        self,
+        targets: List[str],
+        from_time: datetime,
+        to_time: datetime,
+        max_data_points: int = 1000,
+    ) -> List[Dict[str, Any]]:
         """Query metrics for Grafana."""
         results = []
 
@@ -597,6 +629,8 @@ class MetricsExporter:
         return {
             "export_active": self.export_active,
             "export_interval_seconds": self.export_interval,
-            "prometheus_metrics_count": len(self.prometheus_exporter.registry._collector_to_names),
-            "grafana_compatibility": True
+            "prometheus_metrics_count": len(
+                self.prometheus_exporter.registry._collector_to_names
+            ),
+            "grafana_compatibility": True,
         }

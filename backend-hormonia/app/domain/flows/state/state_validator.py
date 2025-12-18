@@ -5,8 +5,7 @@ Validates flow state transitions and ensures business rules are followed.
 """
 
 import logging
-from typing import Dict, Any, Optional, Tuple
-from uuid import UUID
+from typing import Optional, Tuple
 
 from app.models.flow import PatientFlowState
 from app.models.patient import Patient
@@ -33,7 +32,7 @@ class FlowStateValidator:
         self,
         patient: Patient,
         existing_flow: Optional[PatientFlowState],
-        flow_type: str
+        flow_type: str,
     ) -> Tuple[bool, Optional[str]]:
         """
         Validate flow start conditions.
@@ -49,7 +48,7 @@ class FlowStateValidator:
         if not patient:
             return False, "Patient not found"
 
-        if existing_flow and existing_flow.state_data.get('status') != 'completed':
+        if existing_flow and existing_flow.state_data.get("status") != "completed":
             return False, f"Patient already has active flow: {existing_flow.flow_type}"
 
         if not flow_type:
@@ -62,7 +61,7 @@ class FlowStateValidator:
         current_day: int,
         target_day: int,
         force_advance: bool,
-        flow_state: Optional[PatientFlowState]
+        flow_state: Optional[PatientFlowState],
     ) -> Tuple[bool, Optional[str]]:
         """
         Validate flow advancement conditions.
@@ -79,10 +78,10 @@ class FlowStateValidator:
         if not flow_state:
             return False, "No active flow found"
 
-        if flow_state.state_data.get('status') == 'paused':
+        if flow_state.state_data.get("status") == "paused":
             return False, "Flow is paused. Resume before advancing."
 
-        if flow_state.state_data.get('status') == 'completed':
+        if flow_state.state_data.get("status") == "completed":
             return False, "Flow is already completed"
 
         if current_day >= target_day and not force_advance:
@@ -91,8 +90,7 @@ class FlowStateValidator:
         return True, None
 
     def validate_flow_pause(
-        self,
-        flow_state: Optional[PatientFlowState]
+        self, flow_state: Optional[PatientFlowState]
     ) -> Tuple[bool, Optional[str]]:
         """
         Validate flow pause conditions.
@@ -106,17 +104,16 @@ class FlowStateValidator:
         if not flow_state:
             return False, "No active flow found"
 
-        if flow_state.state_data.get('status') == 'paused':
+        if flow_state.state_data.get("status") == "paused":
             return False, "Flow is already paused"
 
-        if flow_state.state_data.get('status') == 'completed':
+        if flow_state.state_data.get("status") == "completed":
             return False, "Cannot pause completed flow"
 
         return True, None
 
     def validate_flow_resume(
-        self,
-        flow_state: Optional[PatientFlowState]
+        self, flow_state: Optional[PatientFlowState]
     ) -> Tuple[bool, Optional[str]]:
         """
         Validate flow resume conditions.
@@ -130,14 +127,13 @@ class FlowStateValidator:
         if not flow_state:
             return False, "No flow found"
 
-        if flow_state.state_data.get('status') != 'paused':
+        if flow_state.state_data.get("status") != "paused":
             return False, "Flow is not paused"
 
         return True, None
 
     def validate_flow_stop(
-        self,
-        flow_state: Optional[PatientFlowState]
+        self, flow_state: Optional[PatientFlowState]
     ) -> Tuple[bool, Optional[str]]:
         """
         Validate flow stop conditions.
@@ -151,16 +147,13 @@ class FlowStateValidator:
         if not flow_state:
             return False, "No active flow found"
 
-        if flow_state.state_data.get('status') == 'completed':
+        if flow_state.state_data.get("status") == "completed":
             return False, "Flow is already completed"
 
         return True, None
 
     def check_flow_type_transition_needed(
-        self,
-        current_flow_type: str,
-        target_day: int,
-        flow_type_calculator: callable
+        self, current_flow_type: str, target_day: int, flow_type_calculator: callable
     ) -> Tuple[bool, Optional[str]]:
         """
         Check if flow type transition is needed.

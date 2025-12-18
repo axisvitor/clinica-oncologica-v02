@@ -8,11 +8,9 @@ helper available to avoid breaking those dependencies.
 """
 
 from typing import Optional, Dict, Any
-from uuid import UUID
 import logging
 
 from fastapi import (
-    APIRouter,
     Cookie,
     Header,
     Depends,
@@ -77,7 +75,9 @@ async def _get_current_user_simple(
             "firebase_uid": user.firebase_uid,
             "email": user.email,
             "full_name": user.full_name,
-            "role": user.role.value if isinstance(user.role, UserRole) else str(user.role),
+            "role": user.role.value
+            if isinstance(user.role, UserRole)
+            else str(user.role),
             "is_active": user.is_active,
         }
         await redis_cache.cache_user_data(firebase_uid, user_data, ttl=900)

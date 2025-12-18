@@ -11,11 +11,9 @@ Features:
 """
 
 import logging
-from typing import Optional, Dict, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.user import User, UserRole
@@ -40,19 +38,20 @@ logger = logging.getLogger(__name__)
 # ENDPOINT 1: ACTIVATE USER
 # ============================================================================
 
+
 @router.post(
     "/users/{user_id}/activate",
     response_model=UserActionResponse,
     summary="Activate User",
-    description="Activate a user account (set is_active to True)."
+    description="Activate a user account (set is_active to True).",
 )
 @limiter.limit("20/hour")
 async def activate_user(
     request: Request,
     user_id: UUID,
-    db = Depends(get_db),
+    db=Depends(get_db),
     admin_user: User = Depends(get_admin_user),
-    context: RequestContext = Depends(get_request_context)
+    context: RequestContext = Depends(get_request_context),
 ):
     """
     Activate a user account.
@@ -68,14 +67,12 @@ async def activate_user(
         user = user_repo.get(user_id)
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
         if user.is_active:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User is already active"
+                status_code=status.HTTP_400_BAD_REQUEST, detail="User is already active"
             )
 
         # Activate user
@@ -87,17 +84,18 @@ async def activate_user(
 
         # Log action
         await _log_admin_action(
-            db, "activate_user", admin_user, context,
+            db,
+            "activate_user",
+            admin_user,
+            context,
             target_user_id=user_id,
-            additional_data={"user_email": user.email}
+            additional_data={"user_email": user.email},
         )
 
         logger.info(f"Admin {admin_user.email} activated user {user.email}")
 
         return UserActionResponse(
-            success=True,
-            message="User activated successfully",
-            user_id=user_id
+            success=True, message="User activated successfully", user_id=user_id
         )
 
     except HTTPException:
@@ -107,7 +105,7 @@ async def activate_user(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error activating user"
+            detail="Error activating user",
         )
 
 
@@ -115,19 +113,20 @@ async def activate_user(
 # ENDPOINT 2: DEACTIVATE USER
 # ============================================================================
 
+
 @router.post(
     "/users/{user_id}/deactivate",
     response_model=UserActionResponse,
     summary="Deactivate User",
-    description="Deactivate a user account (set is_active to False)."
+    description="Deactivate a user account (set is_active to False).",
 )
 @limiter.limit("20/hour")
 async def deactivate_user(
     request: Request,
     user_id: UUID,
-    db = Depends(get_db),
+    db=Depends(get_db),
     admin_user: User = Depends(get_admin_user),
-    context: RequestContext = Depends(get_request_context)
+    context: RequestContext = Depends(get_request_context),
 ):
     """
     Deactivate a user account.
@@ -145,20 +144,19 @@ async def deactivate_user(
         if user_id == admin_user.id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot deactivate your own account"
+                detail="Cannot deactivate your own account",
             )
 
         user = user_repo.get(user_id)
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
         if not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User is already inactive"
+                detail="User is already inactive",
             )
 
         # Deactivate user
@@ -170,17 +168,18 @@ async def deactivate_user(
 
         # Log action
         await _log_admin_action(
-            db, "deactivate_user", admin_user, context,
+            db,
+            "deactivate_user",
+            admin_user,
+            context,
             target_user_id=user_id,
-            additional_data={"user_email": user.email}
+            additional_data={"user_email": user.email},
         )
 
         logger.info(f"Admin {admin_user.email} deactivated user {user.email}")
 
         return UserActionResponse(
-            success=True,
-            message="User deactivated successfully",
-            user_id=user_id
+            success=True, message="User deactivated successfully", user_id=user_id
         )
 
     except HTTPException:
@@ -190,7 +189,7 @@ async def deactivate_user(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error deactivating user"
+            detail="Error deactivating user",
         )
 
 
@@ -198,20 +197,21 @@ async def deactivate_user(
 # ENDPOINT 3: RESET PASSWORD
 # ============================================================================
 
+
 @router.post(
     "/users/{user_id}/reset-password",
     response_model=UserActionResponse,
     summary="Reset User Password",
-    description="Reset a user's password with password strength validation."
+    description="Reset a user's password with password strength validation.",
 )
 @limiter.limit("10/hour")  # Strict rate limit for password resets
 async def reset_password(
     request: Request,
     user_id: UUID,
     password_data: UserResetPasswordRequest,
-    db = Depends(get_db),
+    db=Depends(get_db),
     admin_user: User = Depends(get_admin_user),
-    context: RequestContext = Depends(get_request_context)
+    context: RequestContext = Depends(get_request_context),
 ):
     """
     Reset user password.
@@ -229,8 +229,7 @@ async def reset_password(
         user = user_repo.get(user_id)
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
         # Validate password strength
@@ -254,20 +253,21 @@ async def reset_password(
 
         # Log action (don't log the actual password)
         await _log_admin_action(
-            db, "reset_password", admin_user, context,
+            db,
+            "reset_password",
+            admin_user,
+            context,
             target_user_id=user_id,
             additional_data={
                 "user_email": user.email,
-                "force_change": password_data.force_change
-            }
+                "force_change": password_data.force_change,
+            },
         )
 
         logger.info(f"Admin {admin_user.email} reset password for user {user.email}")
 
         return UserActionResponse(
-            success=True,
-            message="Password reset successfully",
-            user_id=user_id
+            success=True, message="Password reset successfully", user_id=user_id
         )
 
     except HTTPException:
@@ -277,7 +277,7 @@ async def reset_password(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error resetting password"
+            detail="Error resetting password",
         )
 
 
@@ -285,20 +285,21 @@ async def reset_password(
 # ENDPOINT 4: UPDATE ROLE
 # ============================================================================
 
+
 @router.put(
     "/users/{user_id}/role",
     response_model=UserActionResponse,
     summary="Update User Role",
-    description="Update a user's role with audit logging."
+    description="Update a user's role with audit logging.",
 )
 @limiter.limit("20/hour")
 async def update_role(
     request: Request,
     user_id: UUID,
     role: str = Query(..., description="New role (admin or doctor)"),
-    db = Depends(get_db),
+    db=Depends(get_db),
     admin_user: User = Depends(get_admin_user),
-    context: RequestContext = Depends(get_request_context)
+    context: RequestContext = Depends(get_request_context),
 ):
     """
     Update user role.
@@ -315,8 +316,7 @@ async def update_role(
         user = user_repo.get(user_id)
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
         # Validate role
@@ -325,14 +325,14 @@ async def update_role(
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid role: {role}. Valid roles: admin, doctor"
+                detail=f"Invalid role: {role}. Valid roles: admin, doctor",
             )
 
         # Prevent self-demotion from admin
         if user_id == admin_user.id and new_role != UserRole.ADMIN:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot demote your own admin role"
+                detail="Cannot demote your own admin role",
             )
 
         old_role = user.role
@@ -346,21 +346,26 @@ async def update_role(
 
         # Log action
         await _log_admin_action(
-            db, "update_role", admin_user, context,
+            db,
+            "update_role",
+            admin_user,
+            context,
             target_user_id=user_id,
             additional_data={
                 "user_email": user.email,
                 "old_role": old_role.value,
-                "new_role": new_role.value
-            }
+                "new_role": new_role.value,
+            },
         )
 
-        logger.info(f"Admin {admin_user.email} updated role for user {user.email}: {old_role.value} -> {new_role.value}")
+        logger.info(
+            f"Admin {admin_user.email} updated role for user {user.email}: {old_role.value} -> {new_role.value}"
+        )
 
         return UserActionResponse(
             success=True,
             message=f"User role updated to {new_role.value}",
-            user_id=user_id
+            user_id=user_id,
         )
 
     except HTTPException:
@@ -370,5 +375,5 @@ async def update_role(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error updating user role"
+            detail="Error updating user role",
         )

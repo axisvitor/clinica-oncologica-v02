@@ -12,6 +12,7 @@ This package decomposes the original data_extraction.py module into:
 
 Re-exports all public APIs for backward compatibility.
 """
+
 from .models import (
     ResponseCategory,
     ExtractionConfidence,
@@ -19,25 +20,20 @@ from .models import (
     ExtractedEntity,
     MedicalConcern,
     PatientPreference,
-    StructuredExtractionResult
+    StructuredExtractionResult,
 )
-from .service import (
-    DataExtractionService,
-    get_data_extraction_service
-)
+from .service import DataExtractionService, get_data_extraction_service
 
 __all__ = [
     # Enums
     "ResponseCategory",
     "ExtractionConfidence",
     "MedicalConcernType",
-
     # Data classes
     "ExtractedEntity",
     "MedicalConcern",
     "PatientPreference",
     "StructuredExtractionResult",
-
     # Service
     "DataExtractionService",
     "get_data_extraction_service",

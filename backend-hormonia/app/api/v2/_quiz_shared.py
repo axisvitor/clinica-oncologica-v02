@@ -5,7 +5,6 @@ This module contains common authentication, authorization, and configuration
 used across all quiz extension endpoints.
 """
 
-from typing import Optional
 from uuid import UUID
 from fastapi import Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session
@@ -32,7 +31,7 @@ def _get_current_user_simple(
     if not session_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session ID not provided in X-Session-ID header"
+            detail="Session ID not provided in X-Session-ID header",
         )
 
     # For now, we'll use a simple lookup. In production, validate against Redis/session store
@@ -41,7 +40,7 @@ def _get_current_user_simple(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session"
+            detail="Invalid or expired session",
         )
 
     return user
@@ -52,8 +51,7 @@ def _check_patient_access(db: Session, current_user: User, patient_id: UUID) -> 
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Patient not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"
         )
 
     # Admin has access to all patients
@@ -68,5 +66,5 @@ def _check_patient_access(db: Session, current_user: User, patient_id: UUID) -> 
 
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
-        detail="Not authorized to access this patient's data"
+        detail="Not authorized to access this patient's data",
     )

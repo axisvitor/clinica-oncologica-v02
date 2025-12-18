@@ -2,28 +2,28 @@
 WhatsApp Message Queue and related types.
 Extracted from whatsapp_helper.py to resolve circular dependencies.
 """
+
 import asyncio
 import json
 import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional, Callable, Any
 from uuid import uuid4
 
 from redis.asyncio import Redis
 
-from app.integrations.whatsapp.models.message import (
-    MessageRequest, MessageResponse, MessageStatus
-)
+from app.integrations.whatsapp.models.message import MessageRequest, MessageStatus
 
 logger = logging.getLogger(__name__)
 
 
 class Priority(Enum):
     """Message priority levels for queue processing."""
+
     LOW = 1
     NORMAL = 2
     HIGH = 3
@@ -32,6 +32,7 @@ class Priority(Enum):
 
 class DeliveryMode(Enum):
     """Message delivery modes."""
+
     IMMEDIATE = "immediate"
     QUEUED = "queued"
     SCHEDULED = "scheduled"
@@ -40,6 +41,7 @@ class DeliveryMode(Enum):
 @dataclass
 class QueuedMessage:
     """Queued message with metadata."""
+
     id: str
     request: MessageRequest
     priority: Priority
@@ -53,6 +55,7 @@ class QueuedMessage:
 @dataclass
 class DeliveryReport:
     """Message delivery status report."""
+
     message_id: str
     status: MessageStatus
     sent_at: Optional[datetime] = None
@@ -123,31 +126,41 @@ class MessageQueue:
                 await self.redis_client.hset(
                     f"whatsapp_message:{message.id}",
                     mapping={
-                        "data": json.dumps({
-                            "request": message.request.dict(),
-                            "priority": message.priority.value,
-                            "retry_count": message.retry_count,
-                            "max_retries": message.max_retries,
-                            "scheduled_at": message.scheduled_at.isoformat() if message.scheduled_at else None,
-                            "created_at": message.created_at.isoformat()
-                        })
-                    }
+                        "data": json.dumps(
+                            {
+                                "request": message.request.dict(),
+                                "priority": message.priority.value,
+                                "retry_count": message.retry_count,
+                                "max_retries": message.max_retries,
+                                "scheduled_at": message.scheduled_at.isoformat()
+                                if message.scheduled_at
+                                else None,
+                                "created_at": message.created_at.isoformat(),
+                            }
+                        )
+                    },
                 )
             else:
                 # Use local queue
                 self.local_queue[message.priority].append(message)
 
-    async def dequeue(self, priority: Optional[Priority] = None) -> Optional[QueuedMessage]:
+    async def dequeue(
+        self, priority: Optional[Priority] = None
+    ) -> Optional[QueuedMessage]:
         """Get next message from queue."""
         async with self._lock:
             if self.redis_client:
                 # Try Redis queue
-                priorities = [priority] if priority else list(Priority)[::-1]  # High to low
+                priorities = (
+                    [priority] if priority else list(Priority)[::-1]
+                )  # High to low
                 for p in priorities:
                     queue_key = f"whatsapp_queue:{p.name}"
                     message_id = await self.redis_client.rpop(queue_key)
                     if message_id:
-                        data = await self.redis_client.hget(f"whatsapp_message:{message_id}", "data")
+                        data = await self.redis_client.hget(
+                            f"whatsapp_message:{message_id}", "data"
+                        )
                         if data:
                             message_data = json.loads(data)
                             return QueuedMessage(
@@ -156,8 +169,14 @@ class MessageQueue:
                                 priority=Priority(message_data["priority"]),
                                 retry_count=message_data["retry_count"],
                                 max_retries=message_data["max_retries"],
-                                scheduled_at=datetime.fromisoformat(message_data["scheduled_at"]) if message_data["scheduled_at"] else None,
-                                created_at=datetime.fromisoformat(message_data["created_at"])
+                                scheduled_at=datetime.fromisoformat(
+                                    message_data["scheduled_at"]
+                                )
+                                if message_data["scheduled_at"]
+                                else None,
+                                created_at=datetime.fromisoformat(
+                                    message_data["created_at"]
+                                ),
                             )
             else:
                 # Try local queue
@@ -198,7 +217,7 @@ class PerPatientRateLimiter:
         redis_client: Optional[Redis] = None,
         max_messages_per_minute: int = 10,
         max_messages_per_hour: int = 50,
-        max_messages_per_day: int = 200
+        max_messages_per_day: int = 200,
     ):
         """
         Initialize per-patient rate limiter.
@@ -220,9 +239,15 @@ class PerPatientRateLimiter:
         """Get Redis keys and TTLs for rate limit windows."""
         now = datetime.utcnow()
         return {
-            "minute": (f"rate:patient:{patient_id}:minute:{now.strftime('%Y%m%d%H%M')}", 60),
-            "hour": (f"rate:patient:{patient_id}:hour:{now.strftime('%Y%m%d%H')}", 3600),
-            "day": (f"rate:patient:{patient_id}:day:{now.strftime('%Y%m%d')}", 86400)
+            "minute": (
+                f"rate:patient:{patient_id}:minute:{now.strftime('%Y%m%d%H%M')}",
+                60,
+            ),
+            "hour": (
+                f"rate:patient:{patient_id}:hour:{now.strftime('%Y%m%d%H')}",
+                3600,
+            ),
+            "day": (f"rate:patient:{patient_id}:day:{now.strftime('%Y%m%d')}", 86400),
         }
 
     async def check_rate_limit(self, patient_id: str) -> Dict[str, Any]:
@@ -264,9 +289,9 @@ class PerPatientRateLimiter:
         """Check rate limits using local memory (single instance only)."""
         async with self._lock:
             now = datetime.utcnow()
-            minute_key = now.strftime('%Y%m%d%H%M')
-            hour_key = now.strftime('%Y%m%d%H')
-            day_key = now.strftime('%Y%m%d')
+            minute_key = now.strftime("%Y%m%d%H%M")
+            hour_key = now.strftime("%Y%m%d%H")
+            day_key = now.strftime("%Y%m%d")
 
             if patient_id not in self._local_counters:
                 self._local_counters[patient_id] = {}
@@ -274,14 +299,19 @@ class PerPatientRateLimiter:
             counters = self._local_counters[patient_id]
 
             # Clean old keys
-            keys_to_remove = [k for k in counters.keys()
-                             if not k.startswith(('m:' + minute_key, 'h:' + hour_key, 'd:' + day_key))]
+            keys_to_remove = [
+                k
+                for k in counters.keys()
+                if not k.startswith(
+                    ("m:" + minute_key, "h:" + hour_key, "d:" + day_key)
+                )
+            ]
             for k in keys_to_remove:
                 del counters[k]
 
-            minute_count = counters.get(f'm:{minute_key}', 0)
-            hour_count = counters.get(f'h:{hour_key}', 0)
-            day_count = counters.get(f'd:{day_key}', 0)
+            minute_count = counters.get(f"m:{minute_key}", 0)
+            hour_count = counters.get(f"h:{hour_key}", 0)
+            day_count = counters.get(f"d:{day_key}", 0)
 
             if minute_count >= self.max_per_minute:
                 return {"allowed": False, "retry_after": 60, "reason": "minute_limit"}
@@ -290,7 +320,10 @@ class PerPatientRateLimiter:
             if day_count >= self.max_per_day:
                 return {"allowed": False, "retry_after": 86400, "reason": "day_limit"}
 
-            return {"allowed": True, "remaining_minute": self.max_per_minute - minute_count}
+            return {
+                "allowed": True,
+                "remaining_minute": self.max_per_minute - minute_count,
+            }
 
     async def record_message(self, patient_id: str) -> None:
         """Record a message sent to patient for rate limiting."""
@@ -318,14 +351,21 @@ class PerPatientRateLimiter:
                 self._local_counters[patient_id] = {}
 
             counters = self._local_counters[patient_id]
-            counters[f'm:{now.strftime("%Y%m%d%H%M")}'] = counters.get(f'm:{now.strftime("%Y%m%d%H%M")}', 0) + 1
-            counters[f'h:{now.strftime("%Y%m%d%H")}'] = counters.get(f'h:{now.strftime("%Y%m%d%H")}', 0) + 1
-            counters[f'd:{now.strftime("%Y%m%d")}'] = counters.get(f'd:{now.strftime("%Y%m%d")}', 0) + 1
+            counters[f"m:{now.strftime('%Y%m%d%H%M')}"] = (
+                counters.get(f"m:{now.strftime('%Y%m%d%H%M')}", 0) + 1
+            )
+            counters[f"h:{now.strftime('%Y%m%d%H')}"] = (
+                counters.get(f"h:{now.strftime('%Y%m%d%H')}", 0) + 1
+            )
+            counters[f"d:{now.strftime('%Y%m%d')}"] = (
+                counters.get(f"d:{now.strftime('%Y%m%d')}", 0) + 1
+            )
 
 
 @dataclass
 class OrderedMessage:
     """Message with sequence number for ordering."""
+
     id: str
     patient_id: str
     request: MessageRequest
@@ -347,9 +387,7 @@ class OrderedMessageQueue:
     """
 
     def __init__(
-        self,
-        redis_client: Redis,
-        rate_limiter: Optional[PerPatientRateLimiter] = None
+        self, redis_client: Redis, rate_limiter: Optional[PerPatientRateLimiter] = None
     ):
         """
         Initialize ordered message queue.
@@ -397,7 +435,7 @@ class OrderedMessageQueue:
         patient_id: str,
         request: MessageRequest,
         priority: Priority = Priority.NORMAL,
-        message_id: Optional[str] = None
+        message_id: Optional[str] = None,
     ) -> OrderedMessage:
         """
         Add message to patient's ordered queue.
@@ -432,7 +470,7 @@ class OrderedMessageQueue:
             patient_id=patient_id,
             request=request,
             sequence_number=sequence,
-            priority=priority
+            priority=priority,
         )
 
         # Store message data
@@ -445,8 +483,8 @@ class OrderedMessageQueue:
                 "priority": priority.value,
                 "retry_count": 0,
                 "max_retries": message.max_retries,
-                "created_at": message.created_at.isoformat()
-            }
+                "created_at": message.created_at.isoformat(),
+            },
         )
         # Set TTL on message data
         await self.redis.expire(self._message_key(message.id), 86400)
@@ -485,7 +523,7 @@ class OrderedMessageQueue:
 
         message_id, score = result[0]
         if isinstance(message_id, bytes):
-            message_id = message_id.decode('utf-8')
+            message_id = message_id.decode("utf-8")
 
         # Get message data
         data = await self.redis.hgetall(self._message_key(message_id))
@@ -495,7 +533,7 @@ class OrderedMessageQueue:
 
         # Decode bytes if necessary
         if isinstance(list(data.keys())[0], bytes):
-            data = {k.decode('utf-8'): v.decode('utf-8') for k, v in data.items()}
+            data = {k.decode("utf-8"): v.decode("utf-8") for k, v in data.items()}
 
         return OrderedMessage(
             id=message_id,
@@ -505,7 +543,7 @@ class OrderedMessageQueue:
             priority=Priority(int(data["priority"])),
             retry_count=int(data["retry_count"]),
             max_retries=int(data["max_retries"]),
-            created_at=datetime.fromisoformat(data["created_at"])
+            created_at=datetime.fromisoformat(data["created_at"]),
         )
 
     async def peek(self, patient_id: str) -> Optional[OrderedMessage]:
@@ -528,14 +566,14 @@ class OrderedMessageQueue:
 
         message_id = result[0][0]
         if isinstance(message_id, bytes):
-            message_id = message_id.decode('utf-8')
+            message_id = message_id.decode("utf-8")
 
         data = await self.redis.hgetall(self._message_key(message_id))
         if not data:
             return None
 
         if isinstance(list(data.keys())[0], bytes):
-            data = {k.decode('utf-8'): v.decode('utf-8') for k, v in data.items()}
+            data = {k.decode("utf-8"): v.decode("utf-8") for k, v in data.items()}
 
         return OrderedMessage(
             id=message_id,
@@ -545,7 +583,7 @@ class OrderedMessageQueue:
             priority=Priority(int(data["priority"])),
             retry_count=int(data["retry_count"]),
             max_retries=int(data["max_retries"]),
-            created_at=datetime.fromisoformat(data["created_at"])
+            created_at=datetime.fromisoformat(data["created_at"]),
         )
 
     async def requeue(self, message: OrderedMessage, delay_seconds: int = 0) -> None:
@@ -568,9 +606,7 @@ class OrderedMessageQueue:
 
         # Update retry count in Redis
         await self.redis.hset(
-            self._message_key(message.id),
-            "retry_count",
-            str(message.retry_count)
+            self._message_key(message.id), "retry_count", str(message.retry_count)
         )
 
         # Requeue with same sequence to maintain order
@@ -592,7 +628,9 @@ class OrderedMessageQueue:
         await self.redis.lpush(dlq_key, message.id)
         await self.redis.expire(dlq_key, 604800)  # 7 days retention
 
-        logger.warning(f"Message {message.id} moved to DLQ for patient {message.patient_id}")
+        logger.warning(
+            f"Message {message.id} moved to DLQ for patient {message.patient_id}"
+        )
 
     async def queue_size(self, patient_id: str) -> int:
         """Get number of messages in patient's queue."""
@@ -604,7 +642,7 @@ class OrderedMessageQueue:
         keys = []
         async for key in self.redis.scan_iter(match=pattern):
             if isinstance(key, bytes):
-                key = key.decode('utf-8')
+                key = key.decode("utf-8")
             # Extract patient_id from key
             patient_id = key.replace("ordered_queue:patient:", "")
             # Check if queue is not empty
@@ -613,9 +651,7 @@ class OrderedMessageQueue:
         return keys
 
     async def acquire_patient_processing_lock(
-        self,
-        patient_id: str,
-        ttl: int = 60
+        self, patient_id: str, ttl: int = 60
     ) -> Optional[str]:
         """
         Acquire exclusive processing lock for patient.
@@ -643,9 +679,7 @@ class OrderedMessageQueue:
         return None
 
     async def release_patient_processing_lock(
-        self,
-        patient_id: str,
-        lock_id: str
+        self, patient_id: str, lock_id: str
     ) -> bool:
         """
         Release patient processing lock.
@@ -673,10 +707,7 @@ class OrderedMessageQueue:
         return result == 1
 
     async def extend_patient_processing_lock(
-        self,
-        patient_id: str,
-        lock_id: str,
-        ttl: int = 60
+        self, patient_id: str, lock_id: str, ttl: int = 60
     ) -> bool:
         """
         Extend patient processing lock TTL.

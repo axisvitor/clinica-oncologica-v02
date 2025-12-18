@@ -8,15 +8,17 @@ from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
-from .common import CursorPaginatedResponse, ErrorResponse
+from .common import CursorPaginatedResponse
 
 
 # ============================================================================
 # Enums
 # ============================================================================
 
+
 class FlowStatusV2(str, Enum):
     """Flow status enumeration for V2 API"""
+
     ACTIVE = "active"
     PAUSED = "paused"
     COMPLETED = "completed"
@@ -25,6 +27,7 @@ class FlowStatusV2(str, Enum):
 
 class ABTestStatusV2(str, Enum):
     """A/B test status enumeration"""
+
     DRAFT = "draft"
     ACTIVE = "active"
     PAUSED = "paused"
@@ -35,6 +38,7 @@ class ABTestStatusV2(str, Enum):
 # ============================================================================
 # Brief Models (for nested relationships)
 # ============================================================================
+
 
 class PatientV2Brief(BaseModel):
     """Brief patient information for flow responses"""
@@ -63,16 +67,25 @@ class FlowTemplateV2Brief(BaseModel):
 # Flow Template Models
 # ============================================================================
 
+
 class FlowTemplateV2Base(BaseModel):
     """Base flow template schema"""
 
     name: str = Field(..., min_length=1, max_length=100, description="Template name")
-    flow_type: str = Field(..., min_length=1, max_length=50, description="Flow type identifier")
-    version: str = Field("1.0.0", max_length=20, description="Template version (semver)")
-    description: Optional[str] = Field(None, max_length=1000, description="Template description")
+    flow_type: str = Field(
+        ..., min_length=1, max_length=50, description="Flow type identifier"
+    )
+    version: str = Field(
+        "1.0.0", max_length=20, description="Template version (semver)"
+    )
+    description: Optional[str] = Field(
+        None, max_length=1000, description="Template description"
+    )
     duration_days: int = Field(..., ge=1, le=365, description="Flow duration in days")
     is_active: bool = Field(True, description="Whether template is active")
-    template_data: Dict[str, Any] = Field(..., description="Template configuration data")
+    template_data: Dict[str, Any] = Field(
+        ..., description="Template configuration data"
+    )
 
     @field_validator("version")
     @classmethod
@@ -103,6 +116,7 @@ class FlowTemplateV2Base(BaseModel):
 
 class FlowTemplateV2Create(FlowTemplateV2Base):
     """Schema for creating a flow template"""
+
     pass
 
 
@@ -139,12 +153,14 @@ class FlowTemplateV2Response(FlowTemplateV2Base):
 
 class FlowTemplateV2List(CursorPaginatedResponse[FlowTemplateV2Response]):
     """Paginated list of flow templates"""
+
     pass
 
 
 # ============================================================================
 # Flow State Models
 # ============================================================================
+
 
 class FlowStateV2Response(BaseModel):
     """Current flow state for a patient"""
@@ -230,6 +246,7 @@ class FlowHistoryV2Response(CursorPaginatedResponse[FlowStateV2Response]):
 # Flow Customization Models
 # ============================================================================
 
+
 class FlowCustomizationV2Request(BaseModel):
     """Request to create flow customization"""
 
@@ -265,34 +282,39 @@ class FlowCustomizationV2Response(BaseModel):
                 "priority": 5,
                 "is_active": True,
                 "created_at": "2025-11-01T10:00:00Z",
-                "updated_at": "2025-11-07T10:00:00Z"
+                "updated_at": "2025-11-07T10:00:00Z",
             }
-        }
+        },
     )
 
 
 class FlowCustomizationV2List(CursorPaginatedResponse[FlowCustomizationV2Response]):
     """Paginated list of flow customizations"""
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "data": [{"id": "custom_123", "customization_type": "message_timing"}],
                 "next_cursor": "eyJpZCI6ImN1c3RvbV8xMjMifQ==",
                 "has_more": False,
-                "total": 5
+                "total": 5,
             }
-        })
+        }
+    )
 
 
 # ============================================================================
 # Flow Rules Models
 # ============================================================================
 
+
 class FlowRuleV2Base(BaseModel):
     """Base flow rule schema"""
 
     name: str = Field(..., min_length=1, max_length=100, description="Rule name")
-    flow_type: str = Field(..., max_length=50, description="Flow type this rule applies to")
+    flow_type: str = Field(
+        ..., max_length=50, description="Flow type this rule applies to"
+    )
     condition: Dict[str, Any] = Field(..., description="Rule condition logic")
     action: Dict[str, Any] = Field(..., description="Action when condition is met")
     priority: int = Field(1, ge=1, le=10, description="Rule priority (1-10)")
@@ -303,7 +325,8 @@ class FlowRuleV2Base(BaseModel):
 class FlowRuleV2Create(FlowRuleV2Base):
     """Schema for creating a flow rule"""
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "Skip Weekend Messages",
                 "flow_type": "hormonal_treatment",
@@ -311,9 +334,10 @@ class FlowRuleV2Create(FlowRuleV2Base):
                 "action": {"type": "skip_message", "reschedule": "next_weekday"},
                 "priority": 8,
                 "is_active": True,
-                "description": "Don't send messages on weekends"
+                "description": "Don't send messages on weekends",
             }
-        })
+        }
+    )
 
 
 class FlowRuleV2Update(BaseModel):
@@ -347,45 +371,52 @@ class FlowRuleV2Response(FlowRuleV2Base):
                 "priority": 8,
                 "is_active": True,
                 "created_at": "2025-01-01T10:00:00Z",
-                "updated_at": "2025-11-07T10:00:00Z"
+                "updated_at": "2025-11-07T10:00:00Z",
             }
-        }
+        },
     )
 
 
 class FlowRuleV2List(CursorPaginatedResponse[FlowRuleV2Response]):
     """Paginated list of flow rules"""
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "data": [{"id": "rule_123", "name": "Skip Weekend Messages"}],
                 "next_cursor": None,
                 "has_more": False,
-                "total": 8
+                "total": 8,
             }
-        })
+        }
+    )
 
 
 # ============================================================================
 # A/B Testing Models
 # ============================================================================
 
+
 class ABTestVariantV2(BaseModel):
     """A/B test variant definition"""
 
     name: str = Field(..., max_length=50, description="Variant name")
     template_id: str = Field(..., description="Template ID for this variant")
-    allocation_percentage: float = Field(..., ge=0, le=100, description="Allocation percentage")
+    allocation_percentage: float = Field(
+        ..., ge=0, le=100, description="Allocation percentage"
+    )
     description: Optional[str] = Field(None, max_length=200)
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "Control",
                 "template_id": "template_123",
                 "allocation_percentage": 50.0,
-                "description": "Original message timing"
+                "description": "Original message timing",
             }
-        })
+        }
+    )
 
 
 class ABTestV2Base(BaseModel):
@@ -412,20 +443,30 @@ class ABTestV2Base(BaseModel):
 class ABTestV2Create(ABTestV2Base):
     """Schema for creating an A/B test"""
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "Message Timing Test",
                 "flow_type": "hormonal_treatment",
                 "variants": [
-                    {"name": "Morning", "template_id": "tpl_1", "allocation_percentage": 50.0},
-                    {"name": "Evening", "template_id": "tpl_2", "allocation_percentage": 50.0}
+                    {
+                        "name": "Morning",
+                        "template_id": "tpl_1",
+                        "allocation_percentage": 50.0,
+                    },
+                    {
+                        "name": "Evening",
+                        "template_id": "tpl_2",
+                        "allocation_percentage": 50.0,
+                    },
                 ],
                 "success_metrics": ["engagement_rate", "completion_rate"],
                 "target_sample_size": 100,
                 "duration_days": 30,
-                "description": "Test optimal message timing"
+                "description": "Test optimal message timing",
             }
-        })
+        }
+    )
 
 
 class ABTestV2Update(BaseModel):
@@ -446,16 +487,18 @@ class ABTestResultsV2(BaseModel):
     statistical_significance: float = Field(..., ge=0, le=1, description="p-value")
     confidence_interval: List[float] = Field(..., min_items=2, max_items=2)
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "variant_name": "Morning",
                 "participants": 52,
                 "conversion_rate": 78.5,
                 "engagement_score": 82.3,
                 "statistical_significance": 0.03,
-                "confidence_interval": [75.2, 81.8]
+                "confidence_interval": [75.2, 81.8],
             }
-        })
+        }
+    )
 
 
 class ABTestV2Response(ABTestV2Base):
@@ -485,28 +528,37 @@ class ABTestV2Response(ABTestV2Base):
                 "current_participants": 52,
                 "start_date": "2025-11-01T00:00:00Z",
                 "created_at": "2025-11-01T10:00:00Z",
-                "updated_at": "2025-11-07T10:00:00Z"
+                "updated_at": "2025-11-07T10:00:00Z",
             }
-        }
+        },
     )
 
 
 class ABTestV2List(CursorPaginatedResponse[ABTestV2Response]):
     """Paginated list of A/B tests"""
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
-                "data": [{"id": "test_123", "name": "Message Timing Test", "status": "active"}],
+                "data": [
+                    {
+                        "id": "test_123",
+                        "name": "Message Timing Test",
+                        "status": "active",
+                    }
+                ],
                 "next_cursor": None,
                 "has_more": False,
-                "total": 3
+                "total": 3,
             }
-        })
+        }
+    )
 
 
 # ============================================================================
 # Analytics Models
 # ============================================================================
+
 
 class FlowMetricsV2Response(BaseModel):
     """Flow metrics and KPIs"""
@@ -519,7 +571,8 @@ class FlowMetricsV2Response(BaseModel):
     average_completion_days: Optional[float] = None
     engagement_rate: float = Field(..., ge=0, le=100)
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "flow_type": "hormonal_treatment",
                 "total_patients": 150,
@@ -527,9 +580,10 @@ class FlowMetricsV2Response(BaseModel):
                 "completed_patients": 95,
                 "completion_rate": 78.5,
                 "average_completion_days": 28.3,
-                "engagement_rate": 85.2
+                "engagement_rate": 85.2,
             }
-        })
+        }
+    )
 
 
 class PatientEngagementV2Response(BaseModel):
@@ -541,15 +595,17 @@ class PatientEngagementV2Response(BaseModel):
     last_interaction: Optional[datetime] = None
     engagement_score: float = Field(..., ge=0, le=100)
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "patient_id": "pat_456def",
                 "response_rate": 92.3,
                 "average_response_time_minutes": 45.5,
                 "last_interaction": "2025-11-07T08:30:00Z",
-                "engagement_score": 88.7
+                "engagement_score": 88.7,
             }
-        })
+        }
+    )
 
 
 class RiskAssessmentV2Response(BaseModel):
@@ -570,15 +626,17 @@ class RiskAssessmentV2Response(BaseModel):
             raise ValueError(f"Risk level must be one of: {', '.join(allowed)}")
         return v
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "patient_id": "pat_456def",
                 "risk_level": "medium",
                 "risk_factors": ["low_engagement", "missed_messages"],
                 "recommended_actions": ["send_reminder", "doctor_review"],
-                "assessed_at": "2025-11-07T10:00:00Z"
+                "assessed_at": "2025-11-07T10:00:00Z",
             }
-        })
+        }
+    )
 
 
 class FlowPerformanceV2Response(BaseModel):
@@ -591,25 +649,24 @@ class FlowPerformanceV2Response(BaseModel):
     trends: Dict[str, Any]
     insights: List[str]
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "flow_type": "hormonal_treatment",
                 "period_start": "2025-10-01T00:00:00Z",
                 "period_end": "2025-11-07T23:59:59Z",
-                "metrics": {
-                    "completion_rate": 78.5,
-                    "engagement_rate": 85.2
-                },
+                "metrics": {"completion_rate": 78.5, "engagement_rate": 85.2},
                 "trends": {
                     "completion_rate_change": "+5.3%",
-                    "engagement_trend": "increasing"
+                    "engagement_trend": "increasing",
                 },
                 "insights": [
                     "Completion rate improved by 5.3% this month",
-                    "Peak engagement occurs at 9 AM"
-                ]
+                    "Peak engagement occurs at 9 AM",
+                ],
             }
-        })
+        }
+    )
 
 
 class PatientJourneyV2Response(BaseModel):
@@ -622,19 +679,25 @@ class PatientJourneyV2Response(BaseModel):
     milestones_achieved: List[str]
     upcoming_milestones: List[str]
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "patient_id": "pat_456def",
                 "journey_stages": [
-                    {"stage": "onboarding", "completed": True, "completed_at": "2025-01-01T10:00:00Z"},
-                    {"stage": "active_treatment", "completed": False, "current": True}
+                    {
+                        "stage": "onboarding",
+                        "completed": True,
+                        "completed_at": "2025-01-01T10:00:00Z",
+                    },
+                    {"stage": "active_treatment", "completed": False, "current": True},
                 ],
                 "current_stage": "active_treatment",
                 "completion_percentage": 45.5,
                 "milestones_achieved": ["first_week", "first_quiz"],
-                "upcoming_milestones": ["mid_treatment_review", "second_quiz"]
+                "upcoming_milestones": ["mid_treatment_review", "second_quiz"],
             }
-        })
+        }
+    )
 
 
 class FlowInsightsV2Response(BaseModel):
@@ -645,26 +708,28 @@ class FlowInsightsV2Response(BaseModel):
     recommendations: List[Dict[str, Any]]
     generated_at: datetime
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "flow_type": "hormonal_treatment",
                 "insights": [
                     {
                         "type": "engagement_pattern",
                         "description": "Patients engage most at 9 AM",
-                        "confidence": 0.92
+                        "confidence": 0.92,
                     }
                 ],
                 "recommendations": [
                     {
                         "type": "timing_optimization",
                         "action": "Schedule messages at 9 AM for better engagement",
-                        "expected_impact": "+15% engagement"
+                        "expected_impact": "+15% engagement",
                     }
                 ],
-                "generated_at": "2025-11-07T10:00:00Z"
+                "generated_at": "2025-11-07T10:00:00Z",
             }
-        })
+        }
+    )
 
 
 class FlowDashboardV2Response(BaseModel):
@@ -675,23 +740,25 @@ class FlowDashboardV2Response(BaseModel):
     insights: FlowInsightsV2Response
     generated_at: datetime
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "overview": {
                     "flow_type": "hormonal_treatment",
                     "total_patients": 150,
-                    "completion_rate": 78.5
+                    "completion_rate": 78.5,
                 },
                 "performance": {
                     "flow_type": "hormonal_treatment",
                     "metrics": {},
-                    "trends": {}
+                    "trends": {},
                 },
                 "insights": {
                     "flow_type": "hormonal_treatment",
                     "insights": [],
-                    "recommendations": []
+                    "recommendations": [],
                 },
-                "generated_at": "2025-11-07T10:00:00Z"
+                "generated_at": "2025-11-07T10:00:00Z",
             }
-        })
+        }
+    )

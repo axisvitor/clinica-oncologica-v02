@@ -6,8 +6,6 @@ Provides decorators and helper functions for caching with TTL support.
 import json
 import logging
 import functools
-import asyncio
-import inspect
 from typing import Any, Callable, Optional, Union, Dict
 from datetime import timedelta, datetime
 from uuid import UUID
@@ -25,9 +23,9 @@ def _json_serializer(obj: Any) -> Any:
         return str(obj)
     elif isinstance(obj, Decimal):
         return float(obj)
-    elif hasattr(obj, '__dict__'):
+    elif hasattr(obj, "__dict__"):
         # For SQLAlchemy models or complex objects
-        return {k: v for k, v in obj.__dict__.items() if not k.startswith('_')}
+        return {k: v for k, v in obj.__dict__.items() if not k.startswith("_")}
     else:
         return str(obj)
 
@@ -35,11 +33,11 @@ def _json_serializer(obj: Any) -> Any:
 def _serialize_for_cache(obj: Any) -> str:
     """Serialize complex objects for caching."""
     try:
-        if hasattr(obj, '__dict__'):
+        if hasattr(obj, "__dict__"):
             # For SQLAlchemy models or complex objects
             data = {}
             for key, value in obj.__dict__.items():
-                if not key.startswith('_') and not callable(value):
+                if not key.startswith("_") and not callable(value):
                     data[key] = value
             return json.dumps(data, default=_json_serializer)
         else:
@@ -93,7 +91,7 @@ def _generate_cache_key(prefix: str, *args, **kwargs) -> str:
 def cache(
     ttl: Union[int, timedelta] = 3600,
     key_prefix: Optional[str] = None,
-    namespace: str = "cache"
+    namespace: str = "cache",
 ) -> Callable:
     """
     Decorator to cache function results in Redis with automatic TTL.
@@ -112,6 +110,7 @@ def cache(
         def get_patient_info(patient_id: str):
             return fetch_patient_data(patient_id)
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -143,18 +142,21 @@ def cache(
                 # Use enhanced serialization for complex objects
                 if isinstance(result, str):
                     serialized_result = result
-                elif hasattr(result, '__dict__'):  # SQLAlchemy model or complex object
+                elif hasattr(result, "__dict__"):  # SQLAlchemy model or complex object
                     serialized_result = _serialize_for_cache(result)
                 else:
                     serialized_result = json.dumps(result, default=_json_serializer)
                 redis_client.set(cache_key, serialized_result, ex=int(ttl_seconds))
-                logger.debug(f"Cached result for key: {cache_key} (TTL: {ttl_seconds}s)")
+                logger.debug(
+                    f"Cached result for key: {cache_key} (TTL: {ttl_seconds}s)"
+                )
             except Exception as e:
                 logger.warning(f"Cache SET failed for {cache_key}: {e}")
 
             return result
 
         return wrapper
+
     return decorator
 
 
@@ -164,7 +166,7 @@ class CacheManager:
     Provides explicit cache control and invalidation methods.
     """
 
-    def __init__(self, redis_client = None):
+    def __init__(self, redis_client=None):
         """
         Initialize cache manager.
 
@@ -201,7 +203,7 @@ class CacheManager:
         key: str,
         value: Any,
         ttl: Union[int, timedelta] = 3600,
-        namespace: Optional[str] = None
+        namespace: Optional[str] = None,
     ) -> bool:
         """
         Set value in cache with TTL.
@@ -222,7 +224,7 @@ class CacheManager:
             # Use enhanced serialization for complex objects
             if isinstance(value, str):
                 serialized_value = value
-            elif hasattr(value, '__dict__'):  # SQLAlchemy model or complex object
+            elif hasattr(value, "__dict__"):  # SQLAlchemy model or complex object
                 serialized_value = _serialize_for_cache(value)
             else:
                 serialized_value = json.dumps(value, default=_json_serializer)
@@ -367,14 +369,24 @@ class AsyncCacheManager:
             logger.error(f"Async cache GET error for {full_key}: {e}")
             return None
 
-    async def set(self, key: str, value: Any, ttl: Union[int, timedelta] = 3600, namespace: Optional[str] = None) -> bool:
+    async def set(
+        self,
+        key: str,
+        value: Any,
+        ttl: Union[int, timedelta] = 3600,
+        namespace: Optional[str] = None,
+    ) -> bool:
         """Set value in cache with TTL (async)."""
         full_key = f"{namespace or self.namespace}:{key}"
         ttl_seconds = ttl.total_seconds() if isinstance(ttl, timedelta) else ttl
         try:
             redis_client = await get_async_redis()
-            serialized_value = _serialize_for_cache(value) if not isinstance(value, str) else value
-            return await redis_client.set(full_key, serialized_value, ex=int(ttl_seconds))
+            serialized_value = (
+                _serialize_for_cache(value) if not isinstance(value, str) else value
+            )
+            return await redis_client.set(
+                full_key, serialized_value, ex=int(ttl_seconds)
+            )
         except Exception as e:
             logger.error(f"Async cache SET error for {full_key}: {e}")
             return False
@@ -393,6 +405,7 @@ class AsyncCacheManager:
 # Global async cache manager
 _async_cache_manager = None
 
+
 def get_async_cache_manager() -> AsyncCacheManager:
     """Get global async cache manager singleton."""
     global _async_cache_manager
@@ -402,6 +415,7 @@ def get_async_cache_manager() -> AsyncCacheManager:
 
 
 # Convenience functions for common caching patterns (sync versions for compatibility)
+
 
 def cache_user_data(user_id: str, data: Any, ttl: int = 1800) -> bool:
     """Cache user data with 30-minute default TTL (sync version)"""
@@ -462,7 +476,9 @@ def invalidate_patient_cache(patient_id: str) -> bool:
 async def cache_patient_data_async(patient_id: str, data: Any, ttl: int = 3600) -> bool:
     """Cache patient data with 1-hour default TTL (async version)"""
     manager = get_async_cache_manager()
-    return await manager.set(f"patient:{patient_id}", data, ttl=ttl, namespace="patients")
+    return await manager.set(
+        f"patient:{patient_id}", data, ttl=ttl, namespace="patients"
+    )
 
 
 async def get_cached_patient_data_async(patient_id: str) -> Optional[Any]:
@@ -527,6 +543,7 @@ def reset_redis_connections() -> bool:
 
         # Reset the Redis connection pools in the unified module
         from app.core.redis_unified import reset_redis_pools
+
         reset_redis_pools()
 
         logger.info("✅ Redis connections reset successfully")
@@ -547,7 +564,7 @@ def test_redis_connectivity() -> Dict[str, Any]:
     test_results = {
         "status": "unknown",
         "tests": {},
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat(),
     }
 
     try:
@@ -560,7 +577,7 @@ def test_redis_connectivity() -> Dict[str, Any]:
 
         test_results["tests"]["ping"] = {
             "status": "success" if ping_result else "failed",
-            "response_time_ms": ping_time
+            "response_time_ms": ping_time,
         }
 
         # Test 2: Set/Get operation
@@ -574,7 +591,7 @@ def test_redis_connectivity() -> Dict[str, Any]:
 
         test_results["tests"]["set_get"] = {
             "status": "success" if retrieved_value.decode() == test_value else "failed",
-            "response_time_ms": operation_time
+            "response_time_ms": operation_time,
         }
 
         # Clean up test key
@@ -586,13 +603,12 @@ def test_redis_connectivity() -> Dict[str, Any]:
             "status": "success",
             "redis_version": redis_info.get("redis_version"),
             "memory_used": redis_info.get("used_memory_human"),
-            "connected_clients": redis_info.get("connected_clients")
+            "connected_clients": redis_info.get("connected_clients"),
         }
 
         # Overall status
         all_tests_passed = all(
-            test.get("status") == "success"
-            for test in test_results["tests"].values()
+            test.get("status") == "success" for test in test_results["tests"].values()
         )
         test_results["status"] = "healthy" if all_tests_passed else "unhealthy"
 

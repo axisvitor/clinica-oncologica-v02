@@ -6,9 +6,9 @@ Comprehensive system resource and health monitoring for the healthcare platform.
 import asyncio
 import psutil
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from enum import Enum
 import logging
 from collections import deque
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 class ResourceStatus(str, Enum):
     """Resource health status"""
+
     HEALTHY = "healthy"
     WARNING = "warning"
     CRITICAL = "critical"
@@ -27,6 +28,7 @@ class ResourceStatus(str, Enum):
 
 class AlertSeverity(str, Enum):
     """Alert severity levels"""
+
     INFO = "info"
     WARNING = "warning"
     CRITICAL = "critical"
@@ -36,6 +38,7 @@ class AlertSeverity(str, Enum):
 @dataclass
 class ResourceMetrics:
     """Resource utilization metrics"""
+
     cpu_percent: float
     cpu_count: int
     cpu_per_core: List[float]
@@ -59,6 +62,7 @@ class ResourceMetrics:
 @dataclass
 class ProcessMetrics:
     """Process-level metrics"""
+
     pid: int
     name: str
     cpu_percent: float
@@ -74,6 +78,7 @@ class ProcessMetrics:
 @dataclass
 class ServiceHealth:
     """Service health check result"""
+
     service_name: str
     is_healthy: bool
     response_time_ms: float
@@ -86,6 +91,7 @@ class ServiceHealth:
 @dataclass
 class InfrastructureAlert:
     """Infrastructure alert"""
+
     alert_id: str
     severity: AlertSeverity
     resource_type: str
@@ -128,18 +134,14 @@ class ResourceMonitor:
             memory = psutil.virtual_memory()
 
             # Disk metrics
-            disk = psutil.disk_usage('/')
+            disk = psutil.disk_usage("/")
             disk_io = psutil.disk_io_counters()
 
             # Network metrics
             net_io = psutil.net_io_counters()
 
             # Determine status
-            status = self._determine_status(
-                cpu_percent,
-                memory.percent,
-                disk.percent
-            )
+            status = self._determine_status(cpu_percent, memory.percent, disk.percent)
 
             metrics = ResourceMetrics(
                 cpu_percent=cpu_percent,
@@ -159,18 +161,20 @@ class ResourceMonitor:
                 network_packets_sent=net_io.packets_sent,
                 network_packets_recv=net_io.packets_recv,
                 timestamp=datetime.utcnow(),
-                status=status
+                status=status,
             )
 
             # Update history
             self.cpu_history.append(cpu_percent)
             self.memory_history.append(memory.percent)
             self.disk_history.append(disk.percent)
-            self.network_history.append({
-                'sent': net_io.bytes_sent,
-                'recv': net_io.bytes_recv,
-                'timestamp': time.time()
-            })
+            self.network_history.append(
+                {
+                    "sent": net_io.bytes_sent,
+                    "recv": net_io.bytes_recv,
+                    "timestamp": time.time(),
+                }
+            )
 
             return metrics
 
@@ -179,20 +183,21 @@ class ResourceMonitor:
             raise
 
     def _determine_status(
-        self,
-        cpu_percent: float,
-        memory_percent: float,
-        disk_percent: float
+        self, cpu_percent: float, memory_percent: float, disk_percent: float
     ) -> ResourceStatus:
         """Determine overall resource status"""
-        if (cpu_percent >= self.cpu_critical_threshold or
-            memory_percent >= self.memory_critical_threshold or
-            disk_percent >= self.disk_critical_threshold):
+        if (
+            cpu_percent >= self.cpu_critical_threshold
+            or memory_percent >= self.memory_critical_threshold
+            or disk_percent >= self.disk_critical_threshold
+        ):
             return ResourceStatus.CRITICAL
 
-        if (cpu_percent >= self.cpu_warning_threshold or
-            memory_percent >= self.memory_warning_threshold or
-            disk_percent >= self.disk_warning_threshold):
+        if (
+            cpu_percent >= self.cpu_warning_threshold
+            or memory_percent >= self.memory_warning_threshold
+            or disk_percent >= self.disk_warning_threshold
+        ):
             return ResourceStatus.WARNING
 
         return ResourceStatus.HEALTHY
@@ -207,20 +212,20 @@ class ResourceMonitor:
                 return {}
 
             return {
-                'cpu': {
-                    'current': cpu_data[-1] if cpu_data else 0,
-                    'average': statistics.mean(cpu_data),
-                    'max': max(cpu_data),
-                    'min': min(cpu_data),
-                    'trend': self._calculate_trend(cpu_data)
+                "cpu": {
+                    "current": cpu_data[-1] if cpu_data else 0,
+                    "average": statistics.mean(cpu_data),
+                    "max": max(cpu_data),
+                    "min": min(cpu_data),
+                    "trend": self._calculate_trend(cpu_data),
                 },
-                'memory': {
-                    'current': memory_data[-1] if memory_data else 0,
-                    'average': statistics.mean(memory_data),
-                    'max': max(memory_data),
-                    'min': min(memory_data),
-                    'trend': self._calculate_trend(memory_data)
-                }
+                "memory": {
+                    "current": memory_data[-1] if memory_data else 0,
+                    "average": statistics.mean(memory_data),
+                    "max": max(memory_data),
+                    "min": min(memory_data),
+                    "trend": self._calculate_trend(memory_data),
+                },
             }
         except Exception as e:
             logger.error(f"Error calculating trends: {e}")
@@ -259,17 +264,19 @@ class ResourceMonitor:
         leaks = []
 
         try:
-            for proc in psutil.process_iter(['pid', 'name', 'memory_info']):
+            for proc in psutil.process_iter(["pid", "name", "memory_info"]):
                 try:
-                    memory_mb = proc.info['memory_info'].rss / 1024 / 1024
+                    memory_mb = proc.info["memory_info"].rss / 1024 / 1024
 
                     if memory_mb > threshold_mb:
-                        leaks.append({
-                            'pid': proc.info['pid'],
-                            'name': proc.info['name'],
-                            'memory_mb': memory_mb,
-                            'timestamp': datetime.utcnow()
-                        })
+                        leaks.append(
+                            {
+                                "pid": proc.info["pid"],
+                                "name": proc.info["name"],
+                                "memory_mb": memory_mb,
+                                "timestamp": datetime.utcnow(),
+                            }
+                        )
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
 
@@ -292,11 +299,20 @@ class ProcessMonitor:
         metrics = []
 
         try:
-            for proc in psutil.process_iter(['pid', 'name', 'cpu_percent',
-                                            'memory_percent', 'memory_info',
-                                            'num_threads', 'status', 'create_time']):
+            for proc in psutil.process_iter(
+                [
+                    "pid",
+                    "name",
+                    "cpu_percent",
+                    "memory_percent",
+                    "memory_info",
+                    "num_threads",
+                    "status",
+                    "create_time",
+                ]
+            ):
                 try:
-                    if proc.info['name'] in self.process_names:
+                    if proc.info["name"] in self.process_names:
                         # Get file descriptors count (Unix only)
                         num_fds = 0
                         try:
@@ -304,18 +320,20 @@ class ProcessMonitor:
                         except (AttributeError, psutil.AccessDenied):
                             pass
 
-                        metrics.append(ProcessMetrics(
-                            pid=proc.info['pid'],
-                            name=proc.info['name'],
-                            cpu_percent=proc.info['cpu_percent'] or 0,
-                            memory_percent=proc.info['memory_percent'] or 0,
-                            memory_rss=proc.info['memory_info'].rss,
-                            num_threads=proc.info['num_threads'],
-                            num_fds=num_fds,
-                            status=proc.info['status'],
-                            create_time=proc.info['create_time'],
-                            timestamp=datetime.utcnow()
-                        ))
+                        metrics.append(
+                            ProcessMetrics(
+                                pid=proc.info["pid"],
+                                name=proc.info["name"],
+                                cpu_percent=proc.info["cpu_percent"] or 0,
+                                memory_percent=proc.info["memory_percent"] or 0,
+                                memory_rss=proc.info["memory_info"].rss,
+                                num_threads=proc.info["num_threads"],
+                                num_fds=num_fds,
+                                status=proc.info["status"],
+                                create_time=proc.info["create_time"],
+                                timestamp=datetime.utcnow(),
+                            )
+                        )
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
 
@@ -331,8 +349,7 @@ class ProcessMonitor:
 
         for process_name in self.process_names:
             health[process_name] = any(
-                p.info['name'] == process_name
-                for p in psutil.process_iter(['name'])
+                p.info["name"] == process_name for p in psutil.process_iter(["name"])
             )
 
         return health
@@ -343,9 +360,9 @@ class InfrastructureMonitor:
 
     def __init__(self):
         self.resource_monitor = ResourceMonitor()
-        self.process_monitor = ProcessMonitor([
-            'python', 'uvicorn', 'gunicorn', 'nginx', 'redis-server', 'postgres'
-        ])
+        self.process_monitor = ProcessMonitor(
+            ["python", "uvicorn", "gunicorn", "nginx", "redis-server", "postgres"]
+        )
         self.alerts: List[InfrastructureAlert] = []
         self.service_health: Dict[str, ServiceHealth] = {}
 
@@ -357,7 +374,7 @@ class InfrastructureMonitor:
             try:
                 # Collect metrics
                 resource_metrics = await self.resource_monitor.collect_metrics()
-                process_metrics = await self.process_monitor.collect_process_metrics()
+                await self.process_monitor.collect_process_metrics()
 
                 # Check for alerts
                 await self._check_resource_alerts(resource_metrics)
@@ -396,7 +413,7 @@ class InfrastructureMonitor:
                 f"Critical CPU usage: {metrics.cpu_percent}%",
                 "cpu_percent",
                 metrics.cpu_percent,
-                90.0
+                90.0,
             )
         elif metrics.cpu_percent >= 70:
             await self._create_alert(
@@ -405,7 +422,7 @@ class InfrastructureMonitor:
                 f"High CPU usage: {metrics.cpu_percent}%",
                 "cpu_percent",
                 metrics.cpu_percent,
-                70.0
+                70.0,
             )
 
         # Memory alerts
@@ -416,7 +433,7 @@ class InfrastructureMonitor:
                 f"Critical memory usage: {metrics.memory_percent}%",
                 "memory_percent",
                 metrics.memory_percent,
-                90.0
+                90.0,
             )
         elif metrics.memory_percent >= 75:
             await self._create_alert(
@@ -425,7 +442,7 @@ class InfrastructureMonitor:
                 f"High memory usage: {metrics.memory_percent}%",
                 "memory_percent",
                 metrics.memory_percent,
-                75.0
+                75.0,
             )
 
         # Disk alerts
@@ -436,7 +453,7 @@ class InfrastructureMonitor:
                 f"Critical disk usage: {metrics.disk_percent}%",
                 "disk_percent",
                 metrics.disk_percent,
-                95.0
+                95.0,
             )
         elif metrics.disk_percent >= 80:
             await self._create_alert(
@@ -445,7 +462,7 @@ class InfrastructureMonitor:
                 f"High disk usage: {metrics.disk_percent}%",
                 "disk_percent",
                 metrics.disk_percent,
-                80.0
+                80.0,
             )
 
     async def _check_process_alerts(self, health: Dict[str, bool]):
@@ -458,7 +475,7 @@ class InfrastructureMonitor:
                     f"Process {process_name} is not running",
                     "process_status",
                     0.0,
-                    1.0
+                    1.0,
                 )
 
     async def _alert_memory_leaks(self, leaks: List[Dict]):
@@ -469,8 +486,8 @@ class InfrastructureMonitor:
                 "memory_leak",
                 f"Potential memory leak in {leak['name']} (PID: {leak['pid']}): {leak['memory_mb']:.2f} MB",
                 "memory_usage",
-                leak['memory_mb'],
-                100.0
+                leak["memory_mb"],
+                100.0,
             )
 
     async def _create_alert(
@@ -480,7 +497,7 @@ class InfrastructureMonitor:
         message: str,
         metric_name: str,
         current_value: float,
-        threshold_value: float
+        threshold_value: float,
     ):
         """Create and store an alert"""
         alert = InfrastructureAlert(
@@ -491,7 +508,7 @@ class InfrastructureMonitor:
             metric_name=metric_name,
             current_value=current_value,
             threshold_value=threshold_value,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.utcnow(),
         )
 
         self.alerts.append(alert)
@@ -504,35 +521,47 @@ class InfrastructureMonitor:
         active_alerts = [a for a in self.alerts if not a.resolved]
 
         return {
-            'status': metrics.status,
-            'timestamp': datetime.utcnow().isoformat(),
-            'resources': {
-                'cpu': {
-                    'current': metrics.cpu_percent,
-                    'count': metrics.cpu_count,
-                    'per_core': metrics.cpu_per_core
+            "status": metrics.status,
+            "timestamp": datetime.utcnow().isoformat(),
+            "resources": {
+                "cpu": {
+                    "current": metrics.cpu_percent,
+                    "count": metrics.cpu_count,
+                    "per_core": metrics.cpu_per_core,
                 },
-                'memory': {
-                    'used_gb': metrics.memory_used / 1024 / 1024 / 1024,
-                    'total_gb': metrics.memory_total / 1024 / 1024 / 1024,
-                    'percent': metrics.memory_percent
+                "memory": {
+                    "used_gb": metrics.memory_used / 1024 / 1024 / 1024,
+                    "total_gb": metrics.memory_total / 1024 / 1024 / 1024,
+                    "percent": metrics.memory_percent,
                 },
-                'disk': {
-                    'used_gb': metrics.disk_used / 1024 / 1024 / 1024,
-                    'total_gb': metrics.disk_total / 1024 / 1024 / 1024,
-                    'percent': metrics.disk_percent
-                }
+                "disk": {
+                    "used_gb": metrics.disk_used / 1024 / 1024 / 1024,
+                    "total_gb": metrics.disk_total / 1024 / 1024 / 1024,
+                    "percent": metrics.disk_percent,
+                },
             },
-            'trends': trends,
-            'alerts': {
-                'total': len(self.alerts),
-                'active': len(active_alerts),
-                'by_severity': {
-                    'critical': len([a for a in active_alerts if a.severity == AlertSeverity.CRITICAL]),
-                    'warning': len([a for a in active_alerts if a.severity == AlertSeverity.WARNING])
-                }
+            "trends": trends,
+            "alerts": {
+                "total": len(self.alerts),
+                "active": len(active_alerts),
+                "by_severity": {
+                    "critical": len(
+                        [
+                            a
+                            for a in active_alerts
+                            if a.severity == AlertSeverity.CRITICAL
+                        ]
+                    ),
+                    "warning": len(
+                        [
+                            a
+                            for a in active_alerts
+                            if a.severity == AlertSeverity.WARNING
+                        ]
+                    ),
+                },
             },
-            'services': self.service_health
+            "services": self.service_health,
         }
 
 

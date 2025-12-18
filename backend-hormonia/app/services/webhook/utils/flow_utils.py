@@ -2,6 +2,7 @@
 Flow utilities for webhook processing.
 Helper functions for flow-related operations.
 """
+
 import logging
 from typing import Any
 
@@ -22,16 +23,18 @@ def get_flow_type_from_state(db: Any, flow_state: PatientFlowState) -> str:
         Flow type string
     """
     try:
-        template_version = db.query(FlowTemplateVersion).filter(
-            FlowTemplateVersion.id == flow_state.template_version_id
-        ).first()
+        template_version = (
+            db.query(FlowTemplateVersion)
+            .filter(FlowTemplateVersion.id == flow_state.template_version_id)
+            .first()
+        )
 
         if not template_version:
             return "unknown"
 
-        flow_kind = db.query(FlowKind).filter(
-            FlowKind.id == template_version.kind_id
-        ).first()
+        flow_kind = (
+            db.query(FlowKind).filter(FlowKind.id == template_version.kind_id).first()
+        )
 
         return flow_kind.flow_type if flow_kind else "unknown"
 

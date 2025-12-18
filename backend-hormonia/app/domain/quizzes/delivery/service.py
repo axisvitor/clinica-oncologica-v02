@@ -30,7 +30,7 @@ class DeliveryService:
         link_url: str,
         delivery_method: DeliveryMethod,
         expiry_hours: int,
-        custom_message: Optional[str] = None
+        custom_message: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Send the monthly quiz link to the patient via WhatsApp with retries.
 
@@ -64,12 +64,11 @@ class DeliveryService:
             quiz_session_id=str(session.id),
             expiry_hours=expiry_hours,
             delivery_method=delivery_method.value,
-            custom_message=custom_message
+            custom_message=custom_message,
         )
 
         whatsapp_service = UnifiedWhatsAppService(
-            db=self.db,
-            messaging_mode=MessagingMode.HYBRID
+            db=self.db, messaging_mode=MessagingMode.HYBRID
         )
 
         for attempt in range(max_retries):
@@ -80,13 +79,13 @@ class DeliveryService:
                     return {
                         "sent": True,
                         "message_id": str(message.id),
-                        "attempts": attempt + 1
+                        "attempts": attempt + 1,
                     }
                 else:
                     # If send_message returns False without raising, treat as failure and retry
                     logger.warning(
                         f"WhatsApp send returned False (attempt {attempt + 1}/{max_retries})",
-                        extra={"patient_id": str(patient.id)}
+                        extra={"patient_id": str(patient.id)},
                     )
             except Exception as exc:
                 last_error = exc
@@ -95,23 +94,25 @@ class DeliveryService:
                     extra={
                         "patient_id": str(patient.id),
                         "quiz_session_id": str(session.id),
-                        "error": str(exc)
-                    }
+                        "error": str(exc),
+                    },
                 )
 
             if attempt < max_retries - 1:
                 await asyncio.sleep(retry_delay * (attempt + 1))  # Exponential backoff
 
         # If we get here, all retries failed
-        error_msg = str(last_error) if last_error else "Unknown error (send returned False)"
+        error_msg = (
+            str(last_error) if last_error else "Unknown error (send returned False)"
+        )
         logger.error(
             "All retries failed for monthly quiz link delivery",
             extra={
                 "patient_id": str(patient.id),
                 "quiz_session_id": str(session.id),
                 "delivery_method": delivery_method.value,
-                "error": error_msg
-            }
+                "error": error_msg,
+            },
         )
         raise Exception(f"Failed to send after {max_retries} attempts: {error_msg}")
 
@@ -122,7 +123,7 @@ class DeliveryService:
         status: str,
         message_id: Optional[str] = None,
         error: Optional[str] = None,
-        action: str = "send"
+        action: str = "send",
     ) -> None:
         """Record a delivery attempt in session metadata.
 
@@ -145,7 +146,7 @@ class DeliveryService:
             "delivery_method": delivery_method.value,
             "status": status,
             "message_id": message_id,
-            "error": error
+            "error": error,
         }
 
         metadata["delivery_attempts"].append(attempt_record)

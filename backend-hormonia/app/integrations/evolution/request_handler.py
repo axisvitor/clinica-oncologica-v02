@@ -1,6 +1,7 @@
 """
 HTTP request handling with retry logic and error handling.
 """
+
 import asyncio
 import json
 import time
@@ -26,7 +27,7 @@ class RequestHandler:
         rate_limiter: RateLimiter,
         max_retries: int = 3,
         retry_delay: float = 1.0,
-        use_mock: bool = False
+        use_mock: bool = False,
     ):
         """
         Initialize request handler.
@@ -56,7 +57,7 @@ class RequestHandler:
         Returns:
             Full URL
         """
-        clean_endpoint = endpoint.lstrip('/')
+        clean_endpoint = endpoint.lstrip("/")
         return urljoin(f"{self.base_url}/", clean_endpoint)
 
     async def make_request(
@@ -65,7 +66,7 @@ class RequestHandler:
         endpoint: str,
         data: Optional[Dict] = None,
         params: Optional[Dict] = None,
-        retry_count: int = 0
+        retry_count: int = 0,
     ) -> Dict[str, Any]:
         """
         Make HTTP request with retry logic.
@@ -102,15 +103,12 @@ class RequestHandler:
                 url=url,
                 attempt=retry_count + 1,
                 has_data=bool(data),
-                has_params=bool(params)
+                has_params=bool(params),
             )
 
             start_time = time.time()
             response = await self.client.request(
-                method=method,
-                url=url,
-                json=data,
-                params=params
+                method=method, url=url, json=data, params=params
             )
             response_time = time.time() - start_time
 
@@ -119,7 +117,7 @@ class RequestHandler:
                 "Evolution API response received",
                 status_code=response.status_code,
                 response_time_seconds=round(response_time, 3),
-                content_length=len(response.content) if response.content else 0
+                content_length=len(response.content) if response.content else 0,
             )
 
             # Handle HTTP errors
@@ -137,22 +135,26 @@ class RequestHandler:
                     status_code=response.status_code,
                     error_data=error_data,
                     url=url,
-                    method=method
+                    method=method,
                 )
 
                 # Retry on server errors (5xx) and rate limits (429)
                 if response.status_code >= 500 or response.status_code == 429:
                     if retry_count < self.max_retries:
-                        delay = self.retry_delay * (2 ** retry_count)  # Exponential backoff
+                        delay = self.retry_delay * (
+                            2**retry_count
+                        )  # Exponential backoff
                         logger.warning(
                             "Evolution API retrying request",
                             status_code=response.status_code,
                             attempt=retry_count + 1,
                             max_retries=self.max_retries,
-                            retry_delay=delay
+                            retry_delay=delay,
                         )
                         await asyncio.sleep(delay)
-                        return await self.make_request(method, endpoint, data, params, retry_count + 1)
+                        return await self.make_request(
+                            method, endpoint, data, params, retry_count + 1
+                        )
 
                 raise EvolutionAPIError(error_msg, response.status_code, error_data)
 
@@ -161,33 +163,39 @@ class RequestHandler:
                 result = response.json()
                 logger.info(
                     "Evolution API request successful",
-                    status=result.get('status', 'unknown'),
-                    has_data=bool(result.get('data')),
-                    response_keys=list(result.keys()) if isinstance(result, dict) else None
+                    status=result.get("status", "unknown"),
+                    has_data=bool(result.get("data")),
+                    response_keys=list(result.keys())
+                    if isinstance(result, dict)
+                    else None,
                 )
                 return result
-            except json.JSONDecodeError as e:
+            except json.JSONDecodeError:
                 logger.warning(
                     "Evolution API returned non-JSON response",
-                    content_type=response.headers.get('content-type'),
-                    response_preview=response.text[:200] if response.text else None
+                    content_type=response.headers.get("content-type"),
+                    response_preview=response.text[:200] if response.text else None,
                 )
                 return {"status": "success", "data": response.text}
 
-        except httpx.TimeoutException as e:
+        except httpx.TimeoutException:
             logger.warning(
                 "Evolution API timeout",
                 timeout_seconds=self.client.timeout.read,
                 attempt=retry_count + 1,
-                max_retries=self.max_retries
+                max_retries=self.max_retries,
             )
 
             if retry_count < self.max_retries:
-                delay = self.retry_delay * (2 ** retry_count)
+                delay = self.retry_delay * (2**retry_count)
                 await asyncio.sleep(delay)
-                return await self.make_request(method, endpoint, data, params, retry_count + 1)
+                return await self.make_request(
+                    method, endpoint, data, params, retry_count + 1
+                )
 
-            raise EvolutionAPIError(f"Request timeout after {self.max_retries} attempts")
+            raise EvolutionAPIError(
+                f"Request timeout after {self.max_retries} attempts"
+            )
 
         except httpx.RequestError as e:
             logger.warning(
@@ -195,18 +203,24 @@ class RequestHandler:
                 error=str(e),
                 error_type=type(e).__name__,
                 attempt=retry_count + 1,
-                max_retries=self.max_retries
+                max_retries=self.max_retries,
             )
 
             # Retry on network errors
             if retry_count < self.max_retries:
-                delay = self.retry_delay * (2 ** retry_count)
+                delay = self.retry_delay * (2**retry_count)
                 await asyncio.sleep(delay)
-                return await self.make_request(method, endpoint, data, params, retry_count + 1)
+                return await self.make_request(
+                    method, endpoint, data, params, retry_count + 1
+                )
 
-            raise EvolutionAPIError(f"Network error after {self.max_retries} attempts: {str(e)}")
+            raise EvolutionAPIError(
+                f"Network error after {self.max_retries} attempts: {str(e)}"
+            )
 
-    async def _mock_response(self, method: str, endpoint: str, data: Optional[Dict]) -> Dict[str, Any]:
+    async def _mock_response(
+        self, method: str, endpoint: str, data: Optional[Dict]
+    ) -> Dict[str, Any]:
         """
         Generate mock response for testing.
 
@@ -222,22 +236,21 @@ class RequestHandler:
 
         mock_message_id = f"mock_{int(time.time() * 1000)}"
 
-        if "sendText" in endpoint or "sendButtons" in endpoint or "sendList" in endpoint or "sendMedia" in endpoint:
+        if (
+            "sendText" in endpoint
+            or "sendButtons" in endpoint
+            or "sendList" in endpoint
+            or "sendMedia" in endpoint
+        ):
             return {
                 "status": "success",
                 "data": {
                     "id": mock_message_id,
                     "status": "pending",
-                    "timestamp": int(time.time() * 1000)
-                }
+                    "timestamp": int(time.time() * 1000),
+                },
             }
         elif "connectionState" in endpoint:
-            return {
-                "status": "success",
-                "data": {
-                    "state": "open",
-                    "connected": True
-                }
-            }
+            return {"status": "success", "data": {"state": "open", "connected": True}}
         else:
             return {"status": "success", "data": {}}

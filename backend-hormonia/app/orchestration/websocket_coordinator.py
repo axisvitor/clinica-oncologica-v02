@@ -2,18 +2,16 @@
 WebSocket Coordination System for Real-time Communication
 Handles connection management, event distribution, and state synchronization
 """
+
 import asyncio
 import json
-import logging
 import time
 from typing import Dict, List, Optional, Set, Any, Callable
-from datetime import datetime, timedelta
-from dataclasses import dataclass, asdict
+from datetime import datetime
+from dataclasses import dataclass
 from enum import Enum
 from fastapi import WebSocket, WebSocketDisconnect
-from pydantic import BaseModel
 
-from app.config import settings
 from app.core.redis_unified import get_async_redis
 from app.utils.logging import get_logger
 
@@ -22,6 +20,7 @@ logger = get_logger(__name__)
 
 class EventType(str, Enum):
     """WebSocket event types"""
+
     # User events
     USER_CONNECTED = "user.connected"
     USER_DISCONNECTED = "user.disconnected"
@@ -55,6 +54,7 @@ class EventType(str, Enum):
 @dataclass
 class WebSocketEvent:
     """WebSocket event data structure"""
+
     event_type: EventType
     data: Dict[str, Any]
     user_id: Optional[str] = None
@@ -69,33 +69,34 @@ class WebSocketEvent:
     def to_dict(self) -> Dict[str, Any]:
         """Convert event to dictionary for JSON serialization"""
         return {
-            'event_type': self.event_type.value,
-            'data': self.data,
-            'user_id': self.user_id,
-            'patient_id': self.patient_id,
-            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
-            'correlation_id': self.correlation_id
+            "event_type": self.event_type.value,
+            "data": self.data,
+            "user_id": self.user_id,
+            "patient_id": self.patient_id,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "correlation_id": self.correlation_id,
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'WebSocketEvent':
+    def from_dict(cls, data: Dict[str, Any]) -> "WebSocketEvent":
         """Create event from dictionary"""
         timestamp = None
-        if data.get('timestamp'):
-            timestamp = datetime.fromisoformat(data['timestamp'].replace('Z', '+00:00'))
+        if data.get("timestamp"):
+            timestamp = datetime.fromisoformat(data["timestamp"].replace("Z", "+00:00"))
 
         return cls(
-            event_type=EventType(data['event_type']),
-            data=data['data'],
-            user_id=data.get('user_id'),
-            patient_id=data.get('patient_id'),
+            event_type=EventType(data["event_type"]),
+            data=data["data"],
+            user_id=data.get("user_id"),
+            patient_id=data.get("patient_id"),
             timestamp=timestamp,
-            correlation_id=data.get('correlation_id')
+            correlation_id=data.get("correlation_id"),
         )
 
 
 class ConnectionState(str, Enum):
     """WebSocket connection states"""
+
     CONNECTING = "connecting"
     CONNECTED = "connected"
     DISCONNECTING = "disconnecting"
@@ -106,6 +107,7 @@ class ConnectionState(str, Enum):
 @dataclass
 class ConnectionInfo:
     """WebSocket connection information"""
+
     user_id: str
     websocket: WebSocket
     connected_at: datetime
@@ -178,7 +180,9 @@ class WebSocketCoordinator:
         except Exception as e:
             logger.error(f"Error during WebSocket coordinator shutdown: {e}")
 
-    async def connect_user(self, websocket: WebSocket, user_id: str, metadata: Dict[str, Any] = None) -> str:
+    async def connect_user(
+        self, websocket: WebSocket, user_id: str, metadata: Dict[str, Any] = None
+    ) -> str:
         """Connect a user's WebSocket"""
         try:
             # Accept WebSocket connection
@@ -193,7 +197,7 @@ class WebSocketCoordinator:
                 websocket=websocket,
                 connected_at=datetime.utcnow(),
                 last_ping=datetime.utcnow(),
-                metadata=metadata or {}
+                metadata=metadata or {},
             )
 
             # Store connection
@@ -205,22 +209,27 @@ class WebSocketCoordinator:
             self.user_connections[user_id].add(connection_id)
 
             # Send connection confirmation
-            await self._send_to_connection(connection_id, WebSocketEvent(
-                event_type=EventType.USER_CONNECTED,
-                data={
-                    'connection_id': connection_id,
-                    'user_id': user_id,
-                    'server_time': datetime.utcnow().isoformat()
-                },
-                user_id=user_id
-            ))
+            await self._send_to_connection(
+                connection_id,
+                WebSocketEvent(
+                    event_type=EventType.USER_CONNECTED,
+                    data={
+                        "connection_id": connection_id,
+                        "user_id": user_id,
+                        "server_time": datetime.utcnow().isoformat(),
+                    },
+                    user_id=user_id,
+                ),
+            )
 
             # Broadcast user connection event
-            await self.broadcast_event(WebSocketEvent(
-                event_type=EventType.USER_CONNECTED,
-                data={'user_id': user_id, 'connection_id': connection_id},
-                user_id=user_id
-            ))
+            await self.broadcast_event(
+                WebSocketEvent(
+                    event_type=EventType.USER_CONNECTED,
+                    data={"user_id": user_id, "connection_id": connection_id},
+                    user_id=user_id,
+                )
+            )
 
             logger.info(f"User {user_id} connected with connection {connection_id}")
             return connection_id
@@ -251,17 +260,21 @@ class WebSocketCoordinator:
                     del self.user_connections[user_id]
 
             # Broadcast user disconnection event
-            await self.broadcast_event(WebSocketEvent(
-                event_type=EventType.USER_DISCONNECTED,
-                data={
-                    'user_id': user_id,
-                    'connection_id': connection_id,
-                    'reason': reason
-                },
-                user_id=user_id
-            ))
+            await self.broadcast_event(
+                WebSocketEvent(
+                    event_type=EventType.USER_DISCONNECTED,
+                    data={
+                        "user_id": user_id,
+                        "connection_id": connection_id,
+                        "reason": reason,
+                    },
+                    user_id=user_id,
+                )
+            )
 
-            logger.info(f"User {user_id} disconnected (connection {connection_id}, reason: {reason})")
+            logger.info(
+                f"User {user_id} disconnected (connection {connection_id}, reason: {reason})"
+            )
 
         except Exception as e:
             logger.error(f"Error disconnecting connection {connection_id}: {e}")
@@ -270,7 +283,9 @@ class WebSocketCoordinator:
         """Send event to all of a user's connections"""
         user_connection_ids = self.user_connections.get(user_id, set())
 
-        for connection_id in user_connection_ids.copy():  # Copy to avoid modification during iteration
+        for (
+            connection_id
+        ) in user_connection_ids.copy():  # Copy to avoid modification during iteration
             await self._send_to_connection(connection_id, event)
 
     async def send_to_users(self, user_ids: List[str], event: WebSocketEvent):
@@ -294,7 +309,9 @@ class WebSocketCoordinator:
         if self.redis_client:
             await self._publish_to_redis(event)
 
-    async def subscribe_to_events(self, connection_id: str, event_types: List[EventType]):
+    async def subscribe_to_events(
+        self, connection_id: str, event_types: List[EventType]
+    ):
         """Subscribe a connection to specific event types"""
         connection_info = self.connections.get(connection_id)
         if not connection_info:
@@ -303,9 +320,13 @@ class WebSocketCoordinator:
         for event_type in event_types:
             connection_info.subscriptions.add(event_type.value)
 
-        logger.debug(f"Connection {connection_id} subscribed to events: {[e.value for e in event_types]}")
+        logger.debug(
+            f"Connection {connection_id} subscribed to events: {[e.value for e in event_types]}"
+        )
 
-    async def unsubscribe_from_events(self, connection_id: str, event_types: List[EventType]):
+    async def unsubscribe_from_events(
+        self, connection_id: str, event_types: List[EventType]
+    ):
         """Unsubscribe a connection from specific event types"""
         connection_info = self.connections.get(connection_id)
         if not connection_info:
@@ -314,7 +335,9 @@ class WebSocketCoordinator:
         for event_type in event_types:
             connection_info.subscriptions.discard(event_type.value)
 
-        logger.debug(f"Connection {connection_id} unsubscribed from events: {[e.value for e in event_types]}")
+        logger.debug(
+            f"Connection {connection_id} unsubscribed from events: {[e.value for e in event_types]}"
+        )
 
     def register_event_handler(self, event_type: EventType, handler: Callable):
         """Register an event handler for specific event types"""
@@ -334,8 +357,7 @@ class WebSocketCoordinator:
                 try:
                     # Wait for message with timeout
                     message = await asyncio.wait_for(
-                        websocket.receive_text(),
-                        timeout=self.connection_timeout
+                        websocket.receive_text(), timeout=self.connection_timeout
                     )
 
                     # Process incoming message
@@ -364,8 +386,10 @@ class WebSocketCoordinator:
                 return
 
             # Check if connection is subscribed to this event type
-            if (connection_info.subscriptions and
-                event.event_type.value not in connection_info.subscriptions):
+            if (
+                connection_info.subscriptions
+                and event.event_type.value not in connection_info.subscriptions
+            ):
                 return
 
             # Send event
@@ -382,32 +406,36 @@ class WebSocketCoordinator:
             data = json.loads(message)
 
             # Handle ping/pong
-            if data.get('type') == 'ping':
+            if data.get("type") == "ping":
                 connection_info = self.connections.get(connection_id)
                 if connection_info:
                     connection_info.last_ping = datetime.utcnow()
-                    await connection_info.websocket.send_text(json.dumps({'type': 'pong'}))
+                    await connection_info.websocket.send_text(
+                        json.dumps({"type": "pong"})
+                    )
                 return
 
             # Handle event subscription
-            if data.get('type') == 'subscribe':
-                event_types = [EventType(et) for et in data.get('events', [])]
+            if data.get("type") == "subscribe":
+                event_types = [EventType(et) for et in data.get("events", [])]
                 await self.subscribe_to_events(connection_id, event_types)
                 return
 
             # Handle event unsubscription
-            if data.get('type') == 'unsubscribe':
-                event_types = [EventType(et) for et in data.get('events', [])]
+            if data.get("type") == "unsubscribe":
+                event_types = [EventType(et) for et in data.get("events", [])]
                 await self.unsubscribe_from_events(connection_id, event_types)
                 return
 
             # Handle custom events
-            if data.get('type') == 'event':
+            if data.get("type") == "event":
                 event = WebSocketEvent.from_dict(data)
                 await self._process_event(event)
                 return
 
-            logger.warning(f"Unknown message type from connection {connection_id}: {data.get('type')}")
+            logger.warning(
+                f"Unknown message type from connection {connection_id}: {data.get('type')}"
+            )
 
         except json.JSONDecodeError:
             logger.error(f"Invalid JSON from connection {connection_id}: {message}")
@@ -441,11 +469,18 @@ class WebSocketCoordinator:
                     try:
                         ping_event = WebSocketEvent(
                             event_type=EventType.SYSTEM_NOTIFICATION,
-                            data={'type': 'ping', 'server_time': current_time.isoformat()}
+                            data={
+                                "type": "ping",
+                                "server_time": current_time.isoformat(),
+                            },
                         )
-                        ping_tasks.append(self._send_to_connection(connection_id, ping_event))
+                        ping_tasks.append(
+                            self._send_to_connection(connection_id, ping_event)
+                        )
                     except Exception as e:
-                        logger.error(f"Error creating ping for connection {connection_id}: {e}")
+                        logger.error(
+                            f"Error creating ping for connection {connection_id}: {e}"
+                        )
 
                 if ping_tasks:
                     await asyncio.gather(*ping_tasks, return_exceptions=True)
@@ -466,7 +501,9 @@ class WebSocketCoordinator:
 
                 for connection_id, connection_info in self.connections.items():
                     # Check if connection is stale
-                    if (current_time - connection_info.last_ping).total_seconds() > self.connection_timeout:
+                    if (
+                        current_time - connection_info.last_ping
+                    ).total_seconds() > self.connection_timeout:
                         stale_connections.append(connection_id)
 
                 # Remove stale connections
@@ -474,7 +511,9 @@ class WebSocketCoordinator:
                     await self.disconnect_user(connection_id, "stale_connection")
 
                 if stale_connections:
-                    logger.info(f"Cleaned up {len(stale_connections)} stale connections")
+                    logger.info(
+                        f"Cleaned up {len(stale_connections)} stale connections"
+                    )
 
             except asyncio.CancelledError:
                 break
@@ -510,9 +549,9 @@ class WebSocketCoordinator:
         """Process messages from Redis pub/sub"""
         try:
             async for message in pubsub.listen():
-                if message['type'] == 'message':
+                if message["type"] == "message":
                     try:
-                        event_data = json.loads(message['data'])
+                        event_data = json.loads(message["data"])
                         event = WebSocketEvent.from_dict(event_data)
 
                         # Broadcast to local connections
@@ -533,8 +572,7 @@ class WebSocketCoordinator:
 
         try:
             await self.redis_client.publish(
-                "websocket_events",
-                json.dumps(event.to_dict())
+                "websocket_events", json.dumps(event.to_dict())
             )
         except Exception as e:
             logger.error(f"Failed to publish event to Redis: {e}")
@@ -542,16 +580,17 @@ class WebSocketCoordinator:
     def get_connection_stats(self) -> Dict[str, Any]:
         """Get WebSocket connection statistics"""
         return {
-            'total_connections': len(self.connections),
-            'total_users': len(self.user_connections),
-            'connections_by_user': {
+            "total_connections": len(self.connections),
+            "total_users": len(self.user_connections),
+            "connections_by_user": {
                 user_id: len(connections)
                 for user_id, connections in self.user_connections.items()
             },
-            'average_connections_per_user': (
+            "average_connections_per_user": (
                 len(self.connections) / len(self.user_connections)
-                if self.user_connections else 0
-            )
+                if self.user_connections
+                else 0
+            ),
         }
 
 

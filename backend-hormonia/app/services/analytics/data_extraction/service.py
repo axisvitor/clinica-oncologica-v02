@@ -2,22 +2,15 @@
 Main data extraction service.
 Orchestrates entity extraction, concern detection, and preference extraction.
 """
+
 import logging
 import re
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from uuid import UUID
 
-from app.services.ai import (
-    get_ai_service,
-    PatientContext,
-    ConcernLevel
-)
-from app.integrations.openai_client import (
-    get_langchain_orchestrator,
-    LangChainOrchestrator
-)
-from app.models.patient import Patient
+from app.services.ai import get_ai_service, PatientContext
+from app.integrations.openai_client import get_langchain_orchestrator
 from app.models.flow import PatientFlowState
 from app.repositories.patient import PatientRepository
 from app.repositories.flow import FlowStateRepository
@@ -28,8 +21,7 @@ from .models import (
     ResponseCategory,
     ExtractedEntity,
     MedicalConcern,
-    PatientPreference,
-    StructuredExtractionResult
+    StructuredExtractionResult,
 )
 from .entity_extractor import EntityExtractor
 from .concern_detector import ConcernDetector
@@ -56,7 +48,9 @@ class DataExtractionService:
         self.patient_repo = PatientRepository(db)
         self.flow_state_repo = FlowStateRepository(db)
         self.message_repo = MessageRepository(db)
-        self.sentiment_analyzer = get_ai_service()  # Returns coroutine, will be awaited when used
+        self.sentiment_analyzer = (
+            get_ai_service()
+        )  # Returns coroutine, will be awaited when used
         self.langchain_orchestrator = get_langchain_orchestrator()
 
         # Initialize specialized extractors
@@ -66,10 +60,12 @@ class DataExtractionService:
 
         logger.info("Data Extraction Service initialized")
 
-    async def extract_structured_data(self,
-                                    patient_id: UUID,
-                                    message_text: str,
-                                    flow_context: Optional[PatientFlowState] = None) -> StructuredExtractionResult:
+    async def extract_structured_data(
+        self,
+        patient_id: UUID,
+        message_text: str,
+        flow_context: Optional[PatientFlowState] = None,
+    ) -> StructuredExtractionResult:
         """
         Extract structured data from patient message using AI and pattern matching.
 
@@ -88,10 +84,14 @@ class DataExtractionService:
             processing_notes = []
 
             # Get patient context
-            patient_context = await self._build_patient_context(patient_id, flow_context)
+            patient_context = await self._build_patient_context(
+                patient_id, flow_context
+            )
 
             # Categorize response
-            response_category = await self._categorize_response(message_text, patient_context)
+            response_category = await self._categorize_response(
+                message_text, patient_context
+            )
             processing_notes.append(f"Categorized as: {response_category.value}")
 
             # Extract entities using multiple methods
@@ -104,16 +104,23 @@ class DataExtractionService:
             medical_concerns = await self.concern_detector.detect_medical_concerns(
                 message_text, patient_context
             )
-            processing_notes.append(f"Detected {len(medical_concerns)} medical concerns")
+            processing_notes.append(
+                f"Detected {len(medical_concerns)} medical concerns"
+            )
 
             # Extract patient preferences
-            patient_preferences = await self.preference_extractor.extract_patient_preferences(
-                message_text, patient_context
+            patient_preferences = (
+                await self.preference_extractor.extract_patient_preferences(
+                    message_text, patient_context
+                )
             )
             processing_notes.append(f"Extracted {len(patient_preferences)} preferences")
 
             # Perform sentiment analysis
-            sentiment_response, concern_level = await self.sentiment_analyzer.analyze_sentiment(  # type: ignore[attr-defined]
+            (
+                sentiment_response,
+                concern_level,
+            ) = await self.sentiment_analyzer.analyze_sentiment(  # type: ignore[attr-defined]
                 message_text, patient_context
             )
 
@@ -123,7 +130,7 @@ class DataExtractionService:
                 "concern_level": concern_level.value,
                 "key_phrases": sentiment_response.key_phrases,
                 "emotional_indicators": sentiment_response.emotional_indicators,
-                "medical_concerns": sentiment_response.medical_concerns
+                "medical_concerns": sentiment_response.medical_concerns,
             }
 
             # Calculate overall confidence score
@@ -140,16 +147,16 @@ class DataExtractionService:
                 patient_preferences=patient_preferences,
                 sentiment_analysis=sentiment_analysis,
                 confidence_score=confidence_score,
-                processing_notes=processing_notes
+                processing_notes=processing_notes,
             )
 
         except Exception as e:
             logger.error(f"Failed to extract structured data: {e}")
             raise ExternalServiceError(f"Data extraction failed: {str(e)}")
 
-    async def _build_patient_context(self,
-                                   patient_id: UUID,
-                                   flow_context: Optional[PatientFlowState]) -> PatientContext:
+    async def _build_patient_context(
+        self, patient_id: UUID, flow_context: Optional[PatientFlowState]
+    ) -> PatientContext:
         """Build comprehensive patient context for AI processing."""
         try:
             patient = self.patient_repo.get(patient_id)
@@ -157,12 +164,14 @@ class DataExtractionService:
                 raise ValueError(f"Patient {patient_id} not found")
 
             # Get recent message history
-            recent_messages = self.message_repo.get_conversation_history(patient_id, limit=10)
+            recent_messages = self.message_repo.get_conversation_history(
+                patient_id, limit=10
+            )
             recent_message_data = [
                 {
                     "content": msg.content,
                     "direction": msg.direction.value,
-                    "timestamp": msg.created_at.isoformat()
+                    "timestamp": msg.created_at.isoformat(),
                 }
                 for msg in recent_messages
             ]
@@ -173,23 +182,25 @@ class DataExtractionService:
                 patient_id=str(patient_id),
                 patient_data={
                     "name": patient.name,
-                    "treatment_type": getattr(patient, 'treatment_type', 'general'),
+                    "treatment_type": getattr(patient, "treatment_type", "general"),
                     "current_day": flow_context.current_step if flow_context else 1,
-                    "treatment_start_date": flow_context.started_at.isoformat() if flow_context else None,
-                    "age": getattr(patient, 'age', None),
-                    "preferences": getattr(patient, 'preferences', {})
+                    "treatment_start_date": flow_context.started_at.isoformat()
+                    if flow_context
+                    else None,
+                    "age": getattr(patient, "age", None),
+                    "preferences": getattr(patient, "preferences", {}),
                 },
                 recent_messages=recent_message_data,
-                medical_data=getattr(patient, 'medical_history', {})
+                medical_data=getattr(patient, "medical_history", {}),
             )
 
         except Exception as e:
             logger.error(f"Failed to build patient context: {e}")
             raise
 
-    async def _categorize_response(self,
-                                 message_text: str,
-                                 patient_context: PatientContext) -> ResponseCategory:
+    async def _categorize_response(
+        self, message_text: str, patient_context: PatientContext
+    ) -> ResponseCategory:
         """Categorize patient response using AI and pattern matching."""
         try:
             # Use AI for categorization
@@ -213,7 +224,9 @@ class DataExtractionService:
             """
 
             try:
-                ai_category = await self.langchain_orchestrator.generate_text(categorization_prompt)
+                ai_category = await self.langchain_orchestrator.generate_text(
+                    categorization_prompt
+                )
                 ai_category = ai_category.strip().lower()
 
                 # Validate AI response
@@ -236,47 +249,49 @@ class DataExtractionService:
 
         # Emergency patterns
         emergency_patterns = [
-            r'\b(emergência|emergency|urgent|urgente|help|ajuda|hospital)\b',
-            r'\b(não consigo respirar|can\'t breathe|chest pain|dor no peito)\b'
+            r"\b(emergência|emergency|urgent|urgente|help|ajuda|hospital)\b",
+            r"\b(não consigo respirar|can\'t breathe|chest pain|dor no peito)\b",
         ]
         if any(re.search(pattern, text_lower) for pattern in emergency_patterns):
             return ResponseCategory.EMERGENCY_CONCERN
 
         # Symptom patterns
         symptom_patterns = [
-            r'\b(sintoma|symptom|sinto|feeling|dor|pain|náusea|nausea)\b',
-            r'\b(febre|fever|cansaço|tired|tontura|dizzy)\b'
+            r"\b(sintoma|symptom|sinto|feeling|dor|pain|náusea|nausea)\b",
+            r"\b(febre|fever|cansaço|tired|tontura|dizzy)\b",
         ]
         if any(re.search(pattern, text_lower) for pattern in symptom_patterns):
             return ResponseCategory.SYMPTOM_REPORT
 
         # Medication patterns
         medication_patterns = [
-            r'\b(medicamento|medication|remédio|medicine|comprimido|tablet)\b',
-            r'\b(dosagem|dosage|quando tomar|when to take)\b'
+            r"\b(medicamento|medication|remédio|medicine|comprimido|tablet)\b",
+            r"\b(dosagem|dosage|quando tomar|when to take)\b",
         ]
         if any(re.search(pattern, text_lower) for pattern in medication_patterns):
             return ResponseCategory.MEDICATION_INQUIRY
 
         # Emotional patterns
         emotional_patterns = [
-            r'\b(sinto|feel|emoção|emotion|triste|sad|feliz|happy|ansiosa|anxious)\b',
-            r'\b(preocupada|worried|medo|fear|esperança|hope)\b'
+            r"\b(sinto|feel|emoção|emotion|triste|sad|feliz|happy|ansiosa|anxious)\b",
+            r"\b(preocupada|worried|medo|fear|esperança|hope)\b",
         ]
         if any(re.search(pattern, text_lower) for pattern in emotional_patterns):
             return ResponseCategory.EMOTIONAL_EXPRESSION
 
         # Question patterns
-        question_patterns = [r'\?', r'\b(sim|yes|não|no|talvez|maybe)\b']
+        question_patterns = [r"\?", r"\b(sim|yes|não|no|talvez|maybe)\b"]
         if any(re.search(pattern, text_lower) for pattern in question_patterns):
             return ResponseCategory.QUESTION_ANSWER
 
         return ResponseCategory.GENERAL_CONVERSATION
 
-    def _calculate_confidence_score(self,
-                                  entities: List[ExtractedEntity],
-                                  concerns: List[MedicalConcern],
-                                  sentiment_confidence: float) -> float:
+    def _calculate_confidence_score(
+        self,
+        entities: List[ExtractedEntity],
+        concerns: List[MedicalConcern],
+        sentiment_confidence: float,
+    ) -> float:
         """Calculate overall confidence score for extraction."""
         try:
             if not entities and not concerns:
@@ -317,9 +332,11 @@ class DataExtractionService:
             logger.error(f"Confidence calculation failed: {e}")
             return 0.5  # Default medium confidence
 
-    async def analyze_response_accuracy(self,
-                                      extraction_results: List[StructuredExtractionResult],
-                                      ground_truth_data: Optional[List[Dict[str, Any]]] = None) -> Dict[str, float]:
+    async def analyze_response_accuracy(
+        self,
+        extraction_results: List[StructuredExtractionResult],
+        ground_truth_data: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, float]:
         """
         Analyze accuracy of extraction results (for testing and improvement).
 
@@ -337,28 +354,40 @@ class DataExtractionService:
                 "entity_extraction_rate": 0.0,
                 "concern_detection_rate": 0.0,
                 "preference_extraction_rate": 0.0,
-                "high_confidence_rate": 0.0
+                "high_confidence_rate": 0.0,
             }
 
             if not extraction_results:
                 return metrics
 
             # Calculate average confidence
-            total_confidence = sum(result.confidence_score for result in extraction_results)
+            total_confidence = sum(
+                result.confidence_score for result in extraction_results
+            )
             metrics["avg_confidence"] = total_confidence / len(extraction_results)
 
             # Calculate extraction rates
-            with_entities = sum(1 for result in extraction_results if result.extracted_entities)
+            with_entities = sum(
+                1 for result in extraction_results if result.extracted_entities
+            )
             metrics["entity_extraction_rate"] = with_entities / len(extraction_results)
 
-            with_concerns = sum(1 for result in extraction_results if result.medical_concerns)
+            with_concerns = sum(
+                1 for result in extraction_results if result.medical_concerns
+            )
             metrics["concern_detection_rate"] = with_concerns / len(extraction_results)
 
-            with_preferences = sum(1 for result in extraction_results if result.patient_preferences)
-            metrics["preference_extraction_rate"] = with_preferences / len(extraction_results)
+            with_preferences = sum(
+                1 for result in extraction_results if result.patient_preferences
+            )
+            metrics["preference_extraction_rate"] = with_preferences / len(
+                extraction_results
+            )
 
             # High confidence rate (>0.7)
-            high_confidence = sum(1 for result in extraction_results if result.confidence_score > 0.7)
+            high_confidence = sum(
+                1 for result in extraction_results if result.confidence_score > 0.7
+            )
             metrics["high_confidence_rate"] = high_confidence / len(extraction_results)
 
             return metrics
@@ -374,20 +403,22 @@ class DataExtractionService:
                 "service": "DataExtractionService",
                 "timestamp": datetime.utcnow().isoformat(),
                 "healthy": True,
-                "components": {}
+                "components": {},
             }
 
             # Check AI services
             try:
-                test_response = await self.langchain_orchestrator.generate_text("Test message")
+                test_response = await self.langchain_orchestrator.generate_text(
+                    "Test message"
+                )
                 health_status["components"]["ai_service"] = {  # type: ignore[index]
                     "healthy": True,
-                    "response_received": bool(test_response)
+                    "response_received": bool(test_response),
                 }
             except Exception as e:
                 health_status["components"]["ai_service"] = {  # type: ignore[index]
                     "healthy": False,
-                    "error": str(e)
+                    "error": str(e),
                 }
                 health_status["healthy"] = False
 
@@ -398,7 +429,7 @@ class DataExtractionService:
                     patient_id="test",
                     name="Test",
                     treatment_type="test",
-                    treatment_day=1
+                    treatment_day=1,
                 )
                 ai_service = await get_ai_service()
                 sentiment_result, _ = await ai_service.analyze_sentiment(  # type: ignore[attr-defined]
@@ -406,12 +437,12 @@ class DataExtractionService:
                 )
                 health_status["components"]["sentiment_analyzer"] = {  # type: ignore[index]
                     "healthy": True,
-                    "sentiment_detected": bool(sentiment_result.sentiment)
+                    "sentiment_detected": bool(sentiment_result.sentiment),
                 }
             except Exception as e:
                 health_status["components"]["sentiment_analyzer"] = {  # type: ignore[index]
                     "healthy": False,
-                    "error": str(e)
+                    "error": str(e),
                 }
                 health_status["healthy"] = False
 
@@ -422,7 +453,7 @@ class DataExtractionService:
             except Exception as e:
                 health_status["components"]["database"] = {  # type: ignore[index]
                     "healthy": False,
-                    "error": str(e)
+                    "error": str(e),
                 }
                 health_status["healthy"] = False
 
@@ -434,7 +465,7 @@ class DataExtractionService:
                 "service": "DataExtractionService",
                 "timestamp": datetime.utcnow().isoformat(),
                 "healthy": False,
-                "error": str(e)
+                "error": str(e),
             }
 
 

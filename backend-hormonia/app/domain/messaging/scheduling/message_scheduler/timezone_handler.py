@@ -1,6 +1,7 @@
 """
 Timezone handling and optimal delivery time calculation.
 """
+
 import logging
 from datetime import datetime, timedelta
 import pytz
@@ -41,9 +42,9 @@ class TimezoneHandler:
 
         return self.config.DEFAULT_TIMEZONE
 
-    async def calculate_optimal_delivery_time(self,
-                                             patient: Patient,
-                                             scheduling_window: SchedulingWindow) -> datetime:
+    async def calculate_optimal_delivery_time(
+        self, patient: Patient, scheduling_window: SchedulingWindow
+    ) -> datetime:
         """
         Calculate optimal delivery time based on patient timezone and scheduling window.
 
@@ -61,7 +62,9 @@ class TimezoneHandler:
             try:
                 patient_tz = pytz.timezone(patient_tz_str)
             except pytz.UnknownTimeZoneError:
-                logger.warning(f"Unknown timezone {patient_tz_str} for patient {patient.id}, using default")
+                logger.warning(
+                    f"Unknown timezone {patient_tz_str} for patient {patient.id}, using default"
+                )
                 patient_tz = pytz.timezone(self.config.DEFAULT_TIMEZONE)
 
             # Get current time in patient timezone
@@ -70,7 +73,9 @@ class TimezoneHandler:
 
             # Validate scheduling window
             if scheduling_window not in self.scheduling_windows:
-                logger.warning(f"Invalid scheduling window {scheduling_window}, using BUSINESS_HOURS")
+                logger.warning(
+                    f"Invalid scheduling window {scheduling_window}, using BUSINESS_HOURS"
+                )
                 scheduling_window = SchedulingWindow.BUSINESS_HOURS
 
             # Get scheduling window times
@@ -81,7 +86,9 @@ class TimezoneHandler:
 
             if window_start <= current_time <= window_end:
                 # Schedule for configured buffer time from now
-                delivery_time_patient = patient_now + timedelta(minutes=self.config.MIN_SCHEDULING_BUFFER_MINUTES)
+                delivery_time_patient = patient_now + timedelta(
+                    minutes=self.config.MIN_SCHEDULING_BUFFER_MINUTES
+                )
             else:
                 # Schedule for next occurrence of window start
                 if current_time < window_start:
@@ -96,15 +103,23 @@ class TimezoneHandler:
                 )
 
             # Convert back to UTC
-            delivery_time_utc = delivery_time_patient.astimezone(pytz.UTC).replace(tzinfo=None)
+            delivery_time_utc = delivery_time_patient.astimezone(pytz.UTC).replace(
+                tzinfo=None
+            )
 
             # Ensure delivery time is not in the past
             if delivery_time_utc <= datetime.utcnow():
-                delivery_time_utc = datetime.utcnow() + timedelta(minutes=self.config.FALLBACK_DELAY_MINUTES)
-                logger.warning(f"Calculated delivery time was in the past, adjusted to {self.config.FALLBACK_DELAY_MINUTES} minutes from now")
+                delivery_time_utc = datetime.utcnow() + timedelta(
+                    minutes=self.config.FALLBACK_DELAY_MINUTES
+                )
+                logger.warning(
+                    f"Calculated delivery time was in the past, adjusted to {self.config.FALLBACK_DELAY_MINUTES} minutes from now"
+                )
 
             return delivery_time_utc
 
         except Exception as e:
-            logger.error(f"Failed to calculate optimal delivery time for patient {patient.id}: {e}")
+            logger.error(
+                f"Failed to calculate optimal delivery time for patient {patient.id}: {e}"
+            )
             raise TimezoneError(f"Unable to calculate delivery time: {e}")

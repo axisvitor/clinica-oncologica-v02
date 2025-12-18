@@ -5,14 +5,13 @@ ADMIN-ONLY endpoints for system health monitoring and diagnostics.
 Requires authentication and admin role.
 """
 
-from typing import Dict
 from datetime import datetime
 import json
 
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 from fastapi.responses import JSONResponse
 
-from app.schemas.v2.system import SystemHealthResponse, ComponentHealth
+from app.schemas.v2.system import SystemHealthResponse
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.database import get_db
 from app.utils.rate_limiter import limiter
@@ -48,13 +47,13 @@ CACHE_TTL_HEALTH = 30  # 30 seconds (real-time monitoring)
     - Component health details with latency
     - Overall health score (0-100)
     - Lists of degraded/unhealthy components
-    """
+    """,
 )
 @limiter.limit("20/minute")
 async def get_system_health(
     request: Request,
     current_user=Depends(get_current_user_from_session),
-    db = Depends(get_db),
+    db=Depends(get_db),
 ):
     """
     Get comprehensive system health status with Redis caching.
@@ -71,7 +70,7 @@ async def get_system_health(
     if not is_admin(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin privileges required for system health check"
+            detail="Admin privileges required for system health check",
         )
 
     cache_key = "system:health"
@@ -84,7 +83,11 @@ async def get_system_health(
             if cached:
                 logger.debug("Cache hit for system health")
                 health_data = json.loads(cached)
-                status_code = status.HTTP_200_OK if health_data["status"] != "unhealthy" else status.HTTP_503_SERVICE_UNAVAILABLE
+                status_code = (
+                    status.HTTP_200_OK
+                    if health_data["status"] != "unhealthy"
+                    else status.HTTP_503_SERVICE_UNAVAILABLE
+                )
                 return JSONResponse(status_code=status_code, content=health_data)
         except Exception as e:
             logger.warning(f"Redis get error: {e}")
@@ -95,14 +98,20 @@ async def get_system_health(
         component_names = ["database", "redis", "firebase", "external_apis"]
 
         for component_name in component_names:
-            components[component_name] = await check_component_health(component_name, db)
+            components[component_name] = await check_component_health(
+                component_name, db
+            )
 
         # Calculate overall health score
         overall_score = calculate_health_score(components)
 
         # Determine overall status
-        degraded_components = [name for name, comp in components.items() if comp.status == "degraded"]
-        unhealthy_components = [name for name, comp in components.items() if comp.status == "unhealthy"]
+        degraded_components = [
+            name for name, comp in components.items() if comp.status == "degraded"
+        ]
+        unhealthy_components = [
+            name for name, comp in components.items() if comp.status == "unhealthy"
+        ]
 
         if unhealthy_components:
             overall_status = "unhealthy"
@@ -120,19 +129,27 @@ async def get_system_health(
             "components": components_dict,
             "overall_score": overall_score,
             "degraded_components": degraded_components,
-            "unhealthy_components": unhealthy_components
+            "unhealthy_components": unhealthy_components,
         }
 
         # Cache the result
         if redis:
             try:
-                await redis.setex(cache_key, CACHE_TTL_HEALTH, json.dumps(health_response, default=str))
+                await redis.setex(
+                    cache_key,
+                    CACHE_TTL_HEALTH,
+                    json.dumps(health_response, default=str),
+                )
                 logger.debug("Cached system health")
             except Exception as e:
                 logger.warning(f"Redis set error: {e}")
 
         # Return appropriate HTTP status
-        status_code = status.HTTP_200_OK if overall_status != "unhealthy" else status.HTTP_503_SERVICE_UNAVAILABLE
+        status_code = (
+            status.HTTP_200_OK
+            if overall_status != "unhealthy"
+            else status.HTTP_503_SERVICE_UNAVAILABLE
+        )
         return JSONResponse(status_code=status_code, content=health_response)
 
     except Exception as e:
@@ -146,6 +163,6 @@ async def get_system_health(
                 "overall_score": 0.0,
                 "components": {},
                 "degraded_components": [],
-                "unhealthy_components": []
-            }
+                "unhealthy_components": [],
+            },
         )

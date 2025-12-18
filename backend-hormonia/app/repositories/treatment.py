@@ -4,6 +4,7 @@ Treatment repository with eager loading optimizations.
 PERFORMANCE OPTIMIZATION: All methods support eager loading by default to eliminate N+1 queries.
 Achieves 60-80% query reduction for read operations.
 """
+
 from datetime import date
 from typing import List, Optional
 from uuid import UUID
@@ -52,12 +53,14 @@ class TreatmentRepository(BaseRepository[Treatment]):
             query = query.options(
                 joinedload(Treatment.patient),
                 joinedload(Treatment.doctor),
-                selectinload(Treatment.medications)
+                selectinload(Treatment.medications),
             )
 
         return query.first()
 
-    def get_all(self, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Treatment]:
+    def get_all(
+        self, skip: int = 0, limit: int = 100, eager_load: bool = True
+    ) -> List[Treatment]:
         """
         Get all treatments with eager loading enabled by default.
 
@@ -77,12 +80,14 @@ class TreatmentRepository(BaseRepository[Treatment]):
             query = query.options(
                 joinedload(Treatment.patient),
                 joinedload(Treatment.doctor),
-                selectinload(Treatment.medications)
+                selectinload(Treatment.medications),
             )
 
         return query.offset(skip).limit(limit).all()
 
-    def get_by_patient(self, patient_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Treatment]:
+    def get_by_patient(
+        self, patient_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True
+    ) -> List[Treatment]:
         """
         Get treatments by patient with eager loading.
 
@@ -103,12 +108,18 @@ class TreatmentRepository(BaseRepository[Treatment]):
             query = query.options(
                 joinedload(Treatment.patient),
                 joinedload(Treatment.doctor),
-                selectinload(Treatment.medications)
+                selectinload(Treatment.medications),
             )
 
         return query.offset(skip).limit(limit).all()
 
-    def get_active(self, patient_id: Optional[UUID] = None, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Treatment]:
+    def get_active(
+        self,
+        patient_id: Optional[UUID] = None,
+        skip: int = 0,
+        limit: int = 100,
+        eager_load: bool = True,
+    ) -> List[Treatment]:
         """
         Get active treatments with eager loading.
 
@@ -123,7 +134,7 @@ class TreatmentRepository(BaseRepository[Treatment]):
         Returns:
             List of active treatments with relationships pre-loaded
         """
-        filters = [Treatment.is_active == True, Treatment.status == TreatmentStatus.ACTIVE]
+        filters = [Treatment.is_active, Treatment.status == TreatmentStatus.ACTIVE]
 
         if patient_id:
             filters.append(Treatment.patient_id == patient_id)
@@ -134,12 +145,14 @@ class TreatmentRepository(BaseRepository[Treatment]):
             query = query.options(
                 joinedload(Treatment.patient),
                 joinedload(Treatment.doctor),
-                selectinload(Treatment.medications)
+                selectinload(Treatment.medications),
             )
 
         return query.offset(skip).limit(limit).all()
 
-    def get_by_doctor(self, doctor_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Treatment]:
+    def get_by_doctor(
+        self, doctor_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True
+    ) -> List[Treatment]:
         """
         Get treatments by doctor with eager loading.
 
@@ -158,12 +171,18 @@ class TreatmentRepository(BaseRepository[Treatment]):
             query = query.options(
                 joinedload(Treatment.patient),
                 joinedload(Treatment.doctor),
-                selectinload(Treatment.medications)
+                selectinload(Treatment.medications),
             )
 
         return query.offset(skip).limit(limit).all()
 
-    def get_by_type(self, treatment_type: TreatmentType, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Treatment]:
+    def get_by_type(
+        self,
+        treatment_type: TreatmentType,
+        skip: int = 0,
+        limit: int = 100,
+        eager_load: bool = True,
+    ) -> List[Treatment]:
         """
         Get treatments by type with eager loading.
 
@@ -176,18 +195,26 @@ class TreatmentRepository(BaseRepository[Treatment]):
         Returns:
             List of treatments with relationships pre-loaded
         """
-        query = self.db.query(Treatment).filter(Treatment.treatment_type == treatment_type)
+        query = self.db.query(Treatment).filter(
+            Treatment.treatment_type == treatment_type
+        )
 
         if eager_load:
             query = query.options(
                 joinedload(Treatment.patient),
                 joinedload(Treatment.doctor),
-                selectinload(Treatment.medications)
+                selectinload(Treatment.medications),
             )
 
         return query.offset(skip).limit(limit).all()
 
-    def get_by_status(self, status: TreatmentStatus, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Treatment]:
+    def get_by_status(
+        self,
+        status: TreatmentStatus,
+        skip: int = 0,
+        limit: int = 100,
+        eager_load: bool = True,
+    ) -> List[Treatment]:
         """
         Get treatments by status with eager loading.
 
@@ -206,7 +233,7 @@ class TreatmentRepository(BaseRepository[Treatment]):
             query = query.options(
                 joinedload(Treatment.patient),
                 joinedload(Treatment.doctor),
-                selectinload(Treatment.medications)
+                selectinload(Treatment.medications),
             )
 
         return query.offset(skip).limit(limit).all()
@@ -217,7 +244,7 @@ class TreatmentRepository(BaseRepository[Treatment]):
         start_to: Optional[date] = None,
         skip: int = 0,
         limit: int = 100,
-        eager_load: bool = True
+        eager_load: bool = True,
     ) -> List[Treatment]:
         """
         Get treatments by start date range with eager loading.
@@ -248,7 +275,7 @@ class TreatmentRepository(BaseRepository[Treatment]):
             query = query.options(
                 joinedload(Treatment.patient),
                 joinedload(Treatment.doctor),
-                selectinload(Treatment.medications)
+                selectinload(Treatment.medications),
             )
 
         return query.offset(skip).limit(limit).all()

@@ -11,6 +11,7 @@ Features:
 - Comprehensive error handling with fallbacks
 - Cost optimization through intelligent caching
 """
+
 from fastapi import APIRouter
 
 from . import humanize, insights, analysis, health, stats, summary

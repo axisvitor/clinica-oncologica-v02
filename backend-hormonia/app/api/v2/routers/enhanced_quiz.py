@@ -4,11 +4,19 @@ Advanced quiz endpoints with branching logic, risk scoring, and adaptive flows.
 Delegates logic to EnhancedQuizService.
 """
 
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, Dict, Any, Tuple
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, BackgroundTasks
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+    Query,
+    Request,
+    BackgroundTasks,
+)
 
 from app.database import get_db
 from app.models.user import UserRole
@@ -35,8 +43,10 @@ from app.services.enhanced_quiz_service import EnhancedQuizService
 logger = get_logger(__name__)
 router = APIRouter()
 
-def get_enhanced_quiz_service(db = Depends(get_db)) -> EnhancedQuizService:
+
+def get_enhanced_quiz_service(db=Depends(get_db)) -> EnhancedQuizService:
     return EnhancedQuizService(db)
+
 
 def _extract_user_context(current_user) -> Tuple[Optional[UserRole], Optional[UUID]]:
     role = None
@@ -68,6 +78,7 @@ def _extract_user_context(current_user) -> Tuple[Optional[UserRole], Optional[UU
 
     return role_enum, user_uuid
 
+
 @router.get("/analytics", response_model=QuizAnalyticsResponse)
 @limiter.limit("20/minute")
 async def get_quiz_analytics(
@@ -80,9 +91,16 @@ async def get_quiz_analytics(
     current_user=Depends(get_current_user_from_session),
 ):
     role_enum, user_uuid = _extract_user_context(current_user)
-    return await service.get_quiz_analytics(start_date, end_date, category, include_trends, role_enum, user_uuid)
+    return await service.get_quiz_analytics(
+        start_date, end_date, category, include_trends, role_enum, user_uuid
+    )
 
-@router.post("/templates/advanced", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/templates/advanced",
+    response_model=Dict[str, Any],
+    status_code=status.HTTP_201_CREATED,
+)
 @limiter.limit("30/hour")
 async def create_advanced_template(
     request: Request,
@@ -94,10 +112,11 @@ async def create_advanced_template(
     role_enum, user_uuid = _extract_user_context(current_user)
     if role_enum not in [UserRole.ADMIN, UserRole.DOCTOR]:
         raise HTTPException(status_code=403, detail="Unauthorized")
-    
+
     result = await service.create_advanced_template(template_data, user_uuid)
     # Background validation task omitted for brevity as it was just logging
     return result
+
 
 @router.post("/adaptive-flow", response_model=AdaptiveQuizFlowResponse)
 @limiter.limit("40/minute")
@@ -110,6 +129,7 @@ async def process_adaptive_flow(
     role_enum, user_uuid = _extract_user_context(current_user)
     return await service.process_adaptive_flow(flow_request, user_uuid, role_enum)
 
+
 @router.post("/risk-scoring", response_model=RiskScoringResponse)
 @limiter.limit("30/minute")
 async def calculate_risk_score(
@@ -120,6 +140,7 @@ async def calculate_risk_score(
 ):
     role_enum, user_uuid = _extract_user_context(current_user)
     return await service.calculate_risk_score(risk_request, user_uuid, role_enum)
+
 
 @router.get("/recommendations", response_model=QuizRecommendationsResponse)
 @limiter.limit("30/minute")
@@ -132,6 +153,7 @@ async def get_quiz_recommendations(
     role_enum, user_uuid = _extract_user_context(current_user)
     return await service.get_quiz_recommendations(patient_id, user_uuid, role_enum)
 
+
 @router.get("/performance-metrics", response_model=PerformanceMetricsResponse)
 @limiter.limit("30/minute")
 async def get_performance_metrics(
@@ -143,7 +165,10 @@ async def get_performance_metrics(
     current_user=Depends(get_current_user_from_session),
 ):
     role_enum, user_uuid = _extract_user_context(current_user)
-    return await service.get_performance_metrics(start_date, end_date, compare_period, role_enum, user_uuid)
+    return await service.get_performance_metrics(
+        start_date, end_date, compare_period, role_enum, user_uuid
+    )
+
 
 @router.post("/bulk-operations", response_model=BulkOperationResponse)
 @limiter.limit("20/hour")
@@ -157,6 +182,7 @@ async def execute_bulk_operations(
     role_enum, user_uuid = _extract_user_context(current_user)
     return await service.execute_bulk_operations(operation, user_uuid, role_enum)
 
+
 @router.post("/export", response_model=QuizExportResponse)
 @limiter.limit("10/hour")
 async def export_quiz_data(
@@ -168,8 +194,8 @@ async def export_quiz_data(
 ):
     role_enum, user_uuid = _extract_user_context(current_user)
     result = await service.export_quiz_data(export_request, user_uuid, role_enum)
-    
+
     # Background export processing task omitted for brevity
-    # background_tasks.add_task(...) 
-    
+    # background_tasks.add_task(...)
+
     return result

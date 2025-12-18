@@ -43,7 +43,9 @@ def _celery_status_to_task_status(celery_status: str) -> TaskStatus:
     return status_mapping.get(celery_status, TaskStatus.PENDING)
 
 
-def _get_task_from_celery(task_id: str, task_registry: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+def _get_task_from_celery(
+    task_id: str, task_registry: Dict[str, Dict[str, Any]]
+) -> Dict[str, Any]:
     """
     Get task information from Celery.
 
@@ -86,7 +88,7 @@ def _get_task_from_celery(task_id: str, task_registry: Dict[str, Dict[str, Any]]
         logger.error(f"Error getting task {task_id} from Celery: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve task information"
+            detail="Failed to retrieve task information",
         )
 
 
@@ -97,7 +99,7 @@ def _register_task(
     priority: TaskPriority,
     user_id: Optional[UUID],
     task_registry: Dict[str, Dict[str, Any]],
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None,
 ) -> str:
     """
     Register a task in the task registry.
@@ -125,7 +127,7 @@ def _register_task(
         "metadata": metadata or {},
         "created_at": datetime.utcnow(),
         "retry_count": 0,
-        "logs": []
+        "logs": [],
     }
 
     return task_id

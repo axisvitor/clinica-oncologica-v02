@@ -21,36 +21,38 @@ import asyncio
 import json
 import logging
 import time
-from collections import defaultdict, deque
-from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from enum import Enum
-from typing import Dict, List, Optional, Union, Callable, Any, Tuple
+from typing import Dict, List, Optional, Callable, Any
 from uuid import uuid4
-import backoff
 from redis.asyncio import Redis
 
 from app.utils.whatsapp_queue import (
-    Priority, DeliveryMode, QueuedMessage, DeliveryReport,
-    RateLimiter, MessageQueue
+    Priority,
+    DeliveryMode,
+    QueuedMessage,
+    DeliveryReport,
+    RateLimiter,
+    MessageQueue,
 )
 
 # Import existing models and services
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from app.integrations.whatsapp.services.message_service import WhatsAppMessageService
+    from app.integrations.whatsapp.services.message_service import (
+        WhatsAppMessageService,
+    )
     from app.integrations.whatsapp.services.evolution_client import EvolutionAPIClient
 
 from app.integrations.whatsapp.models.message import (
-    MessageRequest, MessageResponse, MessageStatus, MessageType,
-    WhatsAppMessage, WebhookPayload
+    MessageRequest,
+    MessageResponse,
+    MessageStatus,
+    MessageType,
+    WebhookPayload,
 )
 
 logger = logging.getLogger(__name__)
-
-
-
 
 
 from app.models.template import MessageTemplate
@@ -67,8 +69,6 @@ from app.repositories.template import TemplateRepository
 # Or adapt the DB model to use Enum if I can, but String is safer for DB.
 
 # Let's modify the imports and the class.
-
-
 
 
 class MockEvolutionClient:
@@ -97,16 +97,12 @@ class MockEvolutionClient:
 
         message_id = str(uuid4())
         response = MessageResponse(
-            id=message_id,
-            status=MessageStatus.SENT,
-            timestamp=datetime.utcnow()
+            id=message_id, status=MessageStatus.SENT, timestamp=datetime.utcnow()
         )
 
-        self.sent_messages.append({
-            "request": request,
-            "response": response,
-            "timestamp": datetime.utcnow()
-        })
+        self.sent_messages.append(
+            {"request": request, "response": response, "timestamp": datetime.utcnow()}
+        )
 
         return response
 
@@ -126,7 +122,7 @@ class WhatsAppHelper:
         redis_client: Optional[Redis] = None,
         mock_mode: bool = False,
         rate_limit_requests: int = 50,
-        rate_limit_window: int = 60
+        rate_limit_window: int = 60,
     ):
         """
         Initialize WhatsApp helper.
@@ -140,7 +136,9 @@ class WhatsAppHelper:
             rate_limit_window: Rate limit time window in seconds
         """
         self.message_service = message_service
-        self.evolution_client = evolution_client if not mock_mode else MockEvolutionClient()
+        self.evolution_client = (
+            evolution_client if not mock_mode else MockEvolutionClient()
+        )
         self.mock_mode = mock_mode
 
         # Initialize components
@@ -185,7 +183,10 @@ class WhatsAppHelper:
                 message = await self.queue.dequeue()
                 if message:
                     # Check if message is scheduled for future
-                    if message.scheduled_at and message.scheduled_at > datetime.utcnow():
+                    if (
+                        message.scheduled_at
+                        and message.scheduled_at > datetime.utcnow()
+                    ):
                         # Re-queue for later processing
                         await self.queue.enqueue(message)
                         await asyncio.sleep(1)
@@ -221,7 +222,9 @@ class WhatsAppHelper:
                 try:
                     await message.callback(message, response)
                 except Exception as e:
-                    logger.error(f"Error executing callback for message {message.id}: {e}")
+                    logger.error(
+                        f"Error executing callback for message {message.id}: {e}"
+                    )
 
         except Exception as e:
             logger.error(f"Failed to send message {message.id}: {e}")
@@ -233,13 +236,17 @@ class WhatsAppHelper:
 
         if message.retry_count <= message.max_retries:
             # Calculate exponential backoff delay
-            delay = min(300, 2 ** message.retry_count)  # Max 5 minutes
+            delay = min(300, 2**message.retry_count)  # Max 5 minutes
             message.scheduled_at = datetime.utcnow() + timedelta(seconds=delay)
 
-            logger.info(f"Retrying message {message.id} in {delay} seconds (attempt {message.retry_count}/{message.max_retries})")
+            logger.info(
+                f"Retrying message {message.id} in {delay} seconds (attempt {message.retry_count}/{message.max_retries})"
+            )
             await self.queue.enqueue(message)
         else:
-            logger.error(f"Message {message.id} failed permanently after {message.retry_count} attempts")
+            logger.error(
+                f"Message {message.id} failed permanently after {message.retry_count} attempts"
+            )
             self._update_delivery_report(message.id, MessageStatus.FAILED, None, error)
 
     def _update_delivery_report(
@@ -247,13 +254,12 @@ class WhatsAppHelper:
         message_id: str,
         status: MessageStatus,
         response: Optional[MessageResponse],
-        error: Optional[str] = None
+        error: Optional[str] = None,
     ) -> None:
         """Update delivery report for a message."""
         if message_id not in self.delivery_reports:
             self.delivery_reports[message_id] = DeliveryReport(
-                message_id=message_id,
-                status=status
+                message_id=message_id, status=status
             )
 
         report = self.delivery_reports[message_id]
@@ -278,7 +284,7 @@ class WhatsAppHelper:
         priority: Priority = Priority.NORMAL,
         delivery_mode: DeliveryMode = DeliveryMode.IMMEDIATE,
         scheduled_at: Optional[datetime] = None,
-        callback: Optional[Callable] = None
+        callback: Optional[Callable] = None,
     ) -> str:
         """
         Send a text message.
@@ -294,13 +300,11 @@ class WhatsAppHelper:
         Returns:
             Message ID
         """
-        request = MessageRequest(
-            to=to,
-            message_type=MessageType.TEXT,
-            content=message
-        )
+        request = MessageRequest(to=to, message_type=MessageType.TEXT, content=message)
 
-        return await self._send_message(request, priority, delivery_mode, scheduled_at, callback)
+        return await self._send_message(
+            request, priority, delivery_mode, scheduled_at, callback
+        )
 
     async def send_image(
         self,
@@ -310,17 +314,16 @@ class WhatsAppHelper:
         priority: Priority = Priority.NORMAL,
         delivery_mode: DeliveryMode = DeliveryMode.IMMEDIATE,
         scheduled_at: Optional[datetime] = None,
-        callback: Optional[Callable] = None
+        callback: Optional[Callable] = None,
     ) -> str:
         """Send an image message."""
         request = MessageRequest(
-            to=to,
-            message_type=MessageType.IMAGE,
-            media_url=image_url,
-            content=caption
+            to=to, message_type=MessageType.IMAGE, media_url=image_url, content=caption
         )
 
-        return await self._send_message(request, priority, delivery_mode, scheduled_at, callback)
+        return await self._send_message(
+            request, priority, delivery_mode, scheduled_at, callback
+        )
 
     async def send_document(
         self,
@@ -330,17 +333,19 @@ class WhatsAppHelper:
         priority: Priority = Priority.NORMAL,
         delivery_mode: DeliveryMode = DeliveryMode.IMMEDIATE,
         scheduled_at: Optional[datetime] = None,
-        callback: Optional[Callable] = None
+        callback: Optional[Callable] = None,
     ) -> str:
         """Send a document message."""
         request = MessageRequest(
             to=to,
             message_type=MessageType.DOCUMENT,
             media_url=document_url,
-            content=filename
+            content=filename,
         )
 
-        return await self._send_message(request, priority, delivery_mode, scheduled_at, callback)
+        return await self._send_message(
+            request, priority, delivery_mode, scheduled_at, callback
+        )
 
     def _serialize_template(self, template: MessageTemplate) -> str:
         """Serialize template to JSON string."""
@@ -350,7 +355,7 @@ class WhatsAppHelper:
             "variables": template.variables,
             "message_type": template.message_type,
             "media_url": template.media_url,
-            "is_active": template.is_active
+            "is_active": template.is_active,
         }
         return json.dumps(data)
 
@@ -363,7 +368,7 @@ class WhatsAppHelper:
         """Get template from Redis cache."""
         if not self.queue.redis_client:
             return None
-        
+
         try:
             key = f"whatsapp:template:{name}"
             data = await self.queue.redis_client.get(key)
@@ -371,7 +376,7 @@ class WhatsAppHelper:
                 return self._deserialize_template(data)
         except Exception as e:
             logger.warning(f"Error fetching template {name} from cache: {e}")
-        
+
         return None
 
     async def _cache_template(self, template: MessageTemplate, ttl: int = 3600) -> None:
@@ -392,14 +397,14 @@ class WhatsAppHelper:
             with get_scoped_session() as db:
                 repo = TemplateRepository(db)
                 templates = repo.list_active()
-                
+
                 # Update memory cache
                 self.templates.clear()
                 for template in templates:
                     self.templates[template.name] = template
                     # Update Redis cache
                     await self._cache_template(template)
-                    
+
             self.last_template_refresh = datetime.utcnow()
             logger.info(f"Refreshed {len(self.templates)} templates from database")
         except Exception as e:
@@ -413,7 +418,7 @@ class WhatsAppHelper:
         priority: Priority = Priority.NORMAL,
         delivery_mode: DeliveryMode = DeliveryMode.IMMEDIATE,
         scheduled_at: Optional[datetime] = None,
-        callback: Optional[Callable] = None
+        callback: Optional[Callable] = None,
     ) -> str:
         """
         Send a message using a predefined template.
@@ -432,14 +437,14 @@ class WhatsAppHelper:
         """
         # L1 Cache: Memory
         template = self.templates.get(template_name)
-        
+
         # L2 Cache: Redis (if missing from memory)
         if not template:
             template = await self._get_cached_template(template_name)
             if template:
                 # Populate L1 from L2
                 self.templates[template_name] = template
-        
+
         # L3: Database (if missing from Redis)
         if not template:
             try:
@@ -462,10 +467,12 @@ class WhatsAppHelper:
             to=to,
             message_type=template.message_type,
             content=content,
-            media_url=template.media_url
+            media_url=template.media_url,
         )
 
-        return await self._send_message(request, priority, delivery_mode, scheduled_at, callback)
+        return await self._send_message(
+            request, priority, delivery_mode, scheduled_at, callback
+        )
 
     async def _send_message(
         self,
@@ -473,7 +480,7 @@ class WhatsAppHelper:
         priority: Priority,
         delivery_mode: DeliveryMode,
         scheduled_at: Optional[datetime],
-        callback: Optional[Callable]
+        callback: Optional[Callable],
     ) -> str:
         """Internal method to send a message."""
         message_id = str(uuid4())
@@ -488,7 +495,9 @@ class WhatsAppHelper:
                 elif self.evolution_client:
                     response = await self.evolution_client.send_message(request)
                 else:
-                    raise ValueError("No message service or evolution client configured")
+                    raise ValueError(
+                        "No message service or evolution client configured"
+                    )
 
                 self._update_delivery_report(message_id, MessageStatus.SENT, response)
 
@@ -496,7 +505,9 @@ class WhatsAppHelper:
                     try:
                         await callback(message_id, response)
                     except Exception as e:
-                        logger.error(f"Error executing callback for message {message_id}: {e}")
+                        logger.error(
+                            f"Error executing callback for message {message_id}: {e}"
+                        )
 
                 return message_id
 
@@ -512,7 +523,7 @@ class WhatsAppHelper:
                 request=request,
                 priority=priority,
                 scheduled_at=scheduled_at,
-                callback=callback
+                callback=callback,
             )
 
             await self.queue.enqueue(queued_message)
@@ -527,7 +538,7 @@ class WhatsAppHelper:
         messages: List[Dict[str, Any]],
         priority: Priority = Priority.NORMAL,
         batch_size: int = 10,
-        delay_between_batches: float = 1.0
+        delay_between_batches: float = 1.0,
     ) -> List[str]:
         """
         Send multiple messages in batches.
@@ -544,7 +555,7 @@ class WhatsAppHelper:
         message_ids = []
 
         for i in range(0, len(messages), batch_size):
-            batch = messages[i:i + batch_size]
+            batch = messages[i : i + batch_size]
             batch_ids = []
 
             for msg in batch:
@@ -555,14 +566,14 @@ class WhatsAppHelper:
                             template_name=msg["template_name"],
                             variables=msg.get("variables"),
                             priority=priority,
-                            delivery_mode=DeliveryMode.QUEUED
+                            delivery_mode=DeliveryMode.QUEUED,
                         )
                     else:
                         message_id = await self.send_text(
                             to=msg["to"],
                             message=msg["message"],
                             priority=priority,
-                            delivery_mode=DeliveryMode.QUEUED
+                            delivery_mode=DeliveryMode.QUEUED,
                         )
                     batch_ids.append(message_id)
                 except Exception as e:
@@ -605,16 +616,14 @@ class WhatsAppHelper:
         """Process incoming webhook payload."""
         try:
             # Update delivery reports based on webhook
-            if hasattr(payload, 'message_id') and hasattr(payload, 'status'):
+            if hasattr(payload, "message_id") and hasattr(payload, "status"):
                 if payload.message_id in self.delivery_reports:
                     self._update_delivery_report(
-                        payload.message_id,
-                        payload.status,
-                        None
+                        payload.message_id, payload.status, None
                     )
 
             # Call registered handlers
-            event_type = getattr(payload, 'event_type', 'unknown')
+            event_type = getattr(payload, "event_type", "unknown")
             if event_type in self.webhook_handlers:
                 await self.webhook_handlers[event_type](payload)
 
@@ -625,7 +634,9 @@ class WhatsAppHelper:
         """Get delivery report for a message."""
         return self.delivery_reports.get(message_id)
 
-    def get_delivery_reports(self, status: Optional[MessageStatus] = None) -> List[DeliveryReport]:
+    def get_delivery_reports(
+        self, status: Optional[MessageStatus] = None
+    ) -> List[DeliveryReport]:
         """Get delivery reports, optionally filtered by status."""
         reports = list(self.delivery_reports.values())
         if status:
@@ -662,7 +673,7 @@ def create_whatsapp_helper(
     evolution_client: Optional["EvolutionAPIClient"] = None,
     redis_client: Optional[Redis] = None,
     mock_mode: bool = False,
-    **kwargs
+    **kwargs,
 ) -> WhatsAppHelper:
     """
     Factory function to create a WhatsApp helper instance.
@@ -682,5 +693,5 @@ def create_whatsapp_helper(
         evolution_client=evolution_client,
         redis_client=redis_client,
         mock_mode=mock_mode,
-        **kwargs
+        **kwargs,
     )

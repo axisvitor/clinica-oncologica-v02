@@ -6,11 +6,14 @@ Handles response validation, AI-enhanced processing, and swarm analysis coordina
 
 import logging
 import re
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, TYPE_CHECKING
 from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy.orm import Session
+
+if TYPE_CHECKING:
+    from app.domain.agents.quiz.session_coordinator import QuizContext
 
 from app.schemas.quiz import QuizResponseCreate, QuestionType
 from app.services.quiz import QuizSessionService, QuizResponseService
@@ -38,7 +41,7 @@ class ResponseHandler:
         agent_id: str,
         gemini_client=None,
         knowledge_graph=None,
-        logger: Optional[logging.Logger] = None
+        logger: Optional[logging.Logger] = None,
     ):
         """Initialize response handler."""
         self.db_session = db_session
@@ -59,7 +62,7 @@ class ResponseHandler:
         build_context_callback,
         send_next_question_callback,
         complete_session_callback,
-        send_clarification_callback
+        send_clarification_callback,
     ) -> Dict[str, Any]:
         """
         Process patient response with swarm analysis.
@@ -83,8 +86,10 @@ class ResponseHandler:
         # Get current question ID
         current_question_id = (
             active_session.current_question
-            if hasattr(active_session, 'current_question') and active_session.current_question
-            else str(active_session.current_question_index) if hasattr(active_session, 'current_question_index')
+            if hasattr(active_session, "current_question")
+            and active_session.current_question
+            else str(active_session.current_question_index)
+            if hasattr(active_session, "current_question_index")
             else "unknown"
         )
 
@@ -92,7 +97,7 @@ class ResponseHandler:
         should_process = await debouncer.should_process_response(
             session_id=active_session.id,
             question_id=current_question_id,
-            message_metadata=message_metadata
+            message_metadata=message_metadata,
         )
 
         if not should_process:
@@ -103,20 +108,22 @@ class ResponseHandler:
                     "patient_id": str(patient_id),
                     "session_id": str(active_session.id),
                     "question_id": current_question_id,
-                    "agent_id": self.agent_id
-                }
+                    "agent_id": self.agent_id,
+                },
             )
             return {
                 "success": False,
                 "action": "debounced",
-                "message": "Response ignored - within debounce window"
+                "message": "Response ignored - within debounce window",
             }
 
         # Build context
         context = await build_context_callback(patient_id, "current")
 
         # Process response with AI and swarm intelligence
-        processing_result = await self.process_response_with_swarm(context, response_text)
+        processing_result = await self.process_response_with_swarm(
+            context, response_text
+        )
 
         if not processing_result["valid"]:
             # Send clarification message
@@ -124,7 +131,7 @@ class ResponseHandler:
             return {
                 "success": False,
                 "action": "clarification_requested",
-                "error": processing_result["error"]
+                "error": processing_result["error"],
             }
 
         # Store response
@@ -140,9 +147,9 @@ class ResponseHandler:
                 "ai_processed": processing_result.get("ai_processed", False),
                 "confidence_score": processing_result.get("confidence", 1.0),
                 "swarm_analysis": processing_result.get("swarm_analysis", {}),
-                "processed_by_agent": self.agent_id
+                "processed_by_agent": self.agent_id,
             },
-            responded_at=datetime.utcnow()
+            responded_at=datetime.utcnow(),
         )
 
         response = await self.quiz_response_service.create_response(response_data)
@@ -161,13 +168,14 @@ class ResponseHandler:
 
             # HIGH-005 FIX: Clear debounce state on completion
             from app.services.quiz_response_debounce import get_quiz_debouncer
+
             debouncer = get_quiz_debouncer()
             await debouncer.clear_debounce(active_session.id)
 
             return {
                 "success": True,
                 "action": "quiz_completed",
-                "session_id": str(active_session.id)
+                "session_id": str(active_session.id),
             }
         else:
             # Advance to next question
@@ -180,10 +188,12 @@ class ResponseHandler:
             return {
                 "success": True,
                 "action": "next_question",
-                "question_index": context.current_question_index + 1
+                "question_index": context.current_question_index + 1,
             }
 
-    async def process_response_with_swarm(self, context: 'QuizContext', response_text: str) -> Dict[str, Any]:
+    async def process_response_with_swarm(
+        self, context: "QuizContext", response_text: str
+    ) -> Dict[str, Any]:
         """Process response with swarm intelligence and AI analysis."""
         if context.current_question_index >= len(context.template.questions):
             return {"valid": False, "error": "No active question"}
@@ -191,45 +201,56 @@ class ResponseHandler:
         current_question = context.template.questions[context.current_question_index]
 
         # Basic processing
-        basic_result = await self.basic_response_processing(current_question, response_text)
+        basic_result = await self.basic_response_processing(
+            current_question, response_text
+        )
 
         # If basic processing is uncertain, use AI enhancement
-        if basic_result.get("confidence", 1.0) < self.ai_interpretation_confidence_threshold:
-            ai_result = await self.ai_enhanced_processing(current_question, response_text, context)
+        if (
+            basic_result.get("confidence", 1.0)
+            < self.ai_interpretation_confidence_threshold
+        ):
+            ai_result = await self.ai_enhanced_processing(
+                current_question, response_text, context
+            )
 
-            if ai_result and ai_result.get("confidence", 0) > basic_result.get("confidence", 0):
+            if ai_result and ai_result.get("confidence", 0) > basic_result.get(
+                "confidence", 0
+            ):
                 basic_result.update(ai_result)
                 basic_result["ai_processed"] = True
 
         # Request swarm analysis for complex responses
         if basic_result.get("confidence", 1.0) < self.require_human_review_threshold:
-            swarm_analysis = await self.request_swarm_analysis(context, response_text, basic_result)
+            swarm_analysis = await self.request_swarm_analysis(
+                context, response_text, basic_result
+            )
             basic_result["swarm_analysis"] = swarm_analysis
 
         # Add context information
-        basic_result.update({
-            "question_id": current_question['id'],
-            "question_text": current_question['text'],
-            "response_type": current_question['type']
-        })
+        basic_result.update(
+            {
+                "question_id": current_question["id"],
+                "question_text": current_question["text"],
+                "response_type": current_question["type"],
+            }
+        )
 
         return basic_result
 
-    async def basic_response_processing(self, question: Dict, response_text: str) -> Dict[str, Any]:
+    async def basic_response_processing(
+        self, question: Dict, response_text: str
+    ) -> Dict[str, Any]:
         """Basic response processing without AI."""
-        question_type = question['type']
+        question_type = question["type"]
         response_text = response_text.strip()
 
         if question_type == QuestionType.OPEN_TEXT.value:
-            return {
-                "valid": True,
-                "processed_value": response_text,
-                "confidence": 1.0
-            }
+            return {"valid": True, "processed_value": response_text, "confidence": 1.0}
 
         elif question_type == QuestionType.SCALE.value:
             # Try to extract number
-            numbers = re.findall(r'\d+', response_text)
+            numbers = re.findall(r"\d+", response_text)
 
             if numbers:
                 scale_value = int(numbers[0])
@@ -237,26 +258,28 @@ class ResponseHandler:
                     return {
                         "valid": True,
                         "processed_value": str(scale_value),
-                        "confidence": 1.0
+                        "confidence": 1.0,
                     }
 
             return {
                 "valid": False,
                 "error": "Por favor, responda com um número de 1 a 5",
-                "confidence": 0.0
+                "confidence": 0.0,
             }
 
         elif question_type == QuestionType.MULTIPLE_CHOICE.value:
-            options = question.get('options', [])
+            options = question.get("options", [])
 
             # Direct text match
             for option in options:
-                if (response_text.lower() in option['text'].lower() or
-                    option['text'].lower() in response_text.lower()):
+                if (
+                    response_text.lower() in option["text"].lower()
+                    or option["text"].lower() in response_text.lower()
+                ):
                     return {
                         "valid": True,
-                        "processed_value": option['value'],
-                        "confidence": 0.9
+                        "processed_value": option["value"],
+                        "confidence": 0.9,
                     }
 
             # Return uncertain result for AI processing
@@ -264,14 +287,14 @@ class ResponseHandler:
                 "valid": False,
                 "error": "Não consegui entender sua resposta",
                 "confidence": 0.2,
-                "options": options
+                "options": options,
             }
 
         elif question_type == QuestionType.YES_NO.value:
             response_lower = response_text.lower()
 
-            yes_words = ['sim', 'yes', 's', 'claro', 'certamente', 'com certeza']
-            no_words = ['não', 'nao', 'no', 'n', 'nunca', 'jamais']
+            yes_words = ["sim", "yes", "s", "claro", "certamente", "com certeza"]
+            no_words = ["não", "nao", "no", "n", "nunca", "jamais"]
 
             if any(word in response_lower for word in yes_words):
                 return {"valid": True, "processed_value": "yes", "confidence": 0.9}
@@ -281,28 +304,30 @@ class ResponseHandler:
             return {
                 "valid": False,
                 "error": "Por favor, responda com 'sim' ou 'não'",
-                "confidence": 0.0
+                "confidence": 0.0,
             }
 
         return {
             "valid": False,
             "error": "Tipo de pergunta não suportado",
-            "confidence": 0.0
+            "confidence": 0.0,
         }
 
-    async def ai_enhanced_processing(self, question: Dict, response_text: str, context: 'QuizContext') -> Optional[Dict[str, Any]]:
+    async def ai_enhanced_processing(
+        self, question: Dict, response_text: str, context: "QuizContext"
+    ) -> Optional[Dict[str, Any]]:
         """AI-enhanced response processing using Gemini."""
         try:
             if not self.gemini_client:
                 return None
 
-            question_type = question['type']
+            question_type = question["type"]
 
             if question_type == QuestionType.SCALE.value:
                 prompt = f"""
                 Analise a resposta do paciente para uma pergunta de escala de 1 a 5:
 
-                Pergunta: {question['text']}
+                Pergunta: {question["text"]}
                 Resposta: "{response_text}"
 
                 Contexto do paciente: {context.patient_data.name} está em tratamento de terapia hormonal.
@@ -319,12 +344,17 @@ class ResponseHandler:
                 """
 
             elif question_type == QuestionType.MULTIPLE_CHOICE.value:
-                options_text = "\n".join([f"- {opt['value']}: {opt['text']}" for opt in question.get('options', [])])
+                options_text = "\n".join(
+                    [
+                        f"- {opt['value']}: {opt['text']}"
+                        for opt in question.get("options", [])
+                    ]
+                )
 
                 prompt = f"""
                 Analise a resposta do paciente e determine qual opção ela melhor representa:
 
-                Pergunta: {question['text']}
+                Pergunta: {question["text"]}
                 Resposta: "{response_text}"
 
                 Opções disponíveis:
@@ -351,18 +381,18 @@ class ResponseHandler:
                             "valid": True,
                             "processed_value": str(value),
                             "confidence": 0.8,
-                            "ai_interpreted": True
+                            "ai_interpreted": True,
                         }
 
             elif question_type == QuestionType.MULTIPLE_CHOICE.value:
-                options = question.get('options', [])
-                option_values = [opt['value'] for opt in options]
+                options = question.get("options", [])
+                option_values = [opt["value"] for opt in options]
                 if ai_response.strip() in option_values:
                     return {
                         "valid": True,
                         "processed_value": ai_response.strip(),
                         "confidence": 0.8,
-                        "ai_interpreted": True
+                        "ai_interpreted": True,
                     }
 
             return None
@@ -373,10 +403,10 @@ class ResponseHandler:
 
     async def request_swarm_analysis(
         self,
-        context: 'QuizContext',
+        context: "QuizContext",
         response_text: str,
         basic_result: Dict,
-        send_message_callback=None
+        send_message_callback=None,
     ) -> Dict[str, Any]:
         """Request analysis from other agents in the swarm."""
         try:
@@ -387,7 +417,7 @@ class ResponseHandler:
             analysis_requests = {
                 "mood_analysis": "alert_analyzer_agent",
                 "medical_significance": "patient_monitor_agent",
-                "flow_impact": "flow_coordinator_agent"
+                "flow_impact": "flow_coordinator_agent",
             }
 
             swarm_analysis = {}
@@ -401,11 +431,13 @@ class ResponseHandler:
                         {
                             "patient_id": str(context.patient_id),
                             "response_text": response_text,
-                            "question_context": context.template.questions[context.current_question_index],
+                            "question_context": context.template.questions[
+                                context.current_question_index
+                            ],
                             "basic_processing": basic_result,
-                            "analysis_type": analysis_type
+                            "analysis_type": analysis_type,
                         },
-                        MessagePriority.HIGH
+                        MessagePriority.HIGH,
                     )
 
                     # For now, simulate analysis results
@@ -413,11 +445,13 @@ class ResponseHandler:
                     swarm_analysis[analysis_type] = {
                         "agent": agent_id,
                         "confidence": 0.7,
-                        "insights": ["response_processed_by_swarm"]
+                        "insights": ["response_processed_by_swarm"],
                     }
 
                 except Exception as e:
-                    self.logger.error(f"Failed to request {analysis_type} from {agent_id}: {e}")
+                    self.logger.error(
+                        f"Failed to request {analysis_type} from {agent_id}: {e}"
+                    )
 
             return swarm_analysis
 

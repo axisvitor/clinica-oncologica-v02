@@ -2,18 +2,16 @@
 Centralized template loader for flow configurations.
 Provides unified access to flow template configurations and mappings.
 """
+
 import os
 import yaml
-import json
 import logging
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional, List
 from pathlib import Path
 from dataclasses import dataclass
 from functools import lru_cache
 from datetime import datetime, timedelta
 
-from pydantic import BaseModel, Field, field_validator
-from app.schemas.jsonb_validators import validate_flow_template_data
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class FlowTypeConfig:
     """Configuration for a specific flow type."""
+
     name: str
     description: str
     duration_days: int
@@ -36,6 +35,7 @@ class FlowTypeConfig:
 @dataclass
 class TemplateDirectories:
     """Template directory structure configuration."""
+
     base_path: str
     flows: str
     quiz: str
@@ -46,6 +46,7 @@ class TemplateDirectories:
 @dataclass
 class DefaultConfig:
     """Default configuration settings."""
+
     timing: Dict[str, Any]
     personalization: Dict[str, Any]
     caching: Dict[str, Any]
@@ -86,9 +87,11 @@ class FlowTemplateConfigLoader:
         now = datetime.now()
 
         # Load if not cached or cache expired
-        if (self._config is None or
-            self._last_loaded is None or
-            (now - self._last_loaded) > self._cache_ttl):
+        if (
+            self._config is None
+            or self._last_loaded is None
+            or (now - self._last_loaded) > self._cache_ttl
+        ):
             self._load_config()
 
         return self._config or {}
@@ -101,7 +104,7 @@ class FlowTemplateConfigLoader:
                 self._config = self._get_fallback_config()
                 return
 
-            with open(self.config_path, 'r', encoding='utf-8') as file:
+            with open(self.config_path, "r", encoding="utf-8") as file:
                 self._config = yaml.safe_load(file)
                 self._last_loaded = datetime.now()
 
@@ -125,34 +128,32 @@ class FlowTemplateConfigLoader:
                     "template_mapping": {
                         "file_path": "templates/flows/day_1_15.yaml",
                         "fallback_template": "basic_support",
-                        "version": "1.0.0"
+                        "version": "1.0.0",
                     },
                     "timing": {
                         "start_hour": 9,
                         "end_hour": 18,
-                        "timezone": "America/Sao_Paulo"
+                        "timezone": "America/Sao_Paulo",
                     },
                     "personalization": {
                         "ai_optimization": True,
-                        "sentiment_analysis": True
+                        "sentiment_analysis": True,
                     },
-                    "enum_value": "initial_15_days"
+                    "enum_value": "initial_15_days",
                 }
             },
             "defaults": {
                 "timing": {
                     "timezone": "America/Sao_Paulo",
                     "business_hours_start": 9,
-                    "business_hours_end": 18
+                    "business_hours_end": 18,
                 },
                 "personalization": {
                     "ai_optimization": True,
-                    "sentiment_analysis": True
+                    "sentiment_analysis": True,
                 },
-                "caching": {
-                    "template_cache_ttl": 3600
-                }
-            }
+                "caching": {"template_cache_ttl": 3600},
+            },
         }
 
     @lru_cache(maxsize=128)
@@ -185,7 +186,7 @@ class FlowTemplateConfigLoader:
                 template_mapping=config_data.get("template_mapping", {}),
                 timing=config_data.get("timing", {}),
                 personalization=config_data.get("personalization", {}),
-                enum_value=config_data.get("enum_value")
+                enum_value=config_data.get("enum_value"),
             )
         except Exception as e:
             logger.error(f"Error creating FlowTypeConfig for {flow_type}: {e}")
@@ -205,7 +206,7 @@ class FlowTemplateConfigLoader:
             flows=directories.get("flows", "templates/flows"),
             quiz=directories.get("quiz", "templates/quiz"),
             fallbacks=directories.get("fallbacks", "templates/fallbacks"),
-            ai_prompts=directories.get("ai_prompts", "templates/ai")
+            ai_prompts=directories.get("ai_prompts", "templates/ai"),
         )
 
     def get_default_config(self) -> DefaultConfig:
@@ -218,23 +219,22 @@ class FlowTemplateConfigLoader:
         defaults = self.config.get("defaults", {})
 
         return DefaultConfig(
-            timing=defaults.get("timing", {
-                "timezone": "America/Sao_Paulo",
-                "business_hours_start": 9,
-                "business_hours_end": 18
-            }),
-            personalization=defaults.get("personalization", {
-                "ai_optimization": True,
-                "sentiment_analysis": True
-            }),
-            caching=defaults.get("caching", {
-                "template_cache_ttl": 3600
-            }),
-            retry=defaults.get("retry", {
-                "max_attempts": 3,
-                "backoff_multiplier": 2,
-                "initial_delay": 60
-            })
+            timing=defaults.get(
+                "timing",
+                {
+                    "timezone": "America/Sao_Paulo",
+                    "business_hours_start": 9,
+                    "business_hours_end": 18,
+                },
+            ),
+            personalization=defaults.get(
+                "personalization", {"ai_optimization": True, "sentiment_analysis": True}
+            ),
+            caching=defaults.get("caching", {"template_cache_ttl": 3600}),
+            retry=defaults.get(
+                "retry",
+                {"max_attempts": 3, "backoff_multiplier": 2, "initial_delay": 60},
+            ),
         )
 
     def get_available_flow_types(self) -> List[str]:
@@ -379,7 +379,9 @@ class FlowTemplateConfigLoader:
         """
         config = self.get_flow_type_config(flow_type)
         if not config:
-            return self.get_default_config().personalization.get("ai_optimization", False)
+            return self.get_default_config().personalization.get(
+                "ai_optimization", False
+            )
 
         return config.personalization.get("ai_optimization", False)
 
@@ -396,7 +398,9 @@ class FlowTemplateConfigLoader:
         defaults = self.get_default_config()
         return defaults.caching.get(cache_type, 3600)
 
-    def get_template_for_treatment_type(self, treatment_type: Optional[str]) -> Optional[str]:
+    def get_template_for_treatment_type(
+        self, treatment_type: Optional[str]
+    ) -> Optional[str]:
         """
         Get flow template based on patient treatment type.
 
@@ -434,12 +438,16 @@ class FlowTemplateConfigLoader:
         if matched_categories:
             matched_categories.sort(reverse=True, key=lambda x: x[0])
             template = matched_categories[0][1]
-            logger.info(f"Selected template '{template}' for treatment type '{treatment_type}'")
+            logger.info(
+                f"Selected template '{template}' for treatment type '{treatment_type}'"
+            )
             return template
 
         # Return default template
         default = self.config.get("default_treatment_template", "day_1_15")
-        logger.info(f"Using default template '{default}' for treatment type '{treatment_type}'")
+        logger.info(
+            f"Using default template '{default}' for treatment type '{treatment_type}'"
+        )
         return default
 
 
@@ -540,6 +548,7 @@ def get_template_for_treatment(treatment_type: Optional[str]) -> Optional[str]:
 # Flow type constants for easy access
 class FlowTypes:
     """Constants for flow type identifiers."""
+
     DAY_1_15 = "day_1_15"
     DAY_16_45 = "day_16_45"
     MONTHLY = "monthly"
@@ -549,7 +558,13 @@ class FlowTypes:
     @classmethod
     def all(cls) -> List[str]:
         """Get all flow type constants."""
-        return [cls.DAY_1_15, cls.DAY_16_45, cls.MONTHLY, cls.QUIZ_MONTHLY, cls.URGENT_FOLLOWUP]
+        return [
+            cls.DAY_1_15,
+            cls.DAY_16_45,
+            cls.MONTHLY,
+            cls.QUIZ_MONTHLY,
+            cls.URGENT_FOLLOWUP,
+        ]
 
     @classmethod
     def treatment_flows(cls) -> List[str]:

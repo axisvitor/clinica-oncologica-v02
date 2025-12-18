@@ -1,11 +1,11 @@
-from sqlalchemy.orm import Session
 """
 Detailed Health Check Endpoint
 Provides comprehensive system health including saga orchestration, database constraints, RBAC, and Celery
 """
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text, select, func
+from sqlalchemy import text
 from datetime import datetime, timedelta
 from typing import Dict, Any
 import asyncio
@@ -17,9 +17,7 @@ router = APIRouter(tags=["health"])
 
 
 @router.get("/health/detailed")
-async def detailed_health_check(
-    db: AsyncSession = Depends(get_db)
-) -> Dict[str, Any]:
+async def detailed_health_check(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
     """
     Comprehensive health check including all critical systems
 
@@ -37,17 +35,21 @@ async def detailed_health_check(
         check_saga_health(db),
         check_rbac_health(db),
         check_database_constraints(db),
-        return_exceptions=True
+        return_exceptions=True,
     )
 
-    database_health, redis_health, saga_health, rbac_health, constraints_health = results
+    database_health, redis_health, saga_health, rbac_health, constraints_health = (
+        results
+    )
 
     # Determine overall status
-    all_healthy = all([
-        isinstance(r, dict) and r.get("status") == "healthy"
-        for r in results
-        if isinstance(r, dict)
-    ])
+    all_healthy = all(
+        [
+            isinstance(r, dict) and r.get("status") == "healthy"
+            for r in results
+            if isinstance(r, dict)
+        ]
+    )
 
     overall_status = "healthy" if all_healthy else "degraded"
 
@@ -60,12 +62,22 @@ async def detailed_health_check(
         "timestamp": datetime.utcnow().isoformat(),
         "version": "1.0.0-with-critical-fixes",
         "components": {
-            "database": database_health if isinstance(database_health, dict) else {"status": "error", "error": str(database_health)},
-            "redis": redis_health if isinstance(redis_health, dict) else {"status": "error", "error": str(redis_health)},
-            "saga_system": saga_health if isinstance(saga_health, dict) else {"status": "error", "error": str(saga_health)},
-            "rbac": rbac_health if isinstance(rbac_health, dict) else {"status": "error", "error": str(rbac_health)},
-            "constraints": constraints_health if isinstance(constraints_health, dict) else {"status": "error", "error": str(constraints_health)}
-        }
+            "database": database_health
+            if isinstance(database_health, dict)
+            else {"status": "error", "error": str(database_health)},
+            "redis": redis_health
+            if isinstance(redis_health, dict)
+            else {"status": "error", "error": str(redis_health)},
+            "saga_system": saga_health
+            if isinstance(saga_health, dict)
+            else {"status": "error", "error": str(saga_health)},
+            "rbac": rbac_health
+            if isinstance(rbac_health, dict)
+            else {"status": "error", "error": str(rbac_health)},
+            "constraints": constraints_health
+            if isinstance(constraints_health, dict)
+            else {"status": "error", "error": str(constraints_health)},
+        },
     }
 
 
@@ -78,8 +90,12 @@ async def check_database_health(db: AsyncSession) -> Dict[str, Any]:
         latency_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
 
         # Check connection pool status
-        pool_size = db.get_bind().pool.size() if hasattr(db.get_bind(), 'pool') else None
-        checked_out = db.get_bind().pool.checkedout() if hasattr(db.get_bind(), 'pool') else None
+        pool_size = (
+            db.get_bind().pool.size() if hasattr(db.get_bind(), "pool") else None
+        )
+        checked_out = (
+            db.get_bind().pool.checkedout() if hasattr(db.get_bind(), "pool") else None
+        )
 
         status = "healthy" if latency_ms < 100 else "degraded"
 
@@ -88,13 +104,12 @@ async def check_database_health(db: AsyncSession) -> Dict[str, Any]:
             "latency_ms": round(latency_ms, 2),
             "pool_size": pool_size,
             "connections_in_use": checked_out,
-            "connection_pool_usage": round((checked_out / pool_size * 100), 2) if pool_size and checked_out else 0
+            "connection_pool_usage": round((checked_out / pool_size * 100), 2)
+            if pool_size and checked_out
+            else 0,
         }
     except Exception as e:
-        return {
-            "status": "unhealthy",
-            "error": str(e)
-        }
+        return {"status": "unhealthy", "error": str(e)}
 
 
 async def check_redis_health() -> Dict[str, Any]:
@@ -114,13 +129,10 @@ async def check_redis_health() -> Dict[str, Any]:
             "status": status,
             "latency_ms": round(latency_ms, 2),
             "connected_clients": info.get("connected_clients", 0),
-            "used_memory_mb": round(info.get("used_memory", 0) / 1024 / 1024, 2)
+            "used_memory_mb": round(info.get("used_memory", 0) / 1024 / 1024, 2),
         }
     except Exception as e:
-        return {
-            "status": "unhealthy",
-            "error": str(e)
-        }
+        return {"status": "unhealthy", "error": str(e)}
 
 
 async def check_saga_health(db: AsyncSession) -> Dict[str, Any]:
@@ -167,7 +179,9 @@ async def check_saga_health(db: AsyncSession) -> Dict[str, Any]:
 
         result = await db.execute(compensation_query, {"recent_cutoff": recent_cutoff})
         compensation_count = result.scalar() or 0
-        compensation_rate = (compensation_count / total_count) if total_count > 0 else 0.0
+        compensation_rate = (
+            (compensation_count / total_count) if total_count > 0 else 0.0
+        )
 
         # Determine health status
         status = "healthy"
@@ -185,14 +199,11 @@ async def check_saga_health(db: AsyncSession) -> Dict[str, Any]:
             "health_threshold": {
                 "success_rate_target": 0.95,
                 "max_stuck_sagas": 0,
-                "max_compensation_rate": 0.05
-            }
+                "max_compensation_rate": 0.05,
+            },
         }
     except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e)
-        }
+        return {"status": "error", "error": str(e)}
 
 
 async def check_rbac_health(db: AsyncSession) -> Dict[str, Any]:
@@ -205,7 +216,9 @@ async def check_rbac_health(db: AsyncSession) -> Dict[str, Any]:
 
         roles_count = (await db.execute(roles_query)).scalar() or 0
         permissions_count = (await db.execute(permissions_query)).scalar() or 0
-        role_permissions_count = (await db.execute(role_permissions_query)).scalar() or 0
+        role_permissions_count = (
+            await db.execute(role_permissions_query)
+        ).scalar() or 0
 
         # Check for users without roles
         users_without_roles_query = text("""
@@ -214,7 +227,9 @@ async def check_rbac_health(db: AsyncSession) -> Dict[str, Any]:
             LEFT JOIN user_roles ur ON u.id = ur.user_id
             WHERE ur.user_id IS NULL
         """)
-        users_without_roles = (await db.execute(users_without_roles_query)).scalar() or 0
+        users_without_roles = (
+            await db.execute(users_without_roles_query)
+        ).scalar() or 0
 
         status = "healthy"
         if roles_count == 0 or permissions_count == 0:
@@ -228,13 +243,10 @@ async def check_rbac_health(db: AsyncSession) -> Dict[str, Any]:
             "permissions_count": permissions_count,
             "role_permissions_count": role_permissions_count,
             "users_without_roles": users_without_roles,
-            "rbac_enabled": True
+            "rbac_enabled": True,
         }
     except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e)
-        }
+        return {"status": "error", "error": str(e)}
 
 
 async def check_database_constraints(db: AsyncSession) -> Dict[str, Any]:
@@ -260,7 +272,7 @@ async def check_database_constraints(db: AsyncSession) -> Dict[str, Any]:
 
             result = await db.execute(
                 constraint_query,
-                {"table_name": table_name, "constraint_name": constraint_name}
+                {"table_name": table_name, "constraint_name": constraint_name},
             )
             exists = result.scalar() > 0
             constraint_status[f"{table_name}.{constraint_name}"] = exists
@@ -277,7 +289,9 @@ async def check_database_constraints(db: AsyncSession) -> Dict[str, Any]:
         """)
 
         try:
-            result = await db.execute(duplicate_blocks_query, {"recent_cutoff": recent_cutoff})
+            result = await db.execute(
+                duplicate_blocks_query, {"recent_cutoff": recent_cutoff}
+            )
             duplicate_blocks = result.scalar() or 0
         except Exception:
             duplicate_blocks = 0  # Audit log might not exist
@@ -289,19 +303,15 @@ async def check_database_constraints(db: AsyncSession) -> Dict[str, Any]:
             "constraints": constraint_status,
             "all_constraints_present": all_present,
             "duplicate_attempts_blocked_24h": duplicate_blocks,
-            "constraint_effectiveness": 1.0 if all_present else 0.0
+            "constraint_effectiveness": 1.0 if all_present else 0.0,
         }
     except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e)
-        }
+        return {"status": "error", "error": str(e)}
 
 
 async def check_celery_health() -> Dict[str, Any]:
     """Check Celery workers and task queue health"""
     try:
-        from celery import Celery
         from app.celery_app import app as celery_app
 
         inspector = celery_app.control.inspect()
@@ -317,25 +327,39 @@ async def check_celery_health() -> Dict[str, Any]:
                 "status": "unhealthy",
                 "error": "No active Celery workers",
                 "workers": 0,
-                "active_tasks": 0
+                "active_tasks": 0,
             }
 
         # Calculate metrics
         num_workers = len(active_workers)
-        total_active_tasks = sum(len(tasks) for tasks in active_tasks.values()) if active_tasks else 0
-        total_registered_tasks = sum(len(tasks) for tasks in registered_tasks.values()) if registered_tasks else 0
+        total_active_tasks = (
+            sum(len(tasks) for tasks in active_tasks.values()) if active_tasks else 0
+        )
+        total_registered_tasks = (
+            sum(len(tasks) for tasks in registered_tasks.values())
+            if registered_tasks
+            else 0
+        )
 
         # Get queue lengths from Redis
         try:
             redis_client = get_redis_client()
             queue_lengths = {}
-            for queue in ['celery', 'high_priority', 'low_priority', 'quiz_flow', 'alerts', 'whatsapp', 'reports']:
+            for queue in [
+                "celery",
+                "high_priority",
+                "low_priority",
+                "quiz_flow",
+                "alerts",
+                "whatsapp",
+                "reports",
+            ]:
                 queue_key = f"celery:queue:{queue}"
                 length = await redis_client.llen(queue_key)
                 queue_lengths[queue] = length or 0
 
             total_queued = sum(queue_lengths.values())
-        except Exception as e:
+        except Exception:
             queue_lengths = {}
             total_queued = 0
 
@@ -353,14 +377,14 @@ async def check_celery_health() -> Dict[str, Any]:
             "registered_tasks": total_registered_tasks,
             "queue_lengths": queue_lengths,
             "total_queued": total_queued,
-            "stats": stats
+            "stats": stats,
         }
 
     except Exception as e:
         return {
             "status": "error",
             "error": str(e),
-            "message": "Celery health check failed"
+            "message": "Celery health check failed",
         }
 
 
@@ -386,7 +410,4 @@ async def celery_health_endpoint() -> Dict[str, Any]:
 @router.get("/health")
 async def basic_health_check() -> Dict[str, str]:
     """Basic health check for load balancers"""
-    return {
-        "status": "ok",
-        "timestamp": datetime.utcnow().isoformat()
-    }
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}

@@ -4,6 +4,7 @@ Flow Event Broadcasting Service for real-time WebSocket updates.
 This service handles broadcasting flow-related events to healthcare providers
 through WebSocket connections, enabling real-time monitoring of patient flows.
 """
+
 import logging
 from typing import Any, Optional, List
 from uuid import UUID
@@ -19,7 +20,7 @@ from app.schemas.websocket import (
     PatientEventData,
     MessageEventData,
     AlertEventData,
-    ReportEventData
+    ReportEventData,
 )
 from app.models.flow import PatientFlowState
 from app.models.message import Message
@@ -31,22 +32,22 @@ logger = logging.getLogger(__name__)
 class FlowEventBroadcaster:
     """
     Service for broadcasting flow-related events via WebSocket.
-    
+
     Handles real-time notifications for:
     - Flow state changes and progressions
     - Patient interaction updates
     - Alert generation and updates
     - Report completion notifications
     """
-    
+
     def __init__(self):
         self.connection_manager = connection_manager
-    
+
     async def broadcast_flow_state_change(
         self,
         patient_id: UUID,
         flow_state: PatientFlowState,
-        previous_state: Optional[dict[str, Any]] = None
+        previous_state: Optional[dict[str, Any]] = None,
     ) -> int:
         """
         Broadcast flow state change to healthcare providers monitoring the patient.
@@ -71,17 +72,17 @@ class FlowEventBroadcaster:
                 if previous_state.get("flow_type") != flow_state.flow_type:
                     changes["flow_type"] = {
                         "from": previous_state.get("flow_type"),
-                        "to": flow_state.flow_type
+                        "to": flow_state.flow_type,
                     }
                 if previous_state.get("current_day") != flow_state.current_day:
                     changes["current_day"] = {
                         "from": previous_state.get("current_day"),
-                        "to": flow_state.current_day
+                        "to": flow_state.current_day,
                     }
                 if previous_state.get("is_paused") != flow_state.is_paused:
                     changes["is_paused"] = {
                         "from": previous_state.get("is_paused"),
-                        "to": flow_state.is_paused
+                        "to": flow_state.is_paused,
                     }
 
             # Create event data
@@ -93,15 +94,16 @@ class FlowEventBroadcaster:
                     "current_day": flow_state.current_day,
                     "is_paused": flow_state.is_paused,
                     "enrollment_date": flow_state.enrollment_date.isoformat(),
-                    "last_message_sent": flow_state.last_message_sent.isoformat() if flow_state.last_message_sent else None,
-                    "monthly_cycle": flow_state.monthly_cycle
-                }
+                    "last_message_sent": flow_state.last_message_sent.isoformat()
+                    if flow_state.last_message_sent
+                    else None,
+                    "monthly_cycle": flow_state.monthly_cycle,
+                },
             )
 
             # Create WebSocket message
             message = create_websocket_message(
-                WebSocketEventType.PATIENT_FLOW_CHANGED,
-                event_data
+                WebSocketEventType.PATIENT_FLOW_CHANGED, event_data
             )
 
             # Broadcast to patient room with error handling
@@ -117,18 +119,20 @@ class FlowEventBroadcaster:
 
                 return sent_count
             except Exception as broadcast_error:
-                logger.warning(f"WebSocket broadcast failed (non-critical): {broadcast_error}")
+                logger.warning(
+                    f"WebSocket broadcast failed (non-critical): {broadcast_error}"
+                )
                 return 0
 
         except Exception as e:
             logger.error(f"Error broadcasting flow state change: {e}", exc_info=True)
             return 0
-    
+
     async def broadcast_patient_interaction(
         self,
         patient_id: UUID,
         message: Message,
-        interaction_type: str = "message_received"
+        interaction_type: str = "message_received",
     ) -> int:
         """
         Broadcast patient interaction update to monitoring healthcare providers.
@@ -144,7 +148,9 @@ class FlowEventBroadcaster:
         try:
             # Check prerequisites
             if not self.connection_manager:
-                logger.debug("Connection manager unavailable, skipping patient interaction broadcast")
+                logger.debug(
+                    "Connection manager unavailable, skipping patient interaction broadcast"
+                )
                 return 0
 
             # Create event data
@@ -153,21 +159,22 @@ class FlowEventBroadcaster:
                 patient_id=patient_id,
                 direction=message.direction,
                 type=message.type,
-                content=message.content[:100] + "..." if len(message.content) > 100 else message.content,
+                content=message.content[:100] + "..."
+                if len(message.content) > 100
+                else message.content,
                 status=message.status,
                 whatsapp_id=message.whatsapp_id,
                 metadata={
                     "interaction_type": interaction_type,
                     "timestamp": message.created_at.isoformat(),
                     "has_media": bool(message.media_url),
-                    "is_interactive": message.type in ["button", "list", "quick_reply"]
-                }
+                    "is_interactive": message.type in ["button", "list", "quick_reply"],
+                },
             )
 
             # Create WebSocket message
             message_ws = create_websocket_message(
-                WebSocketEventType.NEW_MESSAGE,
-                event_data
+                WebSocketEventType.NEW_MESSAGE, event_data
             )
 
             # Broadcast to patient room with error handling
@@ -183,25 +190,23 @@ class FlowEventBroadcaster:
 
                 return sent_count
             except Exception as broadcast_error:
-                logger.warning(f"WebSocket broadcast failed (non-critical): {broadcast_error}")
+                logger.warning(
+                    f"WebSocket broadcast failed (non-critical): {broadcast_error}"
+                )
                 return 0
 
         except Exception as e:
             logger.error(f"Error broadcasting patient interaction: {e}")
             return 0
-    
-    async def broadcast_alert_created(
-        self,
-        alert: Alert,
-        patient_id: UUID
-    ) -> int:
+
+    async def broadcast_alert_created(self, alert: Alert, patient_id: UUID) -> int:
         """
         Broadcast alert creation to healthcare providers.
-        
+
         Args:
             alert: Alert that was created
             patient_id: Patient the alert is related to
-            
+
         Returns:
             Number of connections that received the broadcast
         """
@@ -223,39 +228,41 @@ class FlowEventBroadcaster:
                 metadata={
                     "created_at": alert.created_at.isoformat(),
                     "source": "flow_system",
-                    "requires_immediate_attention": alert.severity in ["high", "critical"]
-                }
+                    "requires_immediate_attention": alert.severity
+                    in ["high", "critical"],
+                },
             )
-            
+
             # Create WebSocket message
             message = create_websocket_message(
-                WebSocketEventType.ALERT_CREATED,
-                event_data
+                WebSocketEventType.ALERT_CREATED, event_data
             )
-            
+
             # Broadcast to patient room and all authenticated users for critical alerts
             sent_count = await self.connection_manager.broadcast_to_patient_room(
                 message.dict(), str(patient_id)
             )
-            
+
             # For critical alerts, also broadcast to all authenticated healthcare providers
             if alert.severity == "critical":
-                additional_sent = await self.connection_manager.broadcast_to_all_authenticated(
-                    message.dict()
+                additional_sent = (
+                    await self.connection_manager.broadcast_to_all_authenticated(
+                        message.dict()
+                    )
                 )
                 sent_count += additional_sent
-            
+
             logger.info(
                 f"Broadcasted alert creation for patient {patient_id} "
                 f"(severity: {alert.severity}) to {sent_count} connections"
             )
-            
+
             return sent_count
-            
+
         except Exception as e:
             logger.error(f"Error broadcasting alert creation: {e}")
             return 0
-    
+
     async def broadcast_report_completion(
         self,
         report_id: UUID,
@@ -263,11 +270,11 @@ class FlowEventBroadcaster:
         report_type: str,
         file_path: Optional[str] = None,
         success: bool = True,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ) -> int:
         """
         Broadcast report completion notification to healthcare providers.
-        
+
         Args:
             report_id: ID of the completed report
             patient_id: Patient the report is for
@@ -275,7 +282,7 @@ class FlowEventBroadcaster:
             file_path: Path to generated report file
             success: Whether report generation was successful
             error_message: Error message if generation failed
-            
+
         Returns:
             Number of connections that received the broadcast
         """
@@ -291,41 +298,37 @@ class FlowEventBroadcaster:
                 metadata={
                     "generated_at": datetime.utcnow().isoformat(),
                     "success": success,
-                    "downloadable": success and file_path is not None
-                }
+                    "downloadable": success and file_path is not None,
+                },
             )
-            
+
             # Create WebSocket message
             event_type = (
-                WebSocketEventType.REPORT_GENERATION_COMPLETED 
-                if success 
+                WebSocketEventType.REPORT_GENERATION_COMPLETED
+                if success
                 else WebSocketEventType.REPORT_GENERATION_FAILED
             )
-            
+
             message = create_websocket_message(event_type, event_data)
-            
+
             # Broadcast to patient room
             sent_count = await self.connection_manager.broadcast_to_patient_room(
                 message.dict(), str(patient_id)
             )
-            
+
             logger.info(
                 f"Broadcasted report completion for patient {patient_id} "
                 f"(type: {report_type}, success: {success}) to {sent_count} connections"
             )
-            
+
             return sent_count
-            
+
         except Exception as e:
             logger.error(f"Error broadcasting report completion: {e}")
             return 0
-    
+
     async def broadcast_flow_message_sent(
-        self,
-        patient_id: UUID,
-        message: Message,
-        flow_day: int,
-        flow_type: str
+        self, patient_id: UUID, message: Message, flow_day: int, flow_type: str
     ) -> int:
         """
         Broadcast flow message sent notification with graceful degradation.
@@ -342,7 +345,9 @@ class FlowEventBroadcaster:
         try:
             # Check prerequisites
             if not self.connection_manager:
-                logger.debug("Connection manager unavailable, skipping flow message broadcast")
+                logger.debug(
+                    "Connection manager unavailable, skipping flow message broadcast"
+                )
                 return 0
 
             # Create event data
@@ -351,7 +356,9 @@ class FlowEventBroadcaster:
                 patient_id=patient_id,
                 direction=message.direction,
                 type=message.type,
-                content=message.content[:100] + "..." if len(message.content) > 100 else message.content,
+                content=message.content[:100] + "..."
+                if len(message.content) > 100
+                else message.content,
                 status=message.status,
                 whatsapp_id=message.whatsapp_id,
                 metadata={
@@ -359,14 +366,13 @@ class FlowEventBroadcaster:
                     "flow_type": flow_type,
                     "sent_at": message.created_at.isoformat(),
                     "is_flow_message": True,
-                    "automated": True
-                }
+                    "automated": True,
+                },
             )
 
             # Create WebSocket message
             message_ws = create_websocket_message(
-                WebSocketEventType.MESSAGE_SENT,
-                event_data
+                WebSocketEventType.MESSAGE_SENT, event_data
             )
 
             # Broadcast to patient room with error handling
@@ -382,32 +388,34 @@ class FlowEventBroadcaster:
 
                 return sent_count
             except Exception as broadcast_error:
-                logger.debug(f"WebSocket broadcast failed (non-critical): {broadcast_error}")
+                logger.debug(
+                    f"WebSocket broadcast failed (non-critical): {broadcast_error}"
+                )
                 return 0
 
         except Exception as e:
             # Don't log full error for non-critical broadcast failures
             logger.debug(f"Error broadcasting flow message sent: {e}")
             return 0
-    
+
     async def broadcast_flow_progression(
         self,
         patient_id: UUID,
         from_day: int,
         to_day: int,
         flow_type: str,
-        milestone_reached: Optional[str] = None
+        milestone_reached: Optional[str] = None,
     ) -> int:
         """
         Broadcast flow progression milestone to healthcare providers.
-        
+
         Args:
             patient_id: Patient whose flow progressed
             from_day: Previous day in flow
             to_day: New day in flow
             flow_type: Type of flow
             milestone_reached: Special milestone if any (e.g., "flow_transition")
-            
+
         Returns:
             Number of connections that received the broadcast
         """
@@ -419,59 +427,58 @@ class FlowEventBroadcaster:
                     "flow_progression": {
                         "from_day": from_day,
                         "to_day": to_day,
-                        "milestone": milestone_reached
+                        "milestone": milestone_reached,
                     }
                 },
                 metadata={
                     "flow_type": flow_type,
                     "progression_date": datetime.utcnow().isoformat(),
                     "milestone_reached": milestone_reached,
-                    "days_progressed": to_day - from_day
-                }
+                    "days_progressed": to_day - from_day,
+                },
             )
-            
+
             # Create WebSocket message
             message = create_websocket_message(
-                WebSocketEventType.PATIENT_FLOW_CHANGED,
-                event_data
+                WebSocketEventType.PATIENT_FLOW_CHANGED, event_data
             )
-            
+
             # Broadcast to patient room
             sent_count = await self.connection_manager.broadcast_to_patient_room(
                 message.dict(), str(patient_id)
             )
-            
+
             logger.info(
                 f"Broadcasted flow progression for patient {patient_id} "
                 f"from day {from_day} to {to_day} to {sent_count} connections"
             )
-            
+
             return sent_count
-            
+
         except Exception as e:
             logger.error(f"Error broadcasting flow progression: {e}")
             return 0
-    
+
     async def broadcast_system_notification(
         self,
         message: str,
         level: str = "info",
-        affected_patients: Optional[List[UUID]] = None
+        affected_patients: Optional[List[UUID]] = None,
     ) -> int:
         """
         Broadcast system-wide notification to healthcare providers.
-        
+
         Args:
             message: Notification message
             level: Severity level (info, warning, error)
             affected_patients: List of affected patient IDs if applicable
-            
+
         Returns:
             Number of connections that received the broadcast
         """
         try:
             from app.schemas.websocket import SystemEventData
-            
+
             # Create event data
             event_data = SystemEventData(
                 message=message,
@@ -479,28 +486,29 @@ class FlowEventBroadcaster:
                 metadata={
                     "timestamp": datetime.utcnow().isoformat(),
                     "source": "flow_system",
-                    "affected_patients": [str(pid) for pid in affected_patients] if affected_patients else None
-                }
+                    "affected_patients": [str(pid) for pid in affected_patients]
+                    if affected_patients
+                    else None,
+                },
             )
-            
+
             # Create WebSocket message
             ws_message = create_websocket_message(
-                WebSocketEventType.SYSTEM_NOTIFICATION,
-                event_data
+                WebSocketEventType.SYSTEM_NOTIFICATION, event_data
             )
-            
+
             # Broadcast to all authenticated connections
             sent_count = await self.connection_manager.broadcast_to_all_authenticated(
                 ws_message.dict()
             )
-            
+
             logger.info(
                 f"Broadcasted system notification (level: {level}) "
                 f"to {sent_count} connections"
             )
-            
+
             return sent_count
-            
+
         except Exception as e:
             logger.error(f"Error broadcasting system notification: {e}")
             return 0

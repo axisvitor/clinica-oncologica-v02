@@ -1,4 +1,3 @@
-from sqlalchemy.orm import Session
 """
 CSP Violation Report Endpoint
 
@@ -6,8 +5,8 @@ Receives and processes Content Security Policy violation reports
 from browsers to monitor security issues and potential attacks.
 """
 
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from typing import Dict, Any, Optional
+from datetime import datetime
 
 from fastapi import APIRouter, Request, HTTPException, status
 from fastapi.responses import JSONResponse
@@ -23,6 +22,7 @@ router = APIRouter(prefix="/csp-report", tags=["security"])
 
 class CSPViolationReport(BaseModel):
     """CSP violation report schema (sent by browsers)"""
+
     document_uri: Optional[str] = Field(None, alias="document-uri")
     violated_directive: Optional[str] = Field(None, alias="violated-directive")
     effective_directive: Optional[str] = Field(None, alias="effective-directive")
@@ -38,6 +38,7 @@ class CSPViolationReport(BaseModel):
 
 class CSPReportWrapper(BaseModel):
     """Wrapper for CSP report (browser sends 'csp-report' key)"""
+
     csp_report: CSPViolationReport = Field(..., alias="csp-report")
 
     model_config = ConfigDict(populate_by_name=True)
@@ -60,7 +61,7 @@ async def receive_csp_report(request: Request) -> JSONResponse:
     """
     try:
         # Parse CSP report
-        report_data = await request.json()
+        await request.json()
 
         # Handle report
         result = await csp_report_handler.handle_report(request)
@@ -71,36 +72,26 @@ async def receive_csp_report(request: Request) -> JSONResponse:
                 "event_type": "csp_report_received",
                 "violation_id": result.get("violation_id"),
                 "client_ip": request.client.host if request.client else "unknown",
-                "timestamp": datetime.utcnow().isoformat() + 'Z'
-            }
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+            },
         )
 
-        return JSONResponse(
-            status_code=status.HTTP_204_NO_CONTENT,
-            content=None
-        )
+        return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
 
     except Exception as e:
         logger.error(
             f"Failed to process CSP report: {str(e)}",
             exc_info=True,
-            extra={
-                "event_type": "csp_report_error",
-                "error": str(e)
-            }
+            extra={"event_type": "csp_report_error", "error": str(e)},
         )
 
         # Return 204 anyway to not alert browser
-        return JSONResponse(
-            status_code=status.HTTP_204_NO_CONTENT,
-            content=None
-        )
+        return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
 
 
 @router.get("/violations")
 async def get_csp_violations(
-    limit: int = 100,
-    severity: Optional[str] = None
+    limit: int = 100, severity: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Get recent CSP violations (admin endpoint).
@@ -117,20 +108,20 @@ async def get_csp_violations(
     try:
         violations = csp_report_handler.get_violations(
             limit=min(limit, 1000),  # Cap at 1000
-            severity=severity
+            severity=severity,
         )
 
         return {
             "total": len(violations),
             "violations": violations,
-            "timestamp": datetime.utcnow().isoformat() + 'Z'
+            "timestamp": datetime.utcnow().isoformat() + "Z",
         }
 
     except Exception as e:
         logger.error(f"Failed to retrieve CSP violations: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve CSP violations"
+            detail="Failed to retrieve CSP violations",
         )
 
 
@@ -154,7 +145,7 @@ async def get_csp_stats() -> Dict[str, Any]:
                 "suspicious_violations": 0,
                 "by_directive": {},
                 "by_uri": {},
-                "timestamp": datetime.utcnow().isoformat() + 'Z'
+                "timestamp": datetime.utcnow().isoformat() + "Z",
             }
 
         # Count violations by directive
@@ -178,18 +169,16 @@ async def get_csp_stats() -> Dict[str, Any]:
             "by_directive": by_directive,
             "by_uri": by_uri,
             "top_blocked_uris": sorted(
-                by_uri.items(),
-                key=lambda x: x[1],
-                reverse=True
+                by_uri.items(), key=lambda x: x[1], reverse=True
             )[:10],
-            "timestamp": datetime.utcnow().isoformat() + 'Z'
+            "timestamp": datetime.utcnow().isoformat() + "Z",
         }
 
     except Exception as e:
         logger.error(f"Failed to retrieve CSP stats: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve CSP statistics"
+            detail="Failed to retrieve CSP statistics",
         )
 
 
@@ -210,19 +199,19 @@ async def clear_csp_violations() -> Dict[str, str]:
             "CSP violations cleared",
             extra={
                 "event_type": "csp_violations_cleared",
-                "timestamp": datetime.utcnow().isoformat() + 'Z'
-            }
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+            },
         )
 
         return {
             "status": "success",
             "message": "CSP violations cleared",
-            "timestamp": datetime.utcnow().isoformat() + 'Z'
+            "timestamp": datetime.utcnow().isoformat() + "Z",
         }
 
     except Exception as e:
         logger.error(f"Failed to clear CSP violations: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to clear CSP violations"
+            detail="Failed to clear CSP violations",
         )

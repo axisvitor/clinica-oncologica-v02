@@ -4,6 +4,6 @@ from .engine import FlowRulesEngine
 from .evaluator import RuleConditionEvaluator
 
 __all__ = [
-    'FlowRulesEngine',
-    'RuleConditionEvaluator',
+    "FlowRulesEngine",
+    "RuleConditionEvaluator",
 ]

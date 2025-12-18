@@ -10,10 +10,9 @@ Provides:
 
 import logging
 import time
-from datetime import datetime, timedelta, UTC
-from typing import Dict, Any, Optional
+from datetime import datetime, UTC
+from typing import Dict
 from uuid import UUID
-from collections import defaultdict
 
 from app.core.redis_unified import get_async_redis
 
@@ -81,10 +80,7 @@ class QuizMetricsCollector:
             logger.error(f"Failed to record quiz completion: {e}", exc_info=True)
 
     async def record_send_latency(
-        self,
-        template_id: UUID,
-        latency_seconds: float,
-        message_type: str = "question"
+        self, template_id: UUID, latency_seconds: float, message_type: str = "question"
     ) -> None:
         """
         Record message send latency.
@@ -121,7 +117,7 @@ class QuizMetricsCollector:
         template_id: UUID,
         question_id: str,
         session_id: UUID,
-        latency_seconds: float
+        latency_seconds: float,
     ) -> None:
         """
         Record response latency (time from question sent to answer received).
@@ -154,7 +150,9 @@ class QuizMetricsCollector:
         except Exception as e:
             logger.error(f"Failed to record response latency: {e}", exc_info=True)
 
-    async def record_quiz_abandonment(self, template_id: UUID, session_id: UUID) -> None:
+    async def record_quiz_abandonment(
+        self, template_id: UUID, session_id: UUID
+    ) -> None:
         """
         Record quiz abandonment (session started but not completed).
 
@@ -177,10 +175,7 @@ class QuizMetricsCollector:
             logger.error(f"Failed to record quiz abandonment: {e}", exc_info=True)
 
     async def record_clarification_request(
-        self,
-        template_id: UUID,
-        question_id: str,
-        session_id: UUID
+        self, template_id: UUID, question_id: str, session_id: UUID
     ) -> None:
         """
         Record clarification request (invalid response requiring re-prompt).
@@ -218,9 +213,7 @@ class QuizMetricsCollector:
             return 0
 
     async def get_send_latency_percentiles(
-        self,
-        template_id: UUID,
-        message_type: str = "question"
+        self, template_id: UUID, message_type: str = "question"
     ) -> Dict[str, float]:
         """
         Calculate send latency percentiles (p50, p95, p99).
@@ -259,7 +252,7 @@ class QuizMetricsCollector:
                 "p50": percentile(0.50),
                 "p95": percentile(0.95),
                 "p99": percentile(0.99),
-                "samples": n
+                "samples": n,
             }
 
         except Exception as e:
@@ -267,9 +260,7 @@ class QuizMetricsCollector:
             return {"p50": 0.0, "p95": 0.0, "p99": 0.0, "samples": 0}
 
     async def get_response_latency_percentiles(
-        self,
-        template_id: UUID,
-        question_id: str
+        self, template_id: UUID, question_id: str
     ) -> Dict[str, float]:
         """
         Calculate response latency percentiles for a specific question.
@@ -307,7 +298,7 @@ class QuizMetricsCollector:
                 "p50": percentile(0.50),
                 "p95": percentile(0.95),
                 "p99": percentile(0.99),
-                "samples": n
+                "samples": n,
             }
 
         except Exception as e:
@@ -327,8 +318,12 @@ class QuizMetricsCollector:
         try:
             redis = await self._get_redis()
 
-            completion_key = f"{self.METRICS_KEY_PREFIX}:{self.COMPLETION_KEY}:{template_id}"
-            abandonment_key = f"{self.METRICS_KEY_PREFIX}:{self.ABANDONMENT_KEY}:{template_id}"
+            completion_key = (
+                f"{self.METRICS_KEY_PREFIX}:{self.COMPLETION_KEY}:{template_id}"
+            )
+            abandonment_key = (
+                f"{self.METRICS_KEY_PREFIX}:{self.ABANDONMENT_KEY}:{template_id}"
+            )
 
             completions = await redis.get(completion_key)
             abandonments = await redis.get(abandonment_key)
@@ -346,7 +341,9 @@ class QuizMetricsCollector:
             logger.error(f"Failed to calculate abandonment rate: {e}", exc_info=True)
             return 0.0
 
-    async def get_clarification_rate(self, template_id: UUID, question_id: str) -> float:
+    async def get_clarification_rate(
+        self, template_id: UUID, question_id: str
+    ) -> float:
         """
         Calculate clarification rate for a specific question.
 

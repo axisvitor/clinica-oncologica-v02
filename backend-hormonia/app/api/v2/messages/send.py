@@ -42,22 +42,21 @@ logger = logging.getLogger(__name__)
     "/send",
     response_model=SendMessageV2Response,
     summary="Send immediate message",
-    description="Send a message immediately to a patient"
+    description="Send a message immediately to a patient",
 )
 @limiter.limit("60/minute")
 async def send_message(
     request: Request,
     message_data: SendMessageV2Request,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
 ):
     """Send an immediate message to a patient."""
     try:
         patient_uuid = UUID(message_data.patient_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid patient ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid patient ID format"
         )
 
     # Verify patient exists
@@ -65,16 +64,14 @@ async def send_message(
     patient = patient_repo.get_by_id(patient_uuid)
     if not patient:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Patient not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"
         )
 
     # RBAC check
     role_enum, user_id = _extract_user_context(current_user)
     if role_enum != UserRole.ADMIN and str(patient.doctor_id) != user_id:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
         )
 
     message_service = MessageService(db)
@@ -98,7 +95,7 @@ async def send_message(
         content=message_data.content,
         scheduled_for=datetime.utcnow(),
         message_type=msg_type,
-        message_metadata=message_data.message_metadata or {}
+        message_metadata=message_data.message_metadata or {},
     )
 
     # Send immediately
@@ -111,7 +108,9 @@ async def send_message(
     return {
         "success": message.status != MessageStatus.FAILED,
         "message": _serialize_message(message, include_patient=True),
-        "estimated_delivery": (datetime.utcnow() + timedelta(seconds=3)).isoformat() if message.status == MessageStatus.SENT else None,
+        "estimated_delivery": (datetime.utcnow() + timedelta(seconds=3)).isoformat()
+        if message.status == MessageStatus.SENT
+        else None,
     }
 
 
@@ -119,12 +118,12 @@ async def send_message(
     "/scheduled",
     response_model=MessageV2List,
     summary="List scheduled messages",
-    description="Get list of scheduled/pending messages with cursor pagination"
+    description="Get list of scheduled/pending messages with cursor pagination",
 )
 async def list_scheduled_messages(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
-    pagination = Depends(get_pagination_params),
+    current_user=Depends(get_current_user_from_session),
+    pagination=Depends(get_pagination_params),
     patient_id: Optional[str] = Query(None, description="Filter by patient ID"),
 ):
     """List scheduled messages."""
@@ -134,7 +133,7 @@ async def list_scheduled_messages(
     query = db.query(Message).filter(
         or_(
             Message.status == MessageStatus.PENDING,
-            Message.status == MessageStatus.SCHEDULED
+            Message.status == MessageStatus.SCHEDULED,
         )
     )
 
@@ -151,10 +150,12 @@ async def list_scheduled_messages(
     # Cursor pagination
     if cursor_data and "id" in cursor_data:
         cursor_id = UUID(cursor_data["id"])
-        cursor_created_at = datetime.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
+        cursor_created_at = datetime.fromisoformat(
+            cursor_data["created_at"].replace("Z", "+00:00")
+        )
         query = query.filter(
-            (Message.created_at < cursor_created_at) |
-            ((Message.created_at == cursor_created_at) & (Message.id > cursor_id))
+            (Message.created_at < cursor_created_at)
+            | ((Message.created_at == cursor_created_at) & (Message.id > cursor_id))
         )
 
     total = None
@@ -184,20 +185,19 @@ async def list_scheduled_messages(
     "/{message_id}/cancel",
     response_model=CancelMessageV2Response,
     summary="Cancel scheduled message",
-    description="Cancel a scheduled/pending message"
+    description="Cancel a scheduled/pending message",
 )
 async def cancel_message(
     message_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
 ):
     """Cancel a scheduled message."""
     try:
         msg_uuid = UUID(message_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid message ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid message ID format"
         )
 
     message_service = MessageService(db)
@@ -205,8 +205,7 @@ async def cancel_message(
 
     if not message:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Message not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Message not found"
         )
 
     # RBAC check
@@ -215,23 +214,21 @@ async def cancel_message(
         patient = db.query(Patient).filter(Patient.id == message.patient_id).first()
         if not patient or str(patient.doctor_id) != user_id:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied"
+                status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
             )
 
     # Only allow canceling pending/scheduled messages
     if message.status not in [MessageStatus.PENDING, MessageStatus.SCHEDULED]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot cancel message with status: {message.status.value}"
+            detail=f"Cannot cancel message with status: {message.status.value}",
         )
 
     previous_status = message.status
 
     # Mark as cancelled
     message_service.mark_as_failed(
-        msg_uuid,
-        {"reason": "cancelled_by_user", "cancelled_by": user_id}
+        msg_uuid, {"reason": "cancelled_by_user", "cancelled_by": user_id}
     )
 
     return {
@@ -246,20 +243,19 @@ async def cancel_message(
 @router.get(
     "/{message_id}/status",
     summary="Get message delivery status",
-    description="Get detailed delivery status for a message"
+    description="Get detailed delivery status for a message",
 )
 async def get_message_status(
     message_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
 ):
     """Get detailed delivery status for a message."""
     try:
         msg_uuid = UUID(message_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid message ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid message ID format"
         )
 
     message_sender = MessageSender(db, messaging_mode=MessagingMode.QUEUE)  # type: ignore[call-arg]
@@ -267,8 +263,7 @@ async def get_message_status(
 
     if not status_info:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Message not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Message not found"
         )
 
     return status_info

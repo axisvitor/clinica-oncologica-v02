@@ -1,8 +1,6 @@
 """
 Example data for API documentation and testing.
 """
-from datetime import datetime, date
-from uuid import UUID
 
 # Example UUIDs for consistent documentation
 EXAMPLE_USER_ID = "550e8400-e29b-41d4-a716-446655440000"
@@ -15,10 +13,7 @@ EXAMPLE_FLOW_ID = "550e8400-e29b-41d4-a716-446655440006"
 
 # Authentication Examples
 AUTH_EXAMPLES = {
-    "login_request": {
-        "email": "doctor@hormonia.com",
-        "password": "securepassword123"
-    },
+    "login_request": {"email": "doctor@hormonia.com", "password": "securepassword123"},
     "login_response": {
         "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
         "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -28,12 +23,10 @@ AUTH_EXAMPLES = {
             "email": "doctor@hormonia.com",
             "full_name": "Dr. Sarah Johnson",
             "role": "doctor",
-            "is_active": True
-        }
+            "is_active": True,
+        },
     },
-    "refresh_request": {
-        "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-    }
+    "refresh_request": {"refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."},
 }
 
 # Patient Examples
@@ -44,7 +37,7 @@ PATIENT_EXAMPLES = {
         "email": "maria.rodriguez@email.com",
         "birth_date": "1985-03-15",
         "treatment_type": "hormone_replacement_therapy",
-        "treatment_start_date": "2024-01-15"
+        "treatment_start_date": "2024-01-15",
     },
     "patient_response": {
         "id": EXAMPLE_PATIENT_ID,
@@ -58,13 +51,13 @@ PATIENT_EXAMPLES = {
         "flow_state": "active",
         "current_day": 45,
         "created_at": "2024-01-15",
-        "updated_at": "2024-02-28"
+        "updated_at": "2024-02-28",
     },
     "patient_update": {
         "email": "maria.new@email.com",
         "treatment_type": "bioidentical_hormones",
-        "current_day": 50
-    }
+        "current_day": 50,
+    },
 }
 
 # Message Examples
@@ -74,7 +67,7 @@ MESSAGE_EXAMPLES = {
         "direction": "outbound",
         "type": "text",
         "content": "Good morning! How are you feeling today? Please rate your energy level from 1-10.",
-        "scheduled_for": "2024-03-01T09:00:00Z"
+        "scheduled_for": "2024-03-01T09:00:00Z",
     },
     "message_response": {
         "id": EXAMPLE_MESSAGE_ID,
@@ -82,27 +75,22 @@ MESSAGE_EXAMPLES = {
         "direction": "outbound",
         "type": "text",
         "content": "Good morning! How are you feeling today? Please rate your energy level from 1-10.",
-        "message_metadata": {
-            "flow_step": 5,
-            "template_id": "daily_check_in"
-        },
+        "message_metadata": {"flow_step": 5, "template_id": "daily_check_in"},
         "whatsapp_id": "wamid.HBgNMTIzNDU2Nzg5MBUCABIYFjNBMzM1RjA4RkY1NzQ5NzBBNzY4",
         "status": "delivered",
         "scheduled_for": "2024-03-01T09:00:00Z",
         "sent_at": "2024-03-01T09:00:05Z",
         "delivered_at": "2024-03-01T09:00:10Z",
         "created_at": "2024-03-01T08:55:00Z",
-        "updated_at": "2024-03-01T09:00:10Z"
+        "updated_at": "2024-03-01T09:00:10Z",
     },
     "inbound_message": {
         "patient_phone": "+1234567890",
         "content": "I'm feeling much better today! Energy level is about 8/10.",
         "whatsapp_id": "wamid.HBgNMTIzNDU2Nzg5MBUCABIYFjNBMzM1RjA4RkY1NzQ5NzBBNzY4",
         "type": "text",
-        "message_metadata": {
-            "timestamp": "2024-03-01T09:15:00Z"
-        }
-    }
+        "message_metadata": {"timestamp": "2024-03-01T09:15:00Z"},
+    },
 }
 
 # Flow Examples
@@ -123,24 +111,19 @@ FLOW_EXAMPLES = {
                     "actions": [
                         {
                             "type": "send_message",
-                            "content": "Good morning! How are you feeling today?"
+                            "content": "Good morning! How are you feeling today?",
                         }
-                    ]
+                    ],
                 },
                 {
                     "step_id": 2,
                     "name": "Energy Assessment",
                     "triggers": ["response_received"],
-                    "actions": [
-                        {
-                            "type": "send_quiz",
-                            "quiz_id": "energy_assessment"
-                        }
-                    ]
-                }
+                    "actions": [{"type": "send_quiz", "quiz_id": "energy_assessment"}],
+                },
             ],
-            "triggers": ["patient_active"]
-        }
+            "triggers": ["patient_active"],
+        },
     },
     "flow_state_response": {
         "id": EXAMPLE_FLOW_ID,
@@ -152,20 +135,17 @@ FLOW_EXAMPLES = {
         "state_data": {
             "last_response": "2024-03-01T09:15:00Z",
             "completion_rate": 0.85,
-            "missed_days": 3
+            "missed_days": 3,
         },
         "created_at": "2024-01-15T00:00:00Z",
-        "updated_at": "2024-03-01T09:15:00Z"
+        "updated_at": "2024-03-01T09:15:00Z",
     },
     "flow_progression_request": {
         "patient_id": EXAMPLE_PATIENT_ID,
         "target_step": 3,
         "force_advance": False,
-        "metadata": {
-            "reason": "manual_progression",
-            "triggered_by": EXAMPLE_USER_ID
-        }
-    }
+        "metadata": {"reason": "manual_progression", "triggered_by": EXAMPLE_USER_ID},
+    },
 }
 
 # Quiz Examples
@@ -184,9 +164,9 @@ QUIZ_EXAMPLES = {
                     {
                         "type": "range",
                         "value": [1, 10],
-                        "message": "Please select a value between 1 and 10"
+                        "message": "Please select a value between 1 and 10",
                     }
-                ]
+                ],
             },
             {
                 "id": "mood_rating",
@@ -197,11 +177,11 @@ QUIZ_EXAMPLES = {
                     {"id": "excellent", "text": "Excellent", "value": "excellent"},
                     {"id": "good", "text": "Good", "value": "good"},
                     {"id": "fair", "text": "Fair", "value": "fair"},
-                    {"id": "poor", "text": "Poor", "value": "poor"}
-                ]
-            }
+                    {"id": "poor", "text": "Poor", "value": "poor"},
+                ],
+            },
         ],
-        "is_active": True
+        "is_active": True,
     },
     "quiz_response_create": {
         "patient_id": EXAMPLE_PATIENT_ID,
@@ -210,16 +190,13 @@ QUIZ_EXAMPLES = {
         "question_text": "How would you rate your energy level today?",
         "response_type": "scale",
         "response_value": "8",
-        "response_metadata": {
-            "scale_min": 1,
-            "scale_max": 10
-        },
-        "responded_at": "2024-03-01T09:15:00Z"
+        "response_metadata": {"scale_min": 1, "scale_max": 10},
+        "responded_at": "2024-03-01T09:15:00Z",
     },
     "quiz_session_create": {
         "patient_id": EXAMPLE_PATIENT_ID,
-        "quiz_template_id": EXAMPLE_QUIZ_ID
-    }
+        "quiz_template_id": EXAMPLE_QUIZ_ID,
+    },
 }
 
 # Report Examples
@@ -228,8 +205,14 @@ REPORT_EXAMPLES = {
         "patient_id": EXAMPLE_PATIENT_ID,
         "period_start": "2024-02-01",
         "period_end": "2024-02-29",
-        "include_sections": ["summary", "treatment", "symptoms", "adherence", "recommendations"],
-        "format": "pdf"
+        "include_sections": [
+            "summary",
+            "treatment",
+            "symptoms",
+            "adherence",
+            "recommendations",
+        ],
+        "format": "pdf",
     },
     "report_preview": {
         "patient_name": "Maria Rodriguez",
@@ -241,37 +224,33 @@ REPORT_EXAMPLES = {
         "treatment_progress": {
             "title": "Treatment Progress",
             "content": "Patient has completed 45 days of hormone replacement therapy with consistent improvement in symptoms.",
-            "subsections": []
+            "subsections": [],
         },
         "symptoms_analysis": {
             "title": "Symptom Analysis",
             "content": "Energy levels have improved from average 4/10 to 8/10. Mood stability has increased significantly.",
-            "subsections": []
+            "subsections": [],
         },
         "medication_adherence": {
             "title": "Medication Adherence",
             "content": "95% adherence rate with only 2 missed doses in the reporting period.",
-            "subsections": []
+            "subsections": [],
         },
         "recommendations": {
             "title": "Recommendations",
             "content": "Continue current treatment plan. Consider increasing exercise recommendations.",
-            "subsections": []
+            "subsections": [],
         },
         "quiz_responses_count": 28,
-        "message_statistics": {
-            "sent": 45,
-            "received": 32,
-            "response_rate": 0.71
-        },
-        "alert_count": 1
+        "message_statistics": {"sent": 45, "received": 32, "response_rate": 0.71},
+        "alert_count": 1,
     },
     "analytics_request": {
         "patient_ids": [EXAMPLE_PATIENT_ID],
         "start_date": "2024-02-01",
         "end_date": "2024-02-29",
-        "metrics": ["engagement", "adherence", "symptoms", "alerts"]
-    }
+        "metrics": ["engagement", "adherence", "symptoms", "alerts"],
+    },
 }
 
 # Alert Examples
@@ -284,8 +263,8 @@ ALERT_EXAMPLES = {
         "data": {
             "symptom": "fatigue",
             "duration_days": 3,
-            "severity_trend": "increasing"
-        }
+            "severity_trend": "increasing",
+        },
     },
     "alert_response": {
         "id": EXAMPLE_ALERT_ID,
@@ -296,28 +275,22 @@ ALERT_EXAMPLES = {
         "data": {
             "symptom": "fatigue",
             "duration_days": 3,
-            "severity_trend": "increasing"
+            "severity_trend": "increasing",
         },
         "status": "pending",
         "acknowledged_by": None,
         "acknowledged_at": None,
         "resolved_at": None,
         "created_at": "2024-03-01T10:30:00Z",
-        "updated_at": "2024-03-01T10:30:00Z"
+        "updated_at": "2024-03-01T10:30:00Z",
     },
-    "alert_acknowledge": {
-        "user_id": EXAMPLE_USER_ID
-    }
+    "alert_acknowledge": {"user_id": EXAMPLE_USER_ID},
 }
 
 # WebSocket Examples
 WEBSOCKET_EXAMPLES = {
-    "authentication_request": {
-        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-    },
-    "join_room_request": {
-        "patient_id": EXAMPLE_PATIENT_ID
-    },
+    "authentication_request": {"token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."},
+    "join_room_request": {"patient_id": EXAMPLE_PATIENT_ID},
     "websocket_message": {
         "type": "new_message",
         "timestamp": "2024-03-01T09:15:00Z",
@@ -327,9 +300,9 @@ WEBSOCKET_EXAMPLES = {
             "direction": "inbound",
             "type": "text",
             "content": "I'm feeling much better today!",
-            "status": "received"
-        }
-    }
+            "status": "received",
+        },
+    },
 }
 
 # Error Examples
@@ -339,58 +312,52 @@ ERROR_EXAMPLES = {
         "message": "Request validation failed",
         "field_errors": {
             "email": ["Invalid email format"],
-            "phone": ["Phone number must start with country code (+)"]
+            "phone": ["Phone number must start with country code (+)"],
         },
-        "timestamp": "2024-03-01T10:00:00Z"
+        "timestamp": "2024-03-01T10:00:00Z",
     },
     "not_found": {
         "error": "not_found",
         "message": "Patient not found",
         "resource_type": "patient",
         "resource_id": EXAMPLE_PATIENT_ID,
-        "timestamp": "2024-03-01T10:00:00Z"
+        "timestamp": "2024-03-01T10:00:00Z",
     },
     "unauthorized": {
         "error": "unauthorized",
         "message": "Authentication required",
-        "timestamp": "2024-03-01T10:00:00Z"
+        "timestamp": "2024-03-01T10:00:00Z",
     },
     "forbidden": {
         "error": "forbidden",
         "message": "Insufficient permissions",
         "required_permissions": ["patient:read"],
-        "timestamp": "2024-03-01T10:00:00Z"
+        "timestamp": "2024-03-01T10:00:00Z",
     },
     "rate_limit": {
         "error": "rate_limit_exceeded",
         "message": "Rate limit exceeded",
         "retry_after": 60,
         "limit": 100,
-        "timestamp": "2024-03-01T10:00:00Z"
-    }
+        "timestamp": "2024-03-01T10:00:00Z",
+    },
 }
 
 # Common Examples
 COMMON_EXAMPLES = {
-    "pagination_params": {
-        "skip": 0,
-        "limit": 20
-    },
+    "pagination_params": {"skip": 0, "limit": 20},
     "paginated_response": {
         "total": 150,
         "skip": 0,
         "limit": 20,
         "has_next": True,
-        "has_previous": False
+        "has_previous": False,
     },
     "success_response": {
         "status": "success",
         "message": "Operation completed successfully",
-        "data": {
-            "id": EXAMPLE_PATIENT_ID,
-            "status": "updated"
-        },
-        "timestamp": "2024-03-01T10:00:00Z"
+        "data": {"id": EXAMPLE_PATIENT_ID, "status": "updated"},
+        "timestamp": "2024-03-01T10:00:00Z",
     },
     "health_check": {
         "status": "healthy",
@@ -399,9 +366,9 @@ COMMON_EXAMPLES = {
         "dependencies": {
             "database": "healthy",
             "redis": "healthy",
-            "evolution_api": "healthy"
-        }
-    }
+            "evolution_api": "healthy",
+        },
+    },
 }
 
 # Combine all examples

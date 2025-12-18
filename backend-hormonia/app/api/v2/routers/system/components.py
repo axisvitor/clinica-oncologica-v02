@@ -10,14 +10,11 @@ Security:
 - Rate limiting applied (30/min for list, 3/hour for restart)
 """
 
-from typing import List
 from datetime import datetime
 import time
 import json
-import logging
 
 from fastapi import APIRouter, HTTPException, status, Depends, Request
-from fastapi.responses import JSONResponse
 
 from app.database import get_db
 from app.schemas.v2.system import (
@@ -42,6 +39,7 @@ CACHE_TTL_COMPONENTS = 120  # 2 minutes (near real-time)
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
 
 async def _get_redis_client():
     """Get async Redis client for caching."""
@@ -70,6 +68,7 @@ def _is_admin(current_user) -> bool:
 # Component Management Endpoints (ADMIN ONLY)
 # ============================================================================
 
+
 @router.get(
     "/components",
     response_model=ComponentListResponse,
@@ -80,20 +79,20 @@ def _is_admin(current_user) -> bool:
     **Authentication:** Admin role required
     **Caching:** 2 minutes (near real-time)
     **Rate limit:** 30 requests/minute
-    """
+    """,
 )
 @limiter.limit("30/minute")
 async def list_components(
     request: Request,
     current_user=Depends(get_current_user_from_session),
-    db = Depends(get_db),
+    db=Depends(get_db),
 ):
     """List all system components with status."""
     # Check admin privileges
     if not _is_admin(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin privileges required for component list"
+            detail="Admin privileges required for component list",
         )
 
     cache_key = "system:components"
@@ -119,7 +118,7 @@ async def list_components(
                 version="PostgreSQL",
                 restartable=False,
                 dependencies=[],
-                metadata={"type": "primary"}
+                metadata={"type": "primary"},
             ),
             ComponentInfo(
                 name="redis",
@@ -128,7 +127,7 @@ async def list_components(
                 version="7.x",
                 restartable=True,
                 dependencies=[],
-                metadata={"type": "cache"}
+                metadata={"type": "cache"},
             ),
             ComponentInfo(
                 name="workers",
@@ -136,7 +135,7 @@ async def list_components(
                 status="running",
                 restartable=True,
                 dependencies=["redis", "database"],
-                metadata={"type": "background"}
+                metadata={"type": "background"},
             ),
             ComponentInfo(
                 name="monitoring",
@@ -144,7 +143,7 @@ async def list_components(
                 status="running",
                 restartable=True,
                 dependencies=[],
-                metadata={"enabled": settings.MONITORING_ENABLE_SERVICE}
+                metadata={"enabled": settings.MONITORING_ENABLE_SERVICE},
             ),
         ]
 
@@ -153,13 +152,15 @@ async def list_components(
         response = {
             "components": [c.dict() for c in components],
             "total": len(components),
-            "healthy_count": healthy_count
+            "healthy_count": healthy_count,
         }
 
         # Cache the result
         if redis:
             try:
-                await redis.setex(cache_key, CACHE_TTL_COMPONENTS, json.dumps(response, default=str))
+                await redis.setex(
+                    cache_key, CACHE_TTL_COMPONENTS, json.dumps(response, default=str)
+                )
                 logger.debug("Cached component list")
             except Exception as e:
                 logger.warning(f"Redis set error: {e}")
@@ -170,7 +171,7 @@ async def list_components(
         logger.error(f"Failed to list components: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve component list"
+            detail="Failed to retrieve component list",
         )
 
 
@@ -189,14 +190,14 @@ async def list_components(
     - cache (Cache system)
     - workers (Background workers)
     - monitoring (Monitoring service)
-    """
+    """,
 )
 @limiter.limit("3/hour")
 async def restart_component(
     request: Request,
     restart_request: ComponentRestartRequest,
     current_user=Depends(get_current_user_from_session),
-    db = Depends(get_db),
+    db=Depends(get_db),
 ):
     """
     Restart a specific system component.
@@ -208,7 +209,7 @@ async def restart_component(
     if not _is_admin(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin privileges required for component restart"
+            detail="Admin privileges required for component restart",
         )
 
     component = restart_request.component
@@ -221,6 +222,7 @@ async def restart_component(
         if component == "redis":
             # Restart Redis connections
             from app.utils.cache import reset_redis_connections
+
             if restart_request.graceful:
                 # Graceful: drain connections first
                 logger.info("Draining Redis connections...")
@@ -248,7 +250,7 @@ async def restart_component(
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Component '{component}' is not restartable"
+                detail=f"Component '{component}' is not restartable",
             )
 
         duration_ms = (time.time() - start_time) * 1000
@@ -261,7 +263,9 @@ async def restart_component(
             except Exception:
                 pass
 
-        logger.info(f"Component {component} restarted successfully in {duration_ms:.2f}ms")
+        logger.info(
+            f"Component {component} restarted successfully in {duration_ms:.2f}ms"
+        )
 
         return ComponentRestartResponse(
             component=component,
@@ -270,7 +274,7 @@ async def restart_component(
             duration_ms=duration_ms,
             previous_status=previous_status,
             current_status=current_status,
-            message=f"Component '{component}' restarted successfully"
+            message=f"Component '{component}' restarted successfully",
         )
 
     except Exception as e:
@@ -283,5 +287,5 @@ async def restart_component(
             duration_ms=duration_ms,
             previous_status=previous_status,
             current_status="error",
-            message=f"Component restart failed: {str(e)}"
+            message=f"Component restart failed: {str(e)}",
         )

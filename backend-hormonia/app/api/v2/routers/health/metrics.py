@@ -32,8 +32,7 @@ router = APIRouter()
 
 @router.get("/metrics", response_class=PlainTextResponse)
 async def prometheus_metrics(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> str:
     """
     Prometheus-compatible metrics endpoint (Authenticated).
@@ -97,7 +96,7 @@ async def prometheus_metrics(
 
 @router.get("/metrics/system", response_model=SystemMetrics)
 async def system_metrics_endpoint(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> SystemMetrics:
     """
     System resource metrics (Authenticated).
@@ -113,10 +112,10 @@ async def system_metrics_endpoint(
     return SystemMetrics(
         cpu_percent=round(cpu_percent, 2),
         memory_percent=round(memory.percent, 2),
-        memory_used_mb=round(memory.used / (1024 ** 2), 2),
-        memory_available_mb=round(memory.available / (1024 ** 2), 2),
+        memory_used_mb=round(memory.used / (1024**2), 2),
+        memory_available_mb=round(memory.available / (1024**2), 2),
         disk_usage_percent=round(disk.percent, 2),
-        disk_free_gb=round(disk.free / (1024 ** 3), 2),
+        disk_free_gb=round(disk.free / (1024**3), 2),
         network_bytes_sent=network.bytes_sent,
         network_bytes_recv=network.bytes_recv,
         process_count=len(psutil.pids()),
@@ -125,8 +124,7 @@ async def system_metrics_endpoint(
 
 @router.get("/metrics/application", response_model=ApplicationMetrics)
 async def application_metrics_endpoint(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> ApplicationMetrics:
     """
     Application-level metrics (Authenticated).
@@ -146,8 +144,7 @@ async def application_metrics_endpoint(
 
 @router.get("/metrics/custom", response_model=CustomMetrics)
 async def custom_metrics_endpoint(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> CustomMetrics:
     """
     Custom business metrics (Authenticated).
@@ -160,19 +157,25 @@ async def custom_metrics_endpoint(
     from app.models.quiz import QuizSession
     from app.models.alert import Alert
 
-    active_patients = db.query(Patient).filter(Patient.is_active == True).count()
+    active_patients = db.query(Patient).filter(Patient.is_active).count()
 
-    messages_24h = db.query(Message).filter(
-        Message.created_at >= datetime.utcnow() - timedelta(hours=24)
-    ).count()
+    messages_24h = (
+        db.query(Message)
+        .filter(Message.created_at >= datetime.utcnow() - timedelta(hours=24))
+        .count()
+    )
 
-    quizzes_24h = db.query(QuizSession).filter(
-        QuizSession.created_at >= datetime.utcnow() - timedelta(hours=24)
-    ).count()
+    quizzes_24h = (
+        db.query(QuizSession)
+        .filter(QuizSession.created_at >= datetime.utcnow() - timedelta(hours=24))
+        .count()
+    )
 
-    alerts_24h = db.query(Alert).filter(
-        Alert.created_at >= datetime.utcnow() - timedelta(hours=24)
-    ).count()
+    alerts_24h = (
+        db.query(Alert)
+        .filter(Alert.created_at >= datetime.utcnow() - timedelta(hours=24))
+        .count()
+    )
 
     return CustomMetrics(
         active_patients=active_patients,

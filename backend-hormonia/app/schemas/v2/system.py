@@ -14,15 +14,22 @@ from pydantic import BaseModel, Field, field_validator, ConfigDict
 # System Health Schemas
 # ============================================================================
 
+
 class ComponentHealth(BaseModel):
     """Individual component health status."""
 
     name: str = Field(..., description="Component name")
-    status: str = Field(..., description="Component status: healthy, degraded, unhealthy")
-    latency_ms: Optional[float] = Field(None, description="Response latency in milliseconds")
+    status: str = Field(
+        ..., description="Component status: healthy, degraded, unhealthy"
+    )
+    latency_ms: Optional[float] = Field(
+        None, description="Response latency in milliseconds"
+    )
     error: Optional[str] = Field(None, description="Error message if unhealthy")
     last_check: datetime = Field(..., description="Last health check timestamp")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional component metadata")
+    metadata: Optional[Dict[str, Any]] = Field(
+        None, description="Additional component metadata"
+    )
 
     @field_validator("status")
     @classmethod
@@ -32,16 +39,18 @@ class ComponentHealth(BaseModel):
             raise ValueError(f"Status must be one of: {', '.join(allowed)}")
         return v
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "database",
                 "status": "healthy",
                 "latency_ms": 12.5,
                 "error": None,
                 "last_check": "2025-11-07T10:30:00Z",
-                "metadata": {"pool_size": 10, "active_connections": 3}
+                "metadata": {"pool_size": 10, "active_connections": 3},
             }
-        })
+        }
+    )
 
 
 class SystemHealthResponse(BaseModel):
@@ -49,10 +58,18 @@ class SystemHealthResponse(BaseModel):
 
     status: str = Field(..., description="Overall system status")
     timestamp: datetime = Field(..., description="Health check timestamp")
-    components: Dict[str, ComponentHealth] = Field(..., description="Component health details")
-    overall_score: float = Field(..., ge=0, le=100, description="Overall health score (0-100)")
-    degraded_components: List[str] = Field(default_factory=list, description="List of degraded components")
-    unhealthy_components: List[str] = Field(default_factory=list, description="List of unhealthy components")
+    components: Dict[str, ComponentHealth] = Field(
+        ..., description="Component health details"
+    )
+    overall_score: float = Field(
+        ..., ge=0, le=100, description="Overall health score (0-100)"
+    )
+    degraded_components: List[str] = Field(
+        default_factory=list, description="List of degraded components"
+    )
+    unhealthy_components: List[str] = Field(
+        default_factory=list, description="List of unhealthy components"
+    )
 
     @field_validator("status")
     @classmethod
@@ -62,7 +79,8 @@ class SystemHealthResponse(BaseModel):
             raise ValueError(f"Status must be one of: {', '.join(allowed)}")
         return v
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "status": "healthy",
                 "timestamp": "2025-11-07T10:30:00Z",
@@ -72,24 +90,26 @@ class SystemHealthResponse(BaseModel):
                         "name": "database",
                         "status": "healthy",
                         "latency_ms": 12.5,
-                        "last_check": "2025-11-07T10:30:00Z"
+                        "last_check": "2025-11-07T10:30:00Z",
                     },
                     "redis": {
                         "name": "redis",
                         "status": "healthy",
                         "latency_ms": 2.1,
-                        "last_check": "2025-11-07T10:30:00Z"
-                    }
+                        "last_check": "2025-11-07T10:30:00Z",
+                    },
                 },
                 "degraded_components": [],
-                "unhealthy_components": []
+                "unhealthy_components": [],
             }
-        })
+        }
+    )
 
 
 # ============================================================================
 # System Initialization Schemas
 # ============================================================================
+
 
 class InitializationError(BaseModel):
     """Initialization error details."""
@@ -99,42 +119,64 @@ class InitializationError(BaseModel):
     timestamp: datetime = Field(..., description="Error timestamp")
     recoverable: bool = Field(True, description="Whether error is recoverable")
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "component": "firebase",
                 "error_message": "Failed to initialize Firebase Admin SDK",
                 "timestamp": "2025-11-07T10:30:00Z",
-                "recoverable": True
+                "recoverable": True,
             }
-        })
+        }
+    )
 
 
 class InitializationRequest(BaseModel):
     """Request to initialize system (optional parameters)."""
 
-    force: bool = Field(False, description="Force reinitialization even if already initialized")
-    components: Optional[List[str]] = Field(None, description="Specific components to initialize (all if None)")
-    skip_health_check: bool = Field(False, description="Skip health check after initialization")
+    force: bool = Field(
+        False, description="Force reinitialization even if already initialized"
+    )
+    components: Optional[List[str]] = Field(
+        None, description="Specific components to initialize (all if None)"
+    )
+    skip_health_check: bool = Field(
+        False, description="Skip health check after initialization"
+    )
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "force": False,
                 "components": ["database", "redis", "firebase"],
-                "skip_health_check": False
+                "skip_health_check": False,
             }
-        })
+        }
+    )
 
 
 class InitializationStatusResponse(BaseModel):
     """System initialization status response."""
 
-    started_at: Optional[datetime] = Field(None, description="Initialization start timestamp")
-    completed_at: Optional[datetime] = Field(None, description="Initialization completion timestamp")
+    started_at: Optional[datetime] = Field(
+        None, description="Initialization start timestamp"
+    )
+    completed_at: Optional[datetime] = Field(
+        None, description="Initialization completion timestamp"
+    )
     status: str = Field(..., description="Initialization status")
-    components: Dict[str, Any] = Field(..., description="Component initialization status")
-    errors: List[InitializationError] = Field(default_factory=list, description="Initialization errors")
-    warnings: List[str] = Field(default_factory=list, description="Initialization warnings")
-    duration_ms: Optional[float] = Field(None, description="Initialization duration in milliseconds")
+    components: Dict[str, Any] = Field(
+        ..., description="Component initialization status"
+    )
+    errors: List[InitializationError] = Field(
+        default_factory=list, description="Initialization errors"
+    )
+    warnings: List[str] = Field(
+        default_factory=list, description="Initialization warnings"
+    )
+    duration_ms: Optional[float] = Field(
+        None, description="Initialization duration in milliseconds"
+    )
 
     @field_validator("status")
     @classmethod
@@ -144,7 +186,8 @@ class InitializationStatusResponse(BaseModel):
             raise ValueError(f"Status must be one of: {', '.join(allowed)}")
         return v
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "started_at": "2025-11-07T10:00:00Z",
                 "completed_at": "2025-11-07T10:00:05Z",
@@ -153,31 +196,38 @@ class InitializationStatusResponse(BaseModel):
                 "components": {
                     "database": "initialized",
                     "redis": "initialized",
-                    "firebase": "initialized"
+                    "firebase": "initialized",
                 },
                 "errors": [],
-                "warnings": []
+                "warnings": [],
             }
-        })
+        }
+    )
 
 
 # ============================================================================
 # System Information Schemas
 # ============================================================================
 
+
 class SystemInfoResponse(BaseModel):
     """System information response."""
 
-    environment: str = Field(..., description="Environment name (production, staging, development)")
+    environment: str = Field(
+        ..., description="Environment name (production, staging, development)"
+    )
     debug_mode: bool = Field(..., description="Debug mode enabled")
     version: str = Field(..., description="API version")
     uptime: str = Field(..., description="System uptime")
     build_info: Optional[Dict[str, Any]] = Field(None, description="Build information")
     features: Dict[str, bool] = Field(..., description="Feature flags")
     python_version: Optional[str] = Field(None, description="Python version")
-    dependencies: Optional[Dict[str, str]] = Field(None, description="Key dependency versions")
+    dependencies: Optional[Dict[str, str]] = Field(
+        None, description="Key dependency versions"
+    )
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "environment": "production",
                 "debug_mode": False,
@@ -189,32 +239,41 @@ class SystemInfoResponse(BaseModel):
                     "whatsapp_integration": True,
                     "ai_humanization": True,
                     "monitoring": True,
-                    "rate_limiting": True
+                    "rate_limiting": True,
                 },
                 "build_info": {
                     "git_commit": "abc123def456",
-                    "build_date": "2025-11-01T10:00:00Z"
-                }
+                    "build_date": "2025-11-01T10:00:00Z",
+                },
             }
-        })
+        }
+    )
 
 
 # ============================================================================
 # Component Management Schemas
 # ============================================================================
 
+
 class ComponentInfo(BaseModel):
     """Individual component information."""
 
     name: str = Field(..., description="Component name")
-    type: str = Field(..., description="Component type: service, database, cache, external")
+    type: str = Field(
+        ..., description="Component type: service, database, cache, external"
+    )
     status: str = Field(..., description="Current status")
     version: Optional[str] = Field(None, description="Component version")
     restartable: bool = Field(..., description="Whether component can be restarted")
-    dependencies: List[str] = Field(default_factory=list, description="Component dependencies")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional component metadata")
+    dependencies: List[str] = Field(
+        default_factory=list, description="Component dependencies"
+    )
+    metadata: Optional[Dict[str, Any]] = Field(
+        None, description="Additional component metadata"
+    )
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "redis",
                 "type": "cache",
@@ -222,9 +281,10 @@ class ComponentInfo(BaseModel):
                 "version": "7.0",
                 "restartable": True,
                 "dependencies": [],
-                "metadata": {"memory_usage_mb": 256}
+                "metadata": {"memory_usage_mb": 256},
             }
-        })
+        }
+    )
 
 
 class ComponentListResponse(BaseModel):
@@ -234,34 +294,40 @@ class ComponentListResponse(BaseModel):
     total: int = Field(..., description="Total component count")
     healthy_count: int = Field(..., description="Count of healthy components")
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "components": [
                     {
                         "name": "database",
                         "type": "database",
                         "status": "running",
-                        "restartable": False
+                        "restartable": False,
                     },
                     {
                         "name": "redis",
                         "type": "cache",
                         "status": "running",
-                        "restartable": True
-                    }
+                        "restartable": True,
+                    },
                 ],
                 "total": 2,
-                "healthy_count": 2
+                "healthy_count": 2,
             }
-        })
+        }
+    )
 
 
 class ComponentRestartRequest(BaseModel):
     """Request to restart system component(s)."""
 
     component: str = Field(..., description="Component name to restart")
-    graceful: bool = Field(True, description="Graceful restart (drain connections first)")
-    timeout_seconds: int = Field(30, ge=5, le=300, description="Restart timeout in seconds")
+    graceful: bool = Field(
+        True, description="Graceful restart (drain connections first)"
+    )
+    timeout_seconds: int = Field(
+        30, ge=5, le=300, description="Restart timeout in seconds"
+    )
 
     @field_validator("component")
     @classmethod
@@ -271,13 +337,11 @@ class ComponentRestartRequest(BaseModel):
             raise ValueError(f"Component must be one of: {', '.join(allowed)}")
         return v
 
-    model_config = ConfigDict(json_schema_extra={
-            "example": {
-                "component": "redis",
-                "graceful": True,
-                "timeout_seconds": 30
-            }
-        })
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {"component": "redis", "graceful": True, "timeout_seconds": 30}
+        }
+    )
 
 
 class ComponentRestartResponse(BaseModel):
@@ -291,7 +355,8 @@ class ComponentRestartResponse(BaseModel):
     current_status: str = Field(..., description="Status after restart")
     message: str = Field(..., description="Restart message")
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "component": "redis",
                 "status": "success",
@@ -299,60 +364,77 @@ class ComponentRestartResponse(BaseModel):
                 "duration_ms": 1523.4,
                 "previous_status": "running",
                 "current_status": "running",
-                "message": "Redis cache restarted successfully"
+                "message": "Redis cache restarted successfully",
             }
-        })
+        }
+    )
 
 
 # ============================================================================
 # Configuration Validation Schemas
 # ============================================================================
 
+
 class ConfigValidationRequest(BaseModel):
     """Request to validate configuration."""
 
-    strict: bool = Field(False, description="Strict validation (treat warnings as errors)")
-    categories: Optional[List[str]] = Field(None, description="Config categories to validate")
+    strict: bool = Field(
+        False, description="Strict validation (treat warnings as errors)"
+    )
+    categories: Optional[List[str]] = Field(
+        None, description="Config categories to validate"
+    )
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "strict": False,
-                "categories": ["security", "database", "external_services"]
+                "categories": ["security", "database", "external_services"],
             }
-        })
+        }
+    )
 
 
 class ConfigValidationResponse(BaseModel):
     """Configuration validation response."""
 
     valid: bool = Field(..., description="Overall validation status")
-    warnings: List[str] = Field(default_factory=list, description="Configuration warnings")
+    warnings: List[str] = Field(
+        default_factory=list, description="Configuration warnings"
+    )
     errors: List[str] = Field(default_factory=list, description="Configuration errors")
     checked_at: datetime = Field(..., description="Validation timestamp")
-    categories_checked: List[str] = Field(default_factory=list, description="Categories validated")
-    recommendations: List[str] = Field(default_factory=list, description="Configuration recommendations")
+    categories_checked: List[str] = Field(
+        default_factory=list, description="Categories validated"
+    )
+    recommendations: List[str] = Field(
+        default_factory=list, description="Configuration recommendations"
+    )
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "valid": True,
                 "warnings": [
                     "Firebase Admin SDK not fully configured",
-                    "Rate limiting disabled in production"
+                    "Rate limiting disabled in production",
                 ],
                 "errors": [],
                 "checked_at": "2025-11-07T10:30:00Z",
                 "categories_checked": ["security", "database", "external_services"],
                 "recommendations": [
                     "Enable rate limiting in production",
-                    "Configure HTTPS redirect for production"
-                ]
+                    "Configure HTTPS redirect for production",
+                ],
             }
-        })
+        }
+    )
 
 
 # ============================================================================
 # Public Configuration Schemas
 # ============================================================================
+
 
 class PublicConfigResponse(BaseModel):
     """PUBLIC configuration for frontend applications (NO SENSITIVE DATA)."""
@@ -376,15 +458,24 @@ class PublicConfigResponse(BaseModel):
     cors: Dict[str, Any] = Field(..., description="CORS configuration")
 
     # Optional Firebase PUBLIC config (web app keys only, NOT service account)
-    VITE_FIREBASE_API_KEY: Optional[str] = Field(None, description="Firebase web API key (public)")
-    VITE_FIREBASE_PROJECT_ID: Optional[str] = Field(None, description="Firebase project ID (public)")
-    VITE_FIREBASE_APP_ID: Optional[str] = Field(None, description="Firebase app ID (public)")
-    VITE_FIREBASE_AUTH_DOMAIN: Optional[str] = Field(None, description="Firebase auth domain (public)")
+    VITE_FIREBASE_API_KEY: Optional[str] = Field(
+        None, description="Firebase web API key (public)"
+    )
+    VITE_FIREBASE_PROJECT_ID: Optional[str] = Field(
+        None, description="Firebase project ID (public)"
+    )
+    VITE_FIREBASE_APP_ID: Optional[str] = Field(
+        None, description="Firebase app ID (public)"
+    )
+    VITE_FIREBASE_AUTH_DOMAIN: Optional[str] = Field(
+        None, description="Firebase auth domain (public)"
+    )
 
     # Optional quiz URL
     VITE_MONTHLY_QUIZ_URL: Optional[str] = Field(None, description="Monthly quiz URL")
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "VITE_API_BASE_URL": "https://api.example.com/api/v2",
                 "VITE_WS_BASE_URL": "wss://api.example.com/ws",
@@ -396,19 +487,21 @@ class PublicConfigResponse(BaseModel):
                     "enableRealtime": True,
                     "enableAnalytics": True,
                     "enableEvolution": True,
-                    "enableAIHumanization": True
+                    "enableAIHumanization": True,
                 },
                 "cors": {
                     "allowedOrigins": ["https://app.example.com"],
-                    "credentials": True
-                }
+                    "credentials": True,
+                },
             }
-        })
+        }
+    )
 
 
 # ============================================================================
 # System Metrics Schemas
 # ============================================================================
+
 
 class SystemMetrics(BaseModel):
     """System-level performance metrics."""
@@ -422,7 +515,9 @@ class SystemMetrics(BaseModel):
     # Memory metrics
     memory_total_mb: float = Field(..., description="Total memory in MB")
     memory_used_mb: float = Field(..., description="Used memory in MB")
-    memory_percent: float = Field(..., ge=0, le=100, description="Memory usage percentage")
+    memory_percent: float = Field(
+        ..., ge=0, le=100, description="Memory usage percentage"
+    )
 
     # Disk metrics
     disk_total_gb: float = Field(..., description="Total disk space in GB")
@@ -441,10 +536,15 @@ class SystemMetrics(BaseModel):
     db_pool_size: int = Field(..., description="Database connection pool size")
 
     # Cache metrics
-    cache_hit_rate: Optional[float] = Field(None, ge=0, le=100, description="Cache hit rate percentage")
-    cache_memory_mb: Optional[float] = Field(None, description="Cache memory usage in MB")
+    cache_hit_rate: Optional[float] = Field(
+        None, ge=0, le=100, description="Cache hit rate percentage"
+    )
+    cache_memory_mb: Optional[float] = Field(
+        None, description="Cache memory usage in MB"
+    )
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "timestamp": "2025-11-07T10:30:00Z",
                 "cpu_percent": 45.2,
@@ -461,6 +561,7 @@ class SystemMetrics(BaseModel):
                 "db_connections": 8,
                 "db_pool_size": 10,
                 "cache_hit_rate": 85.5,
-                "cache_memory_mb": 256.0
+                "cache_memory_mb": 256.0,
             }
-        })
+        }
+    )

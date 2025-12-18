@@ -28,7 +28,6 @@ Usage:
 
 import logging
 import uuid
-import time
 import hashlib
 from typing import Optional, Dict, Any, Tuple
 from datetime import datetime, timedelta
@@ -290,7 +289,7 @@ class IdempotentMessageSender:
                 f"Cannot send empty message to patient {patient_id}. "
                 f"Content must be a non-empty string. Received: {repr(content)}"
             )
-        
+
         # 1. Generate or use provided idempotency key
         if idempotency_key is None:
             idempotency_key = self._generate_idempotency_key(

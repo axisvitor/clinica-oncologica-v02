@@ -15,13 +15,10 @@ Key Features:
 import asyncio
 import logging
 import threading
-import weakref
-from typing import Callable, Coroutine, Optional, Any, Dict, Set
+from typing import Coroutine, Optional, Any, Dict, Set
 from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
 import functools
-import sys
-import os
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +31,9 @@ class AsyncTaskTracker:
         self._task_metadata: Dict[asyncio.Task, Dict[str, Any]] = {}
         self._lock = threading.Lock()
 
-    def track_task(self, task: asyncio.Task, metadata: Optional[Dict[str, Any]] = None) -> None:
+    def track_task(
+        self, task: asyncio.Task, metadata: Optional[Dict[str, Any]] = None
+    ) -> None:
         """Track a task for monitoring and cleanup."""
         with self._lock:
             self._tasks.add(task)
@@ -60,10 +59,10 @@ class AsyncTaskTracker:
                         "task_id": id(task),
                         "done": task.done(),
                         "cancelled": task.cancelled(),
-                        "metadata": self._task_metadata.get(task, {})
+                        "metadata": self._task_metadata.get(task, {}),
                     }
                     for task in self._tasks
-                ]
+                ],
             }
 
     async def cleanup_all(self) -> None:
@@ -91,8 +90,7 @@ class EventLoopContext:
     def __init__(self):
         self._thread_loops: Dict[threading.Thread, asyncio.AbstractEventLoop] = {}
         self._executor = ThreadPoolExecutor(
-            max_workers=4,
-            thread_name_prefix="async_context"
+            max_workers=4, thread_name_prefix="async_context"
         )
 
     def get_or_create_event_loop(self) -> asyncio.AbstractEventLoop:
@@ -148,7 +146,7 @@ def safe_create_task(
     coro: Coroutine,
     name: Optional[str] = None,
     context: Optional[Dict[str, Any]] = None,
-    fallback_sync: bool = False
+    fallback_sync: bool = False,
 ) -> Optional[asyncio.Task]:
     """
     Safely create an asyncio task with proper event loop context.
@@ -172,9 +170,11 @@ def safe_create_task(
             # No running loop, handle based on environment
             if fallback_sync:
                 # Run synchronously as fallback
-                logger.warning(f"No event loop available, running task '{name}' synchronously")
+                logger.warning(
+                    f"No event loop available, running task '{name}' synchronously"
+                )
                 try:
-                    result = asyncio.run(coro)
+                    asyncio.run(coro)
                     return None  # Can't return task for sync execution
                 except Exception as e:
                     logger.error(f"Sync execution failed for task '{name}': {e}")
@@ -189,7 +189,7 @@ def safe_create_task(
         metadata = {
             "name": name,
             "created_at": asyncio.get_event_loop().time(),
-            "context": context or {}
+            "context": context or {},
         }
         task_tracker.track_task(task, metadata)
 
@@ -201,9 +201,7 @@ def safe_create_task(
 
 
 def safe_run_coroutine(
-    coro: Coroutine,
-    timeout: Optional[float] = None,
-    fallback_sync: bool = True
+    coro: Coroutine, timeout: Optional[float] = None, fallback_sync: bool = True
 ) -> Any:
     """
     Safely run a coroutine in the appropriate context.
@@ -229,8 +227,10 @@ def safe_run_coroutine(
             # No running loop, safe to use asyncio.run()
             try:
                 if timeout:
+
                     async def timed_coro():
                         return await asyncio.wait_for(coro, timeout=timeout)
+
                     return asyncio.run(timed_coro())
                 else:
                     return asyncio.run(coro)
@@ -241,8 +241,12 @@ def safe_run_coroutine(
                 logger.error(f"Failed to run coroutine with asyncio.run: {e}")
                 # If asyncio.run fails, we need to handle this gracefully
                 if fallback_sync:
-                    logger.warning("asyncio.run failed, attempting synchronous fallback")
-                    raise RuntimeError("Async execution failed and sync fallback not implemented")
+                    logger.warning(
+                        "asyncio.run failed, attempting synchronous fallback"
+                    )
+                    raise RuntimeError(
+                        "Async execution failed and sync fallback not implemented"
+                    )
                 raise
 
     except Exception as e:
@@ -250,7 +254,9 @@ def safe_run_coroutine(
         if fallback_sync:
             logger.warning("Attempting synchronous fallback")
             # This is a last resort and may not work for all coroutines
-            raise RuntimeError("Async execution failed and sync fallback not implemented")
+            raise RuntimeError(
+                "Async execution failed and sync fallback not implemented"
+            )
         raise
 
 
@@ -296,7 +302,9 @@ class CeleryAsyncMixin:
                 asyncio.get_running_loop()
                 # We're in an async context, can't use run_until_complete
                 logger.error("Cannot use run_async from within an async context")
-                raise RuntimeError("run_async called from async context - use await instead")
+                raise RuntimeError(
+                    "run_async called from async context - use await instead"
+                )
             except RuntimeError:
                 # No running loop, safe to proceed
                 pass
@@ -306,8 +314,10 @@ class CeleryAsyncMixin:
 
             # Always use run_until_complete since we verified no running loop
             if timeout:
+
                 async def timed_coro():
                     return await asyncio.wait_for(coro, timeout=timeout)
+
                 return loop.run_until_complete(timed_coro())
             else:
                 return loop.run_until_complete(coro)
@@ -328,6 +338,7 @@ def ensure_async_context(func):
             task = asyncio.create_task(some_coroutine())
             return await task
     """
+
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         async with async_context():
@@ -348,6 +359,7 @@ def celery_async_task(func):
             task = safe_create_task(my_coroutine())
             return asyncio.run(some_async_operation())
     """
+
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         # Ensure proper event loop context for Celery
@@ -373,7 +385,7 @@ async def async_health_check() -> Dict[str, Any]:
     """Health check for async context manager."""
     try:
         # Test event loop creation
-        loop = event_loop_context.get_or_create_event_loop()
+        event_loop_context.get_or_create_event_loop()
 
         # Test task creation
         async def test_task():
@@ -394,7 +406,7 @@ async def async_health_check() -> Dict[str, Any]:
             "event_loop_running": event_loop_context.is_event_loop_running(),
             "main_thread": event_loop_context.is_main_thread(),
             "task_tracker": task_status,
-            "test_task_success": success
+            "test_task_success": success,
         }
 
     except Exception as e:
@@ -402,7 +414,7 @@ async def async_health_check() -> Dict[str, Any]:
             "status": "unhealthy",
             "error": str(e),
             "event_loop_running": False,
-            "task_tracker": {"active_count": 0, "tasks": []}
+            "task_tracker": {"active_count": 0, "tasks": []},
         }
 
 
@@ -417,15 +429,11 @@ def sync_health_check() -> Dict[str, Any]:
             "event_loop_running": event_loop_context.is_event_loop_running(),
             "main_thread": event_loop_context.is_main_thread(),
             "task_tracker": task_status,
-            "async_support": True
+            "async_support": True,
         }
 
     except Exception as e:
-        return {
-            "status": "unhealthy",
-            "error": str(e),
-            "async_support": False
-        }
+        return {"status": "unhealthy", "error": str(e), "async_support": False}
 
 
 # Cleanup function for graceful shutdown
@@ -446,4 +454,5 @@ def cleanup_async_context() -> None:
 
 # Register cleanup with atexit
 import atexit
+
 atexit.register(cleanup_async_context)

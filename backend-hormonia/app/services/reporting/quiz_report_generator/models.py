@@ -1,6 +1,7 @@
 """
 Data models for quiz response processing and report generation.
 """
+
 from typing import Any, List, Optional
 from datetime import datetime
 from uuid import UUID
@@ -10,6 +11,7 @@ from dataclasses import dataclass, field
 
 class TrendDirection(Enum):
     """Trend direction indicators."""
+
     IMPROVING = "improving"
     STABLE = "stable"
     DECLINING = "declining"
@@ -18,6 +20,7 @@ class TrendDirection(Enum):
 
 class ConcernLevel(Enum):
     """Medical concern levels."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -27,6 +30,7 @@ class ConcernLevel(Enum):
 @dataclass
 class QuizMetrics:
     """Quiz response metrics."""
+
     session_id: UUID
     patient_id: UUID
     template_id: UUID
@@ -41,6 +45,7 @@ class QuizMetrics:
 @dataclass
 class ResponseTrend:
     """Response trend analysis."""
+
     question_id: str
     question_text: str
     current_value: Any
@@ -53,6 +58,7 @@ class ResponseTrend:
 @dataclass
 class MedicalInsight:
     """Medical insight from quiz analysis."""
+
     insight_type: str
     description: str
     concern_level: ConcernLevel
@@ -64,6 +70,7 @@ class MedicalInsight:
 @dataclass
 class QuizAnalysisResult:
     """Complete quiz analysis result."""
+
     session_id: UUID
     patient_id: UUID
     metrics: QuizMetrics

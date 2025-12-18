@@ -2,6 +2,7 @@
 Medical concern follow-up generator.
 Handles medical concerns with appropriate follow-up actions.
 """
+
 import logging
 from typing import List
 from datetime import datetime, timedelta
@@ -19,10 +20,7 @@ class MedicalConcernGenerator(BaseGenerator):
     """Generates follow-up actions for medical concerns."""
 
     async def handle_medical_concerns(
-        self,
-        patient_id: UUID,
-        medical_concerns: List[str],
-        original_message: str
+        self, patient_id: UUID, medical_concerns: List[str], original_message: str
     ) -> List[FollowUpAction]:
         """
         Handle medical concerns with appropriate follow-up actions.
@@ -54,10 +52,14 @@ class MedicalConcernGenerator(BaseGenerator):
                         scheduled_for=datetime.utcnow() + timedelta(minutes=10),
                         parameters={
                             "concern": concern,
-                            "concern_type": concern_type.value if concern_type else "general",
+                            "concern_type": concern_type.value
+                            if concern_type
+                            else "general",
                             "original_message": original_message,
-                            "clarification_questions": self.generate_clarification_questions(concern)
-                        }
+                            "clarification_questions": self.generate_clarification_questions(
+                                concern
+                            ),
+                        },
                     )
                     actions.append(action)
 
@@ -71,10 +73,12 @@ class MedicalConcernGenerator(BaseGenerator):
                         scheduled_for=datetime.utcnow() + timedelta(minutes=30),
                         parameters={
                             "concern": concern,
-                            "concern_type": concern_type.value if concern_type else "general",
+                            "concern_type": concern_type.value
+                            if concern_type
+                            else "general",
                             "original_message": original_message,
-                            "review_required": True
-                        }
+                            "review_required": True,
+                        },
                     )
                     actions.append(action)
 
@@ -85,9 +89,7 @@ class MedicalConcernGenerator(BaseGenerator):
             return actions
 
     async def handle_response_type_specific_actions(
-        self,
-        patient_id: UUID,
-        structured_response
+        self, patient_id: UUID, structured_response
     ) -> List[FollowUpAction]:
         """
         Handle response type specific follow-up actions.
@@ -119,9 +121,9 @@ class MedicalConcernGenerator(BaseGenerator):
                             "follow_up_questions": [
                                 "A dor está interferindo em suas atividades?",
                                 "Você tomou algum analgésico?",
-                                "A dor mudou desde ontem?"
-                            ]
-                        }
+                                "A dor mudou desde ontem?",
+                            ],
+                        },
                     )
                     actions.append(action)
 
@@ -135,8 +137,8 @@ class MedicalConcernGenerator(BaseGenerator):
                     scheduled_for=datetime.utcnow() + timedelta(hours=2),
                     parameters={
                         "medication_context": structured_response.original_message,
-                        "guidance_type": "general_medication_support"
-                    }
+                        "guidance_type": "general_medication_support",
+                    },
                 )
                 actions.append(action)
 
@@ -150,8 +152,8 @@ class MedicalConcernGenerator(BaseGenerator):
                     scheduled_for=datetime.utcnow() + timedelta(hours=1),
                     parameters={
                         "emotional_state": "negative",
-                        "support_type": "encouragement_and_resources"
-                    }
+                        "support_type": "encouragement_and_resources",
+                    },
                 )
                 actions.append(action)
 
@@ -165,8 +167,8 @@ class MedicalConcernGenerator(BaseGenerator):
                     scheduled_for=datetime.utcnow() + timedelta(hours=4),
                     parameters={
                         "encouragement_type": "positive_reinforcement",
-                        "progress_acknowledgment": True
-                    }
+                        "progress_acknowledgment": True,
+                    },
                 )
                 actions.append(action)
 

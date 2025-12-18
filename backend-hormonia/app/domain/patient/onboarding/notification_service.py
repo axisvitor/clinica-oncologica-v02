@@ -15,6 +15,7 @@ ISSUE-005 PHASE 2:
 - Follows Single Responsibility Principle (SRP)
 - 100% dependency injection for testability
 """
+
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -151,9 +152,7 @@ class NotificationService:
             try:
                 success = await self.whatsapp_service.send_message(message)
             except Exception as e:
-                logger.error(
-                    f"Failed to send WhatsApp message: {e}", exc_info=True
-                )
+                logger.error(f"Failed to send WhatsApp message: {e}", exc_info=True)
                 raise
 
             logger.info(
@@ -250,7 +249,7 @@ class NotificationService:
                     .filter(
                         Message.patient_id == patient.id,
                         Message.type == MessageType.TEXT,
-                        Message.message_metadata['message_type'].astext == 'welcome',
+                        Message.message_metadata["message_type"].astext == "welcome",
                     )
                     .count()
                 ),

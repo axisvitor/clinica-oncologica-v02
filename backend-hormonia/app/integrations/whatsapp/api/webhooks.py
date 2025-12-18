@@ -5,7 +5,7 @@ SECURITY: Rate limiting added to prevent webhook flooding (HIGH-001)
 SECURITY: Idempotency protection added to prevent duplicate message processing
 QW-006: Atomic idempotency using Redis SET NX EX to prevent race conditions
 """
-import json
+
 import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
@@ -15,10 +15,12 @@ from sqlalchemy import select
 import redis.asyncio as redis
 
 from ..models.message import (
-    WebhookPayload, MessageStatus, WhatsAppMessage, WhatsAppContact,
-    WhatsAppInstance
+    WebhookPayload,
+    MessageStatus,
+    WhatsAppMessage,
+    WhatsAppContact,
+    WhatsAppInstance,
 )
-from ..services.message_service import WhatsAppMessageService
 from app.database import get_db
 from app.utils.rate_limiter import limiter
 from app.config import settings
@@ -69,14 +71,17 @@ async def is_event_processed(event_id: str, event_type: str = "webhook") -> bool
 
         # Atomic check-and-set using SET NX EX
         acquired, reason = await idempotency.try_acquire(
-            event_type=event_type,
-            event_id=event_id
+            event_type=event_type, event_id=event_id
         )
 
         if not acquired:
             logger.info(
                 f"Duplicate webhook event detected and ignored: {event_id}",
-                extra={"event_id": event_id, "idempotency": "protected", "reason": reason}
+                extra={
+                    "event_id": event_id,
+                    "idempotency": "protected",
+                    "reason": reason,
+                },
             )
             return True
 
@@ -110,17 +115,21 @@ async def _legacy_is_event_processed(event_id: str) -> bool:
         return False  # Fail-open to not drop events
 
 
+def _webhook_rate_limit_key(request: Request) -> str:
+    """Extract rate limit key from request (IP + instance_name)."""
+    instance_name = request.path_params.get("instance_name", "unknown")
+    client_host = request.client.host if request.client else "unknown"
+    return f"{client_host}:{instance_name}"
+
+
 @router.post("/evolution/{instance_name}")
 # WA-007 FIX: Rate limit per IP + instance_name combination
-@limiter.limit(
-    "500/minute",
-    key_func=lambda: f"{request.client.host}:{request.path_params.get('instance_name', 'unknown')}"
-)
+@limiter.limit("500/minute", key_func=_webhook_rate_limit_key)
 async def evolution_webhook(
     instance_name: str,
     request: Request,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Handle Evolution API webhooks for WhatsApp events.
@@ -137,24 +146,24 @@ async def evolution_webhook(
             f"Received webhook for instance {instance_name}",
             extra={
                 "instance_name": instance_name,
-                "event_type": payload.get('event', 'unknown'),
-                "has_data": bool(payload.get('data')),
-            }
+                "event_type": payload.get("event", "unknown"),
+                "has_data": bool(payload.get("data")),
+            },
         )
 
         # Validate webhook payload
         webhook_data = WebhookPayload(
             instance=instance_name,
-            data=payload.get('data', {}),
-            event=payload.get('event', 'unknown')
+            data=payload.get("data", {}),
+            event=payload.get("event", "unknown"),
         )
 
         # Process webhook in background
         background_tasks.add_task(
             process_webhook_event,
             webhook_data,
-            background_tasks, # Pass background_tasks down
-            db
+            background_tasks,  # Pass background_tasks down
+            db,
         )
 
         return {"status": "received", "timestamp": datetime.utcnow()}
@@ -167,12 +176,16 @@ async def evolution_webhook(
                 "instance_name": instance_name,
                 "error_type": type(e).__name__,
                 "error_message": str(e),
-            }
+            },
         )
-        raise HTTPException(status_code=400, detail=f"Webhook processing error: {str(e)}")
+        raise HTTPException(
+            status_code=400, detail=f"Webhook processing error: {str(e)}"
+        )
 
 
-async def process_webhook_event(webhook_data: WebhookPayload, background_tasks: BackgroundTasks, db: AsyncSession):
+async def process_webhook_event(
+    webhook_data: WebhookPayload, background_tasks: BackgroundTasks, db: AsyncSession
+):
     """Process webhook event in background."""
     try:
         event = webhook_data.event
@@ -199,33 +212,38 @@ async def process_webhook_event(webhook_data: WebhookPayload, background_tasks: 
 
     except Exception as e:
         logger.error(
-            f"Error in webhook event processing",
+            "Error in webhook event processing",
             exc_info=True,
             extra={
                 "event_type": event,
                 "instance_name": instance_name,
                 "error_type": type(e).__name__,
-            }
+            },
         )
 
 
-async def handle_message_upsert(instance_name: str, data: Dict[str, Any], background_tasks: BackgroundTasks, db: AsyncSession):
+async def handle_message_upsert(
+    instance_name: str,
+    data: Dict[str, Any],
+    background_tasks: BackgroundTasks,
+    db: AsyncSession,
+):
     """Handle incoming messages with idempotency protection."""
     try:
         messages = data if isinstance(data, list) else [data]
 
         for message_data in messages:
-            message_info = message_data.get('message', {})
-            key = message_data.get('key', {})
+            message_info = message_data.get("message", {})
+            key = message_data.get("key", {})
 
             # Skip status messages
-            if message_info.get('messageStubType'):
+            if message_info.get("messageStubType"):
                 continue
 
             # Extract message details
-            message_id = key.get('id', '')
-            chat_id = key.get('remoteJid', '')
-            sender_id = key.get('participant') or key.get('remoteJid', '')
+            message_id = key.get("id", "")
+            chat_id = key.get("remoteJid", "")
+            sender_id = key.get("participant") or key.get("remoteJid", "")
 
             # IDEMPOTENCY: Check if this message was already processed (QW-006: Atomic)
             if await is_event_processed(message_id, event_type="message"):
@@ -238,28 +256,30 @@ async def handle_message_upsert(instance_name: str, data: Dict[str, Any], backgr
             media_url = None
             media_caption = None
 
-            if 'conversation' in message_info:
-                content = message_info['conversation']
-            elif 'extendedTextMessage' in message_info:
-                content = message_info['extendedTextMessage'].get('text', '')
-            elif 'imageMessage' in message_info:
+            if "conversation" in message_info:
+                content = message_info["conversation"]
+            elif "extendedTextMessage" in message_info:
+                content = message_info["extendedTextMessage"].get("text", "")
+            elif "imageMessage" in message_info:
                 message_type = "image"
-                media_caption = message_info['imageMessage'].get('caption', '')
-                media_url = message_info['imageMessage'].get('url', '')
-            elif 'documentMessage' in message_info:
+                media_caption = message_info["imageMessage"].get("caption", "")
+                media_url = message_info["imageMessage"].get("url", "")
+            elif "documentMessage" in message_info:
                 message_type = "document"
-                media_caption = message_info['documentMessage'].get('caption', '')
-                media_url = message_info['documentMessage'].get('url', '')
-            elif 'audioMessage' in message_info:
+                media_caption = message_info["documentMessage"].get("caption", "")
+                media_url = message_info["documentMessage"].get("url", "")
+            elif "audioMessage" in message_info:
                 message_type = "audio"
-                media_url = message_info['audioMessage'].get('url', '')
-            elif 'videoMessage' in message_info:
+                media_url = message_info["audioMessage"].get("url", "")
+            elif "videoMessage" in message_info:
                 message_type = "video"
-                media_caption = message_info['videoMessage'].get('caption', '')
-                media_url = message_info['videoMessage'].get('url', '')
+                media_caption = message_info["videoMessage"].get("caption", "")
+                media_url = message_info["videoMessage"].get("url", "")
 
             # Check if message already exists
-            stmt = select(WhatsAppMessage).where(WhatsAppMessage.external_id == message_id)
+            stmt = select(WhatsAppMessage).where(
+                WhatsAppMessage.external_id == message_id
+            )
             result = await db.execute(stmt)
             existing_message = result.scalar_one_or_none()
 
@@ -277,12 +297,11 @@ async def handle_message_upsert(instance_name: str, data: Dict[str, Any], backgr
                     media_caption=media_caption,
                     status=MessageStatus.DELIVERED,
                     external_id=message_id,
-                    created_at=datetime.fromtimestamp(message_data.get('messageTimestamp', 0)),
+                    created_at=datetime.fromtimestamp(
+                        message_data.get("messageTimestamp", 0)
+                    ),
                     delivered_at=datetime.utcnow(),
-                    message_data={
-                        "incoming": True,
-                        "message_data": message_data
-                    }
+                    message_data={"incoming": True, "message_data": message_data},
                 )
 
                 db.add(message)
@@ -295,11 +314,14 @@ async def handle_message_upsert(instance_name: str, data: Dict[str, Any], backgr
                 # ---------------------------------------------------------
                 try:
                     # Clean phone number (remove suffix)
-                    phone_number = sender_id.split('@')[0] if '@' in sender_id else sender_id
+                    phone_number = (
+                        sender_id.split("@")[0] if "@" in sender_id else sender_id
+                    )
 
                     # Find patient by phone (LGPD: use phone_hash lookup)
                     from app.models.patient import Patient
                     from app.services.encryption import get_lgpd_encryption_service
+
                     lgpd_service = get_lgpd_encryption_service()
                     phone_hash = lgpd_service.hash_phone(phone_number)
                     stmt = select(Patient).where(Patient.phone_hash == phone_hash)
@@ -307,14 +329,14 @@ async def handle_message_upsert(instance_name: str, data: Dict[str, Any], backgr
                     patient = result.scalar_one_or_none()
 
                     if patient:
-                        logger.info(f"Message from patient {patient.id} detected. Triggering flow engine in background.")
-                        
+                        logger.info(
+                            f"Message from patient {patient.id} detected. Triggering flow engine in background."
+                        )
+
                         # Add to background tasks to avoid blocking the webhook response
                         # and to manage the sync/async impedance mismatch separately
                         background_tasks.add_task(
-                            _trigger_flow_response_async, 
-                            patient.id, 
-                            content
+                            _trigger_flow_response_async, patient.id, content
                         )
                     else:
                         logger.debug(f"No patient found for phone {phone_number}")
@@ -322,7 +344,6 @@ async def handle_message_upsert(instance_name: str, data: Dict[str, Any], backgr
                 except Exception as flow_error:
                     logger.error(f"Error triggering flow engine: {flow_error}")
                 # ---------------------------------------------------------
-
 
     except Exception as e:
         logger.error(f"Error handling message upsert: {e}")
@@ -336,7 +357,7 @@ async def _trigger_flow_response_async(patient_id: str, content: str):
     import asyncio
     from app.database import get_scoped_session
     from app.services.enhanced_flow_engine import get_enhanced_flow_engine
-    
+
     logger.info(f"Starting background flow processing for patient {patient_id}")
 
     def _run_hybrid_flow():
@@ -344,21 +365,28 @@ async def _trigger_flow_response_async(patient_id: str, content: str):
             # Create a new event loop for this thread to handle async calls within the engine
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            
+
             with get_scoped_session() as sync_db:
                 # Initialize engine with sync session
                 engine = get_enhanced_flow_engine(sync_db)
-                
+
                 # Run the async method in the thread's loop
-                # This allows sync DB calls to block the thread (fine) 
+                # This allows sync DB calls to block the thread (fine)
                 # while async AI calls are awaited properly
-                loop.run_until_complete(engine.process_patient_response(patient_id, content))
-                
+                loop.run_until_complete(
+                    engine.process_patient_response(patient_id, content)
+                )
+
             loop.close()
-            logger.info(f"Completed background flow processing for patient {patient_id}")
-            
+            logger.info(
+                f"Completed background flow processing for patient {patient_id}"
+            )
+
         except Exception as e:
-            logger.error(f"Error in background flow thread for patient {patient_id}: {e}", exc_info=True)
+            logger.error(
+                f"Error in background flow thread for patient {patient_id}: {e}",
+                exc_info=True,
+            )
             try:
                 loop.close()
             except Exception as close_err:
@@ -372,17 +400,19 @@ async def _trigger_flow_response_async(patient_id: str, content: str):
         logger.error(f"Failed to schedule background flow task: {e}", exc_info=True)
 
 
-async def handle_message_update(instance_name: str, data: Dict[str, Any], db: AsyncSession):
+async def handle_message_update(
+    instance_name: str, data: Dict[str, Any], db: AsyncSession
+):
     """Handle message status updates with idempotency protection."""
     try:
         updates = data if isinstance(data, list) else [data]
 
         for update_data in updates:
-            key = update_data.get('key', {})
-            update_info = update_data.get('update', {})
+            key = update_data.get("key", {})
+            update_info = update_data.get("update", {})
 
-            message_id = key.get('id', '')
-            status_update = update_info.get('status')
+            message_id = key.get("id", "")
+            status_update = update_info.get("status")
 
             if not message_id or not status_update:
                 continue
@@ -397,13 +427,15 @@ async def handle_message_update(instance_name: str, data: Dict[str, Any], db: As
             status_map = {
                 1: MessageStatus.SENT,
                 2: MessageStatus.DELIVERED,
-                3: MessageStatus.READ
+                3: MessageStatus.READ,
             }
 
             new_status = status_map.get(status_update, MessageStatus.SENT)
 
             # Update message status
-            stmt = select(WhatsAppMessage).where(WhatsAppMessage.external_id == message_id)
+            stmt = select(WhatsAppMessage).where(
+                WhatsAppMessage.external_id == message_id
+            )
             result = await db.execute(stmt)
             message = result.scalar_one_or_none()
 
@@ -423,18 +455,20 @@ async def handle_message_update(instance_name: str, data: Dict[str, Any], db: As
         logger.error(f"Error handling message update: {e}")
 
 
-async def handle_send_message(instance_name: str, data: Dict[str, Any], db: AsyncSession):
+async def handle_send_message(
+    instance_name: str, data: Dict[str, Any], db: AsyncSession
+):
     """Handle outgoing message confirmation."""
     try:
-        key = data.get('key', {})
-        message_id = key.get('id', '')
+        key = data.get("key", {})
+        message_id = key.get("id", "")
 
         if message_id:
             # Update message with external ID
             stmt = select(WhatsAppMessage).where(
                 WhatsAppMessage.instance_name == instance_name,
                 WhatsAppMessage.external_id.is_(None),
-                WhatsAppMessage.status == MessageStatus.PENDING
+                WhatsAppMessage.status == MessageStatus.PENDING,
             )
             result = await db.execute(stmt)
             message = result.first()
@@ -451,27 +485,33 @@ async def handle_send_message(instance_name: str, data: Dict[str, Any], db: Asyn
         logger.error(f"Error handling send message: {e}")
 
 
-async def handle_contact_upsert(instance_name: str, data: Dict[str, Any], db: AsyncSession):
+async def handle_contact_upsert(
+    instance_name: str, data: Dict[str, Any], db: AsyncSession
+):
     """Handle contact updates."""
     try:
         contacts = data if isinstance(data, list) else [data]
 
         for contact_data in contacts:
-            contact_id = contact_data.get('id', '')
-            phone_number = contact_id.split('@')[0] if '@' in contact_id else contact_id
+            contact_id = contact_data.get("id", "")
+            phone_number = contact_id.split("@")[0] if "@" in contact_id else contact_id
 
             # Check if contact exists
             stmt = select(WhatsAppContact).where(
                 WhatsAppContact.instance_name == instance_name,
-                WhatsAppContact.phone_number == phone_number
+                WhatsAppContact.phone_number == phone_number,
             )
             result = await db.execute(stmt)
             existing_contact = result.scalar_one_or_none()
 
             if existing_contact:
                 # Update existing contact
-                existing_contact.name = contact_data.get('pushName') or contact_data.get('name')
-                existing_contact.profile_picture_url = contact_data.get('profilePictureUrl')
+                existing_contact.name = contact_data.get(
+                    "pushName"
+                ) or contact_data.get("name")
+                existing_contact.profile_picture_url = contact_data.get(
+                    "profilePictureUrl"
+                )
                 existing_contact.updated_at = datetime.utcnow()
             else:
                 # Create new contact
@@ -480,8 +520,8 @@ async def handle_contact_upsert(instance_name: str, data: Dict[str, Any], db: As
                     instance_name=instance_name,
                     phone_number=phone_number,
                     formatted_number=contact_id,
-                    name=contact_data.get('pushName') or contact_data.get('name'),
-                    profile_picture_url=contact_data.get('profilePictureUrl')
+                    name=contact_data.get("pushName") or contact_data.get("name"),
+                    profile_picture_url=contact_data.get("profilePictureUrl"),
                 )
                 db.add(contact)
 
@@ -491,10 +531,12 @@ async def handle_contact_upsert(instance_name: str, data: Dict[str, Any], db: As
         logger.error(f"Error handling contact upsert: {e}")
 
 
-async def handle_connection_update(instance_name: str, data: Dict[str, Any], db: AsyncSession):
+async def handle_connection_update(
+    instance_name: str, data: Dict[str, Any], db: AsyncSession
+):
     """Handle instance connection updates."""
     try:
-        state = data.get('state', '')
+        state = data.get("state", "")
 
         # Update instance status
         stmt = select(WhatsAppInstance).where(WhatsAppInstance.name == instance_name)
@@ -503,42 +545,46 @@ async def handle_connection_update(instance_name: str, data: Dict[str, Any], db:
 
         if instance:
             instance.status = state
-            instance.is_connected = state == 'open'
+            instance.is_connected = state == "open"
             instance.last_activity = datetime.utcnow()
             instance.updated_at = datetime.utcnow()
 
             # Update phone number and profile if available
-            if 'number' in data:
-                instance.phone_number = data['number']
-            if 'profileName' in data:
-                instance.profile_name = data['profileName']
+            if "number" in data:
+                instance.phone_number = data["number"]
+            if "profileName" in data:
+                instance.profile_name = data["profileName"]
 
             await db.commit()
-            logger.info(f"Updated instance {instance_name} connection status to {state}")
+            logger.info(
+                f"Updated instance {instance_name} connection status to {state}"
+            )
 
     except Exception as e:
         logger.error(f"Error handling connection update: {e}")
 
 
-async def handle_presence_update(instance_name: str, data: Dict[str, Any], db: AsyncSession):
+async def handle_presence_update(
+    instance_name: str, data: Dict[str, Any], db: AsyncSession
+):
     """Handle presence updates (online/offline status)."""
     try:
-        contact_id = data.get('id', '')
-        presence = data.get('presences', {})
+        contact_id = data.get("id", "")
+        presence = data.get("presences", {})
 
         if contact_id and presence:
-            phone_number = contact_id.split('@')[0] if '@' in contact_id else contact_id
+            phone_number = contact_id.split("@")[0] if "@" in contact_id else contact_id
 
             # Update contact last seen
             stmt = select(WhatsAppContact).where(
                 WhatsAppContact.instance_name == instance_name,
-                WhatsAppContact.phone_number == phone_number
+                WhatsAppContact.phone_number == phone_number,
             )
             result = await db.execute(stmt)
             contact = result.scalar_one_or_none()
 
             if contact:
-                last_seen_timestamp = presence.get('lastSeen')
+                last_seen_timestamp = presence.get("lastSeen")
                 if last_seen_timestamp:
                     contact.last_seen = datetime.fromtimestamp(last_seen_timestamp)
                     contact.updated_at = datetime.utcnow()
@@ -548,29 +594,31 @@ async def handle_presence_update(instance_name: str, data: Dict[str, Any], db: A
         logger.error(f"Error handling presence update: {e}")
 
 
-async def handle_chat_upsert(instance_name: str, data: Dict[str, Any], db: AsyncSession):
+async def handle_chat_upsert(
+    instance_name: str, data: Dict[str, Any], db: AsyncSession
+):
     """Handle chat updates."""
     try:
         chats = data if isinstance(data, list) else [data]
 
         for chat_data in chats:
-            chat_id = chat_data.get('id', '')
+            chat_id = chat_data.get("id", "")
 
             # For individual chats, update contact information
-            if '@s.whatsapp.net' in chat_id:
-                phone_number = chat_id.split('@')[0]
+            if "@s.whatsapp.net" in chat_id:
+                phone_number = chat_id.split("@")[0]
 
                 stmt = select(WhatsAppContact).where(
                     WhatsAppContact.instance_name == instance_name,
-                    WhatsAppContact.phone_number == phone_number
+                    WhatsAppContact.phone_number == phone_number,
                 )
                 result = await db.execute(stmt)
                 contact = result.scalar_one_or_none()
 
                 if contact:
                     # Update contact with chat information
-                    if 'name' in chat_data:
-                        contact.name = chat_data['name']
+                    if "name" in chat_data:
+                        contact.name = chat_data["name"]
                     contact.updated_at = datetime.utcnow()
                     await db.commit()
 
@@ -585,7 +633,7 @@ async def webhook_health():
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow(),
-        "service": "whatsapp-webhooks"
+        "service": "whatsapp-webhooks",
     }
 
 
@@ -598,7 +646,9 @@ async def validate_webhook(request: Request):
         return {
             "status": "valid",
             "received_data": payload,
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.utcnow(),
         }
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid webhook payload: {str(e)}")
+        raise HTTPException(
+            status_code=400, detail=f"Invalid webhook payload: {str(e)}"
+        )

@@ -9,11 +9,10 @@ Quick Win #5 - Sprint 1
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
+from typing import Dict, Any
 from uuid import UUID
 
 from celery import shared_task
-from celery.exceptions import Retry
 
 from app.tasks.base import DatabaseTask, get_db_session
 from app.tasks.config import task_configs
@@ -71,11 +70,7 @@ def execute_pending_follow_ups(self) -> Dict[str, Any]:
             for action_id, action in actions_to_execute:
                 try:
                     # Execute the action based on its type
-                    result = _execute_follow_up_action(
-                        db,
-                        follow_up_service,
-                        action
-                    )
+                    result = _execute_follow_up_action(db, follow_up_service, action)
 
                     if result.get("success"):
                         action.status = "completed"
@@ -91,21 +86,20 @@ def execute_pending_follow_ups(self) -> Dict[str, Any]:
                         action.status = "failed"
                         action.execution_result = result
                         failed_count += 1
-                        errors.append({
-                            "action_id": str(action_id),
-                            "error": result.get("error", "Unknown error")
-                        })
+                        errors.append(
+                            {
+                                "action_id": str(action_id),
+                                "error": result.get("error", "Unknown error"),
+                            }
+                        )
 
                 except Exception as e:
                     logger.error(
                         f"Error executing follow-up action {action_id}: {e}",
-                        exc_info=True
+                        exc_info=True,
                     )
                     failed_count += 1
-                    errors.append({
-                        "action_id": str(action_id),
-                        "error": str(e)
-                    })
+                    errors.append({"action_id": str(action_id), "error": str(e)})
 
             # Clean up completed/failed actions older than 24 hours
             cleanup_threshold = now - timedelta(hours=24)
@@ -122,12 +116,15 @@ def execute_pending_follow_ups(self) -> Dict[str, Any]:
                 "failed_count": failed_count,
                 "skipped_count": skipped_count,
                 "cleaned_count": cleaned_count,
-                "remaining_pending": len([
-                    a for a in follow_up_service.pending_actions.values()
-                    if a.status == "pending"
-                ]),
+                "remaining_pending": len(
+                    [
+                        a
+                        for a in follow_up_service.pending_actions.values()
+                        if a.status == "pending"
+                    ]
+                ),
                 "errors": errors[:10] if errors else [],  # Limit to 10 errors
-                "timestamp": now.isoformat()
+                "timestamp": now.isoformat(),
             }
 
             self.log_task_success(result)
@@ -143,11 +140,7 @@ def execute_pending_follow_ups(self) -> Dict[str, Any]:
         return self.create_error_result(str(e))
 
 
-def _execute_follow_up_action(
-    db,
-    follow_up_service,
-    action
-) -> Dict[str, Any]:
+def _execute_follow_up_action(db, follow_up_service, action) -> Dict[str, Any]:
     """
     Execute a single follow-up action based on its type.
 
@@ -186,7 +179,7 @@ def _execute_follow_up_action(
             return {
                 "success": True,
                 "skipped": True,
-                "reason": f"Unhandled action type: {action_type}"
+                "reason": f"Unhandled action type: {action_type}",
             }
 
     except Exception as e:
@@ -212,13 +205,13 @@ def _send_empathetic_response(
             content=content,
             scheduled_for=datetime.utcnow(),
             message_type=MessageType.TEXT,
-            message_metadata={"follow_up_type": "empathetic_response"}
+            message_metadata={"follow_up_type": "empathetic_response"},
         )
 
         return {
             "success": True,
             "message_id": str(message.id),
-            "type": "empathetic_response"
+            "type": "empathetic_response",
         }
 
     except Exception as e:
@@ -243,13 +236,13 @@ def _send_medical_clarification(
             content=content,
             scheduled_for=datetime.utcnow(),
             message_type=MessageType.TEXT,
-            message_metadata={"follow_up_type": "medical_clarification"}
+            message_metadata={"follow_up_type": "medical_clarification"},
         )
 
         return {
             "success": True,
             "message_id": str(message.id),
-            "type": "medical_clarification"
+            "type": "medical_clarification",
         }
 
     except Exception as e:
@@ -278,7 +271,7 @@ def _send_escalation_notification(
             "escalation_level": params.get("escalation_level", "medium"),
             "concern_type": params.get("concern_type", "general"),
             "description": params.get("description", "Follow-up escalation"),
-            "original_message": params.get("original_message", "")
+            "original_message": params.get("original_message", ""),
         }
 
         # Queue the alert notification
@@ -287,7 +280,7 @@ def _send_escalation_notification(
         return {
             "success": True,
             "type": "escalation_notification",
-            "alert_queued": True
+            "alert_queued": True,
         }
 
     except Exception as e:
@@ -314,16 +307,12 @@ def _send_provider_alert(
             "doctor_id": str(patient.doctor_id) if patient.doctor_id else None,
             "alert_type": "provider_alert",
             "priority": params.get("priority", "medium"),
-            "message": params.get("alert_message", "Provider attention required")
+            "message": params.get("alert_message", "Provider attention required"),
         }
 
         process_alert_notification.delay(alert_data)
 
-        return {
-            "success": True,
-            "type": "provider_alert",
-            "alert_queued": True
-        }
+        return {"success": True, "type": "provider_alert", "alert_queued": True}
 
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -347,13 +336,13 @@ def _send_conversation_continuation(
             content=content,
             scheduled_for=datetime.utcnow(),
             message_type=MessageType.TEXT,
-            message_metadata={"follow_up_type": "conversation_continuation"}
+            message_metadata={"follow_up_type": "conversation_continuation"},
         )
 
         return {
             "success": True,
             "message_id": str(message.id),
-            "type": "conversation_continuation"
+            "type": "conversation_continuation",
         }
 
     except Exception as e:
@@ -382,7 +371,10 @@ def process_escalation_alerts(self) -> Dict[str, Any]:
 
     try:
         with get_db_session() as db:
-            from app.services.follow_up_system import FollowUpSystemService, EscalationLevel
+            from app.services.follow_up_system import (
+                FollowUpSystemService,
+                EscalationLevel,
+            )
 
             follow_up_service = FollowUpSystemService(db)
 
@@ -419,7 +411,7 @@ def process_escalation_alerts(self) -> Dict[str, Any]:
                 "processed_count": processed_count,
                 "escalated_count": escalated_count,
                 "active_alerts": len(follow_up_service.active_alerts),
-                "timestamp": now.isoformat()
+                "timestamp": now.isoformat(),
             }
 
             self.log_task_success(result)
@@ -460,7 +452,9 @@ def cleanup_old_contexts(self) -> Dict[str, Any]:
             cleanup_threshold = now - timedelta(days=7)
             cleaned_count = 0
 
-            for patient_id, context in list(follow_up_service.conversation_contexts.items()):
+            for patient_id, context in list(
+                follow_up_service.conversation_contexts.items()
+            ):
                 if context.last_updated < cleanup_threshold:
                     del follow_up_service.conversation_contexts[patient_id]
                     cleaned_count += 1
@@ -468,7 +462,7 @@ def cleanup_old_contexts(self) -> Dict[str, Any]:
             result = {
                 "cleaned_count": cleaned_count,
                 "remaining_contexts": len(follow_up_service.conversation_contexts),
-                "timestamp": now.isoformat()
+                "timestamp": now.isoformat(),
             }
 
             self.log_task_success(result)

@@ -2,7 +2,8 @@
 Patient Summary model for AI-generated patient summaries.
 Stores comprehensive patient summaries for doctor consultations.
 """
-from sqlalchemy import Column, String, Date, Integer, ForeignKey, Text, Index, DateTime
+
+from sqlalchemy import Column, String, Date, Integer, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB, BYTEA
 from sqlalchemy.orm import relationship
 
@@ -25,6 +26,7 @@ class PatientSummary(BaseModel):
     - PDF export
     - Historical tracking
     """
+
     __tablename__ = "patient_summaries"
 
     # Foreign keys
@@ -32,12 +34,10 @@ class PatientSummary(BaseModel):
         UUID(as_uuid=True),
         ForeignKey("patients.id", ondelete="CASCADE"),
         nullable=False,
-        index=True
+        index=True,
     )
     generated_by = Column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
 
     # Summary period
@@ -86,13 +86,12 @@ class PatientSummary(BaseModel):
     # Indexes for common queries
     __table_args__ = (
         Index(
-            'idx_patient_summaries_patient_period',
-            'patient_id', 'start_date', 'end_date'
+            "idx_patient_summaries_patient_period",
+            "patient_id",
+            "start_date",
+            "end_date",
         ),
-        Index(
-            'idx_patient_summaries_generated_at',
-            'created_at'
-        ),
+        Index("idx_patient_summaries_generated_at", "created_at"),
     )
 
     def __repr__(self):

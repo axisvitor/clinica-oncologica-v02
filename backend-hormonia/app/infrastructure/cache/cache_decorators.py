@@ -6,8 +6,7 @@ along with context managers and utility functions for cache operations.
 """
 
 import functools
-import logging
-from typing import Any, Callable, Optional, Union, List
+from typing import Callable, Optional, Union, List
 from datetime import timedelta
 from contextlib import asynccontextmanager
 
@@ -21,7 +20,7 @@ def cache(
     cache_type: str = "analytics_dashboard",
     ttl: Optional[Union[int, timedelta]] = None,
     key_prefix: Optional[str] = None,
-    namespace: str = "cache"
+    namespace: str = "cache",
 ) -> Callable:
     """
     Decorator to cache function results (synchronous functions).
@@ -37,6 +36,7 @@ def cache(
         def get_user_data(user_id: int):
             return fetch_user_from_db(user_id)
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -48,11 +48,11 @@ def cache(
 
             # If cache_type is not registered, register it with defaults
             if cache_type not in manager._cache_configs:
-                default_ttl = ttl.total_seconds() if isinstance(ttl, timedelta) else (ttl or 3600)
+                default_ttl = (
+                    ttl.total_seconds() if isinstance(ttl, timedelta) else (ttl or 3600)
+                )
                 config = CacheConfig(
-                    ttl=int(default_ttl),
-                    key_prefix=func_name,
-                    namespace=namespace
+                    ttl=int(default_ttl), key_prefix=func_name, namespace=namespace
                 )
                 manager.register_cache_config(cache_type, config)
 
@@ -74,6 +74,7 @@ def cache(
             return result
 
         return wrapper
+
     return decorator
 
 
@@ -81,7 +82,7 @@ def async_cache(
     cache_type: str = "analytics_dashboard",
     ttl: Optional[Union[int, timedelta]] = None,
     key_prefix: Optional[str] = None,
-    namespace: str = "cache"
+    namespace: str = "cache",
 ) -> Callable:
     """
     Decorator to cache async function results.
@@ -97,6 +98,7 @@ def async_cache(
         async def get_user_data_async(user_id: int):
             return await fetch_user_from_db_async(user_id)
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
@@ -108,16 +110,18 @@ def async_cache(
 
             # If cache_type is not registered, register it with defaults
             if cache_type not in manager._cache_configs:
-                default_ttl = ttl.total_seconds() if isinstance(ttl, timedelta) else (ttl or 3600)
+                default_ttl = (
+                    ttl.total_seconds() if isinstance(ttl, timedelta) else (ttl or 3600)
+                )
                 config = CacheConfig(
-                    ttl=int(default_ttl),
-                    key_prefix=func_name,
-                    namespace=namespace
+                    ttl=int(default_ttl), key_prefix=func_name, namespace=namespace
                 )
                 manager.register_cache_config(cache_type, config)
 
             # Try to get from cache
-            cached_result = await manager.get_async(cache_type, None, None, *args, **kwargs)
+            cached_result = await manager.get_async(
+                cache_type, None, None, *args, **kwargs
+            )
             if cached_result is not None:
                 logger.debug(f"Cache HIT for async function: {func_name}")
                 return cached_result
@@ -134,13 +138,14 @@ def async_cache(
             return result
 
         return wrapper
+
     return decorator
 
 
 def cache_result(
     cache_type: str,
     key_generator: Callable[..., List[str]],
-    ttl_override: Optional[int] = None
+    ttl_override: Optional[int] = None,
 ):
     """
     Decorator for caching function results (backward compatibility with caching.py).
@@ -150,6 +155,7 @@ def cache_result(
         key_generator: Function to generate cache key parts from function args
         ttl_override: Override default TTL
     """
+
     def decorator(func):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
@@ -178,6 +184,7 @@ def cache_result(
             return result
 
         return wrapper
+
     return decorator
 
 
@@ -186,7 +193,7 @@ def cache_response(
     *,
     ttl: Optional[int] = None,
     key_prefix: Optional[str] = None,
-    cache_type: str = "analytics_dashboard"
+    cache_type: str = "analytics_dashboard",
 ):
     """
     Decorator for caching HTTP response data (backward compatibility with caching.py).
@@ -207,10 +214,7 @@ def cache_response(
 
             # Generate cache key from function name and arguments
             func_name = key_prefix or func.__name__
-            key_parts = [
-                func_name,
-                str(hash(str(args) + str(sorted(kwargs.items()))))
-            ]
+            key_parts = [func_name, str(hash(str(args) + str(sorted(kwargs.items()))))]
 
             # Try to get from cache
             cached_result = await cache_manager.get_async(cache_type, key_parts)
@@ -228,6 +232,7 @@ def cache_response(
             return result
 
         return wrapper
+
     return decorator
 
 
@@ -250,12 +255,14 @@ async def cache_context():
 
 
 # Utility functions for cache key generation
-def generate_request_cache_key(request, additional_parts: List[str] = None) -> List[str]:
+def generate_request_cache_key(
+    request, additional_parts: List[str] = None
+) -> List[str]:
     """Generate cache key parts from request (backward compatibility)."""
     parts = [
         request.method,
         request.url.path,
-        str(sorted(request.query_params.items()))
+        str(sorted(request.query_params.items())),
     ]
 
     if additional_parts:
@@ -264,7 +271,9 @@ def generate_request_cache_key(request, additional_parts: List[str] = None) -> L
     return parts
 
 
-def generate_user_cache_key(user_id: str, additional_parts: List[str] = None) -> List[str]:
+def generate_user_cache_key(
+    user_id: str, additional_parts: List[str] = None
+) -> List[str]:
     """Generate cache key parts for user-specific data (backward compatibility)."""
     parts = [user_id]
 
@@ -286,5 +295,5 @@ __all__ = [
     "cache_response",
     "cache_context",
     "generate_request_cache_key",
-    "generate_user_cache_key"
+    "generate_user_cache_key",
 ]

@@ -33,7 +33,7 @@ import hashlib
 import logging
 import time
 from typing import Optional, Callable, Awaitable
-from fastapi import Request, Response, HTTPException
+from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
@@ -72,7 +72,7 @@ class WebhookValidatorMiddleware(BaseHTTPMiddleware):
         max_timestamp_age: int = 300,
         signature_header: str = "X-Webhook-Signature",
         timestamp_header: str = "X-Webhook-Timestamp",
-        webhook_paths: Optional[list[str]] = None
+        webhook_paths: Optional[list[str]] = None,
     ):
         """
         Initialize webhook validator middleware.
@@ -123,12 +123,8 @@ class WebhookValidatorMiddleware(BaseHTTPMiddleware):
             Uses HMAC-SHA256 with secret key to prevent tampering.
             Includes timestamp to prevent replay attacks.
         """
-        message = body + timestamp.encode('utf-8')
-        signature = hmac.new(
-            self.secret_key.encode('utf-8'),
-            message,
-            hashlib.sha256
-        )
+        message = body + timestamp.encode("utf-8")
+        signature = hmac.new(self.secret_key.encode("utf-8"), message, hashlib.sha256)
         return signature.hexdigest()
 
     def _validate_timestamp(self, timestamp_str: str) -> bool:
@@ -159,7 +155,9 @@ class WebhookValidatorMiddleware(BaseHTTPMiddleware):
 
             # Reject old timestamps
             if age > self.max_timestamp_age:
-                logger.warning(f"Webhook timestamp too old: {age}s > {self.max_timestamp_age}s")
+                logger.warning(
+                    f"Webhook timestamp too old: {age}s > {self.max_timestamp_age}s"
+                )
                 return False
 
             return True
@@ -169,9 +167,7 @@ class WebhookValidatorMiddleware(BaseHTTPMiddleware):
             return False
 
     def _verify_signature(
-        self,
-        provided_signature: str,
-        computed_signature: str
+        self, provided_signature: str, computed_signature: str
     ) -> bool:
         """
         Verify webhook signature using constant-time comparison.
@@ -190,9 +186,7 @@ class WebhookValidatorMiddleware(BaseHTTPMiddleware):
         return hmac.compare_digest(provided_signature, computed_signature)
 
     async def dispatch(
-        self,
-        request: Request,
-        call_next: Callable[[Request], Awaitable[Response]]
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         """
         Process request and validate webhook signature if applicable.
@@ -228,7 +222,9 @@ class WebhookValidatorMiddleware(BaseHTTPMiddleware):
                 )
                 return JSONResponse(
                     status_code=401,
-                    content={"detail": f"Missing required header: {self.signature_header}"}
+                    content={
+                        "detail": f"Missing required header: {self.signature_header}"
+                    },
                 )
 
             if not timestamp_str:
@@ -237,17 +233,17 @@ class WebhookValidatorMiddleware(BaseHTTPMiddleware):
                 )
                 return JSONResponse(
                     status_code=401,
-                    content={"detail": f"Missing required header: {self.timestamp_header}"}
+                    content={
+                        "detail": f"Missing required header: {self.timestamp_header}"
+                    },
                 )
 
             # Validate timestamp to prevent replay attacks
             if not self._validate_timestamp(timestamp_str):
-                logger.error(
-                    f"Invalid or expired webhook timestamp: {timestamp_str}"
-                )
+                logger.error(f"Invalid or expired webhook timestamp: {timestamp_str}")
                 return JSONResponse(
                     status_code=401,
-                    content={"detail": "Invalid or expired webhook timestamp"}
+                    content={"detail": "Invalid or expired webhook timestamp"},
                 )
 
             # Read request body
@@ -262,14 +258,11 @@ class WebhookValidatorMiddleware(BaseHTTPMiddleware):
                     f"Webhook signature validation failed for path: {request.url.path}"
                 )
                 return JSONResponse(
-                    status_code=401,
-                    content={"detail": "Invalid webhook signature"}
+                    status_code=401, content={"detail": "Invalid webhook signature"}
                 )
 
             # Signature valid - log success and continue
-            logger.info(
-                f"✅ Webhook signature validated for {request.url.path}"
-            )
+            logger.info(f"✅ Webhook signature validated for {request.url.path}")
 
             # Re-create request with body for next handler
             # (body was consumed during validation)
@@ -284,15 +277,11 @@ class WebhookValidatorMiddleware(BaseHTTPMiddleware):
             logger.error(f"Error in webhook signature validation: {e}")
             return JSONResponse(
                 status_code=500,
-                content={"detail": "Internal error during webhook validation"}
+                content={"detail": "Internal error during webhook validation"},
             )
 
 
-def generate_webhook_signature(
-    body: bytes,
-    timestamp: str,
-    secret_key: str
-) -> str:
+def generate_webhook_signature(body: bytes, timestamp: str, secret_key: str) -> str:
     """
     Generate HMAC-SHA256 signature for webhook payload.
 
@@ -314,16 +303,12 @@ def generate_webhook_signature(
         >>> signature = generate_webhook_signature(body, timestamp, "my-secret")
         >>> # Include in headers: {"X-Webhook-Signature": signature}
     """
-    message = body + timestamp.encode('utf-8')
-    signature = hmac.new(
-        secret_key.encode('utf-8'),
-        message,
-        hashlib.sha256
-    )
+    message = body + timestamp.encode("utf-8")
+    signature = hmac.new(secret_key.encode("utf-8"), message, hashlib.sha256)
     return signature.hexdigest()
 
 
 __all__ = [
-    'WebhookValidatorMiddleware',
-    'generate_webhook_signature',
+    "WebhookValidatorMiddleware",
+    "generate_webhook_signature",
 ]

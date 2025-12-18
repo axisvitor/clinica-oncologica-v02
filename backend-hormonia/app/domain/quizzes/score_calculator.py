@@ -5,6 +5,7 @@ Handles score computation, result analysis, and scoring metrics.
 Responsibilities: Score calculation, result aggregation, performance metrics,
 and scoring rules enforcement.
 """
+
 from typing import Dict, Any, List, Optional
 from uuid import UUID
 from sqlalchemy.orm import Session
@@ -35,9 +36,11 @@ class ScoreCalculator:
             Calculated average score (0-100 scale)
         """
         # Query all responses for this session
-        responses = self.db.query(QuizResponse).filter(
-            QuizResponse.quiz_session_id == session_id
-        ).all()
+        responses = (
+            self.db.query(QuizResponse)
+            .filter(QuizResponse.quiz_session_id == session_id)
+            .all()
+        )
 
         if not responses:
             return 0.0
@@ -60,7 +63,7 @@ class ScoreCalculator:
         response_value: Any,
         correct_answer: Any,
         question_type: str,
-        scoring_rules: Optional[Dict[str, Any]] = None
+        scoring_rules: Optional[Dict[str, Any]] = None,
     ) -> float:
         """
         Calculate score for a single question response.
@@ -82,7 +85,9 @@ class ScoreCalculator:
         if question_type == "single_choice":
             return 100.0 if response_value == correct_answer else 0.0
         elif question_type == "multiple_choice":
-            return self._score_multiple_choice(response_value, correct_answer, scoring_rules)
+            return self._score_multiple_choice(
+                response_value, correct_answer, scoring_rules
+            )
         elif question_type == "numeric":
             return self._score_numeric(response_value, correct_answer, scoring_rules)
         elif question_type == "boolean":
@@ -95,7 +100,7 @@ class ScoreCalculator:
         self,
         response_value: List[str],
         correct_answer: List[str],
-        scoring_rules: Optional[Dict[str, Any]] = None
+        scoring_rules: Optional[Dict[str, Any]] = None,
     ) -> float:
         """
         Score multiple choice question with partial credit.
@@ -119,7 +124,7 @@ class ScoreCalculator:
         # Calculate correct and incorrect selections
         correct_selections = len(response_set & correct_set)
         incorrect_selections = len(response_set - correct_set)
-        missed_selections = len(correct_set - response_set)
+        len(correct_set - response_set)
 
         # Apply partial credit scoring
         if scoring_rules and "partial_credit" in scoring_rules:
@@ -140,7 +145,7 @@ class ScoreCalculator:
         self,
         response_value: float,
         correct_answer: float,
-        scoring_rules: Optional[Dict[str, Any]] = None
+        scoring_rules: Optional[Dict[str, Any]] = None,
     ) -> float:
         """
         Score numeric question with tolerance.
@@ -178,10 +183,7 @@ class ScoreCalculator:
             # Exact match required
             return 100.0 if response_val == correct_val else 0.0
 
-    def calculate_session_statistics(
-        self,
-        session_id: UUID
-    ) -> Dict[str, Any]:
+    def calculate_session_statistics(self, session_id: UUID) -> Dict[str, Any]:
         """
         Calculate comprehensive statistics for a quiz session.
 
@@ -191,20 +193,22 @@ class ScoreCalculator:
         Returns:
             Dictionary with session statistics
         """
-        responses = self.db.query(QuizResponse).filter(
-            QuizResponse.quiz_session_id == session_id
-        ).all()
+        responses = (
+            self.db.query(QuizResponse)
+            .filter(QuizResponse.quiz_session_id == session_id)
+            .all()
+        )
 
-        session = self.db.query(QuizSession).filter(
-            QuizSession.id == session_id
-        ).first()
+        session = (
+            self.db.query(QuizSession).filter(QuizSession.id == session_id).first()
+        )
 
         if not session or not responses:
             return {
                 "total_questions": 0,
                 "answered_questions": 0,
                 "total_score": 0.0,
-                "average_score": 0.0
+                "average_score": 0.0,
             }
 
         # Calculate statistics
@@ -223,7 +227,9 @@ class ScoreCalculator:
         # Calculate completion time
         completion_time = None
         if session.completed_at and session.started_at:
-            completion_time = (session.completed_at - session.started_at).total_seconds()
+            completion_time = (
+                session.completed_at - session.started_at
+            ).total_seconds()
 
         return {
             "session_id": str(session_id),
@@ -234,14 +240,10 @@ class ScoreCalculator:
             "average_score": average_score,
             "completion_time_seconds": completion_time,
             "status": session.status,
-            "individual_scores": scores
+            "individual_scores": scores,
         }
 
-    def calculate_percentile_rank(
-        self,
-        score: float,
-        all_scores: List[float]
-    ) -> float:
+    def calculate_percentile_rank(self, score: float, all_scores: List[float]) -> float:
         """
         Calculate percentile rank of a score among all scores.
 
@@ -282,10 +284,7 @@ class ScoreCalculator:
         else:
             return "poor"
 
-    def calculate_aggregate_statistics(
-        self,
-        session_ids: List[UUID]
-    ) -> Dict[str, Any]:
+    def calculate_aggregate_statistics(self, session_ids: List[UUID]) -> Dict[str, Any]:
         """
         Calculate aggregate statistics across multiple sessions.
 
@@ -311,7 +310,7 @@ class ScoreCalculator:
                 "average_score": 0.0,
                 "median_score": 0.0,
                 "min_score": 0.0,
-                "max_score": 0.0
+                "max_score": 0.0,
             }
 
         all_scores.sort()
@@ -319,31 +318,31 @@ class ScoreCalculator:
 
         avg_completion_time = (
             sum(all_completion_times) / len(all_completion_times)
-            if all_completion_times else None
+            if all_completion_times
+            else None
         )
 
         return {
             "total_sessions": len(session_ids),
             "sessions_with_scores": len(all_scores),
-            "average_score": round(sum(all_scores) / len(all_scores), 2) if all_scores else 0.0,
+            "average_score": round(sum(all_scores) / len(all_scores), 2)
+            if all_scores
+            else 0.0,
             "median_score": median_score,
             "min_score": min(all_scores) if all_scores else 0.0,
             "max_score": max(all_scores) if all_scores else 0.0,
             "average_completion_time_seconds": avg_completion_time,
-            "score_distribution": self._calculate_score_distribution(all_scores)
+            "score_distribution": self._calculate_score_distribution(all_scores),
         }
 
-    def _calculate_score_distribution(
-        self,
-        scores: List[float]
-    ) -> Dict[str, int]:
+    def _calculate_score_distribution(self, scores: List[float]) -> Dict[str, int]:
         """Calculate distribution of scores across performance categories."""
         distribution = {
-            "excellent": 0,      # 90-100
-            "good": 0,           # 75-89
-            "satisfactory": 0,   # 60-74
+            "excellent": 0,  # 90-100
+            "good": 0,  # 75-89
+            "satisfactory": 0,  # 60-74
             "needs_improvement": 0,  # 50-59
-            "poor": 0            # 0-49
+            "poor": 0,  # 0-49
         }
 
         for score in scores:

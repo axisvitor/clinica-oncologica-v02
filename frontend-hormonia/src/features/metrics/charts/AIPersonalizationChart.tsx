@@ -11,7 +11,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, RadialBarChart, RadialBar,
   ComposedChart, ScatterChart, Scatter, Cell
-} from '@/components/charts/LazyRechartsComponents';
+} from '@/components/ui/charts/LazyRechartsComponents';
 import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import { ChartSkeleton } from '@/components/ui/chart-skeleton';
 

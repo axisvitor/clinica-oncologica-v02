@@ -23,8 +23,8 @@ import hashlib
 import logging
 import time
 from functools import wraps
-from typing import Any, Optional, List, Dict, Callable, Union
-from datetime import datetime, timedelta
+from typing import Any, Optional, List, Dict, Callable
+from datetime import datetime
 from uuid import UUID
 from decimal import Decimal
 
@@ -60,7 +60,7 @@ class QueryCache:
             "misses": 0,
             "errors": 0,
             "total_get_time_ms": 0.0,
-            "total_set_time_ms": 0.0
+            "total_set_time_ms": 0.0,
         }
 
     def _serialize_value(self, value: Any) -> str:
@@ -79,17 +79,19 @@ class QueryCache:
         Returns:
             JSON string for Redis storage
         """
+
         def _json_encoder(obj):
             """Custom JSON encoder for complex types."""
             if isinstance(obj, (datetime, UUID)):
                 return str(obj)
             elif isinstance(obj, Decimal):
                 return float(obj)
-            elif hasattr(obj, '__dict__'):
+            elif hasattr(obj, "__dict__"):
                 # SQLAlchemy model - extract non-private attributes
                 return {
-                    k: v for k, v in obj.__dict__.items()
-                    if not k.startswith('_') and not callable(v)
+                    k: v
+                    for k, v in obj.__dict__.items()
+                    if not k.startswith("_") and not callable(v)
                 }
             else:
                 return str(obj)
@@ -98,17 +100,23 @@ class QueryCache:
             # Handle lists of models
             if isinstance(value, list):
                 serialized = [
-                    {k: v for k, v in item.__dict__.items() if not k.startswith('_') and not callable(v)}
-                    if hasattr(item, '__dict__') else item
+                    {
+                        k: v
+                        for k, v in item.__dict__.items()
+                        if not k.startswith("_") and not callable(v)
+                    }
+                    if hasattr(item, "__dict__")
+                    else item
                     for item in value
                 ]
                 return json.dumps(serialized, default=_json_encoder)
 
             # Handle single model
-            elif hasattr(value, '__dict__'):
+            elif hasattr(value, "__dict__"):
                 serialized = {
-                    k: v for k, v in value.__dict__.items()
-                    if not k.startswith('_') and not callable(v)
+                    k: v
+                    for k, v in value.__dict__.items()
+                    if not k.startswith("_") and not callable(v)
                 }
                 return json.dumps(serialized, default=_json_encoder)
 
@@ -186,7 +194,13 @@ class QueryCache:
             logger.error(f"Cache GET error for {key}: {e}")
             return None
 
-    def set(self, key: str, value: Any, ttl: Optional[int] = None, tags: Optional[List[str]] = None):
+    def set(
+        self,
+        key: str,
+        value: Any,
+        ttl: Optional[int] = None,
+        tags: Optional[List[str]] = None,
+    ):
         """
         Set value in cache with TTL and optional tags.
 
@@ -297,7 +311,9 @@ class QueryCache:
                 if self.redis.delete(key):
                     deleted += 1
 
-            logger.info(f"Cache invalidate by pattern '{pattern}': {deleted} keys deleted")
+            logger.info(
+                f"Cache invalidate by pattern '{pattern}': {deleted} keys deleted"
+            )
             return deleted
 
         except Exception as e:
@@ -312,11 +328,14 @@ class QueryCache:
             Dictionary with cache metrics
         """
         total_requests = self.stats["hits"] + self.stats["misses"]
-        hit_rate = (self.stats["hits"] / total_requests * 100) if total_requests > 0 else 0
+        hit_rate = (
+            (self.stats["hits"] / total_requests * 100) if total_requests > 0 else 0
+        )
 
         avg_get_time = (
             self.stats["total_get_time_ms"] / total_requests
-            if total_requests > 0 else 0
+            if total_requests > 0
+            else 0
         )
 
         return {
@@ -326,7 +345,7 @@ class QueryCache:
             "hit_rate_percent": round(hit_rate, 2),
             "errors": self.stats["errors"],
             "avg_get_time_ms": round(avg_get_time, 2),
-            "default_ttl": self.default_ttl
+            "default_ttl": self.default_ttl,
         }
 
     def reset_stats(self):
@@ -336,7 +355,7 @@ class QueryCache:
             "misses": 0,
             "errors": 0,
             "total_get_time_ms": 0.0,
-            "total_set_time_ms": 0.0
+            "total_set_time_ms": 0.0,
         }
 
 
@@ -363,6 +382,7 @@ def cached_query(prefix: str, ttl: int = 300, tags: Optional[List[str]] = None):
     Returns:
         Decorated function with caching
     """
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -396,6 +416,7 @@ def cached_query(prefix: str, ttl: int = 300, tags: Optional[List[str]] = None):
             return result
 
         return wrapper
+
     return decorator
 
 

@@ -10,11 +10,13 @@ from app.repositories.base import BaseRepository
 
 class FlowStateRepository(BaseRepository[PatientFlowState]):
     """Repository for PatientFlowState model"""
-    
+
     def __init__(self, db: Session):
         super().__init__(db, PatientFlowState)
-    
-    def get_by_patient(self, patient_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[PatientFlowState]:
+
+    def get_by_patient(
+        self, patient_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True
+    ) -> List[PatientFlowState]:
         """
         Get flow states by patient with eager loading.
 
@@ -48,11 +50,13 @@ class FlowStateRepository(BaseRepository[PatientFlowState]):
             # This prevents additional queries when accessing patient.doctor or template_version.kind
             query = query.options(
                 joinedload(PatientFlowState.patient).joinedload(Patient.doctor),
-                joinedload(PatientFlowState.template_version).joinedload(FlowTemplateVersion.kind)
+                joinedload(PatientFlowState.template_version).joinedload(
+                    FlowTemplateVersion.kind
+                ),
             )
 
         return query.offset(skip).limit(limit).all()
-    
+
     def get_active_flow(self, patient_id: UUID) -> Optional[PatientFlowState]:
         """Get active flow for a patient (not completed)"""
         return (
@@ -62,8 +66,10 @@ class FlowStateRepository(BaseRepository[PatientFlowState]):
             .order_by(PatientFlowState.started_at.desc())
             .first()
         )
-    
-    def get_by_template_version(self, template_version_id: UUID, skip: int = 0, limit: int = 100) -> List[PatientFlowState]:
+
+    def get_by_template_version(
+        self, template_version_id: UUID, skip: int = 0, limit: int = 100
+    ) -> List[PatientFlowState]:
         """Get flow states by template version ID"""
         return (
             self.db.query(PatientFlowState)
@@ -74,7 +80,9 @@ class FlowStateRepository(BaseRepository[PatientFlowState]):
             .all()
         )
 
-    def get_completed_flows(self, patient_id: UUID, skip: int = 0, limit: int = 100) -> List[PatientFlowState]:
+    def get_completed_flows(
+        self, patient_id: UUID, skip: int = 0, limit: int = 100
+    ) -> List[PatientFlowState]:
         """Get completed flows for a patient"""
         return (
             self.db.query(PatientFlowState)
@@ -85,12 +93,14 @@ class FlowStateRepository(BaseRepository[PatientFlowState]):
             .limit(limit)
             .all()
         )
-    
+
     def get_active_patient_flow(self, patient_id: UUID) -> Optional[PatientFlowState]:
         """Get active flow for a patient (alias for get_active_flow)"""
         return self.get_active_flow(patient_id)
-    
-    def get_active_flows(self, limit: int = 1000, eager_load: bool = True) -> List[PatientFlowState]:
+
+    def get_active_flows(
+        self, limit: int = 1000, eager_load: bool = True
+    ) -> List[PatientFlowState]:
         """
         Get all active flows with eager loading.
 
@@ -121,28 +131,40 @@ class FlowStateRepository(BaseRepository[PatientFlowState]):
             # PERFORMANCE: Nested eager loading prevents N+1 queries for related entities
             query = query.options(
                 joinedload(PatientFlowState.patient).joinedload(Patient.doctor),
-                joinedload(PatientFlowState.template_version).joinedload(FlowTemplateVersion.kind)
+                joinedload(PatientFlowState.template_version).joinedload(
+                    FlowTemplateVersion.kind
+                ),
             )
 
         return query.limit(limit).all()
-    
-    def get_flows_by_type_and_day(self, flow_type: str, target_day: int, limit: int = 100) -> List[PatientFlowState]:
+
+    def get_flows_by_type_and_day(
+        self, flow_type: str, target_day: int, limit: int = 100
+    ) -> List[PatientFlowState]:
         """Get flows by flow_type via template_version that are on a specific day"""
         from datetime import datetime
         from sqlalchemy import func, cast, Integer
-        from app.models.flow import FlowKind
 
         # Calculate flows that should be on target_day today
         today = datetime.utcnow().date()
 
         return (
             self.db.query(PatientFlowState)
-            .join(FlowTemplateVersion, PatientFlowState.template_version_id == FlowTemplateVersion.id)
+            .join(
+                FlowTemplateVersion,
+                PatientFlowState.template_version_id == FlowTemplateVersion.id,
+            )
             .join(FlowKind, FlowTemplateVersion.kind_id == FlowKind.id)
             .filter(FlowKind.flow_type == flow_type)
             .filter(PatientFlowState.completed_at.is_(None))
             .filter(
-                cast(func.date_part('day', func.age(today, func.date(PatientFlowState.started_at))), Integer) == target_day - 1
+                cast(
+                    func.date_part(
+                        "day", func.age(today, func.date(PatientFlowState.started_at))
+                    ),
+                    Integer,
+                )
+                == target_day - 1
             )
             .limit(limit)
             .all()

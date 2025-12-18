@@ -31,7 +31,7 @@ async def initialize_primary_systems():
     """
     results = {
         "session_manager": {"status": "unknown", "error": None},
-        "redis": {"status": "unknown", "error": None}
+        "redis": {"status": "unknown", "error": None},
     }
 
     # Initialize session manager
@@ -40,29 +40,29 @@ async def initialize_primary_systems():
         redis_client = None
         try:
             from app.core.redis_unified import get_async_redis
-            if hasattr(settings, 'REDIS_URL') and settings.REDIS_URL:
+
+            if hasattr(settings, "REDIS_URL") and settings.REDIS_URL:
                 # Use unified Redis client - SSL/TLS handled automatically
                 redis_client = await get_async_redis()
                 await redis_client.ping()  # Test connection
-                logger.info("Unified async Redis client initialized for session manager")
+                logger.info(
+                    "Unified async Redis client initialized for session manager"
+                )
         except Exception as redis_error:
             logger.warning(f"Unified Redis initialization failed: {redis_error}")
             redis_client = None
 
         # Initialize session manager
-        session_manager = initialize_session_manager(redis_client)
+        initialize_session_manager(redis_client)
         results["session_manager"] = {
             "status": "initialized",
-            "redis_available": redis_client is not None
+            "redis_available": redis_client is not None,
         }
         logger.info("Primary session manager initialized successfully")
 
     except Exception as e:
         logger.error(f"Failed to initialize session manager: {e}")
-        results["session_manager"] = {
-            "status": "failed",
-            "error": str(e)
-        }
+        results["session_manager"] = {"status": "failed", "error": str(e)}
 
     return results
 
@@ -76,7 +76,7 @@ async def initialize_fallback_systems():
     """
     results = {
         "direct_database": {"status": "unknown", "error": None},
-        "simple_redis": {"status": "unknown", "error": None}
+        "simple_redis": {"status": "unknown", "error": None},
     }
 
     # Initialize direct database
@@ -84,7 +84,7 @@ async def initialize_fallback_systems():
         success = initialize_direct_database()
         results["direct_database"] = {
             "status": "initialized" if success else "failed",
-            "success": success
+            "success": success,
         }
         if success:
             logger.info("Direct database system initialized successfully")
@@ -92,10 +92,7 @@ async def initialize_fallback_systems():
             logger.warning("Direct database system failed to initialize")
     except Exception as e:
         logger.error(f"Failed to initialize direct database: {e}")
-        results["direct_database"] = {
-            "status": "failed",
-            "error": str(e)
-        }
+        results["direct_database"] = {"status": "failed", "error": str(e)}
 
     # Initialize unified Redis
     try:
@@ -104,15 +101,13 @@ async def initialize_fallback_systems():
         results["simple_redis"] = {
             "status": "initialized",
             "available": redis_available,
-            "redis_configured": hasattr(settings, 'REDIS_URL') and settings.REDIS_URL is not None
+            "redis_configured": hasattr(settings, "REDIS_URL")
+            and settings.REDIS_URL is not None,
         }
         logger.info(f"Unified Redis initialized - available: {redis_available}")
     except Exception as e:
         logger.error(f"Failed to initialize unified Redis: {e}")
-        results["simple_redis"] = {
-            "status": "failed",
-            "error": str(e)
-        }
+        results["simple_redis"] = {"status": "failed", "error": str(e)}
 
     return results
 
@@ -126,7 +121,7 @@ async def validate_authentication_system():
     """
     results = {
         "service_provider": {"status": "unknown", "error": None},
-        "auth_service": {"status": "unknown", "error": None}
+        "auth_service": {"status": "unknown", "error": None},
     }
 
     try:
@@ -142,7 +137,7 @@ async def validate_authentication_system():
             results["service_provider"] = {
                 "status": "available" if provider.is_initialized else "failed",
                 "initialized": provider.is_initialized,
-                "redis_available": redis_client is not None
+                "redis_available": redis_client is not None,
             }
 
             # Test auth service
@@ -151,22 +146,19 @@ async def validate_authentication_system():
                     auth_service = provider.auth_service
                     results["auth_service"] = {
                         "status": "available",
-                        "type": type(auth_service).__name__
+                        "type": type(auth_service).__name__,
                     }
                 except Exception as auth_error:
                     results["auth_service"] = {
                         "status": "failed",
-                        "error": str(auth_error)
+                        "error": str(auth_error),
                     }
 
         logger.info("Authentication system validation completed")
 
     except Exception as e:
         logger.error(f"Authentication system validation failed: {e}")
-        results["service_provider"] = {
-            "status": "failed",
-            "error": str(e)
-        }
+        results["service_provider"] = {"status": "failed", "error": str(e)}
 
     return results
 
@@ -186,7 +178,7 @@ async def startup_sequence():
         "fallback_systems": {},
         "authentication_validation": {},
         "overall_status": "unknown",
-        "startup_time_seconds": 0
+        "startup_time_seconds": 0,
     }
 
     try:
@@ -207,18 +199,27 @@ async def startup_sequence():
         results["startup_time_seconds"] = round(end_time - start_time, 2)
 
         # Determine overall status
-        auth_working = results["authentication_validation"]["service_provider"]["status"] == "available"
+        auth_working = (
+            results["authentication_validation"]["service_provider"]["status"]
+            == "available"
+        )
         db_working = (
-            results["primary_systems"].get("session_manager", {}).get("status") == "initialized" or
-            results["fallback_systems"].get("direct_database", {}).get("status") == "initialized"
+            results["primary_systems"].get("session_manager", {}).get("status")
+            == "initialized"
+            or results["fallback_systems"].get("direct_database", {}).get("status")
+            == "initialized"
         )
 
         if auth_working and db_working:
             results["overall_status"] = "healthy"
-            logger.info(f"Application startup completed successfully in {results['startup_time_seconds']} seconds")
+            logger.info(
+                f"Application startup completed successfully in {results['startup_time_seconds']} seconds"
+            )
         else:
             results["overall_status"] = "degraded"
-            logger.warning(f"Application startup completed with issues in {results['startup_time_seconds']} seconds")
+            logger.warning(
+                f"Application startup completed with issues in {results['startup_time_seconds']} seconds"
+            )
 
     except Exception as e:
         logger.error(f"Startup sequence failed: {e}")
@@ -266,9 +267,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if startup_results["overall_status"] == "healthy":
             logger.info("🚀 Application started successfully - all systems operational")
         elif startup_results["overall_status"] == "degraded":
-            logger.warning("⚠️ Application started with degraded performance - some systems unavailable")
+            logger.warning(
+                "⚠️ Application started with degraded performance - some systems unavailable"
+            )
         else:
-            logger.error("❌ Application startup failed - system may not work correctly")
+            logger.error(
+                "❌ Application startup failed - system may not work correctly"
+            )
 
         yield
 
@@ -277,7 +282,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # Still yield to allow the app to start, but in degraded mode
         app.state.startup_results = {
             "overall_status": "failed",
-            "startup_error": str(startup_error)
+            "startup_error": str(startup_error),
         }
         yield
 
@@ -300,7 +305,8 @@ def get_startup_results(app: FastAPI) -> dict:
     Returns:
         dict: Startup results or empty dict if not available
     """
-    return getattr(app.state, 'startup_results', {
-        "overall_status": "unknown",
-        "error": "Startup results not available"
-    })
+    return getattr(
+        app.state,
+        "startup_results",
+        {"overall_status": "unknown", "error": "Startup results not available"},
+    )

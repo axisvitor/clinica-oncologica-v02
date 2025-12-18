@@ -6,8 +6,7 @@ Implements recovery strategies for different error scenarios.
 
 import logging
 import asyncio
-from typing import Dict, Any, Optional, Callable
-from uuid import UUID
+from typing import Dict, Any, Callable
 
 
 logger = logging.getLogger(__name__)
@@ -33,10 +32,7 @@ class RetryRecoveryStrategy(RecoveryStrategy):
     """Retry operation with exponential backoff."""
 
     def __init__(
-        self,
-        max_retries: int = 3,
-        base_delay: float = 1.0,
-        max_delay: float = 60.0
+        self, max_retries: int = 3, base_delay: float = 1.0, max_delay: float = 60.0
     ):
         """
         Initialize RetryRecoveryStrategy.
@@ -60,7 +56,7 @@ class RetryRecoveryStrategy(RecoveryStrategy):
         Returns:
             True if retry successful
         """
-        operation = context.get('operation')
+        operation = context.get("operation")
         if not operation:
             logger.error("No operation provided for retry")
             return False
@@ -68,14 +64,18 @@ class RetryRecoveryStrategy(RecoveryStrategy):
         for attempt in range(self.max_retries):
             try:
                 # Calculate delay
-                delay = min(self.base_delay * (2 ** attempt), self.max_delay)
+                delay = min(self.base_delay * (2**attempt), self.max_delay)
 
                 if attempt > 0:
-                    logger.info(f"Retry attempt {attempt + 1}/{self.max_retries} after {delay}s")
+                    logger.info(
+                        f"Retry attempt {attempt + 1}/{self.max_retries} after {delay}s"
+                    )
                     await asyncio.sleep(delay)
 
                 # Execute operation
-                result = await operation() if asyncio.iscoroutinefunction(operation) else operation()
+                await operation() if asyncio.iscoroutinefunction(
+                    operation
+                ) else operation()
 
                 logger.info(f"Retry successful on attempt {attempt + 1}")
                 return True
@@ -143,11 +143,7 @@ class ErrorRecoveryManager:
 
         logger.info("ErrorRecoveryManager initialized")
 
-    def register_strategy(
-        self,
-        error_type: str,
-        strategy: RecoveryStrategy
-    ):
+    def register_strategy(self, error_type: str, strategy: RecoveryStrategy):
         """
         Register recovery strategy for error type.
 
@@ -158,11 +154,7 @@ class ErrorRecoveryManager:
         self.recovery_strategies[error_type] = strategy
         logger.info(f"Recovery strategy registered for {error_type}")
 
-    async def recover(
-        self,
-        error_type: str,
-        context: Dict[str, Any]
-    ) -> bool:
+    async def recover(self, error_type: str, context: Dict[str, Any]) -> bool:
         """
         Attempt to recover from error.
 
@@ -201,12 +193,12 @@ class ErrorRecoveryManager:
             success: Whether recovery was successful
         """
         if error_type not in self.recovery_stats:
-            self.recovery_stats[error_type] = {'successful': 0, 'failed': 0}
+            self.recovery_stats[error_type] = {"successful": 0, "failed": 0}
 
         if success:
-            self.recovery_stats[error_type]['successful'] += 1
+            self.recovery_stats[error_type]["successful"] += 1
         else:
-            self.recovery_stats[error_type]['failed'] += 1
+            self.recovery_stats[error_type]["failed"] += 1
 
     def get_recovery_stats(self) -> Dict[str, Any]:
         """
@@ -216,18 +208,19 @@ class ErrorRecoveryManager:
             Recovery statistics
         """
         total_attempts = sum(
-            stats['successful'] + stats['failed']
+            stats["successful"] + stats["failed"]
             for stats in self.recovery_stats.values()
         )
 
         total_successful = sum(
-            stats['successful']
-            for stats in self.recovery_stats.values()
+            stats["successful"] for stats in self.recovery_stats.values()
         )
 
         return {
-            'total_attempts': total_attempts,
-            'total_successful': total_successful,
-            'success_rate': (total_successful / total_attempts * 100) if total_attempts > 0 else 0,
-            'by_error_type': self.recovery_stats.copy()
+            "total_attempts": total_attempts,
+            "total_successful": total_successful,
+            "success_rate": (total_successful / total_attempts * 100)
+            if total_attempts > 0
+            else 0,
+            "by_error_type": self.recovery_stats.copy(),
         }

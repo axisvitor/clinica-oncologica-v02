@@ -89,7 +89,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         if not secret_key:
             raise ValueError("CSRF_SECRET_KEY is required for CSRF protection")
 
-        self.secret_key = secret_key.encode('utf-8')
+        self.secret_key = secret_key.encode("utf-8")
         self.token_expiry = token_expiry
         self.header_name = header_name
 
@@ -97,17 +97,19 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         self.exempt_paths: Set[str] = set(exempt_paths or [])
 
         # Add default exempted paths
-        self.exempt_paths.update([
-            "/docs",
-            "/redoc",
-            "/openapi.json",
-            "/health",
-            "/api/v2/auth/csrf-token",
-        ])
+        self.exempt_paths.update(
+            [
+                "/docs",
+                "/redoc",
+                "/openapi.json",
+                "/health",
+                "/api/v2/auth/csrf-token",
+            ]
+        )
 
         logger.info(
             f"CSRF middleware initialized with {len(self.exempt_paths)} exempt paths",
-            extra={"exempt_paths": list(self.exempt_paths)}
+            extra={"exempt_paths": list(self.exempt_paths)},
         )
 
     def _is_path_exempt(self, path: str) -> bool:
@@ -148,9 +150,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
         # Create HMAC signature
         signature = hmac.new(
-            self.secret_key,
-            payload.encode('utf-8'),
-            hashlib.sha256
+            self.secret_key, payload.encode("utf-8"), hashlib.sha256
         ).hexdigest()
 
         # Combine payload and signature
@@ -158,8 +158,9 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
         # Base64 encode for safe transport
         import base64
-        encoded = base64.urlsafe_b64encode(token.encode('utf-8')).decode('utf-8')
-        return encoded.rstrip('=')
+
+        encoded = base64.urlsafe_b64encode(token.encode("utf-8")).decode("utf-8")
+        return encoded.rstrip("=")
 
     def _validate_token(self, token: str) -> bool:
         """
@@ -179,11 +180,14 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         try:
             # Base64 decode
             import base64
-            padding = '=' * (-len(token) % 4)
-            decoded = base64.urlsafe_b64decode((token + padding).encode('utf-8')).decode('utf-8')
+
+            padding = "=" * (-len(token) % 4)
+            decoded = base64.urlsafe_b64decode(
+                (token + padding).encode("utf-8")
+            ).decode("utf-8")
 
             # Split components
-            parts = decoded.split(':')
+            parts = decoded.split(":")
             if len(parts) != 3:
                 logger.warning("CSRF token has invalid format (expected 3 parts)")
                 return False
@@ -203,9 +207,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             # Recreate payload and verify signature
             payload = f"{timestamp_str}:{random_data}"
             expected_signature = hmac.new(
-                self.secret_key,
-                payload.encode('utf-8'),
-                hashlib.sha256
+                self.secret_key, payload.encode("utf-8"), hashlib.sha256
             ).hexdigest()
 
             # Constant-time comparison to prevent timing attacks
@@ -248,9 +250,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
         return None
 
-    async def dispatch(
-        self, request: Request, call_next: Callable
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """
         Process the request and validate CSRF token if required.
 
@@ -280,17 +280,19 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                     extra={
                         "method": request.method,
                         "path": request.url.path,
-                        "client_ip": request.client.host if request.client else "unknown",
-                        "user_agent": request.headers.get("user-agent", "unknown")
-                    }
+                        "client_ip": request.client.host
+                        if request.client
+                        else "unknown",
+                        "user_agent": request.headers.get("user-agent", "unknown"),
+                    },
                 )
                 return JSONResponse(
                     status_code=403,
                     content={
                         "error": "csrf_token_missing",
                         "message": "CSRF token is required for this request. Please include X-CSRF-Token header.",
-                        "timestamp": time.time()
-                    }
+                        "timestamp": time.time(),
+                    },
                 )
 
             if not self._validate_token(token):
@@ -299,21 +301,25 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                     extra={
                         "method": request.method,
                         "path": request.url.path,
-                        "client_ip": request.client.host if request.client else "unknown",
+                        "client_ip": request.client.host
+                        if request.client
+                        else "unknown",
                         "user_agent": request.headers.get("user-agent", "unknown"),
-                        "token_present": bool(token)
-                    }
+                        "token_present": bool(token),
+                    },
                 )
                 return JSONResponse(
                     status_code=403,
                     content={
                         "error": "csrf_token_invalid",
                         "message": "CSRF token validation failed. Please refresh and try again.",
-                        "timestamp": time.time()
-                    }
+                        "timestamp": time.time(),
+                    },
                 )
 
-            logger.debug(f"CSRF validation successful for {request.method} {request.url.path}")
+            logger.debug(
+                f"CSRF validation successful for {request.method} {request.url.path}"
+            )
 
         # Continue to the next middleware or route handler
         return await call_next(request)

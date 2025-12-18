@@ -1,10 +1,11 @@
 """
 Flow template management service using the new versioning system.
 """
+
 from typing import List, Optional, Any, Dict
 from uuid import UUID
 
-from app.models.flow import FlowKind, FlowTemplateVersion
+from app.models.flow import FlowTemplateVersion
 from app.repositories.flow_kind import FlowKindRepository
 from app.repositories.flow_template_version import FlowTemplateVersionRepository
 from app.services.template_loader import EnhancedTemplateLoader, FlowTemplateData
@@ -35,7 +36,9 @@ class FlowTemplateService:
         except Exception:
             return None
 
-    def get_template_by_version(self, flow_type: str, version: str) -> Optional[FlowTemplateData]:
+    def get_template_by_version(
+        self, flow_type: str, version: str
+    ) -> Optional[FlowTemplateData]:
         """
         Get a specific version of a template.
 
@@ -59,7 +62,7 @@ class FlowTemplateService:
         quiz_templates: Optional[Dict[str, Any]] = None,
         alerts: Optional[Dict[str, Any]] = None,
         description: Optional[str] = None,
-        created_by: Optional[UUID] = None
+        created_by: Optional[UUID] = None,
     ) -> FlowTemplateVersion:
         """
         Create a new template version for a flow type.
@@ -84,13 +87,15 @@ class FlowTemplateService:
         if not flow_kind:
             flow_kind = self.flow_kind_repo.create_kind(
                 flow_type=flow_type,
-                name=messages.get('name', flow_type),
-                description=description or messages.get('description')
+                name=messages.get("name", flow_type),
+                description=description or messages.get("description"),
             )
             self.db.flush()
 
         # Check if version already exists
-        existing = self.template_version_repo.get_by_kind_and_version(flow_kind.id, version)
+        existing = self.template_version_repo.get_by_kind_and_version(
+            flow_kind.id, version
+        )
         if existing:
             raise ValidationError(f"Version {version} already exists for {flow_type}")
 
@@ -102,7 +107,7 @@ class FlowTemplateService:
             quiz_templates=quiz_templates or {},
             alerts=alerts or {},
             changelog=description,
-            created_by=created_by
+            created_by=created_by,
         )
 
         self.db.commit()
@@ -113,7 +118,7 @@ class FlowTemplateService:
         flow_type: str,
         version: str,
         set_as_current: bool = True,
-        published_by: Optional[UUID] = None
+        published_by: Optional[UUID] = None,
     ) -> bool:
         """
         Publish a draft template version.
@@ -131,27 +136,32 @@ class FlowTemplateService:
         if not flow_kind:
             raise NotFoundError(f"Flow type {flow_type} not found")
 
-        template_version = self.template_version_repo.get_by_kind_and_version(flow_kind.id, version)
+        template_version = self.template_version_repo.get_by_kind_and_version(
+            flow_kind.id, version
+        )
         if not template_version:
             raise NotFoundError(f"Version {version} not found for {flow_type}")
 
-        if template_version.status != 'draft':
-            raise ValidationError(f"Only draft versions can be published. Current status: {template_version.status}")
+        if template_version.status != "draft":
+            raise ValidationError(
+                f"Only draft versions can be published. Current status: {template_version.status}"
+            )
 
         # Publish the version
-        success = self.template_version_repo.publish_version(template_version.id, published_by)
+        success = self.template_version_repo.publish_version(
+            template_version.id, published_by
+        )
 
         if success and set_as_current:
-            self.flow_kind_repo.update_current_version(flow_kind.id, template_version.id)
+            self.flow_kind_repo.update_current_version(
+                flow_kind.id, template_version.id
+            )
 
         self.db.commit()
         return success
 
     def archive_version(
-        self,
-        flow_type: str,
-        version: str,
-        archived_by: Optional[UUID] = None
+        self, flow_type: str, version: str, archived_by: Optional[UUID] = None
     ) -> bool:
         """
         Archive a published template version.
@@ -168,15 +178,21 @@ class FlowTemplateService:
         if not flow_kind:
             raise NotFoundError(f"Flow type {flow_type} not found")
 
-        template_version = self.template_version_repo.get_by_kind_and_version(flow_kind.id, version)
+        template_version = self.template_version_repo.get_by_kind_and_version(
+            flow_kind.id, version
+        )
         if not template_version:
             raise NotFoundError(f"Version {version} not found for {flow_type}")
 
-        if template_version.status != 'published':
-            raise ValidationError(f"Only published versions can be archived. Current status: {template_version.status}")
+        if template_version.status != "published":
+            raise ValidationError(
+                f"Only published versions can be archived. Current status: {template_version.status}"
+            )
 
         # Archive the version
-        success = self.template_version_repo.archive_version(template_version.id, archived_by)
+        success = self.template_version_repo.archive_version(
+            template_version.id, archived_by
+        )
 
         self.db.commit()
         return success
@@ -195,16 +211,20 @@ class FlowTemplateService:
                 "flow_type": kind.flow_type,
                 "name": kind.name,
                 "description": kind.description,
-                "current_version_id": str(kind.current_version_id) if kind.current_version_id else None,
+                "current_version_id": str(kind.current_version_id)
+                if kind.current_version_id
+                else None,
                 "total_versions": kind.total_versions or 0,
                 "published_versions": kind.published_versions or 0,
                 "draft_versions": kind.draft_versions or 0,
-                "latest_version_date": kind.latest_version_date
+                "latest_version_date": kind.latest_version_date,
             }
             for kind in kinds_with_stats
         ]
 
-    def list_versions(self, flow_type: str, status: Optional[str] = None) -> List[Dict[str, Any]]:
+    def list_versions(
+        self, flow_type: str, status: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """
         List all versions for a flow type.
 
@@ -219,7 +239,9 @@ class FlowTemplateService:
         if not flow_kind:
             return []
 
-        versions = self.template_version_repo.list_versions_by_kind(flow_kind.id, status)
+        versions = self.template_version_repo.list_versions_by_kind(
+            flow_kind.id, status
+        )
         return [
             {
                 "id": str(version.id),
@@ -230,7 +252,7 @@ class FlowTemplateService:
                 "published_at": version.published_at,
                 "created_at": version.created_at,
                 "created_by": str(version.created_by) if version.created_by else None,
-                "updated_by": str(version.updated_by) if version.updated_by else None
+                "updated_by": str(version.updated_by) if version.updated_by else None,
             }
             for version in versions
         ]
@@ -250,13 +272,17 @@ class FlowTemplateService:
         if not flow_kind:
             raise NotFoundError(f"Flow type {flow_type} not found")
 
-        template_version = self.template_version_repo.get_by_kind_and_version(flow_kind.id, version)
+        template_version = self.template_version_repo.get_by_kind_and_version(
+            flow_kind.id, version
+        )
         if not template_version:
             raise NotFoundError(f"Version {version} not found for {flow_type}")
 
         return self.template_version_repo.get_version_analytics(template_version.id)
 
-    def get_template(self, flow_type: str, version: Optional[str] = None) -> Optional[FlowTemplateData]:
+    def get_template(
+        self, flow_type: str, version: Optional[str] = None
+    ) -> Optional[FlowTemplateData]:
         """
         Get template data (compatibility method).
 
@@ -272,7 +298,9 @@ class FlowTemplateService:
         else:
             return self.get_current_template(flow_type)
 
-    def get_template_data(self, flow_type: str, version: Optional[str] = None) -> Optional[FlowTemplateData]:
+    def get_template_data(
+        self, flow_type: str, version: Optional[str] = None
+    ) -> Optional[FlowTemplateData]:
         """
         Get template data using the EnhancedTemplateLoader.
         This method is required by FlowEngine.
@@ -288,11 +316,13 @@ class FlowTemplateService:
             return self.loader.load_flow_template(flow_type, version)
         except Exception as e:
             from app.services.template_loader import TemplateLoadError
+
             if isinstance(e, TemplateLoadError):
                 # Template not found is expected, return None
                 return None
             # Log unexpected errors
             import logging
+
             logger = logging.getLogger(__name__)
             logger.error(f"Error loading template {flow_type}: {e}")
             return None
@@ -315,12 +345,14 @@ class FlowTemplateService:
             templates = []
             for flow_type_info in flow_types:
                 # Only include flow types that have a current version
-                if not flow_type_info.get('has_current_version'):
+                if not flow_type_info.get("has_current_version"):
                     continue
 
                 try:
                     # Load the current template for each flow type
-                    template = self.loader.load_flow_template(flow_type_info['flow_type'])
+                    template = self.loader.load_flow_template(
+                        flow_type_info["flow_type"]
+                    )
                     if template:
                         templates.append(template)
 
@@ -330,14 +362,18 @@ class FlowTemplateService:
                 except Exception as e:
                     # Log error but continue with other templates
                     import logging
+
                     logger = logging.getLogger(__name__)
-                    logger.warning(f"Could not load template for {flow_type_info['flow_type']}: {e}")
+                    logger.warning(
+                        f"Could not load template for {flow_type_info['flow_type']}: {e}"
+                    )
                     continue
 
             return templates
 
         except Exception as e:
             import logging
+
             logger = logging.getLogger(__name__)
             logger.error(f"Error getting all templates: {e}")
             return []

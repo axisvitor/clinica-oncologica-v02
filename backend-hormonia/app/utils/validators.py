@@ -71,7 +71,7 @@ def validate_cpf(cpf: str) -> str:
         raise ValidationError("CPF é obrigatório")
 
     # Step 1: Remove all non-digit characters
-    cpf_clean = RegexPatterns.CPF_CLEAN_REGEX.sub('', cpf)
+    cpf_clean = RegexPatterns.CPF_CLEAN_REGEX.sub("", cpf)
 
     # Step 2: Check length
     if len(cpf_clean) != CPFConstants.LENGTH:
@@ -162,10 +162,10 @@ def normalize_cpf(cpf: Optional[str]) -> Optional[str]:
         return None
 
     # Remove all non-digit characters
-    normalized = RegexPatterns.CPF_CLEAN_REGEX.sub('', cpf)
+    normalized = RegexPatterns.CPF_CLEAN_REGEX.sub("", cpf)
 
     # Limit to 11 digits (CPF max length)
-    return normalized[:CPFConstants.LENGTH] if normalized else None
+    return normalized[: CPFConstants.LENGTH] if normalized else None
 
 
 # ============================================================================
@@ -255,7 +255,7 @@ def normalize_phone_digits(phone: str) -> str:
     if not phone:
         return ""
 
-    return RegexPatterns.BR_PHONE_DIGITS_ONLY.sub('', phone)
+    return RegexPatterns.BR_PHONE_DIGITS_ONLY.sub("", phone)
 
 
 # ============================================================================
@@ -343,9 +343,7 @@ def validate_string_length(
         )
 
     if max_length is not None and len(value_stripped) > max_length:
-        raise ValidationError(
-            f"{field_name} não pode exceder {max_length} caracteres"
-        )
+        raise ValidationError(f"{field_name} não pode exceder {max_length} caracteres")
 
     return value_stripped
 

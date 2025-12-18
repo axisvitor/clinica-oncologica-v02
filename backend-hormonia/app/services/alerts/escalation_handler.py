@@ -8,7 +8,7 @@ including scheduling, execution, and target resolution.
 import asyncio
 import logging
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 from uuid import UUID
 
 from .types import (
@@ -125,9 +125,7 @@ class EscalationHandler:
             logger.info(f"Cancelled escalation for alert {alert_id}")
             del self._escalation_tasks[alert_id]
 
-    async def get_escalation_targets(
-        self, alert: Alert
-    ) -> List[NotificationTarget]:
+    async def get_escalation_targets(self, alert: Alert) -> List[NotificationTarget]:
         """
         Get notification targets for escalated alert.
 
@@ -277,9 +275,7 @@ class EscalationHandler:
             "max_escalation_level": self.config.max_escalation_level,
         }
 
-    def get_history(
-        self, limit: Optional[int] = 100
-    ) -> List[Dict[str, Any]]:
+    def get_history(self, limit: Optional[int] = 100) -> List[Dict[str, Any]]:
         """
         Get escalation history.
 

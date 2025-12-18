@@ -20,7 +20,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, func, desc
 
 from app.database import get_db
 from app.models.user import User, UserRole
@@ -34,12 +33,8 @@ from app.schemas.v2.roles import (
     RoleListResponse,
     # User role schemas
     UserRoleInfo,
-    UserRoleListResponse,
-    # Assignment schemas
     RoleAssignmentRequest,
     RoleRevocationRequest,
-    RoleAssignmentResponse,
-    # Bulk operations
     BulkRoleAssignmentRequest,
     BulkRoleAssignmentResult,
     # Statistics
@@ -64,16 +59,16 @@ logger = logging.getLogger(__name__)
 # ROLE ENDPOINTS
 # ============================================================================
 
+
 @router.get(
     "/",
     response_model=RoleListResponse,
     summary="Get available roles",
-    description="Get list of all available user roles with descriptions and permissions"
+    description="Get list of all available user roles with descriptions and permissions",
 )
 @cache(ttl=300, key_prefix="roles:list")  # 5 min cache
 async def get_available_roles(
-    admin_user: User = Depends(get_admin_user),
-    db: Session = Depends(get_db)
+    admin_user: User = Depends(get_admin_user), db: Session = Depends(get_db)
 ) -> RoleListResponse:
     """
     Get list of available user roles with descriptions and permissions.
@@ -91,24 +86,23 @@ async def get_available_roles(
             # Count users with this role
             user_count = db.query(User).filter(User.role == role).count()
 
-            roles_data.append(RoleResponse(
-                name=role.name,
-                value=role.value,
-                description=get_role_description(role),
-                permissions=get_role_permissions(role),
-                user_count=user_count
-            ))
+            roles_data.append(
+                RoleResponse(
+                    name=role.name,
+                    value=role.value,
+                    description=get_role_description(role),
+                    permissions=get_role_permissions(role),
+                    user_count=user_count,
+                )
+            )
 
-        return RoleListResponse(
-            data=roles_data,
-            total=len(roles_data)
-        )
+        return RoleListResponse(data=roles_data, total=len(roles_data))
 
     except Exception as e:
         logger.error(f"Failed to get available roles: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve available roles"
+            detail="Failed to retrieve available roles",
         )
 
 
@@ -116,13 +110,13 @@ async def get_available_roles(
     "/{user_id}",
     response_model=UserRoleInfo,
     summary="Get user role information",
-    description="Get role information for a specific user"
+    description="Get role information for a specific user",
 )
 @cache(ttl=300, key_prefix="roles:user")  # 5 min cache
 async def get_user_role(
     user_id: UUID,
     admin_user: User = Depends(get_admin_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> UserRoleInfo:
     """
     Get role information for a specific user.
@@ -145,7 +139,7 @@ async def get_user_role(
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User with ID {user_id} not found"
+                detail=f"User with ID {user_id} not found",
             )
 
         return UserRoleInfo(**serialize_user_role_info(user))
@@ -156,7 +150,7 @@ async def get_user_role(
         logger.error(f"Failed to get user role for {user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve user role information"
+            detail="Failed to retrieve user role information",
         )
 
 
@@ -164,7 +158,7 @@ async def get_user_role(
     "/{user_id}/assign",
     response_model=UserRoleInfo,
     summary="Assign role to user",
-    description="Assign a new role to a specific user with audit logging"
+    description="Assign a new role to a specific user with audit logging",
 )
 @limiter.limit("30/minute")  # Rate limit: 30 requests per minute
 async def assign_role_to_user(
@@ -173,7 +167,7 @@ async def assign_role_to_user(
     role_request: RoleAssignmentRequest,
     admin_user: User = Depends(get_admin_user),
     db: Session = Depends(get_db),
-    redis_cache = Depends(get_redis_cache)
+    redis_cache=Depends(get_redis_cache),
 ) -> UserRoleInfo:
     """
     Assign a role to a specific user.
@@ -199,7 +193,7 @@ async def assign_role_to_user(
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User with ID {user_id} not found"
+                detail=f"User with ID {user_id} not found",
             )
 
         # Convert role string to enum
@@ -208,25 +202,25 @@ async def assign_role_to_user(
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid role: {role_request.role}"
+                detail=f"Invalid role: {role_request.role}",
             )
 
         # Prevent removing admin role from last admin
         if user.role == UserRole.ADMIN and new_role != UserRole.ADMIN:
-            admin_count = db.query(User).filter(
-                User.role == UserRole.ADMIN,
-                User.is_active == True,
-                User.id != user_id
-            ).count()
+            admin_count = (
+                db.query(User)
+                .filter(User.role == UserRole.ADMIN, User.is_active, User.id != user_id)
+                .count()
+            )
 
             if admin_count == 0:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot remove admin role from the last active admin user"
+                    detail="Cannot remove admin role from the last active admin user",
                 )
 
         # Store old role for audit
-        old_role = user.role.value if hasattr(user.role, 'value') else str(user.role)
+        old_role = user.role.value if hasattr(user.role, "value") else str(user.role)
 
         # Assign new role
         user.role = new_role
@@ -242,7 +236,7 @@ async def assign_role_to_user(
             old_role=old_role,
             new_role=role_request.role,
             reason=role_request.reason,
-            request=request
+            request=request,
         )
 
         # Invalidate caches
@@ -262,7 +256,7 @@ async def assign_role_to_user(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to assign role"
+            detail="Failed to assign role",
         )
 
 
@@ -270,7 +264,7 @@ async def assign_role_to_user(
     "/{user_id}/revoke",
     response_model=UserRoleInfo,
     summary="Revoke role (reset to default)",
-    description="Reset user role to default (DOCTOR) with audit logging"
+    description="Reset user role to default (DOCTOR) with audit logging",
 )
 @limiter.limit("30/minute")  # Rate limit: 30 requests per minute
 async def revoke_user_role(
@@ -279,7 +273,7 @@ async def revoke_user_role(
     revoke_request: RoleRevocationRequest,
     admin_user: User = Depends(get_admin_user),
     db: Session = Depends(get_db),
-    redis_cache = Depends(get_redis_cache)
+    redis_cache=Depends(get_redis_cache),
 ) -> UserRoleInfo:
     """
     Reset user role to default (DOCTOR).
@@ -305,25 +299,25 @@ async def revoke_user_role(
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User with ID {user_id} not found"
+                detail=f"User with ID {user_id} not found",
             )
 
         # Prevent removing admin role from last admin
         if user.role == UserRole.ADMIN:
-            admin_count = db.query(User).filter(
-                User.role == UserRole.ADMIN,
-                User.is_active == True,
-                User.id != user_id
-            ).count()
+            admin_count = (
+                db.query(User)
+                .filter(User.role == UserRole.ADMIN, User.is_active, User.id != user_id)
+                .count()
+            )
 
             if admin_count == 0:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot revoke admin role from the last active admin user"
+                    detail="Cannot revoke admin role from the last active admin user",
                 )
 
         # Store old role for audit
-        old_role = user.role.value if hasattr(user.role, 'value') else str(user.role)
+        old_role = user.role.value if hasattr(user.role, "value") else str(user.role)
 
         # Reset to default role
         user.role = UserRole.DOCTOR
@@ -339,7 +333,7 @@ async def revoke_user_role(
             old_role=old_role,
             new_role="doctor",
             reason=revoke_request.reason,
-            request=request
+            request=request,
         )
 
         # Invalidate caches
@@ -359,7 +353,7 @@ async def revoke_user_role(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to revoke role"
+            detail="Failed to revoke role",
         )
 
 
@@ -367,7 +361,7 @@ async def revoke_user_role(
     "/bulk-assign",
     response_model=BulkRoleAssignmentResult,
     summary="Bulk assign roles",
-    description="Assign the same role to multiple users (max 50) with audit logging"
+    description="Assign the same role to multiple users (max 50) with audit logging",
 )
 @limiter.limit("10/minute")  # Rate limit: 10 requests per minute for bulk operations
 async def bulk_assign_roles(
@@ -375,7 +369,7 @@ async def bulk_assign_roles(
     bulk_request: BulkRoleAssignmentRequest,
     admin_user: User = Depends(get_admin_user),
     db: Session = Depends(get_db),
-    redis_cache = Depends(get_redis_cache)
+    redis_cache=Depends(get_redis_cache),
 ) -> BulkRoleAssignmentResult:
     """
     Assign the same role to multiple users.
@@ -401,7 +395,7 @@ async def bulk_assign_roles(
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid role: {bulk_request.role}"
+                detail=f"Invalid role: {bulk_request.role}",
             )
 
         for user_id in bulk_request.user_ids:
@@ -409,29 +403,36 @@ async def bulk_assign_roles(
                 # Get user
                 user = db.query(User).filter(User.id == user_id).first()
                 if not user:
-                    failed_users.append({
-                        "user_id": str(user_id),
-                        "reason": "User not found"
-                    })
+                    failed_users.append(
+                        {"user_id": str(user_id), "reason": "User not found"}
+                    )
                     continue
 
                 # Prevent removing admin role from last admin
                 if user.role == UserRole.ADMIN and new_role != UserRole.ADMIN:
-                    admin_count = db.query(User).filter(
-                        User.role == UserRole.ADMIN,
-                        User.is_active == True,
-                        User.id != user_id
-                    ).count()
+                    admin_count = (
+                        db.query(User)
+                        .filter(
+                            User.role == UserRole.ADMIN,
+                            User.is_active,
+                            User.id != user_id,
+                        )
+                        .count()
+                    )
 
                     if admin_count == 0:
-                        failed_users.append({
-                            "user_id": str(user_id),
-                            "reason": "Cannot remove admin role from last admin"
-                        })
+                        failed_users.append(
+                            {
+                                "user_id": str(user_id),
+                                "reason": "Cannot remove admin role from last admin",
+                            }
+                        )
                         continue
 
                 # Store old role for audit
-                old_role = user.role.value if hasattr(user.role, 'value') else str(user.role)
+                old_role = (
+                    user.role.value if hasattr(user.role, "value") else str(user.role)
+                )
 
                 # Assign new role
                 user.role = new_role
@@ -447,17 +448,14 @@ async def bulk_assign_roles(
                     old_role=old_role,
                     new_role=bulk_request.role,
                     reason=bulk_request.reason,
-                    request=request
+                    request=request,
                 )
 
                 successful_users.append(UserRoleInfo(**serialize_user_role_info(user)))
 
             except Exception as e:
                 logger.error(f"Failed to assign role to user {user_id}: {e}")
-                failed_users.append({
-                    "user_id": str(user_id),
-                    "reason": str(e)
-                })
+                failed_users.append({"user_id": str(user_id), "reason": str(e)})
 
         # Invalidate caches
         try:
@@ -472,7 +470,7 @@ async def bulk_assign_roles(
             success_count=len(successful_users),
             failure_count=len(failed_users),
             successful_users=successful_users,
-            failed_users=failed_users
+            failed_users=failed_users,
         )
 
     except HTTPException:
@@ -482,7 +480,7 @@ async def bulk_assign_roles(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Bulk role assignment failed"
+            detail="Bulk role assignment failed",
         )
 
 
@@ -490,12 +488,11 @@ async def bulk_assign_roles(
     "/statistics",
     response_model=RoleStatistics,
     summary="Get role distribution statistics",
-    description="Get statistics about role distribution and usage across all users"
+    description="Get statistics about role distribution and usage across all users",
 )
 @cache(ttl=120, key_prefix="roles:statistics")  # 2 min cache (near real-time)
 async def get_role_statistics(
-    admin_user: User = Depends(get_admin_user),
-    db: Session = Depends(get_db)
+    admin_user: User = Depends(get_admin_user), db: Session = Depends(get_db)
 ) -> RoleStatistics:
     """
     Get statistics about role distribution across users.
@@ -521,28 +518,34 @@ async def get_role_statistics(
             role_distribution[role.value] = total_count
 
             # Active users with this role
-            active_count = db.query(User).filter(
-                User.role == role,
-                User.is_active == True
-            ).count()
+            active_count = (
+                db.query(User).filter(User.role == role, User.is_active).count()
+            )
             active_users_by_role[role.value] = active_count
 
             # Inactive users with this role
-            inactive_count = db.query(User).filter(
-                User.role == role,
-                User.is_active == False
-            ).count()
+            inactive_count = (
+                db.query(User).filter(User.role == role, not User.is_active).count()
+            )
             inactive_users_by_role[role.value] = inactive_count
 
         # Role changes in last 30 days
         thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-        role_changes_count = db.query(AuditLog).filter(
-            AuditLog.event_type == "role_assignment",
-            AuditLog.timestamp >= thirty_days_ago
-        ).count()
+        role_changes_count = (
+            db.query(AuditLog)
+            .filter(
+                AuditLog.event_type == "role_assignment",
+                AuditLog.timestamp >= thirty_days_ago,
+            )
+            .count()
+        )
 
         # Most assigned role
-        most_assigned_role = max(role_distribution.items(), key=lambda x: x[1])[0] if role_distribution else None
+        most_assigned_role = (
+            max(role_distribution.items(), key=lambda x: x[1])[0]
+            if role_distribution
+            else None
+        )
 
         return RoleStatistics(
             total_users=total_users,
@@ -550,14 +553,14 @@ async def get_role_statistics(
             active_users_by_role=active_users_by_role,
             inactive_users_by_role=inactive_users_by_role,
             role_changes_last_30_days=role_changes_count,
-            most_assigned_role=most_assigned_role
+            most_assigned_role=most_assigned_role,
         )
 
     except Exception as e:
         logger.error(f"Failed to get role statistics: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve role statistics"
+            detail="Failed to retrieve role statistics",
         )
 
 
@@ -565,12 +568,11 @@ async def get_role_statistics(
     "/permissions/{role}",
     response_model=RolePermissions,
     summary="Get role permissions",
-    description="Get detailed permissions for a specific role"
+    description="Get detailed permissions for a specific role",
 )
 @cache(ttl=600, key_prefix="roles:permissions")  # 10 min cache (infrequent changes)
 async def get_role_permissions_endpoint(
-    role: str,
-    admin_user: User = Depends(get_admin_user)
+    role: str, admin_user: User = Depends(get_admin_user)
 ) -> RolePermissions:
     """
     Get detailed permissions for a specific role.
@@ -593,8 +595,7 @@ async def get_role_permissions_endpoint(
             role_enum = UserRole(role.lower())
         except ValueError:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid role: {role}"
+                status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid role: {role}"
             )
 
         # Get permissions
@@ -606,7 +607,7 @@ async def get_role_permissions_endpoint(
             role=role_enum.value,
             permissions=permissions,
             permission_groups=permission_groups,
-            description=description
+            description=description,
         )
 
     except HTTPException:
@@ -615,7 +616,7 @@ async def get_role_permissions_endpoint(
         logger.error(f"Failed to get permissions for role {role}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve role permissions"
+            detail="Failed to retrieve role permissions",
         )
 
 
@@ -623,12 +624,12 @@ async def get_role_permissions_endpoint(
     "/validate",
     response_model=RoleValidationResponse,
     summary="Validate role assignment",
-    description="Validate if a role can be assigned to a user (checks constraints)"
+    description="Validate if a role can be assigned to a user (checks constraints)",
 )
 async def validate_role_assignment(
     validation_request: RoleValidationRequest,
     admin_user: User = Depends(get_admin_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> RoleValidationResponse:
     """
     Validate if a role can be assigned to a user.
@@ -661,7 +662,7 @@ async def validate_role_assignment(
                 target_role=target_role_str,
                 reason="user_not_found",
                 message=f"User with ID {user_id} not found",
-                warnings=[]
+                warnings=[],
             )
 
         # Convert target role string to enum
@@ -671,32 +672,36 @@ async def validate_role_assignment(
             return RoleValidationResponse(
                 valid=False,
                 user_id=user_id,
-                current_role=user.role.value if hasattr(user.role, 'value') else str(user.role),
+                current_role=user.role.value
+                if hasattr(user.role, "value")
+                else str(user.role),
                 target_role=target_role_str,
                 reason="invalid_role",
                 message=f"Invalid role: {target_role_str}",
-                warnings=[]
+                warnings=[],
             )
 
         warnings: List[str] = []
 
         # Check if this would remove the last admin
         if user.role == UserRole.ADMIN and target_role != UserRole.ADMIN:
-            admin_count = db.query(User).filter(
-                User.role == UserRole.ADMIN,
-                User.is_active == True,
-                User.id != user_id
-            ).count()
+            admin_count = (
+                db.query(User)
+                .filter(User.role == UserRole.ADMIN, User.is_active, User.id != user_id)
+                .count()
+            )
 
             if admin_count == 0:
                 return RoleValidationResponse(
                     valid=False,
                     user_id=user_id,
-                    current_role=user.role.value if hasattr(user.role, 'value') else str(user.role),
+                    current_role=user.role.value
+                    if hasattr(user.role, "value")
+                    else str(user.role),
                     target_role=target_role_str,
                     reason="last_admin_protection",
                     message="Cannot remove admin role from the last active admin user",
-                    warnings=[]
+                    warnings=[],
                 )
 
         # Check if user is inactive and target role is admin
@@ -704,11 +709,13 @@ async def validate_role_assignment(
             return RoleValidationResponse(
                 valid=False,
                 user_id=user_id,
-                current_role=user.role.value if hasattr(user.role, 'value') else str(user.role),
+                current_role=user.role.value
+                if hasattr(user.role, "value")
+                else str(user.role),
                 target_role=target_role_str,
                 reason="inactive_user_admin",
                 message="Cannot assign admin role to inactive user",
-                warnings=[]
+                warnings=[],
             )
 
         # Check if role is already assigned
@@ -718,11 +725,13 @@ async def validate_role_assignment(
         return RoleValidationResponse(
             valid=True,
             user_id=user_id,
-            current_role=user.role.value if hasattr(user.role, 'value') else str(user.role),
+            current_role=user.role.value
+            if hasattr(user.role, "value")
+            else str(user.role),
             target_role=target_role_str,
             reason=None,
             message="Role assignment is valid",
-            warnings=warnings
+            warnings=warnings,
         )
 
     except Exception as e:
@@ -734,5 +743,5 @@ async def validate_role_assignment(
             target_role=validation_request.target_role,
             reason="validation_error",
             message="Failed to validate role assignment",
-            warnings=[]
+            warnings=[],
         )

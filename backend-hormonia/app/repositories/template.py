@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.models.template import MessageTemplate
 from app.repositories.base import BaseRepository
 
+
 class TemplateRepository(BaseRepository[MessageTemplate]):
     """Repository for MessageTemplate model."""
 
@@ -11,10 +12,11 @@ class TemplateRepository(BaseRepository[MessageTemplate]):
 
     def get_by_name(self, name: str) -> Optional[MessageTemplate]:
         """Get a template by its name."""
-        return self.db.query(MessageTemplate).filter(
-            MessageTemplate.name == name,
-            MessageTemplate.is_active == True
-        ).first()
+        return (
+            self.db.query(MessageTemplate)
+            .filter(MessageTemplate.name == name, MessageTemplate.is_active)
+            .first()
+        )
 
     def list_active(self, limit: int = 100) -> List[MessageTemplate]:
         """
@@ -26,6 +28,10 @@ class TemplateRepository(BaseRepository[MessageTemplate]):
         Returns:
             List of active MessageTemplate instances
         """
-        return self.db.query(MessageTemplate).filter(
-            MessageTemplate.is_active == True
-        ).order_by(MessageTemplate.name).limit(limit).all()
+        return (
+            self.db.query(MessageTemplate)
+            .filter(MessageTemplate.is_active)
+            .order_by(MessageTemplate.name)
+            .limit(limit)
+            .all()
+        )

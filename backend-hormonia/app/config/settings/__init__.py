@@ -3,11 +3,11 @@ Main Settings module that combines all configuration modules.
 This provides backward compatibility with the monolithic config.py while using modular architecture.
 """
 
-from typing import Any, List
+from typing import Any
 from pydantic import model_validator
 import json
 
-from .base import BaseAppSettings
+from .base import BaseAppSettings  # noqa: F401 - exported for use by other modules
 from .database import DatabaseSettings
 from .security import SecuritySettings
 from .integrations import IntegrationsSettings
@@ -166,17 +166,26 @@ class Settings(
         # Validate security keys are not placeholders (only in production)
         # In development, default insecure keys are allowed for local testing
         import os
-        is_production = os.environ.get("APP_ENVIRONMENT", "development").lower() == "production"
+
+        is_production = (
+            os.environ.get("APP_ENVIRONMENT", "development").lower() == "production"
+        )
 
         if is_production:
-            security_fields = [
-                "SECURITY_SECRET_KEY", "SECURITY_ENCRYPTION_KEY"
+            security_fields = ["SECURITY_SECRET_KEY", "SECURITY_ENCRYPTION_KEY"]
+            placeholder_patterns = [
+                "CHANGE_THIS",
+                "YOUR_",
+                "INSECURE",
+                "DEV-",
+                "MUST-BE-CHANGED",
             ]
-            placeholder_patterns = ["CHANGE_THIS", "YOUR_", "INSECURE", "DEV-", "MUST-BE-CHANGED"]
             for field in security_fields:
                 if field in data:
                     v = data[field]
-                    if v and any(pattern in v.upper() for pattern in placeholder_patterns):
+                    if v and any(
+                        pattern in v.upper() for pattern in placeholder_patterns
+                    ):
                         raise ValueError(
                             f"{field} must be changed from placeholder/default value in production. "
                             f"Generate a secure key with: python -c 'import secrets; print(secrets.token_urlsafe(64))'"
@@ -197,21 +206,26 @@ class Settings(
 
             # DEBUG must be False in production
             if self.APP_ENABLE_DEBUG:
-                errors.append("APP_ENABLE_DEBUG must be False in production environment")
+                errors.append(
+                    "APP_ENABLE_DEBUG must be False in production environment"
+                )
 
             # Redis SSL validation (optional - some Redis Cloud instances don't use SSL)
             # Note: Redis Cloud port 14149 does NOT use SSL/TLS
             # Validate URL scheme matches SSL setting
             if self.REDIS_ENABLE_SSL and not self.REDIS_URL.startswith("rediss://"):
                 import logging
+
                 logger = logging.getLogger(__name__)
                 logger.warning(
                     "Redis SSL configuration mismatch",
                     extra={
                         "redis_ssl": self.REDIS_ENABLE_SSL,
-                        "redis_url_scheme": self.REDIS_URL.split("://")[0] if "://" in self.REDIS_URL else "unknown",
-                        "warning": "REDIS_ENABLE_SSL=True but URL doesn't use rediss:// scheme"
-                    }
+                        "redis_url_scheme": self.REDIS_URL.split("://")[0]
+                        if "://" in self.REDIS_URL
+                        else "unknown",
+                        "warning": "REDIS_ENABLE_SSL=True but URL doesn't use rediss:// scheme",
+                    },
                 )
             elif not self.REDIS_ENABLE_SSL and self.REDIS_URL.startswith("rediss://"):
                 errors.append(
@@ -232,7 +246,7 @@ class Settings(
 
             if errors:
                 raise ValueError(
-                    f"Production environment security validation failed:\n"
+                    "Production environment security validation failed:\n"
                     + "\n".join(f"  - {error}" for error in errors)
                 )
 

@@ -140,10 +140,9 @@ class FlowContextRepository:
         """Persist context into patient_flow_states if possible."""
         template_version_id = None
         if template:
-            template_version_id = (
-                template.get("metadata", {}).get("template_version_id")
-                or template.get("template_version_id")
-            )
+            template_version_id = template.get("metadata", {}).get(
+                "template_version_id"
+            ) or template.get("template_version_id")
         if not template_version_id:
             template_version_id = context.metadata.get("template_version_id")
 

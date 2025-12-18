@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_rls_db(
-    current_user: Optional[User] = Depends(get_current_user)
+    current_user: Optional[User] = Depends(get_current_user),
 ) -> Generator[Session, None, None]:
     """
     Get database session with RLS context injected.
@@ -57,27 +57,26 @@ def get_rls_db(
                 "email": current_user.email,
                 "role": current_user.role,
                 "aud": "authenticated",
-                "exp": 9999999999  # Far future, actual expiry handled by auth
+                "exp": 9999999999,  # Far future, actual expiry handled by auth
             }
 
             # Set the JWT claims in PostgreSQL session
             # This enables auth.uid() and auth.jwt() functions in RLS policies
             db.execute(
                 "SELECT set_config('request.jwt.claims', :claims, true)",
-                {"claims": json.dumps(claims)}
+                {"claims": json.dumps(claims)},
             )
 
             if settings.APP_ENABLE_DEBUG:
-                logger.debug(f"RLS context set for user {current_user.id} with role {current_user.role}")
+                logger.debug(
+                    f"RLS context set for user {current_user.id} with role {current_user.role}"
+                )
         else:
             # For public endpoints, set anonymous context
-            claims = {
-                "role": "anon",
-                "aud": "public"
-            }
+            claims = {"role": "anon", "aud": "public"}
             db.execute(
                 "SELECT set_config('request.jwt.claims', :claims, true)",
-                {"claims": json.dumps(claims)}
+                {"claims": json.dumps(claims)},
             )
 
             if settings.APP_ENABLE_DEBUG:
@@ -89,7 +88,7 @@ def get_rls_db(
         logger.error(f"Error setting RLS context: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database context error"
+            detail="Database context error",
         )
     finally:
         # Clear RLS context before closing
@@ -101,7 +100,7 @@ def get_rls_db(
 
 
 def get_rls_db_required(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> Generator[Session, None, None]:
     """
     Get database session with RLS context, authentication required.
@@ -118,7 +117,7 @@ def get_rls_db_required(
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required for this endpoint"
+            detail="Authentication required for this endpoint",
         )
 
     # Delegate to the main RLS db function
@@ -126,7 +125,7 @@ def get_rls_db_required(
 
 
 def get_rls_db_admin(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> Generator[Session, None, None]:
     """
     Get database session for admin users with RLS context.
@@ -145,8 +144,7 @@ def get_rls_db_admin(
     """
     if not current_user or current_user.role != "admin":
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
         )
 
     # Admins still get RLS context for audit trail
@@ -154,6 +152,7 @@ def get_rls_db_admin(
 
 
 # Utility functions for RLS management
+
 
 def test_rls_connection(db: Session) -> dict:
     """
@@ -190,15 +189,11 @@ def test_rls_connection(db: Session) -> dict:
             "has_claims": bool(claims),
             "claims": claims,
             "auth_uid": auth_uid,
-            "rls_ready": bool(claims and claims.get("sub"))
+            "rls_ready": bool(claims and claims.get("sub")),
         }
 
     except Exception as e:
-        return {
-            "has_claims": False,
-            "error": str(e),
-            "rls_ready": False
-        }
+        return {"has_claims": False, "error": str(e), "rls_ready": False}
 
 
 # Export the dependencies
@@ -206,5 +201,5 @@ __all__ = [
     "get_rls_db",
     "get_rls_db_required",
     "get_rls_db_admin",
-    "test_rls_connection"
+    "test_rls_connection",
 ]

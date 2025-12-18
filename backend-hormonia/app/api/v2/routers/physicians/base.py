@@ -91,10 +91,7 @@ def _calculate_workload_level(patient_count: int) -> WorkloadLevel:
 
 
 def validate_physician_access(
-    physician_id: UUID,
-    current_user,
-    db: Session,
-    allow_patient_view: bool = True
+    physician_id: UUID, current_user, db: Session, allow_patient_view: bool = True
 ) -> User:
     """
     Validate physician exists and check user access permissions.
@@ -117,15 +114,16 @@ def validate_physician_access(
         HTTPException: If physician not found or access denied
     """
     # Fetch physician
-    physician = db.query(User).filter(
-        User.id == physician_id,
-        User.role == UserRole.DOCTOR
-    ).first()
+    physician = (
+        db.query(User)
+        .filter(User.id == physician_id, User.role == UserRole.DOCTOR)
+        .first()
+    )
 
     if not physician:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Physician with id {physician_id} not found"
+            detail=f"Physician with id {physician_id} not found",
         )
 
     # RBAC: Check access
@@ -140,18 +138,22 @@ def validate_physician_access(
 
     # Patients can view their assigned physician
     if role_enum == UserRole.PATIENT and allow_patient_view:
-        patient_assigned = db.query(Patient).filter(
-            Patient.doctor_id == physician_id,
-            Patient.id == UUID(user_id) if user_id else None,
-            Patient.deleted_at.is_(None)
-        ).first()
+        patient_assigned = (
+            db.query(Patient)
+            .filter(
+                Patient.doctor_id == physician_id,
+                Patient.id == UUID(user_id) if user_id else None,
+                Patient.deleted_at.is_(None),
+            )
+            .first()
+        )
 
         if patient_assigned:
             return physician
 
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
-        detail="Not authorized to access this physician"
+        detail="Not authorized to access this physician",
     )
 
 

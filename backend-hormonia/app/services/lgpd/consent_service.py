@@ -4,6 +4,7 @@ LGPD Consent Management Service.
 QW-005: Implements consent management for LGPD compliance,
 including consent tracking, revocation, and audit logging.
 """
+
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
@@ -13,13 +14,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 
 from app.models.consent import Consent, ConsentType, ConsentStatus
-from app.models.patient import Patient
-from app.models.lgpd_audit import (
-    LGPDAuditLog,
-    LGPDActionType,
-    LGPDDataCategory,
-    DataAccessRequest
-)
+from app.models.lgpd_audit import LGPDAuditLog, LGPDActionType, LGPDDataCategory
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +54,7 @@ class ConsentService:
         is_required: bool = False,
         signature_data: Optional[Dict[str, Any]] = None,
         metadata: Optional[Dict[str, Any]] = None,
-        request_context: Optional[Dict[str, Any]] = None
+        request_context: Optional[Dict[str, Any]] = None,
     ) -> Consent:
         """
         Create a new consent record.
@@ -84,7 +79,9 @@ class ConsentService:
         if expires_in_days:
             expires_at = datetime.utcnow() + timedelta(days=expires_in_days)
         elif self.DEFAULT_EXPIRATION_DAYS:
-            expires_at = datetime.utcnow() + timedelta(days=self.DEFAULT_EXPIRATION_DAYS)
+            expires_at = datetime.utcnow() + timedelta(
+                days=self.DEFAULT_EXPIRATION_DAYS
+            )
 
         consent = Consent(
             patient_id=patient_id,
@@ -98,7 +95,7 @@ class ConsentService:
             is_required=is_required,
             signature_data=signature_data,
             consent_metadata=metadata,
-            version="1.0"
+            version="1.0",
         )
 
         self.db.add(consent)
@@ -112,7 +109,7 @@ class ConsentService:
             user_id=user_id,
             consent_id=consent.id,
             consent_type=consent_type,
-            request_context=request_context
+            request_context=request_context,
         )
 
         logger.info(f"Created consent {consent.id} for patient {patient_id}")
@@ -123,7 +120,7 @@ class ConsentService:
         consent_id: UUID,
         user_id: Optional[UUID] = None,
         signature_data: Optional[Dict[str, Any]] = None,
-        request_context: Optional[Dict[str, Any]] = None
+        request_context: Optional[Dict[str, Any]] = None,
     ) -> Consent:
         """
         Grant (accept) a consent.
@@ -163,7 +160,7 @@ class ConsentService:
             user_id=user_id,
             consent_id=consent.id,
             consent_type=consent.consent_type,
-            request_context=request_context
+            request_context=request_context,
         )
 
         logger.info(f"Consent {consent_id} granted for patient {consent.patient_id}")
@@ -174,7 +171,7 @@ class ConsentService:
         consent_id: UUID,
         user_id: Optional[UUID] = None,
         reason: Optional[str] = None,
-        request_context: Optional[Dict[str, Any]] = None
+        request_context: Optional[Dict[str, Any]] = None,
     ) -> Consent:
         """
         Revoke a previously granted consent.
@@ -196,7 +193,9 @@ class ConsentService:
             raise ValueError(f"Consent {consent_id} not found")
 
         if consent.status != ConsentStatus.GRANTED:
-            raise ValueError(f"Consent {consent_id} is not granted (current: {consent.status.value})")
+            raise ValueError(
+                f"Consent {consent_id} is not granted (current: {consent.status.value})"
+            )
 
         consent.status = ConsentStatus.REVOKED
         consent.revoked_at = datetime.utcnow()
@@ -213,17 +212,14 @@ class ConsentService:
             consent_id=consent.id,
             consent_type=consent.consent_type,
             additional_data={"reason": reason},
-            request_context=request_context
+            request_context=request_context,
         )
 
         logger.info(f"Consent {consent_id} revoked for patient {consent.patient_id}")
         return consent
 
     async def check_consent(
-        self,
-        patient_id: UUID,
-        consent_type: ConsentType,
-        purpose: Optional[str] = None
+        self, patient_id: UUID, consent_type: ConsentType, purpose: Optional[str] = None
     ) -> bool:
         """
         Check if patient has granted consent for a specific type.
@@ -238,18 +234,19 @@ class ConsentService:
         """
         now = datetime.utcnow()
 
-        consent = self.db.query(Consent).filter(
-            and_(
-                Consent.patient_id == patient_id,
-                Consent.consent_type == consent_type,
-                Consent.status == ConsentStatus.GRANTED,
-                Consent.is_active == True,
-                or_(
-                    Consent.expires_at.is_(None),
-                    Consent.expires_at > now
+        consent = (
+            self.db.query(Consent)
+            .filter(
+                and_(
+                    Consent.patient_id == patient_id,
+                    Consent.consent_type == consent_type,
+                    Consent.status == ConsentStatus.GRANTED,
+                    Consent.is_active,
+                    or_(Consent.expires_at.is_(None), Consent.expires_at > now),
                 )
             )
-        ).first()
+            .first()
+        )
 
         return consent is not None
 
@@ -257,7 +254,7 @@ class ConsentService:
         self,
         patient_id: UUID,
         include_expired: bool = False,
-        include_revoked: bool = False
+        include_revoked: bool = False,
     ) -> List[Consent]:
         """
         Get all consents for a patient.
@@ -271,17 +268,13 @@ class ConsentService:
             List of Consent objects
         """
         query = self.db.query(Consent).filter(
-            Consent.patient_id == patient_id,
-            Consent.is_active == True
+            Consent.patient_id == patient_id, Consent.is_active
         )
 
         if not include_expired:
             now = datetime.utcnow()
             query = query.filter(
-                or_(
-                    Consent.expires_at.is_(None),
-                    Consent.expires_at > now
-                )
+                or_(Consent.expires_at.is_(None), Consent.expires_at > now)
             )
 
         if not include_revoked:
@@ -298,13 +291,17 @@ class ConsentService:
         """
         now = datetime.utcnow()
 
-        expired = self.db.query(Consent).filter(
-            and_(
-                Consent.status == ConsentStatus.GRANTED,
-                Consent.expires_at.isnot(None),
-                Consent.expires_at < now
+        expired = (
+            self.db.query(Consent)
+            .filter(
+                and_(
+                    Consent.status == ConsentStatus.GRANTED,
+                    Consent.expires_at.isnot(None),
+                    Consent.expires_at < now,
+                )
             )
-        ).all()
+            .all()
+        )
 
         count = 0
         for consent in expired:
@@ -316,7 +313,7 @@ class ConsentService:
                 patient_id=consent.patient_id,
                 user_id=None,
                 consent_id=consent.id,
-                consent_type=consent.consent_type
+                consent_type=consent.consent_type,
             )
             count += 1
 
@@ -334,7 +331,7 @@ class ConsentService:
         consent_type: ConsentType,
         user_id: Optional[UUID] = None,
         additional_data: Optional[Dict[str, Any]] = None,
-        request_context: Optional[Dict[str, Any]] = None
+        request_context: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Log consent operation for LGPD audit.
@@ -356,10 +353,12 @@ class ConsentService:
             ConsentType.COMMUNICATION: LGPDDataCategory.PERSONAL_CONTACT,
             ConsentType.TELEMEDICINE: LGPDDataCategory.HEALTH,
             ConsentType.PHOTOGRAPHY: LGPDDataCategory.BIOMETRIC,
-            ConsentType.GENERAL: LGPDDataCategory.PERSONAL_BASIC
+            ConsentType.GENERAL: LGPDDataCategory.PERSONAL_BASIC,
         }
 
-        data_category = data_category_map.get(consent_type, LGPDDataCategory.PERSONAL_BASIC)
+        data_category = data_category_map.get(
+            consent_type, LGPDDataCategory.PERSONAL_BASIC
+        )
 
         audit_log = LGPDAuditLog(
             user_id=user_id,
@@ -375,7 +374,7 @@ class ConsentService:
             session_id=request_context.get("session_id") if request_context else None,
             request_id=request_context.get("request_id") if request_context else None,
             additional_data=additional_data,
-            success=True
+            success=True,
         )
 
         self.db.add(audit_log)
@@ -412,7 +411,7 @@ class LGPDAuditService:
         legal_basis: Optional[str] = None,
         request_context: Optional[Dict[str, Any]] = None,
         success: bool = True,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ) -> LGPDAuditLog:
         """
         Log access to personal data.
@@ -453,7 +452,7 @@ class LGPDAuditService:
             session_id=ctx.get("session_id"),
             request_id=ctx.get("request_id"),
             success=success,
-            error_message=error_message
+            error_message=error_message,
         )
 
         self.db.add(audit_log)
@@ -467,7 +466,7 @@ class LGPDAuditService:
         patient_id: UUID,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[LGPDAuditLog]:
         """
         Get access history for a patient's data.
@@ -497,7 +496,7 @@ class LGPDAuditService:
         user_id: UUID,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[LGPDAuditLog]:
         """
         Get access history for a user.
@@ -511,9 +510,7 @@ class LGPDAuditService:
         Returns:
             List of audit logs
         """
-        query = self.db.query(LGPDAuditLog).filter(
-            LGPDAuditLog.user_id == user_id
-        )
+        query = self.db.query(LGPDAuditLog).filter(LGPDAuditLog.user_id == user_id)
 
         if start_date:
             query = query.filter(LGPDAuditLog.created_at >= start_date)
@@ -523,9 +520,7 @@ class LGPDAuditService:
         return query.order_by(LGPDAuditLog.created_at.desc()).limit(limit).all()
 
     async def get_failed_access_attempts(
-        self,
-        hours: int = 24,
-        limit: int = 100
+        self, hours: int = 24, limit: int = 100
     ) -> List[LGPDAuditLog]:
         """
         Get failed access attempts for security review.
@@ -539,12 +534,13 @@ class LGPDAuditService:
         """
         since = datetime.utcnow() - timedelta(hours=hours)
 
-        return self.db.query(LGPDAuditLog).filter(
-            and_(
-                LGPDAuditLog.success == False,
-                LGPDAuditLog.created_at >= since
-            )
-        ).order_by(LGPDAuditLog.created_at.desc()).limit(limit).all()
+        return (
+            self.db.query(LGPDAuditLog)
+            .filter(and_(not LGPDAuditLog.success, LGPDAuditLog.created_at >= since))
+            .order_by(LGPDAuditLog.created_at.desc())
+            .limit(limit)
+            .all()
+        )
 
 
 __all__ = ["ConsentService", "LGPDAuditService"]

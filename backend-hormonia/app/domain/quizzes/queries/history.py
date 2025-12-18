@@ -29,10 +29,7 @@ class HistoryQuery:
         self.status_query = status_query
 
     async def get_patient_history(
-        self,
-        patient_id: UUID,
-        limit: int = 10,
-        offset: int = 0
+        self, patient_id: UUID, limit: int = 10, offset: int = 0
     ) -> List[MonthlyQuizLinkResponse]:
         """Get quiz session history for a specific patient.
 
@@ -49,12 +46,19 @@ class HistoryQuery:
             logger.info(f"Fast 404 for patient history {str(patient_id)[:8]}...")
             return []
 
-        sessions = self.db.query(QuizSession).filter(
-            and_(
-                QuizSession.patient_id == patient_id,
-                QuizSession.session_metadata.isnot(None)
+        sessions = (
+            self.db.query(QuizSession)
+            .filter(
+                and_(
+                    QuizSession.patient_id == patient_id,
+                    QuizSession.session_metadata.isnot(None),
+                )
             )
-        ).order_by(QuizSession.started_at.desc()).offset(offset).limit(limit).all()
+            .order_by(QuizSession.started_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
 
         results = []
         for session in sessions:

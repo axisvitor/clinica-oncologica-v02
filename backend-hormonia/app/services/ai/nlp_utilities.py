@@ -1,8 +1,9 @@
 """
 Lightweight NLP utilities used by legacy services and baseline tests.
 """
+
 import re
-from typing import Any, List
+from typing import List
 
 
 class NLPUtilities:

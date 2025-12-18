@@ -75,14 +75,13 @@ def calculate_entropy(data: str) -> float:
 
     # Calculate Shannon entropy per character
     entropy = -sum(
-        (count / length) * math.log2(count / length)
-        for count in counter.values()
+        (count / length) * math.log2(count / length) for count in counter.values()
     )
 
     return entropy
 
 
 __all__ = [
-    'calculate_shannon_entropy',
-    'calculate_entropy',
+    "calculate_shannon_entropy",
+    "calculate_entropy",
 ]

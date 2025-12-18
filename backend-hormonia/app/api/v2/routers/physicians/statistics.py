@@ -37,14 +37,14 @@ logger = logging.getLogger(__name__)
 
     **Caching**: 5 minutes Redis cache
     **Rate Limit**: 60 requests/minute
-    """
+    """,
 )
 @limiter.limit("60/minute")
 async def get_physician_statistics(
     request: Request,
     physician_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
     use_cache: bool = True,
 ):
     """Get detailed statistics for a physician."""
@@ -53,13 +53,11 @@ async def get_physician_statistics(
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid physician ID format"
+            detail="Invalid physician ID format",
         )
 
     # Validate access
-    validate_physician_access(
-        physician_uuid, current_user, db, allow_patient_view=True
-    )
+    validate_physician_access(physician_uuid, current_user, db, allow_patient_view=True)
 
     # Calculate statistics
     stats_service = PhysicianStatisticsService(db)

@@ -33,7 +33,7 @@ RATE_LIMIT_READ = "100/minute"
     description="Get list of code examples for various API operations",
     responses={
         200: {"description": "List of code examples"},
-    }
+    },
 )
 @limiter.limit(RATE_LIMIT_READ)
 async def list_code_examples(
@@ -55,8 +55,9 @@ async def list_code_examples(
     """
     try:
         # Check cache
-        cache_key = get_cache_key("examples_list", category=category,
-                                   language=language, endpoint=endpoint)
+        cache_key = get_cache_key(
+            "examples_list", category=category, language=language, endpoint=endpoint
+        )
         cached = await get_cached_result(cache_key)
         if cached:
             return cached
@@ -65,10 +66,14 @@ async def list_code_examples(
 
         # Apply filters
         if category:
-            examples = [e for e in examples if e["category"].lower() == category.lower()]
+            examples = [
+                e for e in examples if e["category"].lower() == category.lower()
+            ]
 
         if language:
-            examples = [e for e in examples if e["language"].lower() == language.lower()]
+            examples = [
+                e for e in examples if e["language"].lower() == language.lower()
+            ]
 
         if endpoint:
             examples = [e for e in examples if e.get("endpoint") == endpoint]
@@ -89,7 +94,7 @@ async def list_code_examples(
         logger.error(f"Error listing examples: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to list code examples"
+            detail="Failed to list code examples",
         )
 
 
@@ -101,7 +106,7 @@ async def list_code_examples(
     responses={
         200: {"description": "Code example details"},
         404: {"model": ErrorResponse, "description": "Example not found"},
-    }
+    },
 )
 @limiter.limit(RATE_LIMIT_READ)
 async def get_code_example(
@@ -138,14 +143,17 @@ async def get_code_example(
         if not example:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Example '{example_id}' not found"
+                detail=f"Example '{example_id}' not found",
             )
 
         # Find related examples (same category or language)
         related = [
             {"id": e["id"], "title": e["title"], "language": e["language"]}
             for e in examples
-            if (e["category"] == example["category"] or e["language"] == example["language"])
+            if (
+                e["category"] == example["category"]
+                or e["language"] == example["language"]
+            )
             and e["id"] != example["id"]
         ][:5]
 
@@ -165,5 +173,5 @@ async def get_code_example(
         logger.error(f"Error getting example: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get code example"
+            detail="Failed to get code example",
         )

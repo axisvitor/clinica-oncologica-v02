@@ -1,6 +1,7 @@
 """
 LGPD-compliant search operations for patients.
 """
+
 import logging
 from typing import List
 
@@ -17,7 +18,9 @@ class PatientSearchMixin:
     Search operations for patients with LGPD compliance.
     """
 
-    def search_active(self, search_term: str, skip: int = 0, limit: int = 100) -> List[Patient]:
+    def search_active(
+        self, search_term: str, skip: int = 0, limit: int = 100
+    ) -> List[Patient]:
         """
         Search active patients by name, email hash, or phone hash.
 

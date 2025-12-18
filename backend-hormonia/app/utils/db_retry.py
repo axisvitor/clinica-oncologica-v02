@@ -14,6 +14,7 @@ Usage:
         def get_data(self, db: Session, id: UUID):
             return db.query(Model).filter(Model.id == id).first()
 """
+
 import asyncio
 import functools
 import logging
@@ -26,7 +27,7 @@ from sqlalchemy.exc import (
     DBAPIError,
     IntegrityError,
     ProgrammingError,
-    DataError
+    DataError,
 )
 from sqlalchemy.orm import Session
 
@@ -35,38 +36,43 @@ logger = logging.getLogger(__name__)
 
 def _attempt_rollback(args, kwargs):
     """Attempt to rollback database session from various sources
-    
+
     Checks for session in kwargs['db'], args[0].db, or args[0].repository.db
     """
     # Check kwargs first
-    if 'db' in kwargs and isinstance(kwargs['db'], Session):
+    if "db" in kwargs and isinstance(kwargs["db"], Session):
         try:
-            kwargs['db'].rollback()
+            kwargs["db"].rollback()
             logger.debug("Rolled back session from kwargs['db']")
             return True
         except Exception as e:
             logger.warning(f"Failed to rollback session from kwargs: {str(e)}")
-    
+
     # Check self.db pattern (common in services)
-    if args and hasattr(args[0], 'db') and isinstance(args[0].db, Session):
+    if args and hasattr(args[0], "db") and isinstance(args[0].db, Session):
         try:
             args[0].db.rollback()
             logger.debug("Rolled back session from self.db")
             return True
         except Exception as e:
             logger.warning(f"Failed to rollback session from self.db: {str(e)}")
-    
+
     # Check self.repository.db pattern
-    if (args and hasattr(args[0], 'repository') and 
-        hasattr(args[0].repository, 'db') and 
-        isinstance(args[0].repository.db, Session)):
+    if (
+        args
+        and hasattr(args[0], "repository")
+        and hasattr(args[0].repository, "db")
+        and isinstance(args[0].repository.db, Session)
+    ):
         try:
             args[0].repository.db.rollback()
             logger.debug("Rolled back session from self.repository.db")
             return True
         except Exception as e:
-            logger.warning(f"Failed to rollback session from self.repository.db: {str(e)}")
-    
+            logger.warning(
+                f"Failed to rollback session from self.repository.db: {str(e)}"
+            )
+
     return False
 
 
@@ -106,12 +112,17 @@ class DatabaseCircuitBreaker:
             Exception: If circuit is open and not ready for recovery
         """
         if self.state == "open":
-            if self.last_failure_time and (time.time() - self.last_failure_time) > self.recovery_timeout:
+            if (
+                self.last_failure_time
+                and (time.time() - self.last_failure_time) > self.recovery_timeout
+            ):
                 logger.info("Circuit breaker transitioning to HALF_OPEN state")
                 self.state = "half_open"
             else:
                 logger.error("Circuit breaker is OPEN - rejecting database operation")
-                raise Exception("Circuit breaker is OPEN - database operations temporarily disabled")
+                raise Exception(
+                    "Circuit breaker is OPEN - database operations temporarily disabled"
+                )
 
     def _record_success(self):
         """Record successful operation and update circuit state"""
@@ -157,7 +168,7 @@ class DatabaseCircuitBreaker:
         except (ProgrammingError, DataError):
             # Don't count non-transitory errors for circuit breaker
             raise
-        except Exception as e:
+        except Exception:
             self._record_failure()
             raise
 
@@ -186,7 +197,7 @@ class DatabaseCircuitBreaker:
         except (ProgrammingError, DataError):
             # Don't count non-transitory errors for circuit breaker
             raise
-        except Exception as e:
+        except Exception:
             self._record_failure()
             raise
 
@@ -200,7 +211,7 @@ def with_db_retry(
     base_delay: float = 1.0,
     max_delay: float = 10.0,
     exponential_base: float = 2.0,
-    jitter: bool = True
+    jitter: bool = True,
 ):
     """Decorator for database operations with retry logic and circuit breaker
 
@@ -225,6 +236,7 @@ def with_db_retry(
             db.commit()
             return patient
     """
+
     def decorator(func: Callable):
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
@@ -238,10 +250,12 @@ def with_db_retry(
 
                 except (ProgrammingError, DataError) as e:
                     # Non-transitory errors - rollback and fail immediately
-                    logger.error(f"Non-transitory database error in {func.__name__}: {str(e)}")
+                    logger.error(
+                        f"Non-transitory database error in {func.__name__}: {str(e)}"
+                    )
                     _attempt_rollback(args, kwargs)
                     raise
-                    
+
                 except (OperationalError, SQLTimeoutError, DBAPIError) as e:
                     last_exception = e
 
@@ -257,11 +271,11 @@ def with_db_retry(
                     # Retry logic
                     if attempt < max_retries:
                         # Calculate delay with exponential backoff
-                        delay = min(base_delay * (exponential_base ** attempt), max_delay)
+                        delay = min(base_delay * (exponential_base**attempt), max_delay)
 
                         # Add jitter to prevent thundering herd
                         if jitter:
-                            delay *= (0.5 + random.random())
+                            delay *= 0.5 + random.random()
 
                         logger.warning(
                             f"Database operation '{func.__name__}' failed "
@@ -290,10 +304,12 @@ def with_db_retry(
 
                 except (ProgrammingError, DataError) as e:
                     # Non-transitory errors - rollback and fail immediately
-                    logger.error(f"Non-transitory database error in {func.__name__}: {str(e)}")
+                    logger.error(
+                        f"Non-transitory database error in {func.__name__}: {str(e)}"
+                    )
                     _attempt_rollback(args, kwargs)
                     raise
-                    
+
                 except (OperationalError, SQLTimeoutError, DBAPIError) as e:
                     last_exception = e
 
@@ -309,11 +325,11 @@ def with_db_retry(
                     # Retry logic
                     if attempt < max_retries:
                         # Calculate delay with exponential backoff
-                        delay = min(base_delay * (exponential_base ** attempt), max_delay)
+                        delay = min(base_delay * (exponential_base**attempt), max_delay)
 
                         # Add jitter
                         if jitter:
-                            delay *= (0.5 + random.random())
+                            delay *= 0.5 + random.random()
 
                         logger.warning(
                             f"Database operation '{func.__name__}' failed "

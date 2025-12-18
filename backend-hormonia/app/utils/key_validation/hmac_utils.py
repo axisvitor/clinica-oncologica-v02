@@ -12,10 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 def verify_hmac_signature(
-    message: bytes,
-    signature: str,
-    secret_key: str,
-    algorithm: str = 'sha256'
+    message: bytes, signature: str, secret_key: str, algorithm: str = "sha256"
 ) -> bool:
     """
     Verify HMAC signature for webhook or API requests.
@@ -52,9 +49,7 @@ def verify_hmac_signature(
 
         # Compute expected signature
         expected_signature = hmac.new(
-            secret_key.encode('utf-8'),
-            message,
-            hash_algo
+            secret_key.encode("utf-8"), message, hash_algo
         ).hexdigest()
 
         # Constant-time comparison
@@ -66,9 +61,7 @@ def verify_hmac_signature(
 
 
 def generate_hmac_signature(
-    message: bytes,
-    secret_key: str,
-    algorithm: str = 'sha256'
+    message: bytes, secret_key: str, algorithm: str = "sha256"
 ) -> str:
     """
     Generate HMAC signature for message.
@@ -88,15 +81,11 @@ def generate_hmac_signature(
         64  # SHA-256 produces 64 hex characters
     """
     hash_algo = getattr(hashlib, algorithm)
-    signature = hmac.new(
-        secret_key.encode('utf-8'),
-        message,
-        hash_algo
-    )
+    signature = hmac.new(secret_key.encode("utf-8"), message, hash_algo)
     return signature.hexdigest()
 
 
 __all__ = [
-    'verify_hmac_signature',
-    'generate_hmac_signature',
+    "verify_hmac_signature",
+    "generate_hmac_signature",
 ]

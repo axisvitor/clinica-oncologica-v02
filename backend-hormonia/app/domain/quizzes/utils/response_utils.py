@@ -1,6 +1,7 @@
 """
 Utility functions for quiz response processing.
 """
+
 import json
 from typing import Union, List, Dict, Any
 
@@ -15,7 +16,7 @@ def normalize_other_value(value: Union[str, List[str]]) -> Union[str, List[str]]
     Returns:
         Normalized value(s) with 'other' aliases standardized
     """
-    other_aliases = ['outra', 'outro', 'otra', 'autre', 'altro']
+    other_aliases = ["outra", "outro", "otra", "autre", "altro"]
 
     def normalize_single(val: str) -> str:
         """Normalize a single value."""
@@ -48,7 +49,9 @@ def serialize_response_value(value: Union[str, List[str]]) -> str:
         return str(value)
 
 
-def deserialize_response_value(value: str, is_multi_select: bool = False) -> Union[str, List[str]]:
+def deserialize_response_value(
+    value: str, is_multi_select: bool = False
+) -> Union[str, List[str]]:
     """
     Deserialize response value from database storage.
 
@@ -71,8 +74,7 @@ def deserialize_response_value(value: str, is_multi_select: bool = False) -> Uni
 
 
 def validate_multi_select_response(
-    response_values: List[str],
-    question_options: List[Dict[str, Any]]
+    response_values: List[str], question_options: List[Dict[str, Any]]
 ) -> List[str]:
     """
     Validate multi-select response against question options.
@@ -109,7 +111,7 @@ def validate_multi_select_response(
         # Check if it's the standardized "other" option
         if normalized == "other" or str(value).lower().strip() == "other":
             if not allows_other:
-                errors.append(f"Option 'other' is not allowed for this question")
+                errors.append("Option 'other' is not allowed for this question")
             continue
 
         # Check if value is in valid options
@@ -120,8 +122,7 @@ def validate_multi_select_response(
 
 
 def extract_other_text_requirement(
-    response_value: Union[str, List[str]],
-    question_options: List[Dict[str, Any]]
+    response_value: Union[str, List[str]], question_options: List[Dict[str, Any]]
 ) -> bool:
     """
     Check if other_text is required based on response and question options.
@@ -140,12 +141,9 @@ def extract_other_text_requirement(
         return False
 
     # Check if "other" is selected
-    other_aliases = ['other', 'outro', 'outra', 'otra', 'autre', 'altro']
+    other_aliases = ["other", "outro", "outra", "otra", "autre", "altro"]
 
     if isinstance(response_value, list):
-        return any(
-            str(val).lower().strip() in other_aliases
-            for val in response_value
-        )
+        return any(str(val).lower().strip() in other_aliases for val in response_value)
     else:
         return str(response_value).lower().strip() in other_aliases

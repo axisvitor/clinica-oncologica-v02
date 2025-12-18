@@ -12,12 +12,25 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 
 from ._shared import (
-    UUID, datetime, logger,
-    get_db, limiter, QuizSession, QuizTemplate, User, UserRole,
-    QuizReminderRequestV2, QuizScheduleV2, QuizGenerateRequestV2,
-    MonthlyQuizV2Detail, QuizTemplateV2,
-    _get_current_user_simple, get_redis_cache, CACHE_TTL_TEMPLATES,
-    Dict, Any
+    UUID,
+    datetime,
+    logger,
+    get_db,
+    limiter,
+    QuizSession,
+    QuizTemplate,
+    User,
+    UserRole,
+    QuizReminderRequestV2,
+    QuizScheduleV2,
+    QuizGenerateRequestV2,
+    MonthlyQuizV2Detail,
+    QuizTemplateV2,
+    _get_current_user_simple,
+    get_redis_cache,
+    CACHE_TTL_TEMPLATES,
+    Dict,
+    Any,
 )
 
 router = APIRouter()
@@ -27,15 +40,15 @@ router = APIRouter()
     "/monthly/{quiz_id}/reminder",
     response_model=Dict[str, Any],
     summary="Send quiz reminder",
-    description="Send reminder to patients who haven't completed the quiz"
+    description="Send reminder to patients who haven't completed the quiz",
 )
 @limiter.limit("20/minute")
 async def send_monthly_quiz_reminder(
     request: Request,
     quiz_id: UUID,
     reminder_request: QuizReminderRequestV2,
-    db = Depends(get_db),
-    current_user: User = Depends(_get_current_user_simple)
+    db=Depends(get_db),
+    current_user: User = Depends(_get_current_user_simple),
 ):
     """
     Send reminder to non-completers.
@@ -46,25 +59,25 @@ async def send_monthly_quiz_reminder(
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can send reminders"
+            detail="Only administrators can send reminders",
         )
 
     # Verify quiz exists and is published
-    quiz = db.query(QuizTemplate).filter(
-        QuizTemplate.id == quiz_id,
-        QuizTemplate.category == "monthly_quiz"
-    ).first()
+    quiz = (
+        db.query(QuizTemplate)
+        .filter(QuizTemplate.id == quiz_id, QuizTemplate.category == "monthly_quiz")
+        .first()
+    )
 
     if not quiz:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Monthly quiz not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Monthly quiz not found"
         )
 
     if quiz.tags.get("status") != "published":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Can only send reminders for published quizzes"
+            detail="Can only send reminders for published quizzes",
         )
 
     # Check reminder history
@@ -72,7 +85,7 @@ async def send_monthly_quiz_reminder(
     if len(reminder_history) >= 3:  # Max 3 reminders per quiz
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Maximum reminder limit reached (3 reminders per quiz)"
+            detail="Maximum reminder limit reached (3 reminders per quiz)",
         )
 
     # Get target patients who haven't completed
@@ -80,28 +93,26 @@ async def send_monthly_quiz_reminder(
     if not target_patient_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No target patients found for this quiz"
+            detail="No target patients found for this quiz",
         )
 
     # Find patients who haven't completed
     completed_patient_ids = (
         db.query(QuizSession.patient_id)
         .filter(
-            QuizSession.quiz_template_id == quiz_id,
-            QuizSession.status == "completed"
+            QuizSession.quiz_template_id == quiz_id, QuizSession.status == "completed"
         )
         .distinct()
         .all()
     )
     completed_patient_ids = [str(p[0]) for p in completed_patient_ids]
 
-    non_completers = [pid for pid in target_patient_ids if pid not in completed_patient_ids]
+    non_completers = [
+        pid for pid in target_patient_ids if pid not in completed_patient_ids
+    ]
 
     if not non_completers:
-        return {
-            "message": "All patients have completed the quiz",
-            "reminders_sent": 0
-        }
+        return {"message": "All patients have completed the quiz", "reminders_sent": 0}
 
     # In production, send actual reminders here via WhatsApp/Email/SMS
     # For now, just log and update metadata
@@ -110,7 +121,7 @@ async def send_monthly_quiz_reminder(
         "sent_by": str(current_user.id),
         "recipient_count": len(non_completers),
         "delivery_method": reminder_request.delivery_method.value,
-        "custom_message": reminder_request.custom_message
+        "custom_message": reminder_request.custom_message,
     }
 
     reminder_history.append(reminder_entry)
@@ -124,7 +135,7 @@ async def send_monthly_quiz_reminder(
         "message": "Reminder sent successfully",
         "reminders_sent": len(non_completers),
         "total_reminders": len(reminder_history),
-        "max_reminders": 3
+        "max_reminders": 3,
     }
 
 
@@ -132,16 +143,16 @@ async def send_monthly_quiz_reminder(
     "/monthly/schedule",
     response_model=List[QuizScheduleV2],
     summary="Get quiz schedule",
-    description="Get schedule of upcoming and past monthly quizzes"
+    description="Get schedule of upcoming and past monthly quizzes",
 )
 @limiter.limit("50/minute")
 async def get_quiz_schedule(
     request: Request,
     from_date: Optional[datetime] = Query(None, description="Start date filter"),
     to_date: Optional[datetime] = Query(None, description="End date filter"),
-    db = Depends(get_db),
+    db=Depends(get_db),
     current_user: User = Depends(_get_current_user_simple),
-    redis_cache = Depends(get_redis_cache)
+    redis_cache=Depends(get_redis_cache),
 ):
     """
     Get quiz schedule.
@@ -152,13 +163,11 @@ async def get_quiz_schedule(
     if current_user.role not in [UserRole.DOCTOR, UserRole.ADMIN]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only medical staff can view quiz schedule"
+            detail="Only medical staff can view quiz schedule",
         )
 
     # Get all monthly quizzes with scheduled dates
-    query = db.query(QuizTemplate).filter(
-        QuizTemplate.category == "monthly_quiz"
-    )
+    query = db.query(QuizTemplate).filter(QuizTemplate.category == "monthly_quiz")
 
     quizzes = query.all()
 
@@ -177,13 +186,15 @@ async def get_quiz_schedule(
         if to_date and scheduled_for > to_date:
             continue
 
-        schedule.append(QuizScheduleV2(
-            quiz_id=quiz.id,
-            quiz_name=quiz.name,
-            scheduled_for=scheduled_for,
-            status=quiz.tags.get("status", "draft"),
-            auto_send=quiz.tags.get("auto_send", False)
-        ))
+        schedule.append(
+            QuizScheduleV2(
+                quiz_id=quiz.id,
+                quiz_name=quiz.name,
+                scheduled_for=scheduled_for,
+                status=quiz.tags.get("status", "draft"),
+                auto_send=quiz.tags.get("auto_send", False),
+            )
+        )
 
     # Sort by scheduled date (newest first)
     schedule.sort(key=lambda x: x.scheduled_for, reverse=True)
@@ -196,14 +207,14 @@ async def get_quiz_schedule(
     response_model=MonthlyQuizV2Detail,
     summary="Auto-generate monthly quiz",
     description="Automatically generate a monthly quiz from template",
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
 )
 @limiter.limit("10/minute")
 async def generate_monthly_quiz(
     request: Request,
     generate_request: QuizGenerateRequestV2,
-    db = Depends(get_db),
-    current_user: User = Depends(_get_current_user_simple)
+    db=Depends(get_db),
+    current_user: User = Depends(_get_current_user_simple),
 ):
     """
     Auto-generate monthly quiz from template.
@@ -217,40 +228,57 @@ async def generate_monthly_quiz(
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can generate monthly quizzes"
+            detail="Only administrators can generate monthly quizzes",
         )
 
     # Verify template exists
-    template = db.query(QuizTemplate).filter(
-        QuizTemplate.id == generate_request.template_id
-    ).first()
+    template = (
+        db.query(QuizTemplate)
+        .filter(QuizTemplate.id == generate_request.template_id)
+        .first()
+    )
 
     if not template:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Quiz template not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Quiz template not found"
         )
 
     # Parse target month
     try:
         year, month = map(int, generate_request.target_month.split("-"))
         scheduled_date = datetime(year, month, 1, 9, 0, 0)  # 1st of month at 9 AM
-        expires_date = datetime(year, month, 28, 23, 59, 59)  # End of month (safe for all months)
+        expires_date = datetime(
+            year, month, 28, 23, 59, 59
+        )  # End of month (safe for all months)
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid target_month format. Use YYYY-MM"
+            detail="Invalid target_month format. Use YYYY-MM",
         )
 
     # Generate name
-    month_names = ["", "January", "February", "March", "April", "May", "June",
-                   "July", "August", "September", "October", "November", "December"]
+    month_names = [
+        "",
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ]
     generated_name = f"{template.name} - {month_names[month]} {year}"
 
     # Create monthly quiz
     monthly_quiz = QuizTemplate(
         name=generated_name,
-        description=template.description or f"Monthly health check for {month_names[month]} {year}",
+        description=template.description
+        or f"Monthly health check for {month_names[month]} {year}",
         category="monthly_quiz",
         version="1.0",
         questions=template.questions,
@@ -268,9 +296,9 @@ async def generate_monthly_quiz(
             "total_completed": 0,
             "completion_rate": 0.0,
             "auto_generated": True,
-            "target_month": generate_request.target_month
+            "target_month": generate_request.target_month,
         },
-        is_active=True
+        is_active=True,
     )
 
     if generate_request.auto_publish:
@@ -280,7 +308,9 @@ async def generate_monthly_quiz(
     db.commit()
     db.refresh(monthly_quiz)
 
-    logger.info(f"Auto-generated monthly quiz '{generated_name}' for {generate_request.target_month}")
+    logger.info(
+        f"Auto-generated monthly quiz '{generated_name}' for {generate_request.target_month}"
+    )
 
     return MonthlyQuizV2Detail(
         id=monthly_quiz.id,
@@ -292,11 +322,13 @@ async def generate_monthly_quiz(
         status=monthly_quiz.tags.get("status", "draft"),
         created_by=UUID(monthly_quiz.tags["created_by"]),
         created_at=monthly_quiz.created_at,
-        published_at=datetime.fromisoformat(monthly_quiz.tags["published_at"]) if monthly_quiz.tags.get("published_at") else None,
+        published_at=datetime.fromisoformat(monthly_quiz.tags["published_at"])
+        if monthly_quiz.tags.get("published_at")
+        else None,
         total_sent=monthly_quiz.tags.get("total_sent", 0),
         total_accessed=monthly_quiz.tags.get("total_accessed", 0),
         total_completed=monthly_quiz.tags.get("total_completed", 0),
-        completion_rate=monthly_quiz.tags.get("completion_rate", 0.0)
+        completion_rate=monthly_quiz.tags.get("completion_rate", 0.0),
     )
 
 
@@ -304,14 +336,14 @@ async def generate_monthly_quiz(
     "/monthly/templates",
     response_model=List[QuizTemplateV2],
     summary="List quiz templates",
-    description="List available quiz templates for creating monthly quizzes"
+    description="List available quiz templates for creating monthly quizzes",
 )
 @limiter.limit("50/minute")
 async def list_quiz_templates(
     request: Request,
-    db = Depends(get_db),
+    db=Depends(get_db),
     current_user: User = Depends(_get_current_user_simple),
-    redis_cache = Depends(get_redis_cache)
+    redis_cache=Depends(get_redis_cache),
 ):
     """
     List available quiz templates.
@@ -322,7 +354,7 @@ async def list_quiz_templates(
     if current_user.role not in [UserRole.DOCTOR, UserRole.ADMIN]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only medical staff can view quiz templates"
+            detail="Only medical staff can view quiz templates",
         )
 
     # Check cache
@@ -333,10 +365,11 @@ async def list_quiz_templates(
             return [QuizTemplateV2.parse_raw(t) for t in cached.split("|||")]
 
     # Get templates (exclude monthly quizzes)
-    templates = db.query(QuizTemplate).filter(
-        QuizTemplate.category != "monthly_quiz",
-        QuizTemplate.is_active == True
-    ).all()
+    templates = (
+        db.query(QuizTemplate)
+        .filter(QuizTemplate.category != "monthly_quiz", QuizTemplate.is_active)
+        .all()
+    )
 
     result = []
     for template in templates:
@@ -346,15 +379,17 @@ async def list_quiz_templates(
         # Estimate duration (assuming 1 minute per question)
         estimated_duration = question_count
 
-        result.append(QuizTemplateV2(
-            id=template.id,
-            name=template.name,
-            description=template.description,
-            version=template.version,
-            question_count=question_count,
-            estimated_duration_minutes=estimated_duration,
-            is_active=template.is_active
-        ))
+        result.append(
+            QuizTemplateV2(
+                id=template.id,
+                name=template.name,
+                description=template.description,
+                version=template.version,
+                question_count=question_count,
+                estimated_duration_minutes=estimated_duration,
+                is_active=template.is_active,
+            )
+        )
 
     # Cache result
     if redis_cache and result:

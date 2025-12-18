@@ -10,7 +10,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 from uuid import UUID
 
-from .types import Alert, AlertStatus
+from .types import Alert
 from .base import AlertRepository
 
 logger = logging.getLogger(__name__)
@@ -182,9 +182,7 @@ class PersistenceHandler:
         logger.debug(f"Retrieved {len(alerts)} alerts from cache")
         return alerts
 
-    async def count_alerts(
-        self, filters: Optional[Dict[str, Any]] = None
-    ) -> int:
+    async def count_alerts(self, filters: Optional[Dict[str, Any]] = None) -> int:
         """
         Count alerts matching filters.
 

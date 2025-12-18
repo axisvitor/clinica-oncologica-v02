@@ -19,7 +19,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, Set, List
+from typing import Optional, List
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SecurityScanResult:
     """File security scan result."""
+
     is_safe: bool
     threats_found: List[str]
     scan_time_ms: int = 0
@@ -49,43 +50,89 @@ class FileSecurityService:
     # COMPLETE dangerous extension blocklist (CVE-CLINIC-2025-003)
     DANGEROUS_EXTENSIONS = {
         # Windows Executables
-        ".exe", ".dll", ".com", ".bat", ".cmd", ".msi", ".scr", ".cpl",
-        ".hta", ".vbs", ".vbe", ".ws", ".wsf", ".wsh", ".ps1", ".psm1",
-
+        ".exe",
+        ".dll",
+        ".com",
+        ".bat",
+        ".cmd",
+        ".msi",
+        ".scr",
+        ".cpl",
+        ".hta",
+        ".vbs",
+        ".vbe",
+        ".ws",
+        ".wsf",
+        ".wsh",
+        ".ps1",
+        ".psm1",
         # Linux/Unix Executables
-        ".sh", ".bash", ".ksh", ".csh", ".zsh", ".run", ".bin",
-
+        ".sh",
+        ".bash",
+        ".ksh",
+        ".csh",
+        ".zsh",
+        ".run",
+        ".bin",
         # macOS Executables
-        ".app", ".dmg", ".pkg", ".command",
-
+        ".app",
+        ".dmg",
+        ".pkg",
+        ".command",
         # Archives that can contain executables
-        ".rar", ".7z", ".ace", ".arj", ".cab", ".iso", ".img",
-
+        ".rar",
+        ".7z",
+        ".ace",
+        ".arj",
+        ".cab",
+        ".iso",
+        ".img",
         # Script Files
-        ".js", ".jar", ".py", ".pyc", ".pyo", ".rb", ".pl", ".php",
-        ".asp", ".aspx", ".jsp", ".jspx",
-
+        ".js",
+        ".jar",
+        ".py",
+        ".pyc",
+        ".pyo",
+        ".rb",
+        ".pl",
+        ".php",
+        ".asp",
+        ".aspx",
+        ".jsp",
+        ".jspx",
         # Macro-enabled Office Documents
-        ".docm", ".xlsm", ".pptm", ".dotm", ".xltm", ".potm",
-
+        ".docm",
+        ".xlsm",
+        ".pptm",
+        ".dotm",
+        ".xltm",
+        ".potm",
         # Compressed Executables
-        ".gz", ".bz2", ".xz", ".lz", ".z",  # Only if containing executable
-
+        ".gz",
+        ".bz2",
+        ".xz",
+        ".lz",
+        ".z",  # Only if containing executable
         # Database Files (can contain macros/code)
-        ".mdb", ".accdb", ".db",
-
+        ".mdb",
+        ".accdb",
+        ".db",
         # Other Dangerous Formats
         ".swf",  # Flash (can execute code)
         ".lnk",  # Windows shortcuts (can execute commands)
         ".url",  # Internet shortcuts
         ".reg",  # Registry files
-        ".ade", ".adp",  # Access projects
+        ".ade",
+        ".adp",  # Access projects
         ".chm",  # Compiled HTML help (can run scripts)
         ".inf",  # INF files (can auto-install)
         ".ins",  # Internet Settings
         ".isp",  # IIS Settings
         ".jse",  # JScript Encoded
-        ".mde", ".msc", ".msp", ".mst",  # Microsoft installers
+        ".mde",
+        ".msc",
+        ".msp",
+        ".mst",  # Microsoft installers
         ".pcd",  # Photo CD
         ".pif",  # Program Information File
         ".scf",  # Windows Explorer Command
@@ -101,7 +148,8 @@ class FileSecurityService:
         ".pdf",  # Can contain JavaScript
         ".zip",  # Can contain executables
         ".tar",  # Can contain executables
-        ".html", ".htm",  # Can contain scripts (but usually safe)
+        ".html",
+        ".htm",  # Can contain scripts (but usually safe)
         ".svg",  # Can contain scripts
         ".xml",  # Can contain malicious content
     }
@@ -110,7 +158,7 @@ class FileSecurityService:
         self,
         enabled: bool = True,
         allow_macros: bool = False,
-        allow_pdf_javascript: bool = False
+        allow_pdf_javascript: bool = False,
     ):
         """
         Initialize file security service.
@@ -127,6 +175,7 @@ class FileSecurityService:
         # Try to import PDF parsing libraries
         try:
             import PyPDF2
+
             self.pypdf2 = PyPDF2
             self._pdf_available = True
         except ImportError:
@@ -143,14 +192,12 @@ class FileSecurityService:
                 "enabled": enabled,
                 "allow_macros": allow_macros,
                 "allow_pdf_javascript": allow_pdf_javascript,
-                "pdf_scan_available": self._pdf_available
-            }
+                "pdf_scan_available": self._pdf_available,
+            },
         )
 
     async def scan_file(
-        self,
-        file_path: Path,
-        content: Optional[bytes] = None
+        self, file_path: Path, content: Optional[bytes] = None
     ) -> SecurityScanResult:
         """
         Scan file for security threats.
@@ -163,13 +210,10 @@ class FileSecurityService:
             SecurityScanResult
         """
         if not self.enabled:
-            return SecurityScanResult(
-                is_safe=True,
-                threats_found=[],
-                scan_time_ms=0
-            )
+            return SecurityScanResult(is_safe=True, threats_found=[], scan_time_ms=0)
 
         import time
+
         start_time = time.time()
 
         threats: List[str] = []
@@ -195,7 +239,7 @@ class FileSecurityService:
             # 3. Content-based validation for suspicious files
             if extension in self.SUSPICIOUS_EXTENSIONS:
                 if content is None:
-                    with open(file_path, 'rb') as f:
+                    with open(file_path, "rb") as f:
                         content = f.read()
 
                 if extension == ".pdf":
@@ -220,22 +264,17 @@ class FileSecurityService:
                     extra={
                         "file_path": str(file_path),
                         "threats": threats,
-                        "scan_time_ms": scan_time_ms
-                    }
+                        "scan_time_ms": scan_time_ms,
+                    },
                 )
             else:
                 logger.info(
                     "File passed security scan",
-                    extra={
-                        "file_path": str(file_path),
-                        "scan_time_ms": scan_time_ms
-                    }
+                    extra={"file_path": str(file_path), "scan_time_ms": scan_time_ms},
                 )
 
             return SecurityScanResult(
-                is_safe=is_safe,
-                threats_found=threats,
-                scan_time_ms=scan_time_ms
+                is_safe=is_safe, threats_found=threats, scan_time_ms=scan_time_ms
             )
 
         except Exception as e:
@@ -244,7 +283,7 @@ class FileSecurityService:
             return SecurityScanResult(
                 is_safe=True,
                 threats_found=[f"Scan error (fail-open): {str(e)}"],
-                scan_time_ms=0
+                scan_time_ms=0,
             )
 
     async def _scan_pdf(self, content: bytes) -> List[str]:
@@ -283,13 +322,13 @@ class FileSecurityService:
 
             # Method 3: Scan raw content for JavaScript keywords
             if not has_javascript:
-                content_str = content.decode('latin-1', errors='ignore')
+                content_str = content.decode("latin-1", errors="ignore")
                 js_patterns = [
-                    r'/JavaScript',
-                    r'/JS\s*\(',
-                    r'app\.alert',
-                    r'this\.submitForm',
-                    r'util\.printf',
+                    r"/JavaScript",
+                    r"/JS\s*\(",
+                    r"app\.alert",
+                    r"this\.submitForm",
+                    r"util\.printf",
                 ]
 
                 for pattern in js_patterns:
@@ -329,23 +368,29 @@ class FileSecurityService:
         try:
             if file_path.suffix.lower() == ".zip":
                 import zipfile
-                with zipfile.ZipFile(file_path, 'r') as zf:
+
+                with zipfile.ZipFile(file_path, "r") as zf:
                     for info in zf.filelist:
                         filename = info.filename
                         ext = Path(filename).suffix.lower()
 
                         if ext in self.DANGEROUS_EXTENSIONS:
-                            threats.append(f"Archive contains dangerous file: {filename}")
+                            threats.append(
+                                f"Archive contains dangerous file: {filename}"
+                            )
 
             elif file_path.suffix.lower() == ".tar":
                 import tarfile
-                with tarfile.open(file_path, 'r') as tf:
+
+                with tarfile.open(file_path, "r") as tf:
                     for member in tf.getmembers():
                         filename = member.name
                         ext = Path(filename).suffix.lower()
 
                         if ext in self.DANGEROUS_EXTENSIONS:
-                            threats.append(f"Archive contains dangerous file: {filename}")
+                            threats.append(
+                                f"Archive contains dangerous file: {filename}"
+                            )
 
         except Exception as e:
             logger.error(f"Archive scan failed: {e}", exc_info=True)
@@ -365,17 +410,17 @@ class FileSecurityService:
         threats = []
 
         try:
-            content_str = content.decode('utf-8', errors='ignore').lower()
+            content_str = content.decode("utf-8", errors="ignore").lower()
 
             # Check for dangerous script patterns
             dangerous_patterns = [
-                r'<script[^>]*>.*?eval\(',  # eval() execution
-                r'document\.write\(',  # DOM manipulation
-                r'window\.location',  # Redirects
-                r'<iframe',  # Iframes (can load external content)
-                r'onerror\s*=',  # Event handlers
-                r'onclick\s*=',
-                r'onload\s*=',
+                r"<script[^>]*>.*?eval\(",  # eval() execution
+                r"document\.write\(",  # DOM manipulation
+                r"window\.location",  # Redirects
+                r"<iframe",  # Iframes (can load external content)
+                r"onerror\s*=",  # Event handlers
+                r"onclick\s*=",
+                r"onload\s*=",
             ]
 
             for pattern in dangerous_patterns:

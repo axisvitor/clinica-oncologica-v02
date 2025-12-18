@@ -4,13 +4,13 @@ Core flow processing tasks.
 This module contains the main Celery tasks for processing daily flows,
 sending flow messages, and managing patient flow advancement.
 """
+
 import asyncio
 import logging
 from typing import Any
 from datetime import datetime
 from uuid import UUID
 from celery.exceptions import MaxRetriesExceededError
-from sqlalchemy.orm import Session
 
 from app.celery_app import celery_app
 from app.database import get_db
@@ -19,7 +19,6 @@ from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
 from app.repositories.message import MessageRepository
 from app.models.message import Message, MessageType, MessageDirection, MessageStatus
-from app.models.flow import PatientFlowState
 from app.exceptions import NotFoundError
 
 from .base import FlowTaskBase, send_critical_alert_sync
@@ -73,30 +72,35 @@ async def process_daily_flows_async(limit: int = 100) -> dict[str, Any]:
             "error_count": 0,
             "errors": [],
             "patients_processed": [],
-            "start_time": datetime.utcnow().isoformat()
+            "start_time": datetime.utcnow().isoformat(),
         }
 
         # Filter out paused flows
         active_flows = [
-            flow for flow in active_flows
+            flow
+            for flow in active_flows
             if not (flow.state_data and flow.state_data.get("paused"))
         ]
 
-        logger.info(f"Processing {len(active_flows)} active flows in batches of {FLOW_BATCH_SIZE}")
+        logger.info(
+            f"Processing {len(active_flows)} active flows in batches of {FLOW_BATCH_SIZE}"
+        )
 
         # Process in batches for parallel execution
         batch_size = FLOW_BATCH_SIZE
 
         for i in range(0, len(active_flows), batch_size):
-            batch = active_flows[i:i+batch_size]
+            batch = active_flows[i : i + batch_size]
 
-            logger.info(f"Processing batch {i//batch_size + 1}: {len(batch)} patients")
+            logger.info(
+                f"Processing batch {i // batch_size + 1}: {len(batch)} patients"
+            )
 
             # Create tasks for the batch with timeout
             tasks = [
                 asyncio.wait_for(
                     _process_single_patient_flow_safe(flow_engine, flow, db),
-                    timeout=FLOW_PROCESSING_TIMEOUT
+                    timeout=FLOW_PROCESSING_TIMEOUT,
                 )
                 for flow in batch
             ]
@@ -104,7 +108,7 @@ async def process_daily_flows_async(limit: int = 100) -> dict[str, Any]:
             # Execute in parallel with exception handling
             batch_results = await asyncio.gather(
                 *tasks,
-                return_exceptions=True  # Don't fail entire batch if one fails
+                return_exceptions=True,  # Don't fail entire batch if one fails
             )
 
             # Process results
@@ -117,43 +121,54 @@ async def process_daily_flows_async(limit: int = 100) -> dict[str, Any]:
                     error_msg = str(result)
 
                     if isinstance(result, asyncio.TimeoutError):
-                        error_msg = f"Processing timeout after {FLOW_PROCESSING_TIMEOUT}s"
+                        error_msg = (
+                            f"Processing timeout after {FLOW_PROCESSING_TIMEOUT}s"
+                        )
 
-                    results["errors"].append({
-                        "patient_id": str(flow.patient_id),
-                        "error": error_msg
-                    })
-                    results["patients_processed"].append({
-                        "patient_id": str(flow.patient_id),
-                        "status": "error",
-                        "error": error_msg
-                    })
+                    results["errors"].append(
+                        {"patient_id": str(flow.patient_id), "error": error_msg}
+                    )
+                    results["patients_processed"].append(
+                        {
+                            "patient_id": str(flow.patient_id),
+                            "status": "error",
+                            "error": error_msg,
+                        }
+                    )
 
-                    logger.error(f"Flow processing failed for patient {flow.patient_id}: {error_msg}")
+                    logger.error(
+                        f"Flow processing failed for patient {flow.patient_id}: {error_msg}"
+                    )
 
                 elif result.get("status") == "success":
                     results["success_count"] += 1
-                    results["patients_processed"].append({
-                        "patient_id": str(flow.patient_id),
-                        "status": "success",
-                        "result": result
-                    })
+                    results["patients_processed"].append(
+                        {
+                            "patient_id": str(flow.patient_id),
+                            "status": "success",
+                            "result": result,
+                        }
+                    )
                 else:
                     results["error_count"] += 1
-                    results["errors"].append({
-                        "patient_id": str(flow.patient_id),
-                        "error": result.get("error", "Unknown error")
-                    })
-                    results["patients_processed"].append({
-                        "patient_id": str(flow.patient_id),
-                        "status": "error",
-                        "result": result
-                    })
+                    results["errors"].append(
+                        {
+                            "patient_id": str(flow.patient_id),
+                            "error": result.get("error", "Unknown error"),
+                        }
+                    )
+                    results["patients_processed"].append(
+                        {
+                            "patient_id": str(flow.patient_id),
+                            "status": "error",
+                            "result": result,
+                        }
+                    )
 
         results["end_time"] = datetime.utcnow().isoformat()
         results["duration_seconds"] = (
-            datetime.fromisoformat(results["end_time"]) -
-            datetime.fromisoformat(results["start_time"])
+            datetime.fromisoformat(results["end_time"])
+            - datetime.fromisoformat(results["start_time"])
         ).total_seconds()
 
         logger.info(
@@ -200,7 +215,11 @@ def process_daily_flows(self, limit: int = 100) -> dict[str, Any]:
     Raises:
         MaxRetriesExceededError: If task fails after all retries
     """
-    from app.config.settings.tasks import FLOW_MAX_RETRIES, TASK_TIME_LIMIT, TASK_SOFT_TIME_LIMIT
+    from app.config.settings.tasks import (
+        FLOW_MAX_RETRIES,
+        TASK_TIME_LIMIT,
+        TASK_SOFT_TIME_LIMIT,
+    )
 
     # Apply task limits from settings if not already set
     if not self.time_limit:
@@ -224,6 +243,7 @@ def process_daily_flows(self, limit: int = 100) -> dict[str, Any]:
         # Retry with exponential backoff
         if self.request.retries < self.max_retries:
             from app.config.settings.tasks import get_retry_countdown, FLOW_RETRY_DELAY
+
             retry_delay = get_retry_countdown(self.request.retries, FLOW_RETRY_DELAY)
 
             logger.warning(
@@ -233,25 +253,34 @@ def process_daily_flows(self, limit: int = 100) -> dict[str, Any]:
             raise self.retry(countdown=retry_delay, exc=e)
         else:
             # Max retries reached - alert admin
-            logger.error(f"Daily flow processing failed after {self.max_retries} attempts")
+            logger.error(
+                f"Daily flow processing failed after {self.max_retries} attempts"
+            )
 
             try:
                 from app.config.settings.tasks import ENABLE_ADMIN_ALERTS
+
                 if ENABLE_ADMIN_ALERTS:
                     # Use synchronous helper for critical alerts
                     send_critical_alert_sync(
                         task_name="process_daily_flows",
                         error=str(e),
-                        context={"retries": self.request.retries, "limit": limit}
+                        context={"retries": self.request.retries, "limit": limit},
                     )
             except Exception as alert_error:
                 logger.error(f"Failed to send admin alert: {alert_error}")
 
-            raise MaxRetriesExceededError(f"Task failed after {self.max_retries} retries: {e}")
+            raise MaxRetriesExceededError(
+                f"Task failed after {self.max_retries} retries: {e}"
+            )
 
 
-@celery_app.task(bind=True, base=FlowTaskBase, max_retries=None, default_retry_delay=None)
-def send_flow_message(self, patient_id: str, message_data: dict[str, Any], message_id: str = None) -> dict[str, Any]:
+@celery_app.task(
+    bind=True, base=FlowTaskBase, max_retries=None, default_retry_delay=None
+)
+def send_flow_message(
+    self, patient_id: str, message_data: dict[str, Any], message_id: str = None
+) -> dict[str, Any]:
     """
     Send individual flow message with retry logic and exponential backoff.
 
@@ -286,15 +315,23 @@ def send_flow_message(self, patient_id: str, message_data: dict[str, Any], messa
         self.default_retry_delay = MESSAGE_RETRY_DELAY
 
     try:
-        logger.info(f"Sending flow message to patient {patient_id}, message_id: {message_id}")
+        logger.info(
+            f"Sending flow message to patient {patient_id}, message_id: {message_id}"
+        )
 
         # Get database session
         db = next(get_db())
 
         try:
             # Initialize services with QUEUE mode for retry/backoff policies
-            from app.services.unified_whatsapp_service import UnifiedWhatsAppService, MessagingMode
-            message_sender = UnifiedWhatsAppService(db, messaging_mode=MessagingMode.QUEUE)
+            from app.services.unified_whatsapp_service import (
+                UnifiedWhatsAppService,
+                MessagingMode,
+            )
+
+            message_sender = UnifiedWhatsAppService(
+                db, messaging_mode=MessagingMode.QUEUE
+            )
             patient_repo = PatientRepository(db)
             message_repo = MessageRepository(db)
 
@@ -311,17 +348,26 @@ def send_flow_message(self, patient_id: str, message_data: dict[str, Any], messa
                     raise NotFoundError(f"Scheduled message {message_id} not found")
 
                 # Validate message state
-                if message.status not in [MessageStatus.SCHEDULED, MessageStatus.PENDING]:
-                    logger.warning(f"Message {message_id} has unexpected status {message.status}, proceeding anyway")
+                if message.status not in [
+                    MessageStatus.SCHEDULED,
+                    MessageStatus.PENDING,
+                ]:
+                    logger.warning(
+                        f"Message {message_id} has unexpected status {message.status}, proceeding anyway"
+                    )
 
                 # Update message status to SENDING
                 message.status = MessageStatus.SENDING
-                message.message_metadata["celery_execution_started"] = datetime.utcnow().isoformat()
+                message.message_metadata["celery_execution_started"] = (
+                    datetime.utcnow().isoformat()
+                )
                 message.message_metadata["task_id"] = self.request.id
 
             else:
                 # CREATE new message (backward compatibility for legacy calls)
-                logger.warning(f"Creating new message for patient {patient_id} - this may indicate message_id was not passed")
+                logger.warning(
+                    f"Creating new message for patient {patient_id} - this may indicate message_id was not passed"
+                )
                 message = Message(
                     patient_id=UUID(patient_id),
                     direction=MessageDirection.OUTBOUND,
@@ -329,7 +375,7 @@ def send_flow_message(self, patient_id: str, message_data: dict[str, Any], messa
                     content=message_data.get("content", ""),
                     message_metadata=message_data.get("metadata", {}),
                     status=MessageStatus.SENDING,
-                    scheduled_for=datetime.utcnow()
+                    scheduled_for=datetime.utcnow(),
                 )
 
                 # Add to database
@@ -339,14 +385,16 @@ def send_flow_message(self, patient_id: str, message_data: dict[str, Any], messa
             if "flow_context" not in message.message_metadata:
                 message.message_metadata["flow_context"] = {}
 
-            message.message_metadata["flow_context"].update({
-                "flow_day": message_data.get("flow_day"),
-                "flow_type": message_data.get("flow_type"),
-                "template_id": message_data.get("template_id"),
-                "personalized": message_data.get("personalized", False),
-                "sent_via_celery": True,
-                "task_id": self.request.id
-            })
+            message.message_metadata["flow_context"].update(
+                {
+                    "flow_day": message_data.get("flow_day"),
+                    "flow_type": message_data.get("flow_type"),
+                    "template_id": message_data.get("template_id"),
+                    "personalized": message_data.get("personalized", False),
+                    "sent_via_celery": True,
+                    "task_id": self.request.id,
+                }
+            )
 
             # Commit transaction before sending
             db.commit()
@@ -357,14 +405,18 @@ def send_flow_message(self, patient_id: str, message_data: dict[str, Any], messa
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
-                    success = loop.run_until_complete(message_sender.send_message(message))
+                    success = loop.run_until_complete(
+                        message_sender.send_message(message)
+                    )
                 finally:
                     loop.close()
             except RuntimeError as e:
                 if "cannot be called from a running event loop" in str(e):
                     import concurrent.futures
+
                     with concurrent.futures.ThreadPoolExecutor() as executor:
                         from app.config.settings.tasks import MESSAGE_SEND_TIMEOUT
+
                         future = executor.submit(
                             lambda: asyncio.run(message_sender.send_message(message))
                         )
@@ -376,20 +428,28 @@ def send_flow_message(self, patient_id: str, message_data: dict[str, Any], messa
             if success:
                 # MessageSender.send_message() already updates status to SENT
                 # Just update metadata with final status
-                message.message_metadata["celery_execution_completed"] = datetime.utcnow().isoformat()
+                message.message_metadata["celery_execution_completed"] = (
+                    datetime.utcnow().isoformat()
+                )
                 message.message_metadata["execution_status"] = "success"
                 db.commit()
 
-                logger.info(f"Flow message sent successfully to patient {patient_id}, message_id: {message.id}")
+                logger.info(
+                    f"Flow message sent successfully to patient {patient_id}, message_id: {message.id}"
+                )
             else:
                 # Update status to FAILED
                 message.status = MessageStatus.FAILED
-                message.message_metadata["celery_execution_completed"] = datetime.utcnow().isoformat()
+                message.message_metadata["celery_execution_completed"] = (
+                    datetime.utcnow().isoformat()
+                )
                 message.message_metadata["execution_status"] = "failed"
                 message.message_metadata["failure_reason"] = "Message sending failed"
                 db.commit()
 
-                logger.error(f"Failed to send flow message to patient {patient_id}, message_id: {message.id}")
+                logger.error(
+                    f"Failed to send flow message to patient {patient_id}, message_id: {message.id}"
+                )
 
             result = {
                 "status": "success" if success else "failed",
@@ -397,7 +457,7 @@ def send_flow_message(self, patient_id: str, message_data: dict[str, Any], messa
                 "message_id": str(message.id),
                 "sent_at": datetime.utcnow().isoformat(),
                 "whatsapp_id": message.whatsapp_id,
-                "updated_existing": bool(message_id)
+                "updated_existing": bool(message_id),
             }
 
             if not success:
@@ -421,20 +481,29 @@ def send_flow_message(self, patient_id: str, message_data: dict[str, Any], messa
                     if message:
                         message.status = MessageStatus.FAILED
                         message.message_metadata["celery_execution_error"] = str(e)
-                        message.message_metadata["celery_execution_failed_at"] = datetime.utcnow().isoformat()
+                        message.message_metadata["celery_execution_failed_at"] = (
+                            datetime.utcnow().isoformat()
+                        )
                         message.message_metadata["retry_count"] = self.request.retries
                         db.commit()
-                        logger.info(f"Marked message {message_id} as FAILED after exception")
+                        logger.info(
+                            f"Marked message {message_id} as FAILED after exception"
+                        )
                 finally:
                     db.close()
             except Exception as update_error:
-                logger.error(f"Failed to update message status after exception: {update_error}")
+                logger.error(
+                    f"Failed to update message status after exception: {update_error}"
+                )
 
         # Retry with exponential backoff
         if self.request.retries < self.max_retries:
             from app.config.settings.tasks import get_retry_countdown
+
             retry_delay = get_retry_countdown(self.request.retries, MESSAGE_RETRY_DELAY)
-            logger.info(f"Retrying flow message send in {retry_delay} seconds (attempt {self.request.retries + 1})")
+            logger.info(
+                f"Retrying flow message send in {retry_delay} seconds (attempt {self.request.retries + 1})"
+            )
             raise self.retry(countdown=retry_delay, exc=e)
         else:
             logger.error(f"Flow message send failed after {self.max_retries} attempts")
@@ -443,5 +512,5 @@ def send_flow_message(self, patient_id: str, message_data: dict[str, Any], messa
                 "patient_id": patient_id,
                 "message_id": message_id,
                 "error": f"Failed after {self.max_retries} retries: {str(e)}",
-                "final_attempt": True
+                "final_attempt": True,
             }

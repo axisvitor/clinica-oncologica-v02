@@ -12,6 +12,7 @@ Features:
 - Provides endpoint-level performance statistics
 - Includes performance metrics in response headers
 """
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -20,7 +21,7 @@ from sqlalchemy.engine import Engine
 import time
 import logging
 import uuid
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from collections import defaultdict
 import threading
 
@@ -40,7 +41,14 @@ class QueryPerformanceTracker:
         self._endpoint_stats: Dict[str, Dict] = {}
         self._lock = threading.Lock()
 
-    def record_request(self, method: str, path: str, query_count: int, db_time: float, total_time: float):
+    def record_request(
+        self,
+        method: str,
+        path: str,
+        query_count: int,
+        db_time: float,
+        total_time: float,
+    ):
         """
         Record request statistics.
 
@@ -56,30 +64,30 @@ class QueryPerformanceTracker:
         with self._lock:
             if key not in self._endpoint_stats:
                 self._endpoint_stats[key] = {
-                    'total_requests': 0,
-                    'total_queries': 0,
-                    'total_db_time': 0.0,
-                    'total_time': 0.0,
-                    'slow_requests': 0,
-                    'n1_requests': 0,
-                    'high_db_time_requests': 0
+                    "total_requests": 0,
+                    "total_queries": 0,
+                    "total_db_time": 0.0,
+                    "total_time": 0.0,
+                    "slow_requests": 0,
+                    "n1_requests": 0,
+                    "high_db_time_requests": 0,
                 }
 
             stats = self._endpoint_stats[key]
-            stats['total_requests'] += 1
-            stats['total_queries'] += query_count
-            stats['total_db_time'] += db_time
-            stats['total_time'] += total_time
+            stats["total_requests"] += 1
+            stats["total_queries"] += query_count
+            stats["total_db_time"] += db_time
+            stats["total_time"] += total_time
 
             if total_time > 1.0:
-                stats['slow_requests'] += 1
+                stats["slow_requests"] += 1
 
             if query_count > 50:
-                stats['n1_requests'] += 1
+                stats["n1_requests"] += 1
 
             # Check if DB time is >50% of total time
             if db_time > 0 and total_time > 0 and (db_time / total_time) > 0.5:
-                stats['high_db_time_requests'] += 1
+                stats["high_db_time_requests"] += 1
 
     def get_slowest_endpoints(self, limit: int = 10) -> List[Dict]:
         """
@@ -95,28 +103,34 @@ class QueryPerformanceTracker:
 
         with self._lock:
             for endpoint, stats in self._endpoint_stats.items():
-                if stats['total_requests'] == 0:
+                if stats["total_requests"] == 0:
                     continue
 
-                avg_db_time = stats['total_db_time'] / stats['total_requests']
-                avg_queries = stats['total_queries'] / stats['total_requests']
-                avg_total_time = stats['total_time'] / stats['total_requests']
+                avg_db_time = stats["total_db_time"] / stats["total_requests"]
+                avg_queries = stats["total_queries"] / stats["total_requests"]
+                avg_total_time = stats["total_time"] / stats["total_requests"]
 
-                results.append({
-                    'endpoint': endpoint,
-                    'avg_db_time': round(avg_db_time, 3),
-                    'avg_total_time': round(avg_total_time, 3),
-                    'avg_queries': round(avg_queries, 1),
-                    'total_requests': stats['total_requests'],
-                    'slow_requests': stats['slow_requests'],
-                    'n1_requests': stats['n1_requests'],
-                    'high_db_time_requests': stats['high_db_time_requests'],
-                    'slow_request_rate': round(stats['slow_requests'] / stats['total_requests'], 3),
-                    'n1_pattern_rate': round(stats['n1_requests'] / stats['total_requests'], 3)
-                })
+                results.append(
+                    {
+                        "endpoint": endpoint,
+                        "avg_db_time": round(avg_db_time, 3),
+                        "avg_total_time": round(avg_total_time, 3),
+                        "avg_queries": round(avg_queries, 1),
+                        "total_requests": stats["total_requests"],
+                        "slow_requests": stats["slow_requests"],
+                        "n1_requests": stats["n1_requests"],
+                        "high_db_time_requests": stats["high_db_time_requests"],
+                        "slow_request_rate": round(
+                            stats["slow_requests"] / stats["total_requests"], 3
+                        ),
+                        "n1_pattern_rate": round(
+                            stats["n1_requests"] / stats["total_requests"], 3
+                        ),
+                    }
+                )
 
         # Sort by average DB time
-        results.sort(key=lambda x: x['avg_db_time'], reverse=True)
+        results.sort(key=lambda x: x["avg_db_time"], reverse=True)
         return results[:limit]
 
     def get_stats(self) -> Dict:
@@ -127,20 +141,34 @@ class QueryPerformanceTracker:
             Dictionary with aggregated performance metrics
         """
         with self._lock:
-            total_requests = sum(s['total_requests'] for s in self._endpoint_stats.values())
-            total_queries = sum(s['total_queries'] for s in self._endpoint_stats.values())
-            total_slow = sum(s['slow_requests'] for s in self._endpoint_stats.values())
-            total_n1 = sum(s['n1_requests'] for s in self._endpoint_stats.values())
-            total_high_db = sum(s['high_db_time_requests'] for s in self._endpoint_stats.values())
+            total_requests = sum(
+                s["total_requests"] for s in self._endpoint_stats.values()
+            )
+            total_queries = sum(
+                s["total_queries"] for s in self._endpoint_stats.values()
+            )
+            total_slow = sum(s["slow_requests"] for s in self._endpoint_stats.values())
+            total_n1 = sum(s["n1_requests"] for s in self._endpoint_stats.values())
+            total_high_db = sum(
+                s["high_db_time_requests"] for s in self._endpoint_stats.values()
+            )
 
             return {
-                'total_requests': total_requests,
-                'total_queries': total_queries,
-                'avg_queries_per_request': round(total_queries / total_requests, 2) if total_requests > 0 else 0,
-                'slow_request_rate': round(total_slow / total_requests, 3) if total_requests > 0 else 0,
-                'n1_pattern_rate': round(total_n1 / total_requests, 3) if total_requests > 0 else 0,
-                'high_db_time_rate': round(total_high_db / total_requests, 3) if total_requests > 0 else 0,
-                'tracked_endpoints': len(self._endpoint_stats)
+                "total_requests": total_requests,
+                "total_queries": total_queries,
+                "avg_queries_per_request": round(total_queries / total_requests, 2)
+                if total_requests > 0
+                else 0,
+                "slow_request_rate": round(total_slow / total_requests, 3)
+                if total_requests > 0
+                else 0,
+                "n1_pattern_rate": round(total_n1 / total_requests, 3)
+                if total_requests > 0
+                else 0,
+                "high_db_time_rate": round(total_high_db / total_requests, 3)
+                if total_requests > 0
+                else 0,
+                "tracked_endpoints": len(self._endpoint_stats),
             }
 
     def reset_stats(self):
@@ -171,7 +199,12 @@ class QueryPerformanceMiddleware(BaseHTTPMiddleware):
     - Tracks endpoint-level performance over time
     """
 
-    def __init__(self, app, slow_request_threshold: float = 1.0, slow_query_threshold: float = 1.0):
+    def __init__(
+        self,
+        app,
+        slow_request_threshold: float = 1.0,
+        slow_query_threshold: float = 1.0,
+    ):
         """
         Initialize query performance middleware.
 
@@ -185,7 +218,9 @@ class QueryPerformanceMiddleware(BaseHTTPMiddleware):
         self.slow_query_threshold = slow_query_threshold
         self.tracker = get_performance_tracker()
         self.setup_query_logging()
-        logger.info(f"Query performance middleware initialized (request: {slow_request_threshold}s, query: {slow_query_threshold}s)")
+        logger.info(
+            f"Query performance middleware initialized (request: {slow_request_threshold}s, query: {slow_query_threshold}s)"
+        )
 
     async def dispatch(self, request: Request, call_next) -> Response:
         """
@@ -214,15 +249,15 @@ class QueryPerformanceMiddleware(BaseHTTPMiddleware):
 
             # Calculate timings
             total_time = time.time() - start_time
-            queries = getattr(_query_storage, 'queries', [])
+            queries = getattr(_query_storage, "queries", [])
             query_count = len(queries)
-            db_time = sum(q['duration'] for q in queries)
+            db_time = sum(q["duration"] for q in queries)
 
             # Add enhanced performance headers
-            response.headers['X-Request-ID'] = request_id
-            response.headers['X-Query-Count'] = str(query_count)
-            response.headers['X-DB-Time-Ms'] = str(int(db_time * 1000))
-            response.headers['X-Request-Duration'] = f"{total_time:.3f}s"
+            response.headers["X-Request-ID"] = request_id
+            response.headers["X-Query-Count"] = str(query_count)
+            response.headers["X-DB-Time-Ms"] = str(int(db_time * 1000))
+            response.headers["X-Request-Duration"] = f"{total_time:.3f}s"
 
             # Record stats for this endpoint
             self.tracker.record_request(
@@ -230,7 +265,7 @@ class QueryPerformanceMiddleware(BaseHTTPMiddleware):
                 path=request.url.path,
                 query_count=query_count,
                 db_time=db_time,
-                total_time=total_time
+                total_time=total_time,
             )
 
             # Log comprehensive request summary
@@ -267,9 +302,13 @@ class QueryPerformanceMiddleware(BaseHTTPMiddleware):
                 self._log_slow_request(request, total_time, queries, db_time)
 
             # Log individual slow queries with endpoint context
-            slow_queries = [q for q in queries if q['duration'] > self.slow_query_threshold]
+            slow_queries = [
+                q for q in queries if q["duration"] > self.slow_query_threshold
+            ]
             if slow_queries:
-                self._log_slow_queries(request_id, request.method, request.url.path, slow_queries)
+                self._log_slow_queries(
+                    request_id, request.method, request.url.path, slow_queries
+                )
 
             return response
 
@@ -282,12 +321,18 @@ class QueryPerformanceMiddleware(BaseHTTPMiddleware):
             raise
         finally:
             # Cleanup thread-local storage
-            if hasattr(_query_storage, 'queries'):
-                delattr(_query_storage, 'queries')
-            if hasattr(_query_storage, 'request_id'):
-                delattr(_query_storage, 'request_id')
+            if hasattr(_query_storage, "queries"):
+                delattr(_query_storage, "queries")
+            if hasattr(_query_storage, "request_id"):
+                delattr(_query_storage, "request_id")
 
-    def _log_slow_request(self, request: Request, duration: float, queries: List[Dict[str, Any]], db_time: float):
+    def _log_slow_request(
+        self,
+        request: Request,
+        duration: float,
+        queries: List[Dict[str, Any]],
+        db_time: float,
+    ):
         """
         Log details of slow requests.
 
@@ -301,7 +346,7 @@ class QueryPerformanceMiddleware(BaseHTTPMiddleware):
 
         for query in queries:
             # Extract query type (SELECT, INSERT, UPDATE, etc.)
-            query_type = query['statement'].strip().split()[0].upper()
+            query_type = query["statement"].strip().split()[0].upper()
             query_summary[query_type] += 1
 
         db_percentage = (db_time / duration * 100) if duration > 0 else 0
@@ -321,11 +366,17 @@ class QueryPerformanceMiddleware(BaseHTTPMiddleware):
                 "total_query_time": db_time,
                 "db_percentage": db_percentage,
                 "query_summary": dict(query_summary),
-                "queries": queries[:10]  # Log first 10 queries
-            }
+                "queries": queries[:10],  # Log first 10 queries
+            },
         )
 
-    def _log_slow_queries(self, request_id: str, method: str, path: str, slow_queries: List[Dict[str, Any]]):
+    def _log_slow_queries(
+        self,
+        request_id: str,
+        method: str,
+        path: str,
+        slow_queries: List[Dict[str, Any]],
+    ):
         """
         Log details of slow individual queries with endpoint context.
 
@@ -345,46 +396,52 @@ class QueryPerformanceMiddleware(BaseHTTPMiddleware):
                     "request_id": request_id,
                     "method": method,
                     "path": path,
-                    "duration": query['duration'],
-                    "statement": query['statement'],
-                    "parameters": query.get('parameters')
-                }
+                    "duration": query["duration"],
+                    "statement": query["statement"],
+                    "parameters": query.get("parameters"),
+                },
             )
 
     def setup_query_logging(self):
         """Setup SQLAlchemy event listeners for query tracking."""
 
         @event.listens_for(Engine, "before_cursor_execute")
-        def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        def before_cursor_execute(
+            conn, cursor, statement, parameters, context, executemany
+        ):
             """Track query start time."""
             context._query_start_time = time.time()
 
         @event.listens_for(Engine, "after_cursor_execute")
-        def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        def after_cursor_execute(
+            conn, cursor, statement, parameters, context, executemany
+        ):
             """Track query completion and store details."""
             duration = time.time() - context._query_start_time
 
             # Store query information in thread-local storage
-            if hasattr(_query_storage, 'queries'):
+            if hasattr(_query_storage, "queries"):
                 query_info = {
-                    'statement': statement,
-                    'parameters': parameters if not executemany else f"(executemany: {len(parameters)} rows)",
-                    'duration': duration,
-                    'timestamp': time.time()
+                    "statement": statement,
+                    "parameters": parameters
+                    if not executemany
+                    else f"(executemany: {len(parameters)} rows)",
+                    "duration": duration,
+                    "timestamp": time.time(),
                 }
                 _query_storage.queries.append(query_info)
 
             # Log individual slow queries immediately
             if duration > self.slow_query_threshold:
-                request_id = getattr(_query_storage, 'request_id', 'unknown')
+                request_id = getattr(_query_storage, "request_id", "unknown")
                 logger.warning(
                     f"Slow query ({duration:.2f}s): {statement[:200]}...",
                     extra={
                         "request_id": request_id,
                         "duration": duration,
                         "statement": statement,
-                        "executemany": executemany
-                    }
+                        "executemany": executemany,
+                    },
                 )
 
 
@@ -395,7 +452,7 @@ def get_request_queries() -> List[Dict[str, Any]]:
     Returns:
         List of query information dictionaries
     """
-    return getattr(_query_storage, 'queries', [])
+    return getattr(_query_storage, "queries", [])
 
 
 def get_request_id() -> str:
@@ -405,4 +462,4 @@ def get_request_id() -> str:
     Returns:
         Current request ID or 'unknown'
     """
-    return getattr(_query_storage, 'request_id', 'unknown')
+    return getattr(_query_storage, "request_id", "unknown")

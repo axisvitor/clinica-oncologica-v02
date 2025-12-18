@@ -11,13 +11,15 @@ from flask import jsonify
 from .rate_limiter import RateLimiter, RateLimitConfig, RateLimitStrategy
 
 
-def rate_limit(requests_per_second: float = 10.0,
-               burst_size: int = 50,
-               strategy: RateLimitStrategy = RateLimitStrategy.PER_IP,
-               key_func: Optional[Callable] = None,
-               whitelist: Optional[List[str]] = None,
-               error_message: str = "Rate limit exceeded",
-               error_code: int = 429):
+def rate_limit(
+    requests_per_second: float = 10.0,
+    burst_size: int = 50,
+    strategy: RateLimitStrategy = RateLimitStrategy.PER_IP,
+    key_func: Optional[Callable] = None,
+    whitelist: Optional[List[str]] = None,
+    error_message: str = "Rate limit exceeded",
+    error_code: int = 429,
+):
     """
     Rate limit decorator for Flask routes
 
@@ -30,6 +32,7 @@ def rate_limit(requests_per_second: float = 10.0,
         error_message: Error message for rate limited requests
         error_code: HTTP status code for rate limited requests
     """
+
     def decorator(func: Callable) -> Callable:
         # Create rate limiter configuration
         config = RateLimitConfig(
@@ -37,7 +40,7 @@ def rate_limit(requests_per_second: float = 10.0,
             burst_size=burst_size,
             strategy=strategy,
             key_func=key_func,
-            whitelist=whitelist or []
+            whitelist=whitelist or [],
         )
 
         # Create rate limiter
@@ -51,13 +54,13 @@ def rate_limit(requests_per_second: float = 10.0,
             if not result.allowed:
                 # Return rate limit error
                 response_data = {
-                    'error': error_message,
-                    'rate_limit': {
-                        'limit': result.limit,
-                        'remaining': result.remaining,
-                        'reset_time': result.reset_time,
-                        'retry_after': result.retry_after
-                    }
+                    "error": error_message,
+                    "rate_limit": {
+                        "limit": result.limit,
+                        "remaining": result.remaining,
+                        "reset_time": result.reset_time,
+                        "retry_after": result.retry_after,
+                    },
                 }
 
                 response = jsonify(response_data)
@@ -73,7 +76,7 @@ def rate_limit(requests_per_second: float = 10.0,
             response = func(*args, **kwargs)
 
             # Add headers if response has headers attribute
-            if hasattr(response, 'headers'):
+            if hasattr(response, "headers"):
                 for header, value in result.headers.items():
                     response.headers[header] = value
 
@@ -87,9 +90,11 @@ def rate_limit(requests_per_second: float = 10.0,
     return decorator
 
 
-def api_rate_limit(tier: str = "basic",
-                  error_message: str = "API rate limit exceeded",
-                  error_code: int = 429):
+def api_rate_limit(
+    tier: str = "basic",
+    error_message: str = "API rate limit exceeded",
+    error_code: int = 429,
+):
     """
     API-specific rate limit decorator with predefined tiers
 
@@ -100,21 +105,19 @@ def api_rate_limit(tier: str = "basic",
     """
     # Predefined tier configurations
     tier_configs = {
-        'basic': RateLimitConfig(
-            requests_per_second=5.0,
-            burst_size=20,
-            strategy=RateLimitStrategy.PER_USER
+        "basic": RateLimitConfig(
+            requests_per_second=5.0, burst_size=20, strategy=RateLimitStrategy.PER_USER
         ),
-        'premium': RateLimitConfig(
+        "premium": RateLimitConfig(
             requests_per_second=20.0,
             burst_size=100,
-            strategy=RateLimitStrategy.PER_USER
+            strategy=RateLimitStrategy.PER_USER,
         ),
-        'enterprise': RateLimitConfig(
+        "enterprise": RateLimitConfig(
             requests_per_second=100.0,
             burst_size=500,
-            strategy=RateLimitStrategy.PER_USER
-        )
+            strategy=RateLimitStrategy.PER_USER,
+        ),
     }
 
     if tier not in tier_configs:
@@ -127,14 +130,16 @@ def api_rate_limit(tier: str = "basic",
         burst_size=config.burst_size,
         strategy=config.strategy,
         error_message=f"{error_message} (tier: {tier})",
-        error_code=error_code
+        error_code=error_code,
     )
 
 
-def user_rate_limit(requests_per_second: float = 10.0,
-                   burst_size: int = 50,
-                   error_message: str = "User rate limit exceeded",
-                   error_code: int = 429):
+def user_rate_limit(
+    requests_per_second: float = 10.0,
+    burst_size: int = 50,
+    error_message: str = "User rate limit exceeded",
+    error_code: int = 429,
+):
     """
     User-specific rate limit decorator
 
@@ -149,14 +154,16 @@ def user_rate_limit(requests_per_second: float = 10.0,
         burst_size=burst_size,
         strategy=RateLimitStrategy.PER_USER,
         error_message=error_message,
-        error_code=error_code
+        error_code=error_code,
     )
 
 
-def endpoint_rate_limit(requests_per_second: float = 20.0,
-                       burst_size: int = 100,
-                       error_message: str = "Endpoint rate limit exceeded",
-                       error_code: int = 429):
+def endpoint_rate_limit(
+    requests_per_second: float = 20.0,
+    burst_size: int = 100,
+    error_message: str = "Endpoint rate limit exceeded",
+    error_code: int = 429,
+):
     """
     Endpoint-specific rate limit decorator
 
@@ -171,14 +178,16 @@ def endpoint_rate_limit(requests_per_second: float = 20.0,
         burst_size=burst_size,
         strategy=RateLimitStrategy.PER_ENDPOINT,
         error_message=error_message,
-        error_code=error_code
+        error_code=error_code,
     )
 
 
-def global_rate_limit(requests_per_second: float = 1000.0,
-                     burst_size: int = 2000,
-                     error_message: str = "Global rate limit exceeded",
-                     error_code: int = 503):
+def global_rate_limit(
+    requests_per_second: float = 1000.0,
+    burst_size: int = 2000,
+    error_message: str = "Global rate limit exceeded",
+    error_code: int = 503,
+):
     """
     Global rate limit decorator (for system protection)
 
@@ -193,7 +202,7 @@ def global_rate_limit(requests_per_second: float = 1000.0,
         burst_size=burst_size,
         strategy=RateLimitStrategy.GLOBAL,
         error_message=error_message,
-        error_code=error_code
+        error_code=error_code,
     )
 
 
@@ -207,7 +216,7 @@ def get_rate_limit_metrics(func: Callable) -> Optional[dict]:
     Returns:
         Dictionary with rate limit metrics or None if not decorated
     """
-    rate_limiter = getattr(func, '_rate_limiter', None)
+    rate_limiter = getattr(func, "_rate_limiter", None)
     if rate_limiter:
         return rate_limiter.get_metrics()
     return None
@@ -223,7 +232,7 @@ def reset_rate_limit_metrics(func: Callable) -> bool:
     Returns:
         True if metrics were reset, False if function not decorated
     """
-    rate_limiter = getattr(func, '_rate_limiter', None)
+    rate_limiter = getattr(func, "_rate_limiter", None)
     if rate_limiter:
         rate_limiter.reset_metrics()
         return True

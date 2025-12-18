@@ -3,44 +3,30 @@ Localization API v2 - i18n system with Redis caching, fallback chains, pluraliza
 Supports: pt-BR, pt-PT, en-US, es-ES. Rate limit: 100 req/min.
 """
 
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
 import logging
 import re
 import json
-from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Header
-from sqlalchemy import and_, or_, func, desc, asc
-from pydantic import BaseModel
 
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.schemas.v2.localization import (
-    LanguageV2Response,
     LanguageV2List,
-    TranslationV2Response,
     TranslationV2List,
     TranslationV2Update,
     UserLanguagePreferenceV2,
     UserLanguagePreferenceV2Update,
     TranslationKeyV2Response,
-    TranslationExportV2,
-    TranslationImportV2,
-    TranslationStatsV2,
-    MissingTranslationsV2,
-    TranslationSearchV2,
 )
-from app.schemas.v2.common import ErrorResponse
 from app.api.v2.dependencies import (
-    get_pagination_params,
     get_field_selection,
-    get_eager_load_params,
-    create_cursor,
     apply_field_selection,
 )
-from app.dependencies.auth_dependencies import get_current_user_from_session, get_redis_cache
+from app.dependencies.auth_dependencies import get_redis_cache
 from app.utils.rate_limiter import limiter
 from app.services.localization import get_localization_service
 
@@ -93,28 +79,27 @@ NAMESPACES = ["flows", "messages", "auth", "common", "errors", "email"]
 
 async def _get_current_user_simple(
     session_id: str = Header(None, alias="X-Session-ID"),
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache)
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
 ) -> Dict[str, Any]:
     """Simplified session validation for V2 endpoints."""
     if not session_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session ID not provided in X-Session-ID header"
+            detail="Session ID not provided in X-Session-ID header",
         )
 
     session_data = await redis_cache.get_session(session_id)
     if not session_data:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session"
+            detail="Invalid or expired session",
         )
 
     firebase_uid = session_data.get("firebase_uid")
     if not firebase_uid:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid session data"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session data"
         )
 
     # Get user from cache or DB
@@ -123,23 +108,21 @@ async def _get_current_user_simple(
         user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found"
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
             )
         user_data = {
             "id": str(user.id),
             "firebase_uid": user.firebase_uid,
             "email": user.email,
             "full_name": user.full_name,
-            "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
-            "is_active": user.is_active
+            "role": user.role.value if hasattr(user.role, "value") else str(user.role),
+            "is_active": user.is_active,
         }
         await redis_cache.cache_user_data(firebase_uid, user_data, ttl=900)
 
     if not user_data.get("is_active", False):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is inactive"
+            status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive"
         )
 
     return user_data
@@ -162,7 +145,7 @@ def _check_admin(current_user: Dict[str, Any]) -> None:
     if role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can perform this action"
+            detail="Only administrators can perform this action",
         )
 
 
@@ -189,7 +172,7 @@ def _resolve_fallback_chain(language: str) -> List[str]:
 def _apply_pluralization(text: str, count: int, language: str = "en-US") -> str:
     """Apply pluralization rules. Format: {singular|plural}."""
     # Simple pluralization: {singular|plural}
-    pattern = r'\{([^|]+)\|([^}]+)\}'
+    pattern = r"\{([^|]+)\|([^}]+)\}"
 
     def replace_plural(match):
         singular = match.group(1)
@@ -225,7 +208,7 @@ def _get_translation_with_fallback(
     namespace: str = "common",
     context: Optional[str] = None,
     variables: Optional[Dict[str, Any]] = None,
-    count: Optional[int] = None
+    count: Optional[int] = None,
 ) -> str:
     """Get translation with fallback chain, pluralization, and variable substitution."""
     localization_service = get_localization_service()
@@ -235,10 +218,7 @@ def _get_translation_with_fallback(
         try:
             # Try to get translation from service
             text = localization_service.translate(
-                key=key,
-                locale=lang,
-                namespace=namespace,
-                fallback=None
+                key=key, locale=lang, namespace=namespace, fallback=None
             )
 
             if text and text != key:  # Translation found
@@ -272,7 +252,7 @@ async def list_languages(
     request: Request,
     enabled_only: bool = Query(True, description="Show only enabled languages"),
     fields: Optional[List[str]] = Depends(get_field_selection),
-    redis_cache = Depends(get_redis_cache),
+    redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> LanguageV2List:
     """List supported languages with metadata. Cached for 24 hours."""
@@ -299,7 +279,7 @@ async def list_languages(
                 "direction": info["direction"],
                 "fallback": info.get("fallback"),
                 "enabled": info.get("enabled", True),
-                "is_default": code == DEFAULT_LANGUAGE
+                "is_default": code == DEFAULT_LANGUAGE,
             }
 
             # Apply field selection
@@ -309,9 +289,7 @@ async def list_languages(
             languages.append(lang_data)
 
         result = LanguageV2List(
-            data=languages,
-            total=len(languages),
-            default_language=DEFAULT_LANGUAGE
+            data=languages, total=len(languages), default_language=DEFAULT_LANGUAGE
         )
 
         # Cache the result
@@ -323,7 +301,7 @@ async def list_languages(
         logger.error(f"Error listing languages: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve languages"
+            detail="Failed to retrieve languages",
         )
 
 
@@ -334,7 +312,7 @@ async def get_translations_for_language(
     request: Request,
     namespace: Optional[str] = Query(None, description="Filter by namespace"),
     search: Optional[str] = Query(None, description="Search in keys or values"),
-    redis_cache = Depends(get_redis_cache),
+    redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> TranslationV2List:
     """Get all translations for language with namespace filtering and search. Cached for 4 hours."""
@@ -343,7 +321,7 @@ async def get_translations_for_language(
         if language not in SUPPORTED_LANGUAGES:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Language '{language}' not supported"
+                detail=f"Language '{language}' not supported",
             )
 
         # Build cache key
@@ -377,9 +355,10 @@ async def get_translations_for_language(
         if search:
             search_lower = search.lower()
             all_translations = {
-                key: value for key, value in all_translations.items()
-                if search_lower in key.lower() or
-                   (isinstance(value, str) and search_lower in value.lower())
+                key: value
+                for key, value in all_translations.items()
+                if search_lower in key.lower()
+                or (isinstance(value, str) and search_lower in value.lower())
             }
 
         # Build response
@@ -387,7 +366,7 @@ async def get_translations_for_language(
             {
                 "key": key,
                 "value": value,
-                "namespace": key.split(".")[0] if "." in key else "common"
+                "namespace": key.split(".")[0] if "." in key else "common",
             }
             for key, value in all_translations.items()
         ]
@@ -396,7 +375,7 @@ async def get_translations_for_language(
             data=translation_list,
             language=language,
             total=len(translation_list),
-            namespaces=namespaces_to_fetch
+            namespaces=namespaces_to_fetch,
         )
 
         # Cache the result
@@ -407,17 +386,17 @@ async def get_translations_for_language(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting translations for {language}: {str(e)}", exc_info=True)
+        logger.error(
+            f"Error getting translations for {language}: {str(e)}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve translations"
+            detail="Failed to retrieve translations",
         )
 
 
 def _flatten_translations(
-    translations: Dict[str, Any],
-    prefix: str = "",
-    separator: str = "."
+    translations: Dict[str, Any], prefix: str = "", separator: str = "."
 ) -> Dict[str, str]:
     """Flatten nested translation dictionary to dot notation."""
     flat = {}
@@ -433,7 +412,9 @@ def _flatten_translations(
     return flat
 
 
-@router.get("/translations/{language}/{key:path}", response_model=TranslationKeyV2Response)
+@router.get(
+    "/translations/{language}/{key:path}", response_model=TranslationKeyV2Response
+)
 @limiter.limit("100/minute")
 async def get_translation_by_key(
     language: str,
@@ -442,7 +423,7 @@ async def get_translation_by_key(
     context: Optional[str] = Query(None, description="Context (formal/informal)"),
     variables: Optional[str] = Query(None, description="JSON-encoded variables"),
     count: Optional[int] = Query(None, description="Count for pluralization"),
-    redis_cache = Depends(get_redis_cache),
+    redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> Dict[str, Any]:
     """Get translation by key with fallback chain, context, variables, and pluralization."""
@@ -451,7 +432,7 @@ async def get_translation_by_key(
         if language not in SUPPORTED_LANGUAGES:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Language '{language}' not supported"
+                detail=f"Language '{language}' not supported",
             )
 
         # Parse variables if provided
@@ -462,14 +443,16 @@ async def get_translation_by_key(
             except json.JSONDecodeError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid JSON format for variables"
+                    detail="Invalid JSON format for variables",
                 )
 
         # Extract namespace from key (first part before dot)
         namespace = key.split(".")[0] if "." in key else "common"
 
         # Build cache key (without variables for better cache hit rate)
-        cache_key = f"i18n:key:{language}:{key}:ctx:{context or 'none'}:cnt:{count or 'none'}"
+        cache_key = (
+            f"i18n:key:{language}:{key}:ctx:{context or 'none'}:cnt:{count or 'none'}"
+        )
 
         # Try cache first (only if no variables)
         if not parsed_variables:
@@ -485,7 +468,7 @@ async def get_translation_by_key(
             namespace=namespace,
             context=context,
             variables=parsed_variables,
-            count=count
+            count=count,
         )
 
         # Determine which language was used (for transparency)
@@ -497,10 +480,7 @@ async def get_translation_by_key(
         for lang in fallback_chain:
             try:
                 test_translation = localization_service.translate(
-                    key=key,
-                    locale=lang,
-                    namespace=namespace,
-                    fallback=None
+                    key=key, locale=lang, namespace=namespace, fallback=None
                 )
                 if test_translation and test_translation != key:
                     used_language = lang
@@ -517,7 +497,7 @@ async def get_translation_by_key(
             "namespace": namespace,
             "context": context,
             "has_pluralization": count is not None,
-            "has_variables": parsed_variables is not None
+            "has_variables": parsed_variables is not None,
         }
 
         # Cache the result (only if no variables)
@@ -529,22 +509,26 @@ async def get_translation_by_key(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting translation {key} for {language}: {str(e)}", exc_info=True)
+        logger.error(
+            f"Error getting translation {key} for {language}: {str(e)}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve translation"
+            detail="Failed to retrieve translation",
         )
 
 
-@router.put("/translations/{language}/{key:path}", response_model=TranslationKeyV2Response)
+@router.put(
+    "/translations/{language}/{key:path}", response_model=TranslationKeyV2Response
+)
 @limiter.limit("30/minute")
 async def update_translation(
     language: str,
     key: str,
     translation_data: TranslationV2Update,
     request: Request,
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> Dict[str, Any]:
     """Update translation (Admin only). Updates in-memory cache and invalidates Redis."""
@@ -556,7 +540,7 @@ async def update_translation(
         if language not in SUPPORTED_LANGUAGES:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Language '{language}' not supported"
+                detail=f"Language '{language}' not supported",
             )
 
         # Extract namespace
@@ -606,16 +590,18 @@ async def update_translation(
             "namespace": namespace,
             "context": None,
             "has_pluralization": False,
-            "has_variables": False
+            "has_variables": False,
         }
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error updating translation {key} for {language}: {str(e)}", exc_info=True)
+        logger.error(
+            f"Error updating translation {key} for {language}: {str(e)}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update translation"
+            detail="Failed to update translation",
         )
 
 
@@ -623,7 +609,7 @@ async def update_translation(
 @limiter.limit("100/minute")
 async def get_user_language_preference(
     request: Request,
-    redis_cache = Depends(get_redis_cache),
+    redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> UserLanguagePreferenceV2:
     """Get user's language preference. Cached for 1 hour."""
@@ -649,14 +635,16 @@ async def get_user_language_preference(
 
         # Validate language
         if language_pref not in SUPPORTED_LANGUAGES:
-            logger.warning(f"Invalid language preference '{language_pref}' for user {user_id}, using default")
+            logger.warning(
+                f"Invalid language preference '{language_pref}' for user {user_id}, using default"
+            )
             language_pref = DEFAULT_LANGUAGE
 
         result = UserLanguagePreferenceV2(
             user_id=UUID(user_id),
             language=language_pref,
             is_default=language_pref == DEFAULT_LANGUAGE,
-            updated_at=datetime.utcnow()
+            updated_at=datetime.utcnow(),
         )
 
         # Cache the result
@@ -668,7 +656,7 @@ async def get_user_language_preference(
         logger.error(f"Error getting user language preference: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve language preference"
+            detail="Failed to retrieve language preference",
         )
 
 
@@ -677,7 +665,7 @@ async def get_user_language_preference(
 async def set_user_language_preference(
     preference_data: UserLanguagePreferenceV2Update,
     request: Request,
-    redis_cache = Depends(get_redis_cache),
+    redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> UserLanguagePreferenceV2:
     """Set user's language preference with validation and cache invalidation."""
@@ -689,19 +677,21 @@ async def set_user_language_preference(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Language '{preference_data.language}' not supported. "
-                       f"Supported languages: {', '.join(SUPPORTED_LANGUAGES.keys())}"
+                f"Supported languages: {', '.join(SUPPORTED_LANGUAGES.keys())}",
             )
 
         # Check if language is enabled
         if not SUPPORTED_LANGUAGES[preference_data.language].get("enabled", True):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Language '{preference_data.language}' is not enabled"
+                detail=f"Language '{preference_data.language}' is not enabled",
             )
 
         # Store preference in Redis
         user_pref_key = f"user:{user_id}:preferences:language"
-        await redis_cache.set(user_pref_key, preference_data.language, ttl=None)  # No expiry
+        await redis_cache.set(
+            user_pref_key, preference_data.language, ttl=None
+        )  # No expiry
 
         # Invalidate cache
         await redis_cache.delete(f"i18n:user:{user_id}:language")
@@ -715,7 +705,7 @@ async def set_user_language_preference(
             user_id=UUID(user_id),
             language=preference_data.language,
             is_default=preference_data.language == DEFAULT_LANGUAGE,
-            updated_at=datetime.utcnow()
+            updated_at=datetime.utcnow(),
         )
 
         return result
@@ -726,5 +716,5 @@ async def set_user_language_preference(
         logger.error(f"Error setting user language preference: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update language preference"
+            detail="Failed to update language preference",
         )

@@ -6,16 +6,11 @@ Integrates with IdempotencyMiddleware for reliable webhook processing.
 """
 
 import logging
-from typing import Dict, Any
 from fastapi import APIRouter, Request, BackgroundTasks, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.middleware.idempotency import IdempotencyMiddleware
-from app.integrations.whatsapp.api.webhooks import (
-    process_webhook_event,
-    evolution_webhook
-)
+from app.integrations.whatsapp.api.webhooks import evolution_webhook
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +23,7 @@ async def whatsapp_webhook_with_idempotency(
     instance_name: str,
     request: Request,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Handle Evolution API webhooks with idempotency protection.
@@ -54,7 +49,7 @@ async def whatsapp_webhook_with_idempotency(
         instance_name=instance_name,
         request=request,
         background_tasks=background_tasks,
-        db=db
+        db=db,
     )
 
 
@@ -71,10 +66,7 @@ async def get_idempotency_stats(db: Session = Depends(get_db)):
     cleanup_service = get_cleanup_service()
     stats = await cleanup_service.get_cleanup_stats(db)
 
-    return {
-        "status": "success",
-        "data": stats
-    }
+    return {"status": "success", "data": stats}
 
 
 @router.post("/idempotency/cleanup")
@@ -93,7 +85,4 @@ async def trigger_cleanup(db: Session = Depends(get_db)):
     cleanup_service = get_cleanup_service()
     result = await cleanup_service.run_cleanup(db)
 
-    return {
-        "status": "success",
-        "data": result
-    }
+    return {"status": "success", "data": result}

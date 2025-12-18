@@ -8,7 +8,6 @@ XSS, SQL injection, and other security vulnerabilities.
 import re
 import bleach
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, field_validator, ValidationError
 
 import logging
 
@@ -19,7 +18,7 @@ class InputSanitizer:
     """Service for sanitizing and validating user input."""
 
     # Allowed HTML tags for rich text (very restrictive)
-    ALLOWED_TAGS = ['p', 'br', 'strong', 'em', 'u']
+    ALLOWED_TAGS = ["p", "br", "strong", "em", "u"]
     ALLOWED_ATTRIBUTES = {}
 
     # Maximum lengths
@@ -51,7 +50,7 @@ class InputSanitizer:
                 text,
                 tags=cls.ALLOWED_TAGS,
                 attributes=cls.ALLOWED_ATTRIBUTES,
-                strip=True
+                strip=True,
             )
 
     @classmethod
@@ -73,10 +72,10 @@ class InputSanitizer:
         sanitized = cls.sanitize_html(text, strict=True)
 
         # Remove control characters
-        sanitized = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', sanitized)
+        sanitized = re.sub(r"[\x00-\x1f\x7f-\x9f]", "", sanitized)
 
         # Normalize whitespace
-        sanitized = ' '.join(sanitized.split())
+        sanitized = " ".join(sanitized.split())
 
         # Truncate if needed
         if max_length and len(sanitized) > max_length:
@@ -100,7 +99,7 @@ class InputSanitizer:
         email = email.strip().lower()
 
         # Email validation regex (RFC 5322 simplified)
-        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
         if not re.match(email_pattern, email):
             raise ValueError("Invalid email format")
@@ -115,17 +114,17 @@ class InputSanitizer:
         Keeps only digits and common separators.
         """
         # Keep only digits and common separators
-        phone = re.sub(r'[^\d\s\-\(\)\+]', '', phone)
+        phone = re.sub(r"[^\d\s\-\(\)\+]", "", phone)
 
         # Normalize whitespace
-        phone = ' '.join(phone.split())
+        phone = " ".join(phone.split())
 
         return phone.strip()
 
     @classmethod
     def validate_uuid(cls, uuid_string: str) -> bool:
         """Validate UUID format."""
-        uuid_pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+        uuid_pattern = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
         return bool(re.match(uuid_pattern, uuid_string.lower()))
 
     @classmethod
@@ -140,20 +139,22 @@ class InputSanitizer:
             Sanitized filename
         """
         # Remove path separators
-        filename = filename.replace('/', '_').replace('\\', '_')
+        filename = filename.replace("/", "_").replace("\\", "_")
 
         # Remove dangerous characters
-        filename = re.sub(r'[^\w\s\-\.]', '', filename)
+        filename = re.sub(r"[^\w\s\-\.]", "", filename)
 
         # Limit length
         if len(filename) > 255:
-            name, ext = filename.rsplit('.', 1) if '.' in filename else (filename, '')
-            filename = name[:250] + ('.' + ext if ext else '')
+            name, ext = filename.rsplit(".", 1) if "." in filename else (filename, "")
+            filename = name[:250] + ("." + ext if ext else "")
 
         return filename
 
     @classmethod
-    def sanitize_dict(cls, data: Dict[str, Any], text_fields: List[str] = None) -> Dict[str, Any]:
+    def sanitize_dict(
+        cls, data: Dict[str, Any], text_fields: List[str] = None
+    ) -> Dict[str, Any]:
         """
         Sanitize all text fields in a dictionary.
 
@@ -177,8 +178,11 @@ class InputSanitizer:
                 sanitized[key] = cls.sanitize_dict(value, text_fields)
             elif isinstance(value, list):
                 sanitized[key] = [
-                    cls.sanitize_dict(item, text_fields) if isinstance(item, dict)
-                    else cls.sanitize_text(item) if isinstance(item, str) and (text_fields is None or key in text_fields)
+                    cls.sanitize_dict(item, text_fields)
+                    if isinstance(item, dict)
+                    else cls.sanitize_text(item)
+                    if isinstance(item, str)
+                    and (text_fields is None or key in text_fields)
                     else item
                     for item in value
                 ]
@@ -242,7 +246,7 @@ class InputSanitizer:
         max_length: Optional[int] = None,
         allow_html: bool = False,
         check_sql: bool = True,
-        check_xss: bool = True
+        check_xss: bool = True,
     ) -> str:
         """
         Comprehensive input validation and sanitization.

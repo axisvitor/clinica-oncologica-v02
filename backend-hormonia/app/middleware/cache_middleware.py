@@ -4,16 +4,12 @@ Provides intelligent caching for GET requests with ETag and Cache-Control suppor
 """
 
 import hashlib
-import json
 import logging
 from typing import Callable, Optional
-from datetime import timedelta
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.datastructures import Headers
 
-from app.core.redis_unified import get_sync_redis
 from app.infrastructure.cache import get_unified_cache_manager as get_cache_manager
 
 logger = logging.getLogger(__name__)
@@ -36,7 +32,7 @@ class CacheMiddleware(BaseHTTPMiddleware):
         app,
         default_ttl: int = 300,  # 5 minutes default
         exclude_patterns: Optional[list[str]] = None,
-        cache_authenticated: bool = False
+        cache_authenticated: bool = False,
     ):
         """
         Initialize cache middleware.
@@ -88,7 +84,9 @@ class CacheMiddleware(BaseHTTPMiddleware):
 
         # Check if authenticated request (skip caching unless configured)
         if not self.cache_authenticated and self._is_authenticated(request):
-            logger.debug(f"Skipping cache for authenticated request: {request.url.path}")
+            logger.debug(
+                f"Skipping cache for authenticated request: {request.url.path}"
+            )
             return await call_next(request)
 
         # Generate cache key from request
@@ -108,11 +106,10 @@ class CacheMiddleware(BaseHTTPMiddleware):
 
             # Check ETag match for 304 Not Modified
             if if_none_match and if_none_match == cached_etag:
-                logger.debug(f"ETag match - returning 304 Not Modified for: {cache_key}")
-                return Response(
-                    status_code=304,
-                    headers={"ETag": cached_etag}
+                logger.debug(
+                    f"ETag match - returning 304 Not Modified for: {cache_key}"
                 )
+                return Response(status_code=304, headers={"ETag": cached_etag})
 
             # Return cached response with ETag
             logger.debug(f"Cache HIT - returning cached response for: {cache_key}")
@@ -124,7 +121,7 @@ class CacheMiddleware(BaseHTTPMiddleware):
                 content=cached_body,
                 status_code=200,
                 headers=headers,
-                media_type=cached_headers.get("content-type", "application/json")
+                media_type=cached_headers.get("content-type", "application/json"),
             )
 
         # Cache MISS - execute request
@@ -148,14 +145,11 @@ class CacheMiddleware(BaseHTTPMiddleware):
             cache_data = {
                 "body": body.decode("utf-8") if body else "",
                 "headers": dict(response.headers),
-                "etag": etag
+                "etag": etag,
             }
 
             self.cache_manager.set(
-                cache_key,
-                cache_data,
-                ttl=ttl,
-                namespace="http_cache"
+                cache_key, cache_data, ttl=ttl, namespace="http_cache"
             )
             logger.debug(f"Cached response for: {cache_key} (TTL: {ttl}s)")
 
@@ -170,7 +164,7 @@ class CacheMiddleware(BaseHTTPMiddleware):
                 content=body,
                 status_code=response.status_code,
                 headers=response_headers,
-                media_type=response.headers.get("content-type", "application/json")
+                media_type=response.headers.get("content-type", "application/json"),
             )
 
         return response

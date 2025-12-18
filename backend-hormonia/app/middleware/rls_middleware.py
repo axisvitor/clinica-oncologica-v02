@@ -4,17 +4,18 @@ RLS (Row Level Security) middleware for JWT token extraction and context managem
 This middleware handles JWT token extraction from requests and provides utilities
 for injecting user context into database sessions for RLS policies.
 """
-from fastapi import Request, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+from fastapi import Request, HTTPException
+from fastapi.security import HTTPBearer
 from typing import Optional, Dict, Any
 import jwt
 import logging
 from datetime import datetime, timezone
 
-from app.config import settings
 from app.core.database import RLSError, RLSAccessDeniedError, RLSContextError
 
 logger = logging.getLogger(__name__)
+
 
 class RLSJWTMiddleware:
     """
@@ -76,14 +77,13 @@ class RLSJWTMiddleware:
         try:
             # For Supabase tokens, we can decode without verification
             # since they're already validated by the frontend
-            decoded_token = jwt.decode(
-                token,
-                options={"verify_signature": False}
-            )
+            decoded_token = jwt.decode(token, options={"verify_signature": False})
 
             # Check if token is expired
-            exp = decoded_token.get('exp')
-            if exp and datetime.fromtimestamp(exp, tz=timezone.utc) < datetime.now(timezone.utc):
+            exp = decoded_token.get("exp")
+            if exp and datetime.fromtimestamp(exp, tz=timezone.utc) < datetime.now(
+                timezone.utc
+            ):
                 logger.warning("JWT token has expired")
                 return None
 
@@ -107,18 +107,20 @@ class RLSJWTMiddleware:
             User context dictionary
         """
         return {
-            'user_id': token_claims.get('sub') or token_claims.get('user_id'),
-            'email': token_claims.get('email'),
-            'role': token_claims.get('role', 'authenticated'),
-            'aud': token_claims.get('aud'),
-            'iss': token_claims.get('iss'),
-            'exp': token_claims.get('exp'),
-            'iat': token_claims.get('iat'),
-            'app_metadata': token_claims.get('app_metadata', {}),
-            'user_metadata': token_claims.get('user_metadata', {})
+            "user_id": token_claims.get("sub") or token_claims.get("user_id"),
+            "email": token_claims.get("email"),
+            "role": token_claims.get("role", "authenticated"),
+            "aud": token_claims.get("aud"),
+            "iss": token_claims.get("iss"),
+            "exp": token_claims.get("exp"),
+            "iat": token_claims.get("iat"),
+            "app_metadata": token_claims.get("app_metadata", {}),
+            "user_metadata": token_claims.get("user_metadata", {}),
         }
 
-    async def get_user_context_from_request(self, request: Request) -> Optional[Dict[str, Any]]:
+    async def get_user_context_from_request(
+        self, request: Request
+    ) -> Optional[Dict[str, Any]]:
         """
         Get user context from request JWT token.
 
@@ -138,7 +140,9 @@ class RLSJWTMiddleware:
 
         return self.extract_user_context(token_claims)
 
-    def check_rls_permissions(self, user_context: Dict[str, Any], required_permissions: list = None) -> bool:
+    def check_rls_permissions(
+        self, user_context: Dict[str, Any], required_permissions: list = None
+    ) -> bool:
         """
         Check if user has required permissions for RLS access.
 
@@ -149,22 +153,26 @@ class RLSJWTMiddleware:
         Returns:
             True if user has required permissions
         """
-        if not user_context or not user_context.get('user_id'):
+        if not user_context or not user_context.get("user_id"):
             return False
 
         # Basic authentication check
-        if user_context.get('role') not in ['authenticated', 'admin', 'service_role']:
+        if user_context.get("role") not in ["authenticated", "admin", "service_role"]:
             return False
 
         # If specific permissions are required, check them
         if required_permissions:
-            user_permissions = user_context.get('app_metadata', {}).get('permissions', [])
+            user_permissions = user_context.get("app_metadata", {}).get(
+                "permissions", []
+            )
             if not all(perm in user_permissions for perm in required_permissions):
                 return False
 
         return True
 
-    def handle_rls_error(self, error: Exception, user_context: Optional[Dict[str, Any]] = None) -> HTTPException:
+    def handle_rls_error(
+        self, error: Exception, user_context: Optional[Dict[str, Any]] = None
+    ) -> HTTPException:
         """
         Handle RLS-related errors and convert to appropriate HTTP exceptions.
 
@@ -181,8 +189,8 @@ class RLSJWTMiddleware:
                 detail={
                     "error": "Access denied by Row Level Security policy",
                     "message": "You don't have permission to access this resource",
-                    "user_id": user_context.get('user_id') if user_context else None
-                }
+                    "user_id": user_context.get("user_id") if user_context else None,
+                },
             )
         elif isinstance(error, RLSContextError):
             return HTTPException(
@@ -190,8 +198,8 @@ class RLSJWTMiddleware:
                 detail={
                     "error": "Invalid RLS context",
                     "message": "Authentication context is required for this operation",
-                    "user_id": user_context.get('user_id') if user_context else None
-                }
+                    "user_id": user_context.get("user_id") if user_context else None,
+                },
             )
         elif isinstance(error, RLSError):
             return HTTPException(
@@ -199,8 +207,8 @@ class RLSJWTMiddleware:
                 detail={
                     "error": "RLS operation failed",
                     "message": "Row Level Security operation encountered an error",
-                    "user_id": user_context.get('user_id') if user_context else None
-                }
+                    "user_id": user_context.get("user_id") if user_context else None,
+                },
             )
         else:
             # Generic database error
@@ -209,8 +217,8 @@ class RLSJWTMiddleware:
                 detail={
                     "error": "Database operation failed",
                     "message": "An error occurred while accessing the database",
-                    "user_id": user_context.get('user_id') if user_context else None
-                }
+                    "user_id": user_context.get("user_id") if user_context else None,
+                },
             )
 
 
@@ -267,8 +275,8 @@ async def require_authentication(request: Request) -> Dict[str, Any]:
             status_code=401,
             detail={
                 "error": "Authentication required",
-                "message": "Valid JWT token is required for this operation"
-            }
+                "message": "Valid JWT token is required for this operation",
+            },
         )
 
     if not rls_middleware.check_rls_permissions(user_context):
@@ -277,8 +285,8 @@ async def require_authentication(request: Request) -> Dict[str, Any]:
             detail={
                 "error": "Insufficient permissions",
                 "message": "You don't have permission to access this resource",
-                "user_id": user_context.get('user_id')
-            }
+                "user_id": user_context.get("user_id"),
+            },
         )
 
     return user_context
@@ -316,8 +324,7 @@ def get_rls_db_dependency(require_auth: bool = True):
     from app.core.database import get_db
 
     async def rls_db_dependency(
-        request: Request,
-        user_context: Optional[Dict[str, Any]] = None
+        request: Request, user_context: Optional[Dict[str, Any]] = None
     ):
         """Database dependency with RLS context."""
         if require_auth and not user_context:
@@ -331,6 +338,9 @@ def get_rls_db_dependency(require_auth: bool = True):
             jwt_token = await get_jwt_token(request)
 
         # Return database session with RLS context
-        return get_db(jwt_token=jwt_token, user_id=user_context.get('user_id') if user_context else None)
+        return get_db(
+            jwt_token=jwt_token,
+            user_id=user_context.get("user_id") if user_context else None,
+        )
 
     return rls_db_dependency

@@ -41,7 +41,7 @@ class EmailEncryptor(BaseFieldEncryptor):
 
             # Encrypt
             encrypted_email = self.encrypt_func(normalized_email, FieldType.EMAIL)
-            encrypted_bytes = encrypted_email.encode('utf-8')
+            encrypted_bytes = encrypted_email.encode("utf-8")
 
             # Generate searchable hash
             email_hash = self.hash_func(normalized_email, FieldType.EMAIL)
@@ -69,7 +69,7 @@ class EmailEncryptor(BaseFieldEncryptor):
         try:
             # Convert bytes to string
             encrypted_str = (
-                encrypted_email.decode('utf-8')
+                encrypted_email.decode("utf-8")
                 if isinstance(encrypted_email, bytes)
                 else encrypted_email
             )
@@ -110,4 +110,4 @@ class EmailEncryptor(BaseFieldEncryptor):
         """
         if not email:
             return False
-        return '@' in email and '.' in email.split('@')[1]
+        return "@" in email and "." in email.split("@")[1]

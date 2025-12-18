@@ -2,6 +2,7 @@
 Date calculation utilities for treatment day calculations and flow management.
 Provides centralized date calculation functions to eliminate code duplication.
 """
+
 import logging
 from typing import Optional, Union, Tuple
 from datetime import datetime, date, timedelta
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 def _calculate_treatment_day(
     treatment_start_date: Union[date, datetime, str, None],
     reference_date: Optional[Union[date, datetime, str]] = None,
-    timezone: str = "America/Sao_Paulo"
+    timezone: str = "America/Sao_Paulo",
 ) -> int:
     """
     Calculate the current treatment day based on treatment start date.
@@ -68,10 +69,14 @@ def _calculate_treatment_day(
 
         # Ensure treatment day is at least 1 (can't be in the future)
         if treatment_day < 1:
-            logger.debug(f"Treatment start date {start_date} is in the future relative to {ref_date}")
+            logger.debug(
+                f"Treatment start date {start_date} is in the future relative to {ref_date}"
+            )
             return 0
 
-        logger.debug(f"Calculated treatment day {treatment_day} (start: {start_date}, reference: {ref_date})")
+        logger.debug(
+            f"Calculated treatment day {treatment_day} (start: {start_date}, reference: {ref_date})"
+        )
         return treatment_day
 
     except Exception as e:
@@ -98,24 +103,28 @@ def _parse_date(date_input: Union[date, datetime, str]) -> Optional[date]:
     if isinstance(date_input, str):
         try:
             # Try parsing ISO format
-            if 'T' in date_input:
+            if "T" in date_input:
                 # Full datetime string
-                parsed_datetime = datetime.fromisoformat(date_input.replace('Z', '+00:00'))
+                parsed_datetime = datetime.fromisoformat(
+                    date_input.replace("Z", "+00:00")
+                )
                 return parsed_datetime.date()
             else:
                 # Date-only string
-                parsed_date = datetime.strptime(date_input, '%Y-%m-%d').date()
+                parsed_date = datetime.strptime(date_input, "%Y-%m-%d").date()
                 return parsed_date
         except ValueError:
             try:
                 # Try other common formats
-                for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y', '%Y/%m/%d'):
+                for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d"):
                     try:
                         return datetime.strptime(date_input, fmt).date()
                     except ValueError:
                         continue
             except Exception as e:
-                logger.warning(f"Failed to parse date with alternative formats: {e}", exc_info=True)
+                logger.warning(
+                    f"Failed to parse date with alternative formats: {e}", exc_info=True
+                )
 
     return None
 
@@ -135,7 +144,9 @@ def _get_today_in_timezone(timezone: str = "America/Sao_Paulo") -> date:
         now = datetime.now(tz)
         return now.date()
     except Exception as e:
-        logger.warning(f"Error getting date in timezone {timezone}: {e}, falling back to UTC")
+        logger.warning(
+            f"Error getting date in timezone {timezone}: {e}, falling back to UTC"
+        )
         return datetime.utcnow().date()
 
 
@@ -162,7 +173,7 @@ def calculate_flow_type_from_day(treatment_day: int) -> str:
 
 def get_treatment_phase_info(
     treatment_start_date: Union[date, datetime, str, None],
-    reference_date: Optional[Union[date, datetime, str]] = None
+    reference_date: Optional[Union[date, datetime, str]] = None,
 ) -> Tuple[int, str]:
     """
     Get comprehensive treatment phase information.
@@ -181,7 +192,7 @@ def get_treatment_phase_info(
 
 def is_business_day(
     check_date: Union[date, datetime, str, None] = None,
-    timezone: str = "America/Sao_Paulo"
+    timezone: str = "America/Sao_Paulo",
 ) -> bool:
     """
     Check if a given date is a business day (Monday-Friday).
@@ -207,7 +218,7 @@ def is_business_day(
 
 def get_next_business_day(
     from_date: Union[date, datetime, str, None] = None,
-    timezone: str = "America/Sao_Paulo"
+    timezone: str = "America/Sao_Paulo",
 ) -> date:
     """
     Get the next business day from a given date.
@@ -237,7 +248,7 @@ def get_next_business_day(
 
 def calculate_days_until_next_phase(
     treatment_start_date: Union[date, datetime, str, None],
-    reference_date: Optional[Union[date, datetime, str]] = None
+    reference_date: Optional[Union[date, datetime, str]] = None,
 ) -> Optional[int]:
     """
     Calculate how many days until the next treatment phase.
@@ -265,7 +276,7 @@ def calculate_days_until_next_phase(
 def format_treatment_day_info(
     treatment_start_date: Union[date, datetime, str, None],
     reference_date: Optional[Union[date, datetime, str]] = None,
-    include_phase: bool = True
+    include_phase: bool = True,
 ) -> str:
     """
     Format treatment day information as a human-readable string.
@@ -278,7 +289,9 @@ def format_treatment_day_info(
     Returns:
         Formatted string with treatment day information
     """
-    treatment_day, flow_type = get_treatment_phase_info(treatment_start_date, reference_date)
+    treatment_day, flow_type = get_treatment_phase_info(
+        treatment_start_date, reference_date
+    )
 
     if treatment_day <= 0:
         return "Tratamento não iniciado"
@@ -289,7 +302,7 @@ def format_treatment_day_info(
         phase_names = {
             "day_1_15": "Fase Inicial",
             "day_16_45": "Fase de Manutenção",
-            "monthly": "Acompanhamento Mensal"
+            "monthly": "Acompanhamento Mensal",
         }
         phase_name = phase_names.get(flow_type, "Fase Desconhecida")
         return f"{base_info} ({phase_name})"
@@ -301,7 +314,7 @@ def is_within_business_hours(
     check_time: Optional[datetime] = None,
     timezone: str = "America/Sao_Paulo",
     start_hour: int = 9,
-    end_hour: int = 18
+    end_hour: int = 18,
 ) -> bool:
     """
     Check if a given time is within business hours.
@@ -334,7 +347,7 @@ def is_within_business_hours(
 def get_next_scheduled_time(
     flow_type: str,
     from_time: Optional[datetime] = None,
-    timezone: str = "America/Sao_Paulo"
+    timezone: str = "America/Sao_Paulo",
 ) -> datetime:
     """
     Calculate the next scheduled time for a flow type based on its configuration.
@@ -385,10 +398,7 @@ def get_next_scheduled_time(
 
 
 def _get_next_daily_time(
-    from_time: datetime,
-    start_hour: int,
-    end_hour: int,
-    timezone: str
+    from_time: datetime, start_hour: int, end_hour: int, timezone: str
 ) -> datetime:
     """Get next daily scheduled time."""
     # If current time is before business hours today, schedule for today
@@ -399,9 +409,13 @@ def _get_next_daily_time(
     next_business = get_next_business_day(from_time.date(), timezone)
     try:
         tz = ZoneInfo(timezone)
-        return datetime.combine(next_business, datetime.min.time().replace(hour=start_hour)).replace(tzinfo=tz)
+        return datetime.combine(
+            next_business, datetime.min.time().replace(hour=start_hour)
+        ).replace(tzinfo=tz)
     except Exception:
-        return datetime.combine(next_business, datetime.min.time().replace(hour=start_hour))
+        return datetime.combine(
+            next_business, datetime.min.time().replace(hour=start_hour)
+        )
 
 
 def _get_next_interval_time(
@@ -409,7 +423,7 @@ def _get_next_interval_time(
     interval_days: int,
     start_hour: int,
     end_hour: int,
-    timezone: str
+    timezone: str,
 ) -> datetime:
     """Get next scheduled time for interval-based flows."""
     target_date = from_time.date() + timedelta(days=interval_days)
@@ -420,15 +434,17 @@ def _get_next_interval_time(
 
     try:
         tz = ZoneInfo(timezone)
-        return datetime.combine(target_date, datetime.min.time().replace(hour=start_hour)).replace(tzinfo=tz)
+        return datetime.combine(
+            target_date, datetime.min.time().replace(hour=start_hour)
+        ).replace(tzinfo=tz)
     except Exception:
-        return datetime.combine(target_date, datetime.min.time().replace(hour=start_hour))
+        return datetime.combine(
+            target_date, datetime.min.time().replace(hour=start_hour)
+        )
 
 
 def _get_next_monthly_time(
-    from_time: datetime,
-    start_hour: int,
-    timezone: str
+    from_time: datetime, start_hour: int, timezone: str
 ) -> datetime:
     """Get next monthly scheduled time."""
     # Schedule for same day next month
@@ -451,15 +467,16 @@ def _get_next_monthly_time(
 
     try:
         tz = ZoneInfo(timezone)
-        return datetime.combine(target_date, datetime.min.time().replace(hour=start_hour)).replace(tzinfo=tz)
+        return datetime.combine(
+            target_date, datetime.min.time().replace(hour=start_hour)
+        ).replace(tzinfo=tz)
     except Exception:
-        return datetime.combine(target_date, datetime.min.time().replace(hour=start_hour))
+        return datetime.combine(
+            target_date, datetime.min.time().replace(hour=start_hour)
+        )
 
 
-def _get_default_next_time(
-    from_time: Optional[datetime],
-    timezone: str
-) -> datetime:
+def _get_default_next_time(from_time: Optional[datetime], timezone: str) -> datetime:
     """Get default next scheduled time (next business day at 9 AM)."""
     if from_time is None:
         from_time = datetime.now()
@@ -467,6 +484,8 @@ def _get_default_next_time(
     next_business = get_next_business_day(from_time.date(), timezone)
     try:
         tz = ZoneInfo(timezone)
-        return datetime.combine(next_business, datetime.min.time().replace(hour=9)).replace(tzinfo=tz)
+        return datetime.combine(
+            next_business, datetime.min.time().replace(hour=9)
+        ).replace(tzinfo=tz)
     except Exception:
         return datetime.combine(next_business, datetime.min.time().replace(hour=9))

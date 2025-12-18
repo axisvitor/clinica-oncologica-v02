@@ -1,4 +1,3 @@
-from typing import Any
 """
 AI Services Module
 ==================
@@ -118,7 +117,11 @@ __version__ = "2.0.0"  # Version 2.0 - Consolidated
 # Legacy function aliases
 get_ai_humanizer = get_ai_service  # AIService replaces AIHumanizer
 get_sentiment_analyzer = get_ai_service  # Sentiment analysis is now a method
-get_context_builder = lambda: PatientContext  # PatientContext is the builder
+
+
+def get_context_builder():
+    return PatientContext  # PatientContext is the builder
+
 
 # Legacy class aliases
 AIHumanizer = AIService  # Renamed to AIService

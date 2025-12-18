@@ -14,10 +14,7 @@ class MonitoringSettings(BaseAppSettings):
     # ============================================================================
     # Logging Configuration - Direct ENV names
     # ============================================================================
-    LOGGING_LEVEL: str = Field(
-        default="INFO",
-        description="Logging level"
-    )
+    LOGGING_LEVEL: str = Field(default="INFO", description="Logging level")
     LOG_FORMAT: str = Field(
         default="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         description="Log format",
@@ -31,8 +28,7 @@ class MonitoringSettings(BaseAppSettings):
         description="Enable request logging middleware (uses DEBUG level for routine operations)",
     )
     LOGGING_ENABLE_STACK_TRACES: bool = Field(
-        default=True,
-        description="Enable stack trace logging for errors"
+        default=True, description="Enable stack trace logging for errors"
     )
     LOGGING_DEDUPLICATION_WINDOW_SECONDS: int = Field(
         default=300,
@@ -43,8 +39,7 @@ class MonitoringSettings(BaseAppSettings):
     # Error Tracking Configuration - Direct ENV names
     # ============================================================================
     ERROR_ENABLE_TRACKING: bool = Field(
-        default=True,
-        description="Enable centralized error tracking and logging"
+        default=True, description="Enable centralized error tracking and logging"
     )
     ERROR_MAX_LOGS: int = Field(
         default=1000,
@@ -75,8 +70,7 @@ class MonitoringSettings(BaseAppSettings):
         description="Sentry traces sample rate (0.0-1.0). Higher in dev/staging, lower in production",
     )
     MONITORING_SENTRY_ENVIRONMENT: str = Field(
-        default="development",
-        description="Sentry environment name"
+        default="development", description="Sentry environment name"
     )
 
     # ============================================================================
@@ -113,12 +107,10 @@ class MonitoringSettings(BaseAppSettings):
     # Monitoring System Configuration - Direct ENV names
     # ============================================================================
     MONITORING_ENABLE_SERVICE: bool = Field(
-        default=True,
-        description="Enable comprehensive monitoring system"
+        default=True, description="Enable comprehensive monitoring system"
     )
     MONITORING_ENABLE_DEBUG: bool = Field(
-        default=False,
-        description="Enable monitoring debug mode"
+        default=False, description="Enable monitoring debug mode"
     )
     MONITORING_REDIS_HOST: str = Field(
         default="localhost", description="Redis host for monitoring"

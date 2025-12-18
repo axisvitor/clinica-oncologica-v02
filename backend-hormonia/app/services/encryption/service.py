@@ -57,7 +57,9 @@ class BaseEncryptionService:
     - Common utilities
     """
 
-    def __init__(self, algorithm: EncryptionAlgorithm = EncryptionAlgorithm.AES_256_GCM):
+    def __init__(
+        self, algorithm: EncryptionAlgorithm = EncryptionAlgorithm.AES_256_GCM
+    ):
         """
         Initialize base encryption service.
 
@@ -87,8 +89,8 @@ class BaseEncryptionService:
 
         if not master_key:
             # Generate a new key for development (NOT for production)
-            if self.settings.APP_ENVIRONMENT == 'development':
-                master_key = base64.b64encode(os.urandom(32)).decode('utf-8')
+            if self.settings.APP_ENVIRONMENT == "development":
+                master_key = base64.b64encode(os.urandom(32)).decode("utf-8")
                 logger.warning(
                     f"Generated development encryption key for {key_type}. "
                     f"Use proper key management in production!"
@@ -103,7 +105,7 @@ class BaseEncryptionService:
         master_key: str,
         salt: bytes,
         iterations: int = 100000,
-        key_length: int = 32
+        key_length: int = 32,
     ) -> bytes:
         """
         Derive encryption key using PBKDF2.
@@ -122,7 +124,7 @@ class BaseEncryptionService:
             length=key_length,
             salt=salt,
             iterations=iterations,
-            backend=self.backend
+            backend=self.backend,
         )
 
         key_bytes = master_key.encode() if isinstance(master_key, str) else master_key
@@ -150,7 +152,9 @@ class BaseEncryptionService:
 
         return True
 
-    def generate_hash(self, value: str, field_type: FieldType = FieldType.CUSTOM) -> str:
+    def generate_hash(
+        self, value: str, field_type: FieldType = FieldType.CUSTOM
+    ) -> str:
         """
         Generate searchable hash for a value.
 
@@ -194,7 +198,7 @@ class UnifiedEncryptionService(BaseEncryptionService):
     def __init__(
         self,
         algorithm: EncryptionAlgorithm = EncryptionAlgorithm.AES_256_GCM,
-        auto_initialize: bool = True
+        auto_initialize: bool = True,
     ):
         """
         Initialize unified encryption service.
@@ -225,8 +229,8 @@ class UnifiedEncryptionService(BaseEncryptionService):
         try:
             # PHI/LGPD encryption key (AES-256)
             master_key = self._get_encryption_key_env("PHI")
-            salt = b'hormonia_unified_salt_2025'
-            self._keys['phi'] = self._derive_key(master_key, salt)
+            salt = b"hormonia_unified_salt_2025"
+            self._keys["phi"] = self._derive_key(master_key, salt)
 
             # Quiz encryption key (Fernet)
             quiz_secret = (
@@ -234,7 +238,7 @@ class UnifiedEncryptionService(BaseEncryptionService):
                 or os.getenv("MONTHLY_QUIZ_TOKEN_SECRET")
                 or master_key
             )
-            self._keys['quiz'] = self._derive_fernet_key(quiz_secret)
+            self._keys["quiz"] = self._derive_fernet_key(quiz_secret)
 
             logger.info("Encryption keys initialized successfully")
 
@@ -266,19 +270,13 @@ class UnifiedEncryptionService(BaseEncryptionService):
     def _initialize_field_encryptors(self):
         """Initialize field-specific encryptors."""
         self._cpf_encryptor = CPFEncryptor(
-            self.encrypt_field,
-            self.decrypt_field,
-            self.generate_hash
+            self.encrypt_field, self.decrypt_field, self.generate_hash
         )
         self._email_encryptor = EmailEncryptor(
-            self.encrypt_field,
-            self.decrypt_field,
-            self.generate_hash
+            self.encrypt_field, self.decrypt_field, self.generate_hash
         )
         self._phone_encryptor = PhoneEncryptor(
-            self.encrypt_field,
-            self.decrypt_field,
-            self.generate_hash
+            self.encrypt_field, self.decrypt_field, self.generate_hash
         )
 
     # =========================================================================
@@ -289,7 +287,7 @@ class UnifiedEncryptionService(BaseEncryptionService):
         self,
         plaintext: str,
         field_type: FieldType = FieldType.PHI_GENERIC,
-        algorithm: Optional[EncryptionAlgorithm] = None
+        algorithm: Optional[EncryptionAlgorithm] = None,
     ) -> str:
         """
         Encrypt a single field value.
@@ -319,9 +317,7 @@ class UnifiedEncryptionService(BaseEncryptionService):
             raise
 
     def decrypt_field(
-        self,
-        encrypted: str,
-        field_type: FieldType = FieldType.PHI_GENERIC
+        self, encrypted: str, field_type: FieldType = FieldType.PHI_GENERIC
     ) -> str:
         """
         Decrypt a single field value.
@@ -335,14 +331,14 @@ class UnifiedEncryptionService(BaseEncryptionService):
         Returns:
             Decrypted plaintext
         """
-        if not encrypted or not encrypted.startswith('encrypted:'):
+        if not encrypted or not encrypted.startswith("encrypted:"):
             return encrypted
 
         try:
             # Detect algorithm by prefix
-            if ':gcm:' in encrypted:
+            if ":gcm:" in encrypted:
                 algo_impl = self._algorithms[EncryptionAlgorithm.AES_256_GCM]
-            elif ':fernet:' in encrypted:
+            elif ":fernet:" in encrypted:
                 algo_impl = self._algorithms[EncryptionAlgorithm.FERNET]
             else:
                 # Legacy CBC format: "encrypted:{base64}"
@@ -397,10 +393,19 @@ class UnifiedEncryptionService(BaseEncryptionService):
             Dictionary with encrypted PHI fields
         """
         phi_fields = [
-            'name', 'cpf', 'rg', 'email', 'phone',
-            'address', 'birth_date', 'medical_record_number',
-            'emergency_contact_name', 'emergency_contact_phone',
-            'insurance_number', 'diagnosis', 'medications'
+            "name",
+            "cpf",
+            "rg",
+            "email",
+            "phone",
+            "address",
+            "birth_date",
+            "medical_record_number",
+            "emergency_contact_name",
+            "emergency_contact_phone",
+            "insurance_number",
+            "diagnosis",
+            "medications",
         ]
 
         encrypted_data = patient_data.copy()
@@ -409,19 +414,17 @@ class UnifiedEncryptionService(BaseEncryptionService):
             if field in encrypted_data and encrypted_data[field]:
                 if isinstance(encrypted_data[field], str):
                     encrypted_data[field] = self.encrypt_field(
-                        encrypted_data[field],
-                        FieldType.PHI_GENERIC
+                        encrypted_data[field], FieldType.PHI_GENERIC
                     )
                 elif isinstance(encrypted_data[field], (dict, list)):
                     json_str = json.dumps(encrypted_data[field])
                     encrypted_data[field] = self.encrypt_field(
-                        json_str,
-                        FieldType.PHI_GENERIC
+                        json_str, FieldType.PHI_GENERIC
                     )
 
-        encrypted_data['__encrypted'] = True
-        encrypted_data['__encryption_version'] = '2.0'
-        encrypted_data['__encryption_algorithm'] = self.algorithm.value
+        encrypted_data["__encrypted"] = True
+        encrypted_data["__encryption_version"] = "2.0"
+        encrypted_data["__encryption_algorithm"] = self.algorithm.value
 
         return encrypted_data
 
@@ -435,14 +438,23 @@ class UnifiedEncryptionService(BaseEncryptionService):
         Returns:
             Dictionary with decrypted PHI fields
         """
-        if not encrypted_data.get('__encrypted'):
+        if not encrypted_data.get("__encrypted"):
             return encrypted_data
 
         phi_fields = [
-            'name', 'cpf', 'rg', 'email', 'phone',
-            'address', 'birth_date', 'medical_record_number',
-            'emergency_contact_name', 'emergency_contact_phone',
-            'insurance_number', 'diagnosis', 'medications'
+            "name",
+            "cpf",
+            "rg",
+            "email",
+            "phone",
+            "address",
+            "birth_date",
+            "medical_record_number",
+            "emergency_contact_name",
+            "emergency_contact_phone",
+            "insurance_number",
+            "diagnosis",
+            "medications",
         ]
 
         decrypted_data = encrypted_data.copy()
@@ -450,12 +462,11 @@ class UnifiedEncryptionService(BaseEncryptionService):
         for field in phi_fields:
             if field in decrypted_data and decrypted_data[field]:
                 decrypted_value = self.decrypt_field(
-                    decrypted_data[field],
-                    FieldType.PHI_GENERIC
+                    decrypted_data[field], FieldType.PHI_GENERIC
                 )
 
                 # Try to deserialize JSON
-                if decrypted_value.startswith(('[', '{')):
+                if decrypted_value.startswith(("[", "{")):
                     try:
                         decrypted_data[field] = json.loads(decrypted_value)
                     except json.JSONDecodeError:
@@ -464,9 +475,9 @@ class UnifiedEncryptionService(BaseEncryptionService):
                     decrypted_data[field] = decrypted_value
 
         # Remove encryption metadata
-        decrypted_data.pop('__encrypted', None)
-        decrypted_data.pop('__encryption_version', None)
-        decrypted_data.pop('__encryption_algorithm', None)
+        decrypted_data.pop("__encrypted", None)
+        decrypted_data.pop("__encryption_version", None)
+        decrypted_data.pop("__encryption_algorithm", None)
 
         return decrypted_data
 
@@ -490,10 +501,10 @@ class UnifiedEncryptionService(BaseEncryptionService):
         """
         try:
             # Store old key temporarily
-            old_key = self._keys['phi']
+            self._keys["phi"]
 
             # Derive new key
-            salt = b'hormonia_unified_salt_2025'
+            salt = b"hormonia_unified_salt_2025"
             new_key = self._derive_key(new_master_key, salt)
 
             # TODO: Implement batch re-encryption
@@ -503,7 +514,7 @@ class UnifiedEncryptionService(BaseEncryptionService):
             # 4. Only commit if all successful
 
             # Update to new key
-            self._keys['phi'] = new_key
+            self._keys["phi"] = new_key
 
             # Reinitialize algorithms with new key
             self._initialize_algorithms()

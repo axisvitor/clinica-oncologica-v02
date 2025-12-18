@@ -4,10 +4,9 @@ Middleware to catch and handle problematic requests before they reach endpoints.
 """
 
 import logging
-from fastapi import Request, Response
+from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from urllib.parse import parse_qs, urlparse
 import time
 
 logger = logging.getLogger(__name__)
@@ -16,7 +15,7 @@ logger = logging.getLogger(__name__)
 class RequestValidationMiddleware(BaseHTTPMiddleware):
     """
     Middleware to validate and sanitize request parameters before they reach endpoints.
-    
+
     This middleware specifically handles cases where invalid parameters are sent
     that would cause validation errors in FastAPI endpoints.
     """
@@ -28,15 +27,15 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         """Process request and validate parameters."""
         start_time = time.time()
-        
+
         # Check if this is a request to patients endpoint
         if "/api/v2/patients" in str(request.url.path):
             request = await self._validate_patients_request(request)
-        
+
         # Process the request
         try:
             response = await call_next(request)
-            
+
             # Log slow requests
             process_time = time.time() - start_time
             if process_time > 1.0:  # Log requests taking more than 1 second
@@ -44,24 +43,23 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
                     f"Slow request: {request.method} {request.url.path} "
                     f"took {process_time:.2f}s"
                 )
-            
+
             return response
-            
+
         except Exception as e:
             logger.error(f"Request processing error: {e}")
             return JSONResponse(
-                status_code=500,
-                content={"detail": "Internal server error"}
+                status_code=500, content={"detail": "Internal server error"}
             )
 
     async def _validate_patients_request(self, request: Request) -> Request:
         """Validate and sanitize patients endpoint requests."""
-        
+
         # Parse query parameters
         query_params = dict(request.query_params)
         original_params = query_params.copy()
         modified = False
-        
+
         # Validate and fix size parameter
         if "size" in query_params:
             try:
@@ -87,7 +85,7 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
                 )
                 query_params["size"] = "20"
                 modified = True
-        
+
         # Validate page parameter
         if "page" in query_params:
             try:
@@ -106,25 +104,25 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
                 )
                 query_params["page"] = "1"
                 modified = True
-        
+
         # If we modified parameters, create a new request with corrected query string
         if modified:
             logger.info(
                 f"Modified request parameters - Original: {original_params}, "
                 f"Corrected: {query_params}, Client: {request.client.host if request.client else 'unknown'}"
             )
-            
+
             # Rebuild query string
             new_query_string = "&".join([f"{k}={v}" for k, v in query_params.items()])
-            
+
             # Create new URL with corrected parameters
             url_parts = str(request.url).split("?")
             new_url = url_parts[0]
             if new_query_string:
                 new_url += "?" + new_query_string
-            
+
             # Update request scope with new query string
             request.scope["query_string"] = new_query_string.encode()
             request._query_params = None  # Reset cached query params
-        
+
         return request

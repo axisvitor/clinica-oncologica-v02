@@ -16,23 +16,22 @@ import logging
 import time
 import asyncio
 from typing import Optional, Any, Dict
-from contextlib import asynccontextmanager, contextmanager
-from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
 from app.core.redis_unified import get_sync_redis, get_async_redis
-from app.utils.cache import get_cache_manager
 
 logger = logging.getLogger(__name__)
 
 
 class LockAcquisitionError(Exception):
     """Raised when lock cannot be acquired."""
+
     pass
 
 
 class LockTimeoutError(Exception):
     """Raised when lock operation times out."""
+
     pass
 
 
@@ -56,7 +55,7 @@ class DistributedLock:
         lock_name: str,
         timeout: int = 30,
         blocking_timeout: Optional[int] = None,
-        namespace: str = "locks"
+        namespace: str = "locks",
     ):
         """
         Initialize distributed lock.
@@ -113,7 +112,7 @@ class DistributedLock:
                     self.lock_key,
                     self.owner_id,
                     ex=self.timeout,
-                    nx=True  # Only set if doesn't exist
+                    nx=True,  # Only set if doesn't exist
                 )
 
                 if acquired:
@@ -143,7 +142,7 @@ class DistributedLock:
                     )
 
                 # Wait before retry (exponential backoff with jitter)
-                wait_time = min(0.001 * (2 ** self._contention_count), 0.1)
+                wait_time = min(0.001 * (2**self._contention_count), 0.1)
                 time.sleep(wait_time)
 
         except Exception as e:
@@ -227,11 +226,7 @@ class DistributedLock:
             """
 
             result = redis_client.eval(
-                lua_script,
-                1,
-                self.lock_key,
-                self.owner_id,
-                additional_timeout
+                lua_script, 1, self.lock_key, self.owner_id, additional_timeout
             )
 
             return result == 1
@@ -274,7 +269,7 @@ class DistributedLock:
             "total_wait_time": self._total_wait_time,
             "average_wait_time": avg_wait_time,
             "is_acquired": self._acquired,
-            "timeout": self.timeout
+            "timeout": self.timeout,
         }
 
     def __enter__(self):
@@ -302,7 +297,7 @@ class AsyncDistributedLock:
         lock_name: str,
         timeout: int = 30,
         blocking_timeout: Optional[int] = None,
-        namespace: str = "locks"
+        namespace: str = "locks",
     ):
         """Initialize async distributed lock."""
         self.lock_name = lock_name
@@ -344,10 +339,7 @@ class AsyncDistributedLock:
         try:
             while True:
                 acquired = await redis_client.set(
-                    self.lock_key,
-                    self.owner_id,
-                    ex=self.timeout,
-                    nx=True
+                    self.lock_key, self.owner_id, ex=self.timeout, nx=True
                 )
 
                 if acquired:
@@ -373,7 +365,7 @@ class AsyncDistributedLock:
                         f"Failed to acquire async lock '{self.lock_name}' within {timeout}s"
                     )
 
-                wait_time = min(0.001 * (2 ** self._contention_count), 0.1)
+                wait_time = min(0.001 * (2**self._contention_count), 0.1)
                 await asyncio.sleep(wait_time)
 
         except Exception as e:
@@ -383,7 +375,9 @@ class AsyncDistributedLock:
     async def release(self) -> bool:
         """Release the distributed lock (async)."""
         if not self._acquired:
-            logger.warning(f"Attempted to release non-acquired async lock '{self.lock_name}'")
+            logger.warning(
+                f"Attempted to release non-acquired async lock '{self.lock_name}'"
+            )
             return False
 
         redis_client = await self._get_redis()
@@ -397,7 +391,9 @@ class AsyncDistributedLock:
             end
             """
 
-            result = await redis_client.eval(lua_script, 1, self.lock_key, self.owner_id)
+            result = await redis_client.eval(
+                lua_script, 1, self.lock_key, self.owner_id
+            )
 
             if result == 1:
                 self._acquired = False
@@ -438,11 +434,7 @@ class AsyncDistributedLock:
             """
 
             result = await redis_client.eval(
-                lua_script,
-                1,
-                self.lock_key,
-                self.owner_id,
-                additional_timeout
+                lua_script, 1, self.lock_key, self.owner_id, additional_timeout
             )
 
             return result == 1
@@ -475,13 +467,15 @@ class AsyncDistributedLock:
             "total_wait_time": self._total_wait_time,
             "average_wait_time": avg_wait_time,
             "is_acquired": self._acquired,
-            "timeout": self.timeout
+            "timeout": self.timeout,
         }
 
     async def __aenter__(self):
         """Async context manager entry - acquire lock."""
         if not await self.acquire(blocking=True):
-            raise LockAcquisitionError(f"Failed to acquire async lock '{self.lock_name}'")
+            raise LockAcquisitionError(
+                f"Failed to acquire async lock '{self.lock_name}'"
+            )
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -491,6 +485,7 @@ class AsyncDistributedLock:
 
 
 # Convenience functions for common locking patterns
+
 
 def flow_state_lock(patient_id: UUID, timeout: int = 30) -> DistributedLock:
     """
@@ -510,13 +505,13 @@ def flow_state_lock(patient_id: UUID, timeout: int = 30) -> DistributedLock:
             db.commit()
     """
     return DistributedLock(
-        lock_name=f"flow_state:{patient_id}",
-        timeout=timeout,
-        namespace="flow_locks"
+        lock_name=f"flow_state:{patient_id}", timeout=timeout, namespace="flow_locks"
     )
 
 
-async def async_flow_state_lock(patient_id: UUID, timeout: int = 30) -> AsyncDistributedLock:
+async def async_flow_state_lock(
+    patient_id: UUID, timeout: int = 30
+) -> AsyncDistributedLock:
     """
     Create an async distributed lock for flow state transitions.
 
@@ -534,9 +529,7 @@ async def async_flow_state_lock(patient_id: UUID, timeout: int = 30) -> AsyncDis
             await db.commit()
     """
     return AsyncDistributedLock(
-        lock_name=f"flow_state:{patient_id}",
-        timeout=timeout,
-        namespace="flow_locks"
+        lock_name=f"flow_state:{patient_id}", timeout=timeout, namespace="flow_locks"
     )
 
 
@@ -559,11 +552,13 @@ def message_delivery_lock(patient_id: UUID, timeout: int = 10) -> DistributedLoc
     return DistributedLock(
         lock_name=f"message_delivery:{patient_id}",
         timeout=timeout,
-        namespace="message_locks"
+        namespace="message_locks",
     )
 
 
-async def async_message_delivery_lock(patient_id: UUID, timeout: int = 10) -> AsyncDistributedLock:
+async def async_message_delivery_lock(
+    patient_id: UUID, timeout: int = 10
+) -> AsyncDistributedLock:
     """
     Create an async distributed lock for message delivery ordering.
 
@@ -582,5 +577,5 @@ async def async_message_delivery_lock(patient_id: UUID, timeout: int = 10) -> As
     return AsyncDistributedLock(
         lock_name=f"message_delivery:{patient_id}",
         timeout=timeout,
-        namespace="message_locks"
+        namespace="message_locks",
     )

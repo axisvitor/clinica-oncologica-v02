@@ -4,7 +4,6 @@ Monitoring System Manager.
 Central manager for all monitoring components with lifecycle management.
 """
 
-import asyncio
 import logging
 from typing import Optional, Dict, Any
 from datetime import datetime
@@ -78,7 +77,9 @@ class MonitoringManager:
     async def _initialize_redis(self) -> None:
         """Initialize Redis connection with proper fallback handling."""
         try:
-            logger.info("Attempting to connect to Redis for monitoring via unified client")
+            logger.info(
+                "Attempting to connect to Redis for monitoring via unified client"
+            )
 
             # Use unified Redis client
             self.redis_client = await get_async_redis()
@@ -90,7 +91,9 @@ class MonitoringManager:
         except Exception as e:
             logger.error(f"Redis connection failed for monitoring: {e}")
             self.redis_client = None
-            logger.warning("Continuing without Redis - some monitoring features will be limited")
+            logger.warning(
+                "Continuing without Redis - some monitoring features will be limited"
+            )
             if self.config.debug:
                 raise
 
@@ -109,8 +112,7 @@ class MonitoringManager:
         # Resource Monitor
         if self.config.resources.enabled:
             self.resource_monitor = ResourceMonitor(
-                self.redis_client,
-                self.config.resources.sample_interval
+                self.redis_client, self.config.resources.sample_interval
             )
             logger.info("Resource monitor initialized")
 
@@ -120,16 +122,20 @@ class MonitoringManager:
             logger.info("Business metrics collector initialized")
 
         # Real-time Dashboard
-        if self.config.dashboard.enabled and all([
-            self.apm_collector, self.db_monitor,
-            self.resource_monitor, self.business_metrics
-        ]):
+        if self.config.dashboard.enabled and all(
+            [
+                self.apm_collector,
+                self.db_monitor,
+                self.resource_monitor,
+                self.business_metrics,
+            ]
+        ):
             self.dashboard = RealTimeDashboard(
                 self.apm_collector,
                 self.db_monitor,
                 self.resource_monitor,
                 self.business_metrics,
-                self.redis_client
+                self.redis_client,
             )
             self.dashboard.update_interval = self.config.dashboard.update_interval
             logger.info("Real-time dashboard initialized")
@@ -140,16 +146,20 @@ class MonitoringManager:
             logger.info("Anomaly detector initialized")
 
         # Metrics Exporter
-        if self.config.export.enabled and all([
-            self.apm_collector, self.db_monitor,
-            self.resource_monitor, self.business_metrics
-        ]):
+        if self.config.export.enabled and all(
+            [
+                self.apm_collector,
+                self.db_monitor,
+                self.resource_monitor,
+                self.business_metrics,
+            ]
+        ):
             self.metrics_exporter = MetricsExporter(
                 self.apm_collector,
                 self.db_monitor,
                 self.resource_monitor,
                 self.business_metrics,
-                self.redis_client
+                self.redis_client,
             )
             self.metrics_exporter.export_interval = self.config.export.export_interval
             logger.info("Metrics exporter initialized")
@@ -160,7 +170,7 @@ class MonitoringManager:
                 None,  # App will be set later
                 self.apm_collector,
                 self.db_monitor,
-                self.business_metrics
+                self.business_metrics,
             )
             logger.info("Monitoring middleware initialized")
 
@@ -233,7 +243,9 @@ class MonitoringManager:
                     # Use aclose() for proper async cleanup (redis.asyncio)
                     await self.redis_client.aclose()
                 except Exception as redis_close_error:
-                    logger.error(f"Error closing monitoring Redis connection: {redis_close_error}")
+                    logger.error(
+                        f"Error closing monitoring Redis connection: {redis_close_error}"
+                    )
 
             self._started = False
             logger.info("Monitoring services stopped successfully")
@@ -254,8 +266,9 @@ class MonitoringManager:
             return self.middleware
         return None
 
-    async def process_metric_for_anomalies(self, metric_name: str, value: float,
-                                         timestamp: Optional[datetime] = None) -> None:
+    async def process_metric_for_anomalies(
+        self, metric_name: str, value: float, timestamp: Optional[datetime] = None
+    ) -> None:
         """Process a metric value through anomaly detection."""
         if self.anomaly_detector and self.config.anomaly_detection.enabled:
             await self.anomaly_detector.process_metric(metric_name, value, timestamp)
@@ -267,7 +280,7 @@ class MonitoringManager:
             "started": self._started,
             "enabled": self.config.enabled,
             "components": {},
-            "redis_connected": self.redis_client is not None
+            "redis_connected": self.redis_client is not None,
         }
 
         # Check component status
@@ -278,17 +291,23 @@ class MonitoringManager:
             ("business_metrics", self.business_metrics),
             ("dashboard", self.dashboard),
             ("anomaly_detector", self.anomaly_detector),
-            ("metrics_exporter", self.metrics_exporter)
+            ("metrics_exporter", self.metrics_exporter),
         ]
 
         for name, component in components:
             # Get component config
-            component_config = getattr(self.config, name, None) if hasattr(self.config, name) else None
-            is_enabled = getattr(component_config, "enabled", False) if component_config else False
+            component_config = (
+                getattr(self.config, name, None) if hasattr(self.config, name) else None
+            )
+            is_enabled = (
+                getattr(component_config, "enabled", False)
+                if component_config
+                else False
+            )
 
             status["components"][name] = {
                 "initialized": component is not None,
-                "enabled": is_enabled
+                "enabled": is_enabled,
             }
 
         return status
@@ -297,7 +316,7 @@ class MonitoringManager:
         """Get current system metrics from all collectors."""
         metrics = {
             "timestamp": datetime.utcnow().isoformat(),
-            "system_health": self.get_health_status()
+            "system_health": self.get_health_status(),
         }
 
         try:
@@ -310,14 +329,14 @@ class MonitoringManager:
                 metrics["database"] = {
                     "query_stats": self.db_monitor.get_query_stats(),
                     "connection_pool": self.db_monitor.get_connection_pool_stats(),
-                    "slow_queries": self.db_monitor.get_slow_queries(5)
+                    "slow_queries": self.db_monitor.get_slow_queries(5),
                 }
 
             # Resource metrics
             if self.resource_monitor:
                 metrics["resources"] = {
                     "current": self.resource_monitor.get_current_stats(),
-                    "historical": self.resource_monitor.get_historical_stats(60)
+                    "historical": self.resource_monitor.get_historical_stats(60),
                 }
 
             # Business metrics
@@ -328,7 +347,7 @@ class MonitoringManager:
             if self.anomaly_detector:
                 metrics["anomalies"] = {
                     "recent": self.anomaly_detector.get_recent_anomalies(24),
-                    "summary": self.anomaly_detector.get_anomaly_summary(24)
+                    "summary": self.anomaly_detector.get_anomaly_summary(24),
                 }
 
         except Exception as e:

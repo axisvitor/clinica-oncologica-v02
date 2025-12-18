@@ -14,6 +14,7 @@ from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
+
 class OptimizedRedisClient:
     """
     Production-ready Redis client with:
@@ -55,9 +56,9 @@ class OptimizedRedisClient:
                         socket_keepalive_options={
                             1: 1,  # TCP_KEEPIDLE
                             2: 3,  # TCP_KEEPINTVL
-                            3: 5   # TCP_KEEPCNT
+                            3: 5,  # TCP_KEEPCNT
                         },
-                        health_check_interval=30
+                        health_check_interval=30,
                     )
                     self._connection_pools[pool_key] = pool
                     logger.info(f"[OK] Redis pool created for thread {pool_key}")
@@ -65,7 +66,7 @@ class OptimizedRedisClient:
     @property
     def client(self) -> redis.Redis:
         """Get thread-local Redis client with connection pooling."""
-        if not hasattr(self._thread_local, 'client'):
+        if not hasattr(self._thread_local, "client"):
             pool_key = f"{threading.get_ident()}"
             pool = self._connection_pools.get(pool_key)
             if not pool:
@@ -73,8 +74,7 @@ class OptimizedRedisClient:
                 pool = self._connection_pools[pool_key]
 
             self._thread_local.client = redis.Redis(
-                connection_pool=pool,
-                decode_responses=True
+                connection_pool=pool, decode_responses=True
             )
         return self._thread_local.client
 
@@ -97,7 +97,9 @@ class OptimizedRedisClient:
 
         if self._failure_count >= 5:  # Open circuit after 5 failures
             self._circuit_breaker_open = True
-            logger.error(f"[CRITICAL] Circuit breaker opened after {self._failure_count} failures")
+            logger.error(
+                f"[CRITICAL] Circuit breaker opened after {self._failure_count} failures"
+            )
 
         logger.error(f"[ERROR] Redis operation failed: {error}")
 
@@ -254,21 +256,26 @@ class OptimizedRedisClient:
                 "in_use_connections": len(pool._in_use_connections),
                 "max_connections": pool.max_connections,
                 "circuit_breaker_open": self._circuit_breaker_open,
-                "failure_count": self._failure_count
+                "failure_count": self._failure_count,
             }
         return {}
 
     def cleanup(self):
         """Clean up thread-local resources."""
-        if hasattr(self._thread_local, 'client'):
+        if hasattr(self._thread_local, "client"):
             try:
                 self._thread_local.client.close()
                 del self._thread_local.client
             except Exception as e:
-                logger.warning(f"Failed to close Redis connection during cleanup: {e}", exc_info=True)
+                logger.warning(
+                    f"Failed to close Redis connection during cleanup: {e}",
+                    exc_info=True,
+                )
+
 
 # Global instance for singleton pattern
 _optimized_redis_client: Optional[OptimizedRedisClient] = None
+
 
 def get_optimized_redis() -> OptimizedRedisClient:
     """
@@ -279,6 +286,7 @@ def get_optimized_redis() -> OptimizedRedisClient:
     if _optimized_redis_client is None:
         _optimized_redis_client = OptimizedRedisClient()
     return _optimized_redis_client
+
 
 # Compatibility layer for easy migration
 def get_redis_client():

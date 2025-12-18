@@ -6,9 +6,8 @@ where multiple workers increment the same message's retry count.
 """
 
 import logging
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple
 from datetime import datetime, timedelta
-from uuid import UUID
 
 from redis.asyncio import Redis
 from sqlalchemy.orm import Session
@@ -71,9 +70,7 @@ class AtomicRetryCounter:
         return f"retry:lock:{message_id}"
 
     async def atomic_increment_retry(
-        self,
-        message_id: str,
-        max_retries: int = 5
+        self, message_id: str, max_retries: int = 5
     ) -> Tuple[bool, int]:
         """
         Atomically increment retry count.
@@ -94,10 +91,7 @@ class AtomicRetryCounter:
 
         key = self._retry_key(message_id)
         new_count = await self.redis.evalsha(
-            self._increment_sha,
-            1,
-            key,
-            str(max_retries)
+            self._increment_sha, 1, key, str(max_retries)
         )
 
         if new_count == -1:
@@ -122,9 +116,7 @@ class AtomicRetryCounter:
         return int(count) if count else 0
 
     async def sync_to_database(
-        self,
-        message_id: str,
-        failed_message: FailedMessage
+        self, message_id: str, failed_message: FailedMessage
     ) -> None:
         """
         Sync Redis retry count to database.
@@ -143,10 +135,7 @@ class AtomicRetryCounter:
             logger.debug(f"Synced retry count {count} to database for {message_id}")
 
     async def atomic_try_process(
-        self,
-        message_id: str,
-        max_retries: int = 5,
-        lock_ttl: int = 120
+        self, message_id: str, max_retries: int = 5, lock_ttl: int = 120
     ) -> Tuple[bool, int, Optional[str]]:
         """
         Attempt to process message with atomic retry increment.
@@ -171,7 +160,9 @@ class AtomicRetryCounter:
             # Acquire distributed lock
             async with acquire_lock(lock_key, timeout=5.0, ttl=lock_ttl) as lock_id:
                 # Atomically increment retry count
-                success, count = await self.atomic_increment_retry(message_id, max_retries)
+                success, count = await self.atomic_increment_retry(
+                    message_id, max_retries
+                )
 
                 if not success:
                     return False, count, None
@@ -182,7 +173,9 @@ class AtomicRetryCounter:
                 return True, count, lock_id
 
         except LockAcquisitionError:
-            logger.info(f"Message {message_id} already being processed by another worker")
+            logger.info(
+                f"Message {message_id} already being processed by another worker"
+            )
             return False, -1, None
 
     async def reset_retry_count(self, message_id: str) -> None:
@@ -199,9 +192,7 @@ class AtomicRetryCounter:
         logger.debug(f"Reset retry count for {message_id}")
 
     async def mark_max_retries_exceeded(
-        self,
-        message_id: str,
-        failed_message: FailedMessage
+        self, message_id: str, failed_message: FailedMessage
     ) -> None:
         """
         Mark message as having exceeded max retries.
@@ -221,11 +212,14 @@ class AtomicRetryCounter:
             AND status != :status
         """)
 
-        self.db.execute(stmt, {
-            "status": DLQStatus.MAX_RETRIES_EXCEEDED.value,
-            "now": datetime.utcnow(),
-            "message_id": message_id
-        })
+        self.db.execute(
+            stmt,
+            {
+                "status": DLQStatus.MAX_RETRIES_EXCEEDED.value,
+                "now": datetime.utcnow(),
+                "message_id": message_id,
+            },
+        )
         self.db.commit()
 
         logger.warning(f"Message {message_id} marked as max retries exceeded")
@@ -290,10 +284,7 @@ class AtomicRetryScheduler:
         return f"retry:schedule:{message_id}"
 
     async def atomic_schedule_retry(
-        self,
-        message_id: str,
-        delay_seconds: int,
-        expected_status: str = "pending"
+        self, message_id: str, delay_seconds: int, expected_status: str = "pending"
     ) -> bool:
         """
         Atomically schedule a retry.
@@ -310,15 +301,13 @@ class AtomicRetryScheduler:
         """
         await self._ensure_scripts_loaded()
 
-        schedule_time = (datetime.utcnow() + timedelta(seconds=delay_seconds)).isoformat()
+        schedule_time = (
+            datetime.utcnow() + timedelta(seconds=delay_seconds)
+        ).isoformat()
         key = self._schedule_key(message_id)
 
         result = await self.redis.evalsha(
-            self._schedule_sha,
-            1,
-            key,
-            schedule_time,
-            expected_status
+            self._schedule_sha, 1, key, schedule_time, expected_status
         )
 
         if result == 1:
@@ -345,7 +334,7 @@ class AtomicRetryScheduler:
 
         async for key in self.redis.scan_iter(match="retry:schedule:*"):
             if isinstance(key, bytes):
-                key = key.decode('utf-8')
+                key = key.decode("utf-8")
 
             schedule_data = await self.redis.hgetall(key)
             if not schedule_data:
@@ -353,7 +342,9 @@ class AtomicRetryScheduler:
 
             # Decode bytes
             if isinstance(list(schedule_data.keys())[0], bytes):
-                schedule_data = {k.decode(): v.decode() for k, v in schedule_data.items()}
+                schedule_data = {
+                    k.decode(): v.decode() for k, v in schedule_data.items()
+                }
 
             scheduled_at = schedule_data.get("scheduled_at")
             if not scheduled_at:

@@ -5,11 +5,14 @@ Manages message composition, personalization, and delivery for quiz interactions
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Optional, TYPE_CHECKING
 from datetime import datetime
 from enum import Enum
 
 from sqlalchemy.orm import Session
+
+if TYPE_CHECKING:
+    from app.domain.agents.quiz.session_coordinator import QuizContext
 
 from app.models.message import Message, MessageType, MessageDirection, MessageStatus
 from app.domain.messaging.delivery import MessageSender
@@ -17,6 +20,7 @@ from app.domain.messaging.delivery import MessageSender
 
 class QuizAdaptationType(Enum):
     """Types of quiz adaptations."""
+
     REDUCE_COMPLEXITY = "reduce_complexity"
     INCREASE_SUPPORT = "increase_support"
     FOCUS_ON_MOOD = "focus_on_mood"
@@ -37,14 +41,22 @@ class NotificationManager:
     - Personalize message tone based on context
     """
 
-    def __init__(self, db_session: Session, message_sender: MessageSender, agent_id: str, logger: Optional[logging.Logger] = None):
+    def __init__(
+        self,
+        db_session: Session,
+        message_sender: MessageSender,
+        agent_id: str,
+        logger: Optional[logging.Logger] = None,
+    ):
         """Initialize notification manager."""
         self.db_session = db_session
         self.message_sender = message_sender
         self.agent_id = agent_id
         self.logger = logger or logging.getLogger(__name__)
 
-    async def send_quiz_introduction(self, context: 'QuizContext', max_questions: int, stress_threshold: float):
+    async def send_quiz_introduction(
+        self, context: "QuizContext", max_questions: int, stress_threshold: float
+    ):
         """Send personalized quiz introduction."""
         try:
             patient_name = context.patient_data.name
@@ -83,10 +95,10 @@ class NotificationManager:
                     "message_type": "quiz_introduction",
                     "intro_tone": intro_tone,
                     "generated_by": self.agent_id,
-                    "swarm_context": True
+                    "swarm_context": True,
                 },
                 status=MessageStatus.PENDING,
-                scheduled_for=datetime.utcnow()
+                scheduled_for=datetime.utcnow(),
             )
 
             self.db_session.add(message)
@@ -98,7 +110,7 @@ class NotificationManager:
         except Exception as e:
             self.logger.error(f"Failed to send quiz introduction: {e}")
 
-    async def send_completion_message(self, context: 'QuizContext'):
+    async def send_completion_message(self, context: "QuizContext"):
         """Send personalized completion message."""
         try:
             patient_name = context.patient_data.name
@@ -125,11 +137,11 @@ class NotificationManager:
                     "session_summary": {
                         "questions_completed": len(context.responses_so_far),
                         "adaptations_made": len(context.adaptation_history),
-                        "engagement_score": context.engagement_score
-                    }
+                        "engagement_score": context.engagement_score,
+                    },
                 },
                 status=MessageStatus.PENDING,
-                scheduled_for=datetime.utcnow()
+                scheduled_for=datetime.utcnow(),
             )
 
             self.db_session.add(message)
@@ -140,7 +152,9 @@ class NotificationManager:
         except Exception as e:
             self.logger.error(f"Failed to send completion message: {e}")
 
-    async def send_clarification_message(self, context: 'QuizContext', error_message: str):
+    async def send_clarification_message(
+        self, context: "QuizContext", error_message: str
+    ):
         """Send clarification message for unclear response."""
         try:
             clarification = f"Desculpe {context.patient_data.name}, {error_message}\n\nVamos tentar novamente? 😊"
@@ -153,10 +167,10 @@ class NotificationManager:
                 message_metadata={
                     "quiz_session_id": str(context.session.id),
                     "message_type": "quiz_clarification",
-                    "generated_by": self.agent_id
+                    "generated_by": self.agent_id,
                 },
                 status=MessageStatus.PENDING,
-                scheduled_for=datetime.utcnow()
+                scheduled_for=datetime.utcnow(),
             )
 
             self.db_session.add(message)
@@ -167,7 +181,9 @@ class NotificationManager:
         except Exception as e:
             self.logger.error(f"Failed to send clarification message: {e}")
 
-    async def send_adaptation_message(self, context: 'QuizContext', adaptation: QuizAdaptationType):
+    async def send_adaptation_message(
+        self, context: "QuizContext", adaptation: QuizAdaptationType
+    ):
         """Send adaptation message based on adaptation type."""
         adaptation_message = None
 
@@ -194,10 +210,10 @@ class NotificationManager:
                     "quiz_session_id": str(context.session.id),
                     "message_type": "quiz_adaptation",
                     "adaptation_type": adaptation.value,
-                    "generated_by": self.agent_id
+                    "generated_by": self.agent_id,
                 },
                 status=MessageStatus.PENDING,
-                scheduled_for=datetime.utcnow()
+                scheduled_for=datetime.utcnow(),
             )
 
             self.db_session.add(message)
@@ -205,7 +221,9 @@ class NotificationManager:
 
             await self.message_sender.send_message(message)
 
-    def get_adaptation_reason(self, context: 'QuizContext', adaptation: QuizAdaptationType) -> str:
+    def get_adaptation_reason(
+        self, context: "QuizContext", adaptation: QuizAdaptationType
+    ) -> str:
         """Get reason for adaptation."""
         if adaptation == QuizAdaptationType.REDUCE_COMPLEXITY:
             return f"High stress level detected: {context.stress_level:.2f}"

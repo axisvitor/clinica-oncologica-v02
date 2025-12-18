@@ -3,9 +3,9 @@ Bulk operations for user administration.
 
 Handles bulk activation, deactivation, and deletion of users.
 """
+
 import logging
 from typing import Optional
-from uuid import UUID
 from sqlalchemy import and_
 from fastapi import HTTPException, status
 
@@ -22,7 +22,7 @@ class BulkOperationsMixin:
         self,
         bulk_request: BulkUserOperationRequest,
         admin_user: User,
-        request_info: Optional[dict] = None
+        request_info: Optional[dict] = None,
     ) -> BulkUserOperationResult:
         """
         Perform bulk operations on multiple users.
@@ -45,53 +45,74 @@ class BulkOperationsMixin:
             try:
                 user = await self.get_user_by_id(user_id)
                 if not user:
-                    failed.append({
-                        "user_id": str(user_id),
-                        "reason": "User not found"
-                    })
+                    failed.append({"user_id": str(user_id), "reason": "User not found"})
                     continue
 
                 # Perform the operation
                 if bulk_request.operation == "activate":
                     if user.is_active:
-                        failed.append({
-                            "user_id": str(user_id),
-                            "reason": "User is already active"
-                        })
+                        failed.append(
+                            {
+                                "user_id": str(user_id),
+                                "reason": "User is already active",
+                            }
+                        )
                         continue
                     user.is_active = True
 
                 elif bulk_request.operation == "deactivate":
                     if user.role == UserRole.ADMIN:
-                        admin_count = self.db.query(User).filter(
-                            and_(User.role == UserRole.ADMIN, User.is_active == True, User.id != user_id)
-                        ).count()
+                        admin_count = (
+                            self.db.query(User)
+                            .filter(
+                                and_(
+                                    User.role == UserRole.ADMIN,
+                                    User.is_active,
+                                    User.id != user_id,
+                                )
+                            )
+                            .count()
+                        )
                         if admin_count == 0:
-                            failed.append({
-                                "user_id": str(user_id),
-                                "reason": "Cannot deactivate the last active admin user"
-                            })
+                            failed.append(
+                                {
+                                    "user_id": str(user_id),
+                                    "reason": "Cannot deactivate the last active admin user",
+                                }
+                            )
                             continue
 
                     if not user.is_active:
-                        failed.append({
-                            "user_id": str(user_id),
-                            "reason": "User is already inactive"
-                        })
+                        failed.append(
+                            {
+                                "user_id": str(user_id),
+                                "reason": "User is already inactive",
+                            }
+                        )
                         continue
                     user.is_active = False
 
                 elif bulk_request.operation == "delete":
                     # Prevent deleting the last admin
                     if user.role == UserRole.ADMIN:
-                        admin_count = self.db.query(User).filter(
-                            and_(User.role == UserRole.ADMIN, User.is_active == True, User.id != user_id)
-                        ).count()
+                        admin_count = (
+                            self.db.query(User)
+                            .filter(
+                                and_(
+                                    User.role == UserRole.ADMIN,
+                                    User.is_active,
+                                    User.id != user_id,
+                                )
+                            )
+                            .count()
+                        )
                         if admin_count == 0:
-                            failed.append({
-                                "user_id": str(user_id),
-                                "reason": "Cannot delete the last active admin user"
-                            })
+                            failed.append(
+                                {
+                                    "user_id": str(user_id),
+                                    "reason": "Cannot delete the last active admin user",
+                                }
+                            )
                             continue
 
                     # Soft delete
@@ -100,10 +121,7 @@ class BulkOperationsMixin:
                 successful.append(user_id)
 
             except Exception as e:
-                failed.append({
-                    "user_id": str(user_id),
-                    "reason": f"Error: {str(e)}"
-                })
+                failed.append({"user_id": str(user_id), "reason": f"Error: {str(e)}"})
 
         try:
             self.db.commit()
@@ -119,8 +137,8 @@ class BulkOperationsMixin:
                     "failed_count": len(failed),
                     "reason": bulk_request.reason,
                     "successful_ids": [str(uid) for uid in successful],
-                    "failed_details": failed
-                }
+                    "failed_details": failed,
+                },
             )
 
             summary = f"Bulk {bulk_request.operation}: {len(successful)} successful, {len(failed)} failed"
@@ -131,7 +149,7 @@ class BulkOperationsMixin:
                 total_requested=len(bulk_request.user_ids),
                 successful=successful,
                 failed=failed,
-                summary=summary
+                summary=summary,
             )
 
         except Exception as e:
@@ -142,12 +160,12 @@ class BulkOperationsMixin:
                 action_data={
                     "reason": "database_error",
                     "error": str(e),
-                    "operation": bulk_request.operation
+                    "operation": bulk_request.operation,
                 },
-                result="failure"
+                result="failure",
             )
             logger.error(f"Failed bulk {bulk_request.operation}: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to perform bulk {bulk_request.operation}"
+                detail=f"Failed to perform bulk {bulk_request.operation}",
             )

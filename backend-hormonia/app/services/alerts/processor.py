@@ -6,9 +6,12 @@ debouncing, notification, and lifecycle management.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Optional, TYPE_CHECKING
 from uuid import UUID
 from datetime import datetime, timedelta
+
+if TYPE_CHECKING:
+    from .notification_dispatcher import NotificationDispatcher
 
 from .types import (
     Alert,

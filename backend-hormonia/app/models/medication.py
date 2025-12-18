@@ -1,21 +1,17 @@
 """
 Medication model for patient medications.
 """
-from datetime import date, datetime
-from typing import TYPE_CHECKING, Optional
-from uuid import UUID
-from decimal import Decimal
 
-from sqlalchemy import Column, String, Date, DateTime, ForeignKey, Text, Boolean, Numeric, Integer
+from typing import TYPE_CHECKING
+
+from sqlalchemy import Column, String, Date, ForeignKey, Text, Boolean, Numeric, Integer
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import relationship
 
 from app.models.base import BaseModel
 
 if TYPE_CHECKING:
-    from app.models.patient import Patient
-    from app.models.user import User
-    from app.models.treatment import Treatment
+    pass
 
 
 class Medication(BaseModel):
@@ -27,12 +23,28 @@ class Medication(BaseModel):
     - prescribed_by: Many-to-one with User (joinedload)
     - treatment: Many-to-one with Treatment (joinedload)
     """
+
     __tablename__ = "medications"
 
     # Foreign Keys
-    patient_id = Column(PGUUID(as_uuid=True), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
-    prescribed_by_id = Column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
-    treatment_id = Column(PGUUID(as_uuid=True), ForeignKey("treatments.id", ondelete="SET NULL"), nullable=True, index=True)
+    patient_id = Column(
+        PGUUID(as_uuid=True),
+        ForeignKey("patients.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    prescribed_by_id = Column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    treatment_id = Column(
+        PGUUID(as_uuid=True),
+        ForeignKey("treatments.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     # Medication Details
     name = Column(String(200), nullable=False)
@@ -63,7 +75,12 @@ class Medication(BaseModel):
 
     # Relationships (optimized for eager loading)
     patient = relationship("Patient", back_populates="medications", lazy="select")
-    prescribed_by = relationship("User", back_populates="medications_prescribed", foreign_keys=[prescribed_by_id], lazy="select")
+    prescribed_by = relationship(
+        "User",
+        back_populates="medications_prescribed",
+        foreign_keys=[prescribed_by_id],
+        lazy="select",
+    )
     treatment = relationship("Treatment", back_populates="medications", lazy="select")
 
     def __repr__(self) -> str:

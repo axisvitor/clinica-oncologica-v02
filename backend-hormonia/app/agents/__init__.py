@@ -6,7 +6,7 @@ for patient care, flow management, and quiz orchestration.
 
 Agents are organized into specialized categories:
 - patient/: Agents focused on patient monitoring and care
-- communication/: Agents handling messages, quiz, and interactions  
+- communication/: Agents handling messages, quiz, and interactions
 - analytics/: Agents for data analysis and insights
 
 All agents inherit from BaseAgent and participate in swarm coordination.
@@ -21,5 +21,5 @@ __all__ = [
     "BaseAgent",
     "FlowCoordinatorAgent",
     "MessageComposerAgent",
-    "ResponseProcessorAgent"
+    "ResponseProcessorAgent",
 ]

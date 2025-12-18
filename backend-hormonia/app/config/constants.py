@@ -233,22 +233,22 @@ class RetryScheduleConfig:
 class RegexPatterns:
     """Centralized regex patterns for validation."""
 
-    CPF_REGEX: Final[re.Pattern] = re.compile(r'^\d{11}$')
+    CPF_REGEX: Final[re.Pattern] = re.compile(r"^\d{11}$")
     """Brazilian CPF pattern (11 digits)"""
 
-    CPF_CLEAN_REGEX: Final[re.Pattern] = re.compile(r'[^0-9]')
+    CPF_CLEAN_REGEX: Final[re.Pattern] = re.compile(r"[^0-9]")
     """Pattern to remove non-digits from CPF"""
 
-    PHONE_REGEX: Final[re.Pattern] = re.compile(r'^\+?[1-9]\d{1,14}$')
+    PHONE_REGEX: Final[re.Pattern] = re.compile(r"^\+?[1-9]\d{1,14}$")
     """International phone number pattern (E.164 format)"""
 
     EMAIL_REGEX: Final[re.Pattern] = re.compile(
-        r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
     )
     """Email validation pattern"""
 
     # Brazilian phone patterns
-    BR_PHONE_DIGITS_ONLY: Final[re.Pattern] = re.compile(r'\D')
+    BR_PHONE_DIGITS_ONLY: Final[re.Pattern] = re.compile(r"\D")
     """Pattern to extract only digits from phone numbers"""
 
 

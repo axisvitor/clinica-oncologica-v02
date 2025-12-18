@@ -5,7 +5,6 @@ Enhanced authentication models with field selection and eager loading support.
 
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from uuid import UUID
 from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 
 from .common import CursorPaginatedResponse
@@ -14,6 +13,7 @@ from .common import CursorPaginatedResponse
 # ============================================================================
 # User Role & Permissions
 # ============================================================================
+
 
 class RoleV2Brief(BaseModel):
     """Brief role information for user response"""
@@ -29,19 +29,26 @@ class RoleV2Brief(BaseModel):
 # User Preferences
 # ============================================================================
 
+
 class UserPreferencesV2(BaseModel):
     """User preferences schema for V2 API"""
 
     notification_email: bool = Field(True, description="Enable email notifications")
     notification_sms: bool = Field(True, description="Enable SMS notifications")
-    notification_whatsapp: bool = Field(True, description="Enable WhatsApp notifications")
+    notification_whatsapp: bool = Field(
+        True, description="Enable WhatsApp notifications"
+    )
     language: str = Field("pt-BR", description="Preferred language (ISO 639-1)")
     timezone: str = Field("America/Sao_Paulo", description="User timezone (IANA)")
     theme: str = Field("light", description="UI theme preference")
-    dashboard_widgets: Optional[Dict[str, Any]] = Field(None, description="Dashboard widget configuration")
+    dashboard_widgets: Optional[Dict[str, Any]] = Field(
+        None, description="Dashboard widget configuration"
+    )
     email_digest_frequency: str = Field("daily", description="Email digest frequency")
     data_sharing_consent: bool = Field(True, description="Data sharing consent")
-    marketing_consent: bool = Field(False, description="Marketing communications consent")
+    marketing_consent: bool = Field(
+        False, description="Marketing communications consent"
+    )
 
     @field_validator("language")
     @classmethod
@@ -68,9 +75,7 @@ class UserPreferencesV2(BaseModel):
         return v
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "notification_email": True,
                 "notification_sms": True,
@@ -80,7 +85,7 @@ class UserPreferencesV2(BaseModel):
                 "theme": "dark",
                 "email_digest_frequency": "weekly",
                 "data_sharing_consent": True,
-                "marketing_consent": False
+                "marketing_consent": False,
             }
         }
     )
@@ -101,13 +106,11 @@ class UserPreferencesV2Update(BaseModel):
     marketing_consent: Optional[bool] = None
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "theme": "dark",
                 "language": "en-US",
-                "email_digest_frequency": "weekly"
+                "email_digest_frequency": "weekly",
             }
         }
     )
@@ -121,17 +124,15 @@ class UserPreferencesV2Response(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "user_id": "123e4567-e89b-12d3-a456-426614174000",
                 "preferences": {
                     "notification_email": True,
                     "theme": "dark",
-                    "language": "pt-BR"
+                    "language": "pt-BR",
                 },
-                "updated_at": "2025-11-07T10:30:00Z"
+                "updated_at": "2025-11-07T10:30:00Z",
             }
         }
     )
@@ -141,17 +142,22 @@ class UserPreferencesV2Response(BaseModel):
 # Notifications
 # ============================================================================
 
+
 class NotificationV2Response(BaseModel):
     """Notification response schema for V2 API"""
 
     id: str
     title: str = Field(..., max_length=200)
     message: str = Field(..., max_length=2000)
-    type: str = Field(..., description="Notification type: info, warning, error, success")
+    type: str = Field(
+        ..., description="Notification type: info, warning, error, success"
+    )
     read: bool = Field(False, description="Read status")
     created_at: datetime
     updated_at: Optional[datetime] = None
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional notification metadata")
+    metadata: Optional[Dict[str, Any]] = Field(
+        None, description="Additional notification metadata"
+    )
     action_url: Optional[str] = Field(None, description="URL for notification action")
 
     @field_validator("type")
@@ -164,7 +170,7 @@ class NotificationV2Response(BaseModel):
 
     model_config = ConfigDict(
         from_attributes=True,
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "id": "notif_123abc",
                 "title": "New message received",
@@ -172,9 +178,9 @@ class NotificationV2Response(BaseModel):
                 "type": "info",
                 "read": False,
                 "created_at": "2025-11-07T09:00:00Z",
-                "action_url": "/messages/msg_456def"
+                "action_url": "/messages/msg_456def",
             }
-        }
+        },
     )
 
 
@@ -184,9 +190,7 @@ class NotificationV2List(CursorPaginatedResponse[NotificationV2Response]):
     unread_count: int = Field(0, description="Total unread notifications")
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "data": [
                     {
@@ -195,13 +199,13 @@ class NotificationV2List(CursorPaginatedResponse[NotificationV2Response]):
                         "message": "You have a new message",
                         "type": "info",
                         "read": False,
-                        "created_at": "2025-11-07T09:00:00Z"
+                        "created_at": "2025-11-07T09:00:00Z",
                     }
                 ],
                 "next_cursor": "eyJpZCI6Im5vdGlmXzEyMyJ9",
                 "has_more": True,
                 "total": 45,
-                "unread_count": 12
+                "unread_count": 12,
             }
         }
     )
@@ -213,12 +217,8 @@ class NotificationMarkReadRequest(BaseModel):
     notification_ids: List[str] = Field(..., min_length=1, max_length=100)
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
-            "example": {
-                "notification_ids": ["notif_123", "notif_456", "notif_789"]
-            }
+        json_schema_extra={
+            "example": {"notification_ids": ["notif_123", "notif_456", "notif_789"]}
         }
     )
 
@@ -230,20 +230,14 @@ class NotificationMarkReadResponse(BaseModel):
     success: bool = True
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
-            "example": {
-                "marked_count": 3,
-                "success": True
-            }
-        }
+        json_schema_extra={"example": {"marked_count": 3, "success": True}}
     )
 
 
 # ============================================================================
 # User Base Models
 # ============================================================================
+
 
 class UserV2Base(BaseModel):
     """Base user schema with common fields"""
@@ -268,15 +262,13 @@ class UserV2Create(UserV2Base):
     is_active: bool = Field(True, description="Account active status")
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "email": "doctor@example.com",
                 "full_name": "Dr. Maria Silva",
                 "role": "doctor",
                 "password": "SecureP@ssw0rd",
-                "is_active": True
+                "is_active": True,
             }
         }
     )
@@ -291,13 +283,8 @@ class UserV2Update(BaseModel):
     is_active: Optional[bool] = None
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
-            "example": {
-                "full_name": "Dr. Maria Silva Santos",
-                "is_active": True
-            }
+        json_schema_extra={
+            "example": {"full_name": "Dr. Maria Silva Santos", "is_active": True}
         }
     )
 
@@ -312,16 +299,24 @@ class UserV2Response(UserV2Base):
     last_login: Optional[datetime] = Field(None, description="Last login timestamp")
 
     # Optional eager-loaded relationships
-    role_details: Optional[RoleV2Brief] = Field(None, description="Detailed role information")
-    preferences: Optional[UserPreferencesV2] = Field(None, description="User preferences")
+    role_details: Optional[RoleV2Brief] = Field(
+        None, description="Detailed role information"
+    )
+    preferences: Optional[UserPreferencesV2] = Field(
+        None, description="User preferences"
+    )
 
     # Computed fields
-    patient_count: Optional[int] = Field(None, description="Number of patients (for doctors)")
-    notification_count: Optional[int] = Field(None, description="Unread notification count")
+    patient_count: Optional[int] = Field(
+        None, description="Number of patients (for doctors)"
+    )
+    notification_count: Optional[int] = Field(
+        None, description="Unread notification count"
+    )
 
     model_config = ConfigDict(
         from_attributes=True,
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "email": "doctor@example.com",
@@ -332,9 +327,9 @@ class UserV2Response(UserV2Base):
                 "updated_at": "2025-11-07T09:00:00Z",
                 "last_login": "2025-11-07T08:30:00Z",
                 "patient_count": 45,
-                "notification_count": 3
+                "notification_count": 3,
             }
-        }
+        },
     )
 
 
@@ -342,9 +337,7 @@ class UserV2List(CursorPaginatedResponse[UserV2Response]):
     """Paginated list of users"""
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "data": [
                     {
@@ -354,12 +347,12 @@ class UserV2List(CursorPaginatedResponse[UserV2Response]):
                         "role": "doctor",
                         "is_active": True,
                         "created_at": "2025-01-01T10:00:00Z",
-                        "updated_at": "2025-11-07T09:00:00Z"
+                        "updated_at": "2025-11-07T09:00:00Z",
                     }
                 ],
                 "next_cursor": "eyJpZCI6IjEyM2U0NTY3In0=",
                 "has_more": True,
-                "total": 120
+                "total": 120,
             }
         }
     )
@@ -368,6 +361,7 @@ class UserV2List(CursorPaginatedResponse[UserV2Response]):
 # ============================================================================
 # Session Management
 # ============================================================================
+
 
 class SessionV2Response(BaseModel):
     """Active session information"""
@@ -383,9 +377,7 @@ class SessionV2Response(BaseModel):
     user: Optional["UserV2Response"] = None
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "session_id": "sess_abc123def456",
                 "user_id": "123e4567-e89b-12d3-a456-426614174000",
@@ -393,7 +385,7 @@ class SessionV2Response(BaseModel):
                 "expires_at": "2025-11-08T08:00:00Z",
                 "ip_address": "192.168.1.100",
                 "user_agent": "Mozilla/5.0...",
-                "is_current": True
+                "is_current": True,
             }
         }
     )
@@ -406,19 +398,17 @@ class SessionV2List(BaseModel):
     total: int
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "sessions": [
                     {
                         "session_id": "sess_abc123",
                         "user_id": "123e4567-e89b-12d3-a456-426614174000",
                         "created_at": "2025-11-07T08:00:00Z",
-                        "is_current": True
+                        "is_current": True,
                     }
                 ],
-                "total": 1
+                "total": 1,
             }
         }
     )
@@ -430,13 +420,7 @@ class SessionRevokeRequest(BaseModel):
     session_id: str = Field(..., description="Session ID to revoke")
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
-            "example": {
-                "session_id": "sess_abc123def456"
-            }
-        }
+        json_schema_extra={"example": {"session_id": "sess_abc123def456"}}
     )
 
 
@@ -448,13 +432,11 @@ class SessionRevokeResponse(BaseModel):
     message: str = "Session revoked successfully"
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "session_id": "sess_abc123",
                 "revoked": True,
-                "message": "Session revoked successfully"
+                "message": "Session revoked successfully",
             }
         }
     )
@@ -464,18 +446,15 @@ class SessionRevokeResponse(BaseModel):
 # Authentication (Firebase-based)
 # ============================================================================
 
+
 class FirebaseTokenVerifyRequest(BaseModel):
     """Request to verify Firebase ID token"""
 
     id_token: str = Field(..., description="Firebase ID token from client")
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
-            "example": {
-                "id_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjFlOWdkazcifQ..."
-            }
+        json_schema_extra={
+            "example": {"id_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjFlOWdkazcifQ..."}
         }
     )
 
@@ -489,18 +468,16 @@ class FirebaseTokenVerifyResponse(BaseModel):
     message: Optional[str] = None
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "valid": True,
                 "user": {
                     "id": "123e4567-e89b-12d3-a456-426614174000",
                     "email": "doctor@example.com",
                     "full_name": "Dr. Maria Silva",
-                    "role": "doctor"
+                    "role": "doctor",
                 },
-                "session_id": "sess_abc123"
+                "session_id": "sess_abc123",
             }
         }
     )
@@ -509,6 +486,7 @@ class FirebaseTokenVerifyResponse(BaseModel):
 # ============================================================================
 # Password Management (Legacy - Firebase handles this)
 # ============================================================================
+
 
 class PasswordChangeRequest(BaseModel):
     """Request to change password"""
@@ -530,12 +508,10 @@ class PasswordChangeRequest(BaseModel):
         return v
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "current_password": "OldP@ssw0rd",
-                "new_password": "NewSecureP@ssw0rd123"
+                "new_password": "NewSecureP@ssw0rd123",
             }
         }
     )
@@ -547,13 +523,7 @@ class PasswordResetRequest(BaseModel):
     email: EmailStr
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
-            "example": {
-                "email": "doctor@example.com"
-            }
-        }
+        json_schema_extra={"example": {"email": "doctor@example.com"}}
     )
 
 
@@ -564,12 +534,10 @@ class PasswordResetConfirm(BaseModel):
     new_password: str = Field(..., min_length=8, max_length=128)
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "token": "reset_token_abc123",
-                "new_password": "NewSecureP@ssw0rd123"
+                "new_password": "NewSecureP@ssw0rd123",
             }
         }
     )

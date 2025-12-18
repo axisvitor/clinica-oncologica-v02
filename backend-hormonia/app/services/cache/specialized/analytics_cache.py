@@ -18,7 +18,9 @@ from app.services.ai.cache_layer import CacheLayer, CacheStrategy
 _analytics_cache_singleton: Optional["AnalyticsCache"] = None
 
 
-def _normalize_filters(filters: Optional[Dict[str, Any]]) -> Optional[Tuple[Tuple[str, Any], ...]]:
+def _normalize_filters(
+    filters: Optional[Dict[str, Any]],
+) -> Optional[Tuple[Tuple[str, Any], ...]]:
     if not filters:
         return None
     return tuple(sorted(filters.items()))
@@ -32,19 +34,34 @@ class AnalyticsCache:
         self._lock = asyncio.Lock()
         self._metrics: Dict[Tuple[str, Optional[str]], Dict[str, Any]] = {}
         self._counters: Dict[Tuple[str, Optional[str]], int] = {}
-        self._reports: Dict[Tuple[str, Optional[Tuple[Tuple[str, Any], ...]]], Dict[str, Any]] = {}
+        self._reports: Dict[
+            Tuple[str, Optional[Tuple[Tuple[str, Any], ...]]], Dict[str, Any]
+        ] = {}
         self._dashboards: Dict[Tuple[str, Optional[str]], Dict[str, Any]] = {}
-        self._aggregations: Dict[Tuple[str, str, Optional[Tuple[Tuple[str, Any], ...]], Optional[str]], Dict[str, Any]] = {}
+        self._aggregations: Dict[
+            Tuple[str, str, Optional[Tuple[Tuple[str, Any], ...]], Optional[str]],
+            Dict[str, Any],
+        ] = {}
 
     # ------------------------------------------------------------------ #
-    async def set_metric(self, name: str, data: Dict[str, Any], scope: Optional[str] = None, ttl: Optional[int] = None) -> bool:
+    async def set_metric(
+        self,
+        name: str,
+        data: Dict[str, Any],
+        scope: Optional[str] = None,
+        ttl: Optional[int] = None,
+    ) -> bool:
         await self._set_entry(self._metrics, (name, scope), data, ttl)
         return True
 
-    async def get_metric(self, name: str, scope: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    async def get_metric(
+        self, name: str, scope: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
         return await self._get_entry(self._metrics, (name, scope))
 
-    async def increment_counter(self, name: str, scope: Optional[str] = None, increment: int = 1) -> int:
+    async def increment_counter(
+        self, name: str, scope: Optional[str] = None, increment: int = 1
+    ) -> int:
         key = (name, scope)
         async with self._lock:
             value = self._counters.get(key, 0) + increment
@@ -67,11 +84,15 @@ class AnalyticsCache:
         await self._set_entry(self._reports, key, data, ttl)
         return True
 
-    async def get_report(self, name: str, filters: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+    async def get_report(
+        self, name: str, filters: Optional[Dict[str, Any]] = None
+    ) -> Optional[Dict[str, Any]]:
         key = (name, _normalize_filters(filters))
         return await self._get_entry(self._reports, key)
 
-    async def invalidate_report(self, name: str, filters: Optional[Dict[str, Any]] = None) -> bool:
+    async def invalidate_report(
+        self, name: str, filters: Optional[Dict[str, Any]] = None
+    ) -> bool:
         key = (name, _normalize_filters(filters))
         return await self._delete_entry(self._reports, key)
 
@@ -86,10 +107,14 @@ class AnalyticsCache:
         await self._set_entry(self._dashboards, (name, user_id), data, ttl)
         return True
 
-    async def get_dashboard(self, name: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    async def get_dashboard(
+        self, name: str, user_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
         return await self._get_entry(self._dashboards, (name, user_id))
 
-    async def invalidate_dashboard(self, name: str, user_id: Optional[str] = None) -> bool:
+    async def invalidate_dashboard(
+        self, name: str, user_id: Optional[str] = None
+    ) -> bool:
         return await self._delete_entry(self._dashboards, (name, user_id))
 
     async def invalidate_all_dashboards(self) -> int:
@@ -164,12 +189,16 @@ class AnalyticsCache:
         return {"strategy": strategy, "namespaces": namespaces}
 
     # ------------------------------------------------------------------ #
-    async def _set_entry(self, store: Dict[Any, Dict[str, Any]], key: Any, value: Any, ttl: Optional[int]) -> None:
+    async def _set_entry(
+        self, store: Dict[Any, Dict[str, Any]], key: Any, value: Any, ttl: Optional[int]
+    ) -> None:
         expires_at = time.monotonic() + ttl if ttl else None
         async with self._lock:
             store[key] = {"value": value, "expires_at": expires_at}
 
-    async def _get_entry(self, store: Dict[Any, Dict[str, Any]], key: Any) -> Optional[Any]:
+    async def _get_entry(
+        self, store: Dict[Any, Dict[str, Any]], key: Any
+    ) -> Optional[Any]:
         async with self._lock:
             entry = store.get(key)
             if not entry:

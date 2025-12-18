@@ -18,8 +18,6 @@ Date: January 2025
 """
 
 import logging
-from datetime import date
-from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
@@ -31,10 +29,8 @@ from app.schemas.v2.patient_summary import (
     GenerateSummaryRequest,
     PatientSummaryResponse,
     PatientSummaryListResponse,
-    SummaryExportResponse,
 )
 from app.services.ai.patient_summary_service import (
-    PatientSummaryService,
     get_patient_summary_service,
 )
 from .dependencies import verify_physician_or_admin
@@ -232,7 +228,9 @@ async def get_summary_by_id(
             patient_name=patient_name,
             start_date=summary.start_date,
             end_date=summary.end_date,
-            content=SummaryContent(**summary.content) if summary.content else SummaryContent(overview=""),
+            content=SummaryContent(**summary.content)
+            if summary.content
+            else SummaryContent(overview=""),
             generated_at=summary.created_at,
             generated_by=summary.generated_by,
             token_usage=summary.token_usage,

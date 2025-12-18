@@ -16,11 +16,11 @@ All validation rules must be thorough to prevent data integrity issues.
 """
 
 from typing import Optional, List, Dict, Any
-from datetime import datetime, date
+from datetime import datetime
 from uuid import UUID
 from enum import Enum
 
-from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict, constr, conint, confloat
+from pydantic import BaseModel, Field, field_validator, ConfigDict, constr, confloat
 
 from app.models.alert import AlertSeverity, AlertStatus
 from .common import CursorPaginatedResponse
@@ -30,8 +30,10 @@ from .common import CursorPaginatedResponse
 # Enums and Constants
 # ============================================================================
 
+
 class QuizResponseTypeEnum(str, Enum):
     """Quiz response types."""
+
     SINGLE_CHOICE = "single_choice"
     MULTIPLE_CHOICE = "multiple_choice"
     TEXT = "text"
@@ -42,6 +44,7 @@ class QuizResponseTypeEnum(str, Enum):
 
 class QuizSessionStatusEnum(str, Enum):
     """Quiz session status types."""
+
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     ABANDONED = "abandoned"
@@ -50,6 +53,7 @@ class QuizSessionStatusEnum(str, Enum):
 
 class AlertRuleTriggerEnum(str, Enum):
     """Alert rule trigger types."""
+
     SCORE_THRESHOLD = "score_threshold"
     ANSWER_PATTERN = "answer_pattern"
     MISSING_RESPONSE = "missing_response"
@@ -58,6 +62,7 @@ class AlertRuleTriggerEnum(str, Enum):
 
 class MonthlyQuizStatusEnum(str, Enum):
     """Monthly quiz status."""
+
     DRAFT = "draft"
     PUBLISHED = "published"
     ARCHIVED = "archived"
@@ -65,6 +70,7 @@ class MonthlyQuizStatusEnum(str, Enum):
 
 class DeliveryMethodEnum(str, Enum):
     """Quiz delivery methods."""
+
     WHATSAPP = "whatsapp"
     EMAIL = "email"
     SMS = "sms"
@@ -74,33 +80,27 @@ class DeliveryMethodEnum(str, Enum):
 # Quiz Response Schemas
 # ============================================================================
 
+
 class QuizResponseV2Base(BaseModel):
     """Base quiz response schema."""
 
     question_id: constr(min_length=1, max_length=255) = Field(
-        ...,
-        description="Unique identifier for the question"
+        ..., description="Unique identifier for the question"
     )
     question_text: constr(min_length=1, max_length=2000) = Field(
-        ...,
-        description="Text of the question"
+        ..., description="Text of the question"
     )
     response_type: QuizResponseTypeEnum = Field(
-        ...,
-        description="Type of response (single_choice, multiple_choice, text, etc.)"
+        ..., description="Type of response (single_choice, multiple_choice, text, etc.)"
     )
-    response_value: str = Field(
-        ...,
-        description="Patient's response value"
-    )
+    response_value: str = Field(..., description="Patient's response value")
     response_metadata: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Additional metadata (AI analysis, risk scores)"
+        default=None, description="Additional metadata (AI analysis, risk scores)"
     )
     other_text: Optional[str] = Field(
         default=None,
         max_length=2000,
-        description="Additional text for 'other' responses"
+        description="Additional text for 'other' responses",
     )
 
 
@@ -124,6 +124,7 @@ class QuizResponseV2Detail(QuizResponseV2Base):
 
 class QuizResponseV2List(CursorPaginatedResponse[QuizResponseV2Detail]):
     """Paginated quiz response list."""
+
     pass
 
 
@@ -132,63 +133,55 @@ class ResponseAnalyticsV2(BaseModel):
 
     total_responses: int = Field(..., description="Total number of responses")
     completion_rate: confloat(ge=0.0, le=100.0) = Field(
-        ...,
-        description="Completion rate percentage"
+        ..., description="Completion rate percentage"
     )
     average_score: Optional[confloat(ge=0.0, le=100.0)] = Field(
-        None,
-        description="Average quiz score"
+        None, description="Average quiz score"
     )
     response_trends: List[Dict[str, Any]] = Field(
-        default_factory=list,
-        description="Response trends over time"
+        default_factory=list, description="Response trends over time"
     )
     common_patterns: List[str] = Field(
-        default_factory=list,
-        description="Common response patterns identified"
+        default_factory=list, description="Common response patterns identified"
     )
-    flagged_count: int = Field(
-        0,
-        description="Number of responses flagged for review"
-    )
+    flagged_count: int = Field(0, description="Number of responses flagged for review")
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "total_responses": 150,
                 "completion_rate": 87.5,
                 "average_score": 75.2,
                 "response_trends": [
                     {"date": "2025-01", "score": 78.0},
-                    {"date": "2025-02", "score": 75.2}
+                    {"date": "2025-02", "score": 75.2},
                 ],
                 "common_patterns": ["improving", "consistent"],
-                "flagged_count": 5
+                "flagged_count": 5,
             }
-        })
+        }
+    )
 
 
 # ============================================================================
 # Quiz Alert Schemas
 # ============================================================================
 
+
 class QuizAlertV2Base(BaseModel):
     """Base quiz alert schema."""
 
     alert_type: constr(min_length=1, max_length=100) = Field(
-        ...,
-        description="Type of alert (quiz_response, quiz_score, etc.)"
+        ..., description="Type of alert (quiz_response, quiz_score, etc.)"
     )
     severity: AlertSeverity = Field(
-        ...,
-        description="Alert severity (LOW, MEDIUM, HIGH, CRITICAL)"
+        ..., description="Alert severity (LOW, MEDIUM, HIGH, CRITICAL)"
     )
     description: constr(min_length=1, max_length=2000) = Field(
-        ...,
-        description="Alert description"
+        ..., description="Alert description"
     )
     trigger_data: Optional[Dict[str, Any]] = Field(
-        None,
-        description="Data that triggered the alert"
+        None, description="Data that triggered the alert"
     )
 
 
@@ -198,10 +191,14 @@ class QuizAlertV2Detail(QuizAlertV2Base):
     id: UUID = Field(..., description="Alert ID")
     patient_id: UUID = Field(..., description="Patient ID")
     quiz_session_id: Optional[UUID] = Field(None, description="Quiz session ID")
-    response_id: Optional[UUID] = Field(None, description="Response ID that triggered alert")
+    response_id: Optional[UUID] = Field(
+        None, description="Response ID that triggered alert"
+    )
     status: AlertStatus = Field(..., description="Alert status")
     created_at: datetime = Field(..., description="Alert creation time")
-    acknowledged_at: Optional[datetime] = Field(None, description="Acknowledgement time")
+    acknowledged_at: Optional[datetime] = Field(
+        None, description="Acknowledgement time"
+    )
     acknowledged_by: Optional[UUID] = Field(None, description="User who acknowledged")
     resolved_at: Optional[datetime] = Field(None, description="Resolution time")
 
@@ -213,6 +210,7 @@ class QuizAlertV2Detail(QuizAlertV2Base):
 
 class QuizAlertV2List(CursorPaginatedResponse[QuizAlertV2Detail]):
     """Paginated quiz alert list."""
+
     pass
 
 
@@ -220,79 +218,63 @@ class AlertAcknowledgementV2(BaseModel):
     """Alert acknowledgement request."""
 
     notes: Optional[str] = Field(
-        None,
-        max_length=2000,
-        description="Optional acknowledgement notes"
+        None, max_length=2000, description="Optional acknowledgement notes"
     )
 
-    model_config = ConfigDict(json_schema_extra={
-            "example": {
-                "notes": "Reviewed patient responses, scheduling follow-up"
-            }
-        })
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {"notes": "Reviewed patient responses, scheduling follow-up"}
+        }
+    )
 
 
 class AlertStatisticsV2(BaseModel):
     """Quiz alert statistics."""
 
     total_alerts: int = Field(..., description="Total alerts generated")
-    by_severity: Dict[str, int] = Field(
-        ...,
-        description="Alert count by severity"
-    )
-    by_status: Dict[str, int] = Field(
-        ...,
-        description="Alert count by status"
-    )
+    by_severity: Dict[str, int] = Field(..., description="Alert count by severity")
+    by_status: Dict[str, int] = Field(..., description="Alert count by status")
     acknowledgement_rate: confloat(ge=0.0, le=100.0) = Field(
-        ...,
-        description="Percentage of acknowledged alerts"
+        ..., description="Percentage of acknowledged alerts"
     )
     avg_response_time_hours: Optional[float] = Field(
-        None,
-        description="Average time to acknowledge (hours)"
+        None, description="Average time to acknowledge (hours)"
     )
     triggered_rules: List[Dict[str, Any]] = Field(
-        default_factory=list,
-        description="Most frequently triggered rules"
+        default_factory=list, description="Most frequently triggered rules"
     )
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "total_alerts": 45,
                 "by_severity": {"CRITICAL": 5, "HIGH": 15, "MEDIUM": 20, "LOW": 5},
                 "by_status": {"PENDING": 10, "ACKNOWLEDGED": 25, "RESOLVED": 10},
                 "acknowledgement_rate": 77.8,
                 "avg_response_time_hours": 2.5,
-                "triggered_rules": [
-                    {"rule_name": "low_score_threshold", "count": 12}
-                ]
+                "triggered_rules": [{"rule_name": "low_score_threshold", "count": 12}],
             }
-        })
+        }
+    )
 
 
 class AlertRuleV2Create(BaseModel):
     """Create alert rule request."""
 
     rule_name: constr(min_length=1, max_length=255) = Field(
-        ...,
-        description="Unique rule name"
+        ..., description="Unique rule name"
     )
     trigger_type: AlertRuleTriggerEnum = Field(
-        ...,
-        description="Type of trigger (score_threshold, answer_pattern, etc.)"
+        ..., description="Type of trigger (score_threshold, answer_pattern, etc.)"
     )
     trigger_condition: Dict[str, Any] = Field(
-        ...,
-        description="Trigger condition parameters"
+        ..., description="Trigger condition parameters"
     )
     severity: AlertSeverity = Field(
-        ...,
-        description="Severity of alerts generated by this rule"
+        ..., description="Severity of alerts generated by this rule"
     )
     notification_type: List[str] = Field(
-        ...,
-        description="Notification methods (email, sms, in_app)"
+        ..., description="Notification methods (email, sms, in_app)"
     )
     enabled: bool = Field(True, description="Whether rule is active")
 
@@ -316,19 +298,18 @@ class AlertRuleV2Create(BaseModel):
 
         return v
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "rule_name": "critical_score_alert",
                 "trigger_type": "score_threshold",
-                "trigger_condition": {
-                    "threshold": 30,
-                    "operator": "<"
-                },
+                "trigger_condition": {"threshold": 30, "operator": "<"},
                 "severity": "CRITICAL",
                 "notification_type": ["email", "sms"],
-                "enabled": True
+                "enabled": True,
             }
-        })
+        }
+    )
 
 
 class AlertRuleV2Detail(AlertRuleV2Create):
@@ -348,46 +329,30 @@ class AlertRuleV2Detail(AlertRuleV2Create):
 # Monthly Quiz Schemas
 # ============================================================================
 
+
 class MonthlyQuizV2Base(BaseModel):
     """Base monthly quiz schema."""
 
-    name: constr(min_length=1, max_length=255) = Field(
-        ...,
-        description="Quiz name"
-    )
+    name: constr(min_length=1, max_length=255) = Field(..., description="Quiz name")
     description: Optional[str] = Field(
-        None,
-        max_length=2000,
-        description="Quiz description"
+        None, max_length=2000, description="Quiz description"
     )
-    quiz_template_id: UUID = Field(
-        ...,
-        description="Template to use for this quiz"
-    )
+    quiz_template_id: UUID = Field(..., description="Template to use for this quiz")
     scheduled_for: Optional[datetime] = Field(
-        None,
-        description="Scheduled publication date"
+        None, description="Scheduled publication date"
     )
-    expires_at: Optional[datetime] = Field(
-        None,
-        description="Expiration date"
-    )
+    expires_at: Optional[datetime] = Field(None, description="Expiration date")
 
 
 class MonthlyQuizV2Create(MonthlyQuizV2Base):
     """Create monthly quiz request."""
 
     target_patient_ids: Optional[List[UUID]] = Field(
-        None,
-        description="Specific patients to target (None = all active patients)"
+        None, description="Specific patients to target (None = all active patients)"
     )
-    auto_send: bool = Field(
-        False,
-        description="Automatically send when published"
-    )
+    auto_send: bool = Field(False, description="Automatically send when published")
     delivery_method: DeliveryMethodEnum = Field(
-        default=DeliveryMethodEnum.WHATSAPP,
-        description="Default delivery method"
+        default=DeliveryMethodEnum.WHATSAPP, description="Default delivery method"
     )
 
 
@@ -395,22 +360,15 @@ class MonthlyQuizV2Update(BaseModel):
     """Update monthly quiz request."""
 
     name: Optional[constr(min_length=1, max_length=255)] = Field(
-        None,
-        description="Quiz name"
+        None, description="Quiz name"
     )
     description: Optional[str] = Field(
-        None,
-        max_length=2000,
-        description="Quiz description"
+        None, max_length=2000, description="Quiz description"
     )
     scheduled_for: Optional[datetime] = Field(
-        None,
-        description="Scheduled publication date"
+        None, description="Scheduled publication date"
     )
-    expires_at: Optional[datetime] = Field(
-        None,
-        description="Expiration date"
-    )
+    expires_at: Optional[datetime] = Field(None, description="Expiration date")
 
 
 class MonthlyQuizV2Detail(MonthlyQuizV2Base):
@@ -427,8 +385,7 @@ class MonthlyQuizV2Detail(MonthlyQuizV2Base):
     total_accessed: int = Field(0, description="Total times accessed")
     total_completed: int = Field(0, description="Total completions")
     completion_rate: confloat(ge=0.0, le=100.0) = Field(
-        0.0,
-        description="Completion rate percentage"
+        0.0, description="Completion rate percentage"
     )
 
     model_config = ConfigDict(from_attributes=True)
@@ -436,6 +393,7 @@ class MonthlyQuizV2Detail(MonthlyQuizV2Base):
 
 class MonthlyQuizV2List(CursorPaginatedResponse[MonthlyQuizV2Detail]):
     """Paginated monthly quiz list."""
+
     pass
 
 
@@ -443,12 +401,10 @@ class QuizPublishRequestV2(BaseModel):
     """Publish quiz request."""
 
     send_immediately: bool = Field(
-        True,
-        description="Send links immediately after publishing"
+        True, description="Send links immediately after publishing"
     )
     target_patient_ids: Optional[List[UUID]] = Field(
-        None,
-        description="Specific patients (None = all active patients)"
+        None, description="Specific patients (None = all active patients)"
     )
 
 
@@ -460,23 +416,20 @@ class MonthlyQuizStatisticsV2(BaseModel):
     total_accessed: int = Field(..., description="Total accesses")
     total_completed: int = Field(..., description="Total completions")
     completion_rate: confloat(ge=0.0, le=100.0) = Field(
-        ...,
-        description="Completion rate percentage"
+        ..., description="Completion rate percentage"
     )
     average_score: Optional[confloat(ge=0.0, le=100.0)] = Field(
-        None,
-        description="Average quiz score"
+        None, description="Average quiz score"
     )
     average_completion_time_minutes: Optional[float] = Field(
-        None,
-        description="Average time to complete (minutes)"
+        None, description="Average time to complete (minutes)"
     )
     responses_by_day: List[Dict[str, Any]] = Field(
-        default_factory=list,
-        description="Response counts by day"
+        default_factory=list, description="Response counts by day"
     )
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "quiz_id": "123e4567-e89b-12d3-a456-426614174000",
                 "total_sent": 100,
@@ -487,23 +440,21 @@ class MonthlyQuizStatisticsV2(BaseModel):
                 "average_completion_time_minutes": 12.5,
                 "responses_by_day": [
                     {"date": "2025-11-01", "count": 25},
-                    {"date": "2025-11-02", "count": 30}
-                ]
+                    {"date": "2025-11-02", "count": 30},
+                ],
             }
-        })
+        }
+    )
 
 
 class QuizReminderRequestV2(BaseModel):
     """Send quiz reminder request."""
 
     custom_message: Optional[str] = Field(
-        None,
-        max_length=500,
-        description="Custom reminder message"
+        None, max_length=500, description="Custom reminder message"
     )
     delivery_method: DeliveryMethodEnum = Field(
-        default=DeliveryMethodEnum.WHATSAPP,
-        description="Delivery method for reminder"
+        default=DeliveryMethodEnum.WHATSAPP, description="Delivery method for reminder"
     )
 
 
@@ -522,26 +473,23 @@ class QuizScheduleV2(BaseModel):
 class QuizGenerateRequestV2(BaseModel):
     """Auto-generate quiz request."""
 
-    template_id: UUID = Field(
-        ...,
-        description="Template to use for generation"
-    )
+    template_id: UUID = Field(..., description="Template to use for generation")
     target_month: constr(pattern=r"^\d{4}-\d{2}$") = Field(
-        ...,
-        description="Target month (YYYY-MM format)"
+        ..., description="Target month (YYYY-MM format)"
     )
     auto_publish: bool = Field(
-        default=False,
-        description="Automatically publish after generation"
+        default=False, description="Automatically publish after generation"
     )
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "template_id": "123e4567-e89b-12d3-a456-426614174000",
                 "target_month": "2025-12",
-                "auto_publish": False
+                "auto_publish": False,
             }
-        })
+        }
+    )
 
 
 class QuizTemplateV2(BaseModel):
@@ -553,8 +501,7 @@ class QuizTemplateV2(BaseModel):
     version: str = Field(..., description="Template version")
     question_count: int = Field(..., description="Number of questions")
     estimated_duration_minutes: Optional[int] = Field(
-        None,
-        description="Estimated completion time"
+        None, description="Estimated completion time"
     )
     is_active: bool = Field(..., description="Whether template is active")
 
@@ -565,6 +512,7 @@ class QuizTemplateV2(BaseModel):
 # Public Quiz Schemas
 # ============================================================================
 
+
 class PublicQuizResponseV2(BaseModel):
     """Public quiz response (sanitized)."""
 
@@ -572,16 +520,13 @@ class PublicQuizResponseV2(BaseModel):
     quiz_name: str = Field(..., description="Quiz name")
     description: Optional[str] = Field(None, description="Quiz description")
     questions: List[Dict[str, Any]] = Field(
-        ...,
-        description="Quiz questions (without sensitive data)"
+        ..., description="Quiz questions (without sensitive data)"
     )
-    expires_at: Optional[datetime] = Field(
-        None,
-        description="Quiz expiration time"
-    )
+    expires_at: Optional[datetime] = Field(None, description="Quiz expiration time")
     session_id: UUID = Field(..., description="Session ID for submission")
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "quiz_id": "123e4567-e89b-12d3-a456-426614174000",
                 "quiz_name": "Monthly Health Check - November 2025",
@@ -591,43 +536,40 @@ class PublicQuizResponseV2(BaseModel):
                         "id": "q1",
                         "text": "How are you feeling today?",
                         "type": "scale",
-                        "options": {"min": 1, "max": 10}
+                        "options": {"min": 1, "max": 10},
                     }
                 ],
                 "expires_at": "2025-11-30T23:59:59Z",
-                "session_id": "456e7890-e89b-12d3-a456-426614174001"
+                "session_id": "456e7890-e89b-12d3-a456-426614174001",
             }
-        })
+        }
+    )
 
 
 class PublicSubmissionRequestV2(BaseModel):
     """Public quiz submission request."""
 
-    token: constr(min_length=1) = Field(
-        ...,
-        description="Access token from quiz link"
-    )
+    token: constr(min_length=1) = Field(..., description="Access token from quiz link")
     question_id: constr(min_length=1) = Field(
-        ...,
-        description="Question ID being answered"
+        ..., description="Question ID being answered"
     )
     response_value: Any = Field(
-        ...,
-        description="Response value (string, number, list, etc.)"
+        ..., description="Response value (string, number, list, etc.)"
     )
     response_metadata: Optional[Dict[str, Any]] = Field(
-        None,
-        description="Optional response metadata"
+        None, description="Optional response metadata"
     )
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
                 "question_id": "q1",
                 "response_value": "8",
-                "response_metadata": {"time_taken_seconds": 15}
+                "response_metadata": {"time_taken_seconds": 15},
             }
-        })
+        }
+    )
 
 
 class PublicQuizResultsV2(BaseModel):
@@ -637,30 +579,27 @@ class PublicQuizResultsV2(BaseModel):
     quiz_name: str = Field(..., description="Quiz name")
     total_completions: int = Field(..., description="Total completions")
     average_score: Optional[float] = Field(
-        None,
-        description="Average score (if applicable)"
+        None, description="Average score (if applicable)"
     )
     completion_rate: confloat(ge=0.0, le=100.0) = Field(
-        ...,
-        description="Completion rate percentage"
+        ..., description="Completion rate percentage"
     )
     response_distribution: Optional[Dict[str, Any]] = Field(
-        None,
-        description="Aggregate response distribution (no personal data)"
+        None, description="Aggregate response distribution (no personal data)"
     )
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "quiz_id": "123e4567-e89b-12d3-a456-426614174000",
                 "quiz_name": "Monthly Health Check - November 2025",
                 "total_completions": 85,
                 "average_score": 82.5,
                 "completion_rate": 85.0,
-                "response_distribution": {
-                    "q1": {"1-3": 5, "4-7": 30, "8-10": 50}
-                }
+                "response_distribution": {"q1": {"1-3": 5, "4-7": 30, "8-10": 50}},
             }
-        })
+        }
+    )
 
 
 class SubmissionTokenV2(BaseModel):
@@ -670,18 +609,21 @@ class SubmissionTokenV2(BaseModel):
     expires_at: datetime = Field(..., description="Token expiration time")
     quiz_session_id: UUID = Field(..., description="Associated quiz session")
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
                 "expires_at": "2025-11-08T23:59:59Z",
-                "quiz_session_id": "456e7890-e89b-12d3-a456-426614174001"
+                "quiz_session_id": "456e7890-e89b-12d3-a456-426614174001",
             }
-        })
+        }
+    )
 
 
 # ============================================================================
 # Error Response Schemas
 # ============================================================================
+
 
 class ErrorResponse(BaseModel):
     """Standard error response."""
@@ -690,10 +632,12 @@ class ErrorResponse(BaseModel):
     detail: str = Field(..., description="Error details")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "error": "VALIDATION_ERROR",
                 "detail": "Invalid quiz response format",
-                "timestamp": "2025-11-07T12:00:00Z"
+                "timestamp": "2025-11-07T12:00:00Z",
             }
-        })
+        }
+    )

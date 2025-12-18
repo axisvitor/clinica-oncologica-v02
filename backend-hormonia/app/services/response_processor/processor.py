@@ -1,6 +1,7 @@
 """
 Main response processor logic.
 """
+
 import logging
 from typing import Optional, Any
 from datetime import datetime
@@ -13,7 +14,9 @@ from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
 from app.domain.flows.events import flow_event_broadcaster
 from app.services.platform_synchronization import get_platform_sync_service
-from app.domain.quizzes.integration.flow_integration import get_conversational_quiz_service
+from app.domain.quizzes.integration.flow_integration import (
+    get_conversational_quiz_service,
+)
 from app.exceptions import NotFoundError, ValidationError
 
 from .models import (
@@ -21,7 +24,7 @@ from .models import (
     ResponseProcessingResult,
     InboundMessage,
     InteractiveResponse,
-    ResponseType
+    ResponseType,
 )
 from .validators import ResponseValidator
 from .extractors import DataExtractor
@@ -37,6 +40,7 @@ def get_ai_service():
     """Placeholder for AI service - returns None if not available."""
     try:
         from app.services.ai import get_sentiment_analyzer
+
         return get_sentiment_analyzer()
     except ImportError:
         return None
@@ -79,7 +83,9 @@ class ResponseProcessor:
 
         logger.info(f"Response Processor initialized with config: {self.config}")
 
-    async def process_inbound_message(self, inbound_message: InboundMessage) -> ResponseProcessingResult:
+    async def process_inbound_message(
+        self, inbound_message: InboundMessage
+    ) -> ResponseProcessingResult:
         """
         Process inbound message and route to appropriate flow context.
 
@@ -97,7 +103,9 @@ class ResponseProcessor:
             # Find patient by phone number
             patient = self.patient_repo.get_by_phone(inbound_message.patient_phone)
             if not patient:
-                raise NotFoundError(f"Patient not found for phone: {inbound_message.patient_phone}")
+                raise NotFoundError(
+                    f"Patient not found for phone: {inbound_message.patient_phone}"
+                )
 
             # Store inbound message in database
             message = await self._store_inbound_message(patient.id, inbound_message)
@@ -109,7 +117,9 @@ class ResponseProcessor:
             is_quiz_response = await self._is_quiz_response(patient.id, flow_state)
 
             if is_quiz_response:
-                return await self.quiz_handler.handle_quiz_response(patient.id, inbound_message)
+                return await self.quiz_handler.handle_quiz_response(
+                    patient.id, inbound_message
+                )
 
             # Determine response type
             response_type = self._determine_response_type(inbound_message)
@@ -145,7 +155,9 @@ class ResponseProcessor:
             )
 
             # Check if escalation is required
-            escalation_required = self.flow_helpers.check_escalation_required(structured_response)
+            escalation_required = self.flow_helpers.check_escalation_required(
+                structured_response
+            )
 
             # Create processing result
             result = ResponseProcessingResult(
@@ -154,7 +166,7 @@ class ResponseProcessor:
                 flow_actions=flow_actions,
                 follow_up_message=follow_up_message,
                 state_updates=state_updates,
-                escalation_required=escalation_required
+                escalation_required=escalation_required,
             )
 
             # Apply state updates
@@ -163,14 +175,16 @@ class ResponseProcessor:
 
             # Process follow-up actions for escalation or medical concerns
             # FIX: FollowUpSystemService was not integrated into response pipeline
-            if result.escalation_required or (structured_response and structured_response.medical_concerns):
+            if result.escalation_required or (
+                structured_response and structured_response.medical_concerns
+            ):
                 await self._process_follow_up_actions(result)
 
             # Broadcast patient interaction event
             await self.flow_broadcaster.broadcast_patient_interaction(
                 patient_id=patient.id,
                 message=message,
-                interaction_type="response_received"
+                interaction_type="response_received",
             )
 
             # Sync patient response to platform
@@ -179,13 +193,23 @@ class ResponseProcessor:
                 flow_interaction_data={
                     "patient_response": {
                         "message_id": str(message.id),
-                        "content": inbound_message.content[:200],  # Truncate for privacy
-                        "response_type": response_type.value if hasattr(response_type, 'value') else str(response_type),
-                        "structured_data": structured_response.extracted_data if structured_response else {},
-                        "sentiment_score": structured_response.sentiment_analysis.get("confidence") if structured_response else None,
-                        "timestamp": datetime.utcnow().isoformat()
+                        "content": inbound_message.content[
+                            :200
+                        ],  # Truncate for privacy
+                        "response_type": response_type.value
+                        if hasattr(response_type, "value")
+                        else str(response_type),
+                        "structured_data": structured_response.extracted_data
+                        if structured_response
+                        else {},
+                        "sentiment_score": structured_response.sentiment_analysis.get(
+                            "confidence"
+                        )
+                        if structured_response
+                        else None,
+                        "timestamp": datetime.utcnow().isoformat(),
                     }
-                }
+                },
             )
 
             logger.info(f"Processed inbound message for patient {patient.id}")
@@ -195,7 +219,9 @@ class ResponseProcessor:
             logger.error(f"Failed to process inbound message: {e}")
             raise
 
-    async def handle_interactive_response(self, interactive_response: InteractiveResponse) -> ResponseProcessingResult:
+    async def handle_interactive_response(
+        self, interactive_response: InteractiveResponse
+    ) -> ResponseProcessingResult:
         """
         Handle interactive response (buttons, quick replies, etc.).
 
@@ -228,13 +254,18 @@ class ResponseProcessor:
                 patient_phone="",  # Not needed for interactive responses
                 content=interactive_response.response_value,
                 whatsapp_id="",  # Not needed for interactive responses
-                message_type=MessageType.BUTTON if interactive_response.response_type == ResponseType.BUTTON else MessageType.TEXT,
-                metadata=interactive_response.metadata
+                message_type=MessageType.BUTTON
+                if interactive_response.response_type == ResponseType.BUTTON
+                else MessageType.TEXT,
+                metadata=interactive_response.metadata,
             )
 
             # Process as structured response
             structured_response = await self.extractor.extract_structured_data(
-                patient_id, inbound_message, interactive_response.response_type, flow_state
+                patient_id,
+                inbound_message,
+                interactive_response.response_type,
+                flow_state,
             )
 
             # Determine flow actions
@@ -259,7 +290,9 @@ class ResponseProcessor:
                 flow_actions=flow_actions,
                 follow_up_message=follow_up_message,
                 state_updates=state_updates,
-                escalation_required=self.flow_helpers.check_escalation_required(structured_response)
+                escalation_required=self.flow_helpers.check_escalation_required(
+                    structured_response
+                ),
             )
 
             # Apply state updates
@@ -267,7 +300,9 @@ class ResponseProcessor:
                 await self._apply_state_updates(patient_id, state_updates)
 
             # Process follow-up actions for escalation or medical concerns
-            if result.escalation_required or (structured_response and structured_response.medical_concerns):
+            if result.escalation_required or (
+                structured_response and structured_response.medical_concerns
+            ):
                 await self._process_follow_up_actions(result)
 
             logger.info(f"Processed interactive response for patient {patient_id}")
@@ -277,7 +312,9 @@ class ResponseProcessor:
             logger.error(f"Failed to process interactive response: {e}")
             raise
 
-    async def _store_inbound_message(self, patient_id: UUID, inbound_message: InboundMessage) -> Message:
+    async def _store_inbound_message(
+        self, patient_id: UUID, inbound_message: InboundMessage
+    ) -> Message:
         """Store inbound message in database."""
         try:
             message = Message(
@@ -290,7 +327,7 @@ class ResponseProcessor:
                 message_metadata=inbound_message.metadata,
                 sent_at=inbound_message.timestamp,
                 delivered_at=inbound_message.timestamp,
-                read_at=inbound_message.timestamp
+                read_at=inbound_message.timestamp,
             )
 
             self.db.add(message)
@@ -307,11 +344,11 @@ class ResponseProcessor:
     def _determine_response_type(self, inbound_message: InboundMessage) -> ResponseType:
         """Determine the type of response based on message content and metadata."""
         # Check metadata for interactive response indicators
-        if inbound_message.metadata.get('button_response'):
+        if inbound_message.metadata.get("button_response"):
             return ResponseType.BUTTON
-        elif inbound_message.metadata.get('quick_reply'):
+        elif inbound_message.metadata.get("quick_reply"):
             return ResponseType.QUICK_REPLY
-        elif inbound_message.metadata.get('list_selection'):
+        elif inbound_message.metadata.get("list_selection"):
             return ResponseType.LIST_SELECTION
         elif inbound_message.message_type == MessageType.MEDIA:
             return ResponseType.MEDIA
@@ -320,7 +357,9 @@ class ResponseProcessor:
         else:
             return ResponseType.TEXT
 
-    async def _apply_state_updates(self, patient_id: UUID, state_updates: dict[str, Any]) -> None:
+    async def _apply_state_updates(
+        self, patient_id: UUID, state_updates: dict[str, Any]
+    ) -> None:
         """Apply state updates to patient flow state."""
         try:
             flow_state = self.flow_state_repo.get_active_flow(patient_id)
@@ -344,7 +383,9 @@ class ResponseProcessor:
             self.db.rollback()
             raise
 
-    async def _is_quiz_response(self, patient_id: UUID, flow_state: Optional[PatientFlowState]) -> bool:
+    async def _is_quiz_response(
+        self, patient_id: UUID, flow_state: Optional[PatientFlowState]
+    ) -> bool:
         """Check if patient is currently in quiz mode."""
         try:
             if not flow_state or not flow_state.state_data:
@@ -356,7 +397,11 @@ class ResponseProcessor:
 
             if quiz_state in ["in_progress", "awaiting_response"] and quiz_session_id:
                 # Verify quiz session is still active
-                active_session = self.quiz_service.quiz_session_service.get_active_session(patient_id)
+                active_session = (
+                    self.quiz_service.quiz_session_service.get_active_session(
+                        patient_id
+                    )
+                )
                 return active_session is not None
 
             return False
@@ -369,10 +414,13 @@ class ResponseProcessor:
         """Lazy initialization of FollowUpSystemService to avoid circular imports."""
         if self._follow_up_service is None:
             from app.services.follow_up_system.service import FollowUpSystemService
+
             self._follow_up_service = FollowUpSystemService(self.db)
         return self._follow_up_service
 
-    async def _process_follow_up_actions(self, result: ResponseProcessingResult) -> None:
+    async def _process_follow_up_actions(
+        self, result: ResponseProcessingResult
+    ) -> None:
         """
         Process follow-up actions through FollowUpSystemService.
 
@@ -397,7 +445,9 @@ class ResponseProcessor:
                 )
 
             # Process follow-up actions for this response
-            follow_up_actions = await follow_up_service.process_response_follow_up(result)
+            follow_up_actions = await follow_up_service.process_response_follow_up(
+                result
+            )
 
             if follow_up_actions:
                 logger.info(

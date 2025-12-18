@@ -2,17 +2,16 @@
 DB-only template loader with versioning support.
 All templates MUST be in the database - no file system access.
 """
-import json
-from typing import Dict, List, Optional, Any, Union
+
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime, timedelta
 import logging
-from functools import lru_cache
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field
 
-from app.models.flow import FlowKind, FlowTemplateVersion
+from app.models.flow import FlowTemplateVersion
 from app.repositories.flow_kind import FlowKindRepository
 from app.repositories.flow_template_version import FlowTemplateVersionRepository
 
@@ -21,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 class MessageType(str, Enum):
     """Message types supported in flow templates."""
+
     TEXT = "text"
     INTERACTIVE = "interactive"
     QUIZ_TRIGGER = "quiz_trigger"
@@ -29,6 +29,7 @@ class MessageType(str, Enum):
 
 class InteractiveType(str, Enum):
     """Interactive element types."""
+
     BUTTONS = "buttons"
     LIST = "list"
     QUICK_REPLY = "quick_reply"
@@ -37,6 +38,7 @@ class InteractiveType(str, Enum):
 @dataclass
 class InteractiveElements:
     """Interactive elements for messages."""
+
     type: InteractiveType
     options: List[Dict[str, Any]] = field(default_factory=list)
     header: Optional[str] = None
@@ -46,6 +48,7 @@ class InteractiveElements:
 @dataclass
 class FlowStepCondition:
     """Flow step condition definition."""
+
     type: str
     field: str
     operator: str
@@ -55,6 +58,7 @@ class FlowStepCondition:
 @dataclass
 class FlowStep:
     """Flow step definition."""
+
     id: int
     name: str
     type: str  # "message", "quiz", etc.
@@ -68,6 +72,7 @@ class FlowStep:
 @dataclass
 class Condition:
     """Flow condition definition."""
+
     type: str  # quiz_response, time_based, patient_data
     field: str
     operator: str  # equals, not_equals, greater_than, less_than, contains
@@ -78,6 +83,7 @@ class Condition:
 @dataclass
 class MessageTemplate:
     """Enhanced message template with AI optimization support."""
+
     day: int
     intent: str
     base_content: str
@@ -100,24 +106,28 @@ class MessageTemplate:
             "core_elements": self.core_elements,
             "personalization_hints": self.personalization_hints,
             "ai_instructions": self.ai_instructions,
-            "interactive_elements": self.interactive_elements.__dict__ if self.interactive_elements else None,
+            "interactive_elements": self.interactive_elements.__dict__
+            if self.interactive_elements
+            else None,
             "conditions": [
                 {
                     "type": c.type,
                     "field": c.field,
                     "operator": c.operator,
                     "value": c.value,
-                    "logical_operator": c.logical_operator
-                } for c in self.conditions
+                    "logical_operator": c.logical_operator,
+                }
+                for c in self.conditions
             ],
             "follow_up": self.follow_up,
-            "variations": self.variations
+            "variations": self.variations,
         }
 
 
 @dataclass
 class FlowTemplateData:
     """Enhanced flow template data structure."""
+
     flow_type: str
     name: str
     description: str
@@ -155,9 +165,11 @@ class FlowTemplateData:
                 type="message",
                 content=msg.base_content,
                 delay_hours=delay_hours,
-                conditions=[c.__dict__ for c in msg.conditions] if msg.conditions else [],
+                conditions=[c.__dict__ for c in msg.conditions]
+                if msg.conditions
+                else [],
                 next_step=next_step,
-                quiz_template=None
+                quiz_template=None,
             )
             flow_steps.append(step)
 
@@ -172,27 +184,32 @@ class FlowTemplateData:
             "version": self.version,
             "humanization_level": self.humanization_level,
             "messages": {str(k): v.to_dict() for k, v in self.messages.items()},
-            "metadata": self.metadata
+            "metadata": self.metadata,
         }
 
 
 class TemplateValidationError(Exception):
     """Template validation error."""
+
     pass
 
 
 class TemplateLoadError(Exception):
     """Template loading error."""
+
     pass
 
 
 class TemplateValidationResult(BaseModel):
     """Template validation result."""
+
     is_valid: bool = Field(..., description="Whether template is valid")
     errors: List[str] = Field(default_factory=list, description="Validation errors")
     warnings: List[str] = Field(default_factory=list, description="Validation warnings")
     message_count: int = Field(default=0, description="Number of messages in template")
-    ai_optimized_count: int = Field(default=0, description="Number of AI-optimized messages")
+    ai_optimized_count: int = Field(
+        default=0, description="Number of AI-optimized messages"
+    )
 
 
 class TemplateValidator:
@@ -208,13 +225,17 @@ class TemplateValidator:
         errors.extend(self._validate_basic_structure(template_data))
 
         # Validate messages
-        message_errors, message_warnings, ai_count = self._validate_messages(template_data.messages)
+        message_errors, message_warnings, ai_count = self._validate_messages(
+            template_data.messages
+        )
         errors.extend(message_errors)
         warnings.extend(message_warnings)
         ai_optimized_count = ai_count
 
         # Validate AI optimization requirements
-        warnings.extend(self._validate_ai_optimization(template_data, ai_optimized_count))
+        warnings.extend(
+            self._validate_ai_optimization(template_data, ai_optimized_count)
+        )
 
         # Validate flow progression
         warnings.extend(self._validate_flow_progression(template_data.messages))
@@ -224,7 +245,7 @@ class TemplateValidator:
             errors=errors,
             warnings=warnings,
             message_count=len(template_data.messages),
-            ai_optimized_count=ai_optimized_count
+            ai_optimized_count=ai_optimized_count,
         )
 
     def _validate_basic_structure(self, template_data: FlowTemplateData) -> List[str]:
@@ -238,7 +259,9 @@ class TemplateValidator:
             errors.append("messages dictionary is required and cannot be empty")
         return errors
 
-    def _validate_messages(self, messages: Dict[int, MessageTemplate]) -> tuple[List[str], List[str], int]:
+    def _validate_messages(
+        self, messages: Dict[int, MessageTemplate]
+    ) -> tuple[List[str], List[str], int]:
         """Validate individual messages."""
         errors = []
         warnings = []
@@ -257,7 +280,11 @@ class TemplateValidator:
             # Validate message_type against allowed values to avoid DB enum mismatches
             try:
                 allowed_types = {"text", "media", "quiz_trigger"}
-                mt_value = message.message_type.value if hasattr(message.message_type, "value") else str(message.message_type)
+                mt_value = (
+                    message.message_type.value
+                    if hasattr(message.message_type, "value")
+                    else str(message.message_type)
+                )
                 if mt_value not in allowed_types:
                     errors.append(
                         f"Invalid message_type '{mt_value}' for day {day}. Allowed: {sorted(allowed_types)}"
@@ -270,8 +297,13 @@ class TemplateValidator:
                 ai_optimized_count += 1
 
             # Validate interactive elements
-            if message.interactive_elements and not message.interactive_elements.options:
-                warnings.append(f"Message for day {day} has interactive elements but no options")
+            if (
+                message.interactive_elements
+                and not message.interactive_elements.options
+            ):
+                warnings.append(
+                    f"Message for day {day} has interactive elements but no options"
+                )
 
             # Validate conditions
             for condition in message.conditions:
@@ -280,14 +312,20 @@ class TemplateValidator:
 
         return errors, warnings, ai_optimized_count
 
-    def _validate_ai_optimization(self, template_data: FlowTemplateData, ai_optimized_count: int) -> List[str]:
+    def _validate_ai_optimization(
+        self, template_data: FlowTemplateData, ai_optimized_count: int
+    ) -> List[str]:
         """Validate AI optimization requirements."""
         warnings = []
         if template_data.humanization_level == "high" and ai_optimized_count == 0:
-            warnings.append("High humanization level template has no AI-optimized messages")
+            warnings.append(
+                "High humanization level template has no AI-optimized messages"
+            )
         return warnings
 
-    def _validate_flow_progression(self, messages: Dict[int, MessageTemplate]) -> List[str]:
+    def _validate_flow_progression(
+        self, messages: Dict[int, MessageTemplate]
+    ) -> List[str]:
         """Validate flow progression logic."""
         warnings = []
         days = sorted(messages.keys())
@@ -298,7 +336,9 @@ class TemplateValidator:
         # Check for gaps in days
         for i in range(len(days) - 1):
             if days[i + 1] - days[i] > 7:  # More than 7 days gap
-                warnings.append(f"Large gap between day {days[i]} and day {days[i + 1]}")
+                warnings.append(
+                    f"Large gap between day {days[i]} and day {days[i + 1]}"
+                )
 
         return warnings
 
@@ -331,9 +371,11 @@ class EnhancedTemplateLoader:
         self._cache_ttl = timedelta(hours=cache_ttl_hours)
         self._max_cache_size = max_cache_size
 
-        logger.info(f"Initialized versioned template loader - DB-only mode")
+        logger.info("Initialized versioned template loader - DB-only mode")
 
-    def load_flow_template(self, flow_type: str, version: Optional[str] = None) -> FlowTemplateData:
+    def load_flow_template(
+        self, flow_type: str, version: Optional[str] = None
+    ) -> FlowTemplateData:
         """
         Load flow template by type and version (DB-only).
 
@@ -367,7 +409,9 @@ class EnhancedTemplateLoader:
             if template_data:
                 # Cache and return database template
                 self._cache_template(cache_key, template_data)
-                logger.info(f"Successfully loaded template from DB: {flow_type} v{template_data.version}")
+                logger.info(
+                    f"Successfully loaded template from DB: {flow_type} v{template_data.version}"
+                )
                 return template_data
 
             # No template found
@@ -377,21 +421,35 @@ class EnhancedTemplateLoader:
             logger.error(f"Failed to load template {flow_type}: {str(e)}")
             raise TemplateLoadError(f"Failed to load template {flow_type}: {str(e)}")
 
-    def _load_from_database(self, flow_type: str, version: Optional[str] = None) -> Optional[FlowTemplateData]:
+    def _load_from_database(
+        self, flow_type: str, version: Optional[str] = None
+    ) -> Optional[FlowTemplateData]:
         """Load template from database using versioning system."""
         try:
             if version:
                 # Load specific version
-                template_version = self.template_version_repo.get_by_flow_type_and_version(flow_type, version)
+                template_version = (
+                    self.template_version_repo.get_by_flow_type_and_version(
+                        flow_type, version
+                    )
+                )
             else:
                 # Load current published version
-                template_version = self.template_version_repo.get_current_version_by_flow_type(flow_type)
+                template_version = (
+                    self.template_version_repo.get_current_version_by_flow_type(
+                        flow_type
+                    )
+                )
 
                 # If no current version set, try latest published
                 if not template_version:
                     kind = self.flow_kind_repo.get_by_flow_type(flow_type)
                     if kind:
-                        template_version = self.template_version_repo.get_latest_published_by_kind(kind.id)
+                        template_version = (
+                            self.template_version_repo.get_latest_published_by_kind(
+                                kind.id
+                            )
+                        )
 
             if not template_version:
                 return None
@@ -403,8 +461,9 @@ class EnhancedTemplateLoader:
             logger.error(f"Error loading template from database: {e}")
             return None
 
-
-    def get_message_for_day(self, flow_type: str, day: int, version: Optional[str] = None) -> Optional[MessageTemplate]:
+    def get_message_for_day(
+        self, flow_type: str, day: int, version: Optional[str] = None
+    ) -> Optional[MessageTemplate]:
         """Get message template for specific day."""
         try:
             template = self.load_flow_template(flow_type, version)
@@ -424,7 +483,7 @@ class EnhancedTemplateLoader:
                     "current_version": kind_with_version.version,
                     "status": kind_with_version.status,
                     "published_at": kind_with_version.published_at,
-                    "duration_days": kind_with_version.duration_days
+                    "duration_days": kind_with_version.duration_days,
                 }
             return None
         except Exception as e:
@@ -444,7 +503,8 @@ class EnhancedTemplateLoader:
                     "published_versions": kind.published_versions,
                     "draft_versions": kind.draft_versions,
                     "latest_version_date": kind.latest_version_date,
-                    "has_current_version": hasattr(kind, 'current_version_id_alias') and kind.current_version_id_alias is not None
+                    "has_current_version": hasattr(kind, "current_version_id_alias")
+                    and kind.current_version_id_alias is not None,
                 }
                 for kind in kinds_with_stats
             ]
@@ -452,7 +512,9 @@ class EnhancedTemplateLoader:
             logger.error(f"Error listing flow types: {e}")
             return []
 
-    def list_versions_for_flow_type(self, flow_type: str, status: str = None) -> List[Dict[str, Any]]:
+    def list_versions_for_flow_type(
+        self, flow_type: str, status: str = None
+    ) -> List[Dict[str, Any]]:
         """List all versions for a specific flow type."""
         try:
             kind = self.flow_kind_repo.get_by_flow_type(flow_type)
@@ -468,7 +530,7 @@ class EnhancedTemplateLoader:
                     "status": version.status,
                     "duration_days": version.duration_days,
                     "published_at": version.published_at,
-                    "created_at": version.created_at
+                    "created_at": version.created_at,
                 }
                 for version in versions
             ]
@@ -476,8 +538,14 @@ class EnhancedTemplateLoader:
             logger.error(f"Error listing versions for flow type {flow_type}: {e}")
             return []
 
-    def create_template_version(self, flow_type: str, version: str, template_data: FlowTemplateData,
-                              description: str = None, created_by: str = None) -> bool:
+    def create_template_version(
+        self,
+        flow_type: str,
+        version: str,
+        template_data: FlowTemplateData,
+        description: str = None,
+        created_by: str = None,
+    ) -> bool:
         """Create a new template version."""
         try:
             # Get or create flow kind
@@ -486,17 +554,17 @@ class EnhancedTemplateLoader:
                 kind = self.flow_kind_repo.create_kind(
                     flow_type=flow_type,
                     name=template_data.name,
-                    description=description or template_data.description
+                    description=description or template_data.description,
                 )
 
             # Create template version
-            template_version = self.template_version_repo.create_version(
+            self.template_version_repo.create_version(
                 kind_id=kind.id,
                 version=version,
                 template_data=template_data.to_dict(),
                 duration_days=len(template_data.messages),
                 description=description,
-                created_by=created_by
+                created_by=created_by,
             )
 
             # Clear cache for this flow type
@@ -509,10 +577,14 @@ class EnhancedTemplateLoader:
             logger.error(f"Error creating template version: {e}")
             return False
 
-    def publish_template_version(self, flow_type: str, version: str, set_as_current: bool = True) -> bool:
+    def publish_template_version(
+        self, flow_type: str, version: str, set_as_current: bool = True
+    ) -> bool:
         """Publish a draft template version."""
         try:
-            template_version = self.template_version_repo.get_by_flow_type_and_version(flow_type, version)
+            template_version = self.template_version_repo.get_by_flow_type_and_version(
+                flow_type, version
+            )
             if not template_version:
                 logger.error(f"Template version not found: {flow_type} v{version}")
                 return False
@@ -526,7 +598,9 @@ class EnhancedTemplateLoader:
             if set_as_current:
                 kind = self.flow_kind_repo.get_by_flow_type(flow_type)
                 if kind:
-                    self.flow_kind_repo.update_current_version(kind.id, template_version.id)
+                    self.flow_kind_repo.update_current_version(
+                        kind.id, template_version.id
+                    )
 
             # Clear cache
             self._invalidate_cache_for_flow_type(flow_type)
@@ -538,7 +612,9 @@ class EnhancedTemplateLoader:
             logger.error(f"Error publishing template version: {e}")
             return False
 
-    def _parse_db_template_version(self, template_version: FlowTemplateVersion) -> FlowTemplateData:
+    def _parse_db_template_version(
+        self, template_version: FlowTemplateVersion
+    ) -> FlowTemplateData:
         """Parse database template version into FlowTemplateData."""
         # Access messages directly (JSONB field in database)
         messages_data = template_version.messages or {}
@@ -555,19 +631,21 @@ class EnhancedTemplateLoader:
                     type=InteractiveType(ie_data.get("type", "buttons")),
                     options=ie_data.get("options", []),
                     header=ie_data.get("header"),
-                    footer=ie_data.get("footer")
+                    footer=ie_data.get("footer"),
                 )
 
             # Parse conditions
             conditions = []
             for cond_data in msg_data.get("conditions", []):
-                conditions.append(Condition(
-                    type=cond_data["type"],
-                    field=cond_data["field"],
-                    operator=cond_data["operator"],
-                    value=cond_data["value"],
-                    logical_operator=cond_data.get("logical_operator")
-                ))
+                conditions.append(
+                    Condition(
+                        type=cond_data["type"],
+                        field=cond_data["field"],
+                        operator=cond_data["operator"],
+                        value=cond_data["value"],
+                        logical_operator=cond_data.get("logical_operator"),
+                    )
+                )
 
             messages[day] = MessageTemplate(
                 day=day,
@@ -580,7 +658,7 @@ class EnhancedTemplateLoader:
                 interactive_elements=interactive_elements,
                 conditions=conditions,
                 follow_up=msg_data.get("follow_up"),
-                variations=msg_data.get("variations", [])
+                variations=msg_data.get("variations", []),
             )
 
         return FlowTemplateData(
@@ -590,15 +668,15 @@ class EnhancedTemplateLoader:
             version=template_version.version,
             humanization_level="medium",  # Default value
             messages=messages,
-            metadata={}  # Default empty metadata
+            metadata={},  # Default empty metadata
         )
-
 
     def _cache_template(self, cache_key: str, template_data: FlowTemplateData) -> None:
         """Cache template with size and TTL management."""
         if len(self._template_cache) >= self._max_cache_size:
-            oldest_key = min(self._template_cache.keys(),
-                           key=lambda k: self._template_cache[k][1])
+            oldest_key = min(
+                self._template_cache.keys(), key=lambda k: self._template_cache[k][1]
+            )
             del self._template_cache[oldest_key]
             logger.debug(f"Removed oldest cached template: {oldest_key}")
 
@@ -607,10 +685,14 @@ class EnhancedTemplateLoader:
 
     def _invalidate_cache_for_flow_type(self, flow_type: str) -> None:
         """Invalidate cache entries for a specific flow type."""
-        cache_keys_to_remove = [k for k in self._template_cache.keys() if k.startswith(flow_type)]
+        cache_keys_to_remove = [
+            k for k in self._template_cache.keys() if k.startswith(flow_type)
+        ]
         for key in cache_keys_to_remove:
             del self._template_cache[key]
-        logger.debug(f"Invalidated {len(cache_keys_to_remove)} cache entries for flow_type: {flow_type}")
+        logger.debug(
+            f"Invalidated {len(cache_keys_to_remove)} cache entries for flow_type: {flow_type}"
+        )
 
     def clear_cache(self) -> None:
         """Clear template cache."""
@@ -620,8 +702,11 @@ class EnhancedTemplateLoader:
     def get_cache_stats(self) -> Dict[str, Any]:
         """Get cache statistics for monitoring."""
         now = datetime.utcnow()
-        expired_count = sum(1 for _, cached_time in self._template_cache.values()
-                          if now - cached_time >= self._cache_ttl)
+        expired_count = sum(
+            1
+            for _, cached_time in self._template_cache.values()
+            if now - cached_time >= self._cache_ttl
+        )
 
         return {
             "cache_size": len(self._template_cache),
@@ -629,5 +714,5 @@ class EnhancedTemplateLoader:
             "cache_utilization": len(self._template_cache) / self._max_cache_size,
             "expired_entries": expired_count,
             "cache_ttl_hours": self._cache_ttl.total_seconds() / 3600,
-            "database_enabled": True
+            "database_enabled": True,
         }

@@ -51,9 +51,7 @@ class MetricsHelper:
     def calculate_avg_engagement(metrics: List[Any]) -> float:
         """Calculate average engagement score."""
         engagement_scores = [
-            m.engagement_score
-            for m in metrics
-            if m.engagement_score is not None
+            m.engagement_score for m in metrics if m.engagement_score is not None
         ]
 
         if not engagement_scores:
@@ -77,10 +75,15 @@ class TrendAnalyzer:
             # Get last 7 days of data
             cutoff_time = datetime.utcnow() - timedelta(days=7)
 
-            metrics = self.db.query(ABExperimentMetric).filter(
-                ABExperimentMetric.experiment_id == experiment_id,
-                ABExperimentMetric.event_timestamp >= cutoff_time
-            ).order_by(ABExperimentMetric.event_timestamp).all()
+            metrics = (
+                self.db.query(ABExperimentMetric)
+                .filter(
+                    ABExperimentMetric.experiment_id == experiment_id,
+                    ABExperimentMetric.event_timestamp >= cutoff_time,
+                )
+                .order_by(ABExperimentMetric.event_timestamp)
+                .all()
+            )
 
             if not metrics:
                 return {"message": "Insufficient data for trend analysis"}
@@ -92,7 +95,9 @@ class TrendAnalyzer:
                 if day not in daily_metrics:
                     daily_metrics[day] = {"control": [], "treatment": []}
 
-                variant = "control" if metric.variant.value == "control" else "treatment"
+                variant = (
+                    "control" if metric.variant.value == "control" else "treatment"
+                )
                 daily_metrics[day][variant].append(metric)
 
             # Calculate daily rates
@@ -101,21 +106,41 @@ class TrendAnalyzer:
                 control_metrics = daily_metrics[day]["control"]
                 treatment_metrics = daily_metrics[day]["treatment"]
 
-                trend_data.append({
-                    "date": day.isoformat(),
-                    "control_response_rate": MetricsHelper.calculate_response_rate(control_metrics),
-                    "treatment_response_rate": MetricsHelper.calculate_response_rate(treatment_metrics),
-                    "control_avg_engagement": MetricsHelper.calculate_avg_engagement(control_metrics),
-                    "treatment_avg_engagement": MetricsHelper.calculate_avg_engagement(treatment_metrics)
-                })
+                trend_data.append(
+                    {
+                        "date": day.isoformat(),
+                        "control_response_rate": MetricsHelper.calculate_response_rate(
+                            control_metrics
+                        ),
+                        "treatment_response_rate": MetricsHelper.calculate_response_rate(
+                            treatment_metrics
+                        ),
+                        "control_avg_engagement": MetricsHelper.calculate_avg_engagement(
+                            control_metrics
+                        ),
+                        "treatment_avg_engagement": MetricsHelper.calculate_avg_engagement(
+                            treatment_metrics
+                        ),
+                    }
+                )
 
             # Calculate trend direction
             if len(trend_data) >= 2:
                 first_day = trend_data[0]
                 last_day = trend_data[-1]
 
-                response_trend = "increasing" if last_day["treatment_response_rate"] > first_day["treatment_response_rate"] else "decreasing"
-                engagement_trend = "increasing" if last_day["treatment_avg_engagement"] > first_day["treatment_avg_engagement"] else "decreasing"
+                response_trend = (
+                    "increasing"
+                    if last_day["treatment_response_rate"]
+                    > first_day["treatment_response_rate"]
+                    else "decreasing"
+                )
+                engagement_trend = (
+                    "increasing"
+                    if last_day["treatment_avg_engagement"]
+                    > first_day["treatment_avg_engagement"]
+                    else "decreasing"
+                )
             else:
                 response_trend = "stable"
                 engagement_trend = "stable"
@@ -124,7 +149,7 @@ class TrendAnalyzer:
                 "trend_data": trend_data,
                 "response_rate_trend": response_trend,
                 "engagement_trend": engagement_trend,
-                "data_points": len(trend_data)
+                "data_points": len(trend_data),
             }
 
         except Exception as e:
@@ -136,7 +161,9 @@ class AlertChecker:
     """Checker for performance alerts."""
 
     @staticmethod
-    def check_performance_alerts(real_time_kpis: Dict[str, Any]) -> List[Dict[str, str]]:
+    def check_performance_alerts(
+        real_time_kpis: Dict[str, Any],
+    ) -> List[Dict[str, str]]:
         """Check for performance alerts based on KPIs."""
         alerts = []
 
@@ -145,61 +172,83 @@ class AlertChecker:
         treatment_error_rate = real_time_kpis.get("error_rates", {}).get("treatment", 0)
 
         if control_error_rate > 0.1:
-            alerts.append({
-                "severity": "warning",
-                "type": "error_rate",
-                "message": f"Control group error rate elevated: {control_error_rate*100:.1f}%"
-            })
+            alerts.append(
+                {
+                    "severity": "warning",
+                    "type": "error_rate",
+                    "message": f"Control group error rate elevated: {control_error_rate * 100:.1f}%",
+                }
+            )
 
         if treatment_error_rate > 0.1:
-            alerts.append({
-                "severity": "warning",
-                "type": "error_rate",
-                "message": f"Treatment group error rate elevated: {treatment_error_rate*100:.1f}%"
-            })
+            alerts.append(
+                {
+                    "severity": "warning",
+                    "type": "error_rate",
+                    "message": f"Treatment group error rate elevated: {treatment_error_rate * 100:.1f}%",
+                }
+            )
 
         # Check response rates
-        control_response_rate = real_time_kpis.get("response_rates", {}).get("control", 0)
-        treatment_response_rate = real_time_kpis.get("response_rates", {}).get("treatment", 0)
+        control_response_rate = real_time_kpis.get("response_rates", {}).get(
+            "control", 0
+        )
+        treatment_response_rate = real_time_kpis.get("response_rates", {}).get(
+            "treatment", 0
+        )
 
         if control_response_rate < 0.3:
-            alerts.append({
-                "severity": "info",
-                "type": "response_rate",
-                "message": f"Control group response rate low: {control_response_rate*100:.1f}%"
-            })
+            alerts.append(
+                {
+                    "severity": "info",
+                    "type": "response_rate",
+                    "message": f"Control group response rate low: {control_response_rate * 100:.1f}%",
+                }
+            )
 
         if treatment_response_rate < 0.3:
-            alerts.append({
-                "severity": "info",
-                "type": "response_rate",
-                "message": f"Treatment group response rate low: {treatment_response_rate*100:.1f}%"
-            })
+            alerts.append(
+                {
+                    "severity": "info",
+                    "type": "response_rate",
+                    "message": f"Treatment group response rate low: {treatment_response_rate * 100:.1f}%",
+                }
+            )
 
         # Check response time
-        control_response_time = real_time_kpis.get("average_response_time", {}).get("control", 0)
-        treatment_response_time = real_time_kpis.get("average_response_time", {}).get("treatment", 0)
+        control_response_time = real_time_kpis.get("average_response_time", {}).get(
+            "control", 0
+        )
+        treatment_response_time = real_time_kpis.get("average_response_time", {}).get(
+            "treatment", 0
+        )
 
         if control_response_time > 3600:  # 1 hour
-            alerts.append({
-                "severity": "warning",
-                "type": "response_time",
-                "message": f"Control group response time elevated: {control_response_time/60:.1f} minutes"
-            })
+            alerts.append(
+                {
+                    "severity": "warning",
+                    "type": "response_time",
+                    "message": f"Control group response time elevated: {control_response_time / 60:.1f} minutes",
+                }
+            )
 
         if treatment_response_time > 3600:
-            alerts.append({
-                "severity": "warning",
-                "type": "response_time",
-                "message": f"Treatment group response time elevated: {treatment_response_time/60:.1f} minutes"
-            })
+            alerts.append(
+                {
+                    "severity": "warning",
+                    "type": "response_time",
+                    "message": f"Treatment group response time elevated: {treatment_response_time / 60:.1f} minutes",
+                }
+            )
 
         if not alerts:
-            alerts.append({
-                "severity": "success",
-                "type": "all_clear",
-                "message": "All metrics within normal ranges"
-            })
+            alerts.append(
+                {
+                    "severity": "success",
+                    "type": "all_clear",
+                    "message": "All metrics within normal ranges",
+                }
+            )
 
         return alerts
 
@@ -215,9 +264,11 @@ class DataExtractor:
         """Get experiment data separated by variant."""
         from app.models.ab_experiment import ABExperimentMetric, VariantType
 
-        metrics = self.db.query(ABExperimentMetric).filter(
-            ABExperimentMetric.experiment_id == experiment_id
-        ).all()
+        metrics = (
+            self.db.query(ABExperimentMetric)
+            .filter(ABExperimentMetric.experiment_id == experiment_id)
+            .all()
+        )
 
         control_data = [
             {
@@ -225,9 +276,10 @@ class DataExtractor:
                 "response_time": m.response_time_seconds,
                 "engagement_score": m.engagement_score,
                 "timestamp": m.event_timestamp,
-                "event_data": m.event_data
+                "event_data": m.event_data,
             }
-            for m in metrics if m.variant == VariantType.CONTROL
+            for m in metrics
+            if m.variant == VariantType.CONTROL
         ]
 
         treatment_data = [
@@ -236,9 +288,10 @@ class DataExtractor:
                 "response_time": m.response_time_seconds,
                 "engagement_score": m.engagement_score,
                 "timestamp": m.event_timestamp,
-                "event_data": m.event_data
+                "event_data": m.event_data,
             }
-            for m in metrics if m.variant == VariantType.TREATMENT
+            for m in metrics
+            if m.variant == VariantType.TREATMENT
         ]
 
         return control_data, treatment_data
@@ -251,24 +304,32 @@ class ResultsStore:
         """Initialize results store."""
         self.db = db
 
-    def store_experiment_results(self, experiment_id: str, results: Dict[str, Any]) -> None:
+    def store_experiment_results(
+        self, experiment_id: str, results: Dict[str, Any]
+    ) -> None:
         """Store comprehensive results in database."""
         try:
             from app.models.ab_experiment import ABExperiment
 
             # Update experiment record with key results
-            experiment = self.db.query(ABExperiment).filter(
-                ABExperiment.id == experiment_id
-            ).first()
+            experiment = (
+                self.db.query(ABExperiment)
+                .filter(ABExperiment.id == experiment_id)
+                .first()
+            )
 
             if experiment:
                 experiment.results = results
-                experiment.is_statistically_significant = results.get(
-                    "statistical_tests", {}
-                ).get("overall", {}).get("is_significant", False)
-                experiment.p_value = results.get(
-                    "statistical_tests", {}
-                ).get("overall", {}).get("min_p_value")
+                experiment.is_statistically_significant = (
+                    results.get("statistical_tests", {})
+                    .get("overall", {})
+                    .get("is_significant", False)
+                )
+                experiment.p_value = (
+                    results.get("statistical_tests", {})
+                    .get("overall", {})
+                    .get("min_p_value")
+                )
                 experiment.effect_size = results.get("effect_sizes", {}).get("cohens_d")
                 experiment.winner = self._determine_winner(results)
 
@@ -280,11 +341,23 @@ class ResultsStore:
 
     def _determine_winner(self, results: Dict[str, Any]) -> Optional[str]:
         """Determine winning variant based on results."""
-        if not results.get("statistical_tests", {}).get("overall", {}).get("is_significant", False):
+        if (
+            not results.get("statistical_tests", {})
+            .get("overall", {})
+            .get("is_significant", False)
+        ):
             return None
 
-        treatment_response = results.get("variant_statistics", {}).get("treatment", {}).get("response_rate", 0)
-        control_response = results.get("variant_statistics", {}).get("control", {}).get("response_rate", 0)
+        treatment_response = (
+            results.get("variant_statistics", {})
+            .get("treatment", {})
+            .get("response_rate", 0)
+        )
+        control_response = (
+            results.get("variant_statistics", {})
+            .get("control", {})
+            .get("response_rate", 0)
+        )
 
         if treatment_response > control_response:
             return "treatment"

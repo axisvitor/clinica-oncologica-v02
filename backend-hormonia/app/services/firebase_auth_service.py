@@ -3,6 +3,7 @@
 Provides Firebase JWT token validation for backend authentication.
 Replaces Supabase Auth with Firebase Authentication.
 """
+
 import logging
 from typing import Optional, Dict, Any
 import firebase_admin
@@ -42,7 +43,7 @@ class FirebaseAuthService:
         """Initialize Firebase Admin SDK with service account credentials."""
         try:
             # Format private key (handle escaped newlines)
-            formatted_key = self.private_key.replace('\\n', '\n')
+            formatted_key = self.private_key.replace("\\n", "\n")
 
             # Create credentials object
             cred_dict = {
@@ -58,7 +59,9 @@ class FirebaseAuthService:
             # Initialize Firebase Admin SDK
             if not firebase_admin._apps:
                 FirebaseAuthService._app = firebase_admin.initialize_app(cred)
-                logger.info(f"Firebase Admin SDK initialized successfully for project: {self.project_id}")
+                logger.info(
+                    f"Firebase Admin SDK initialized successfully for project: {self.project_id}"
+                )
             else:
                 FirebaseAuthService._app = firebase_admin.get_app()
                 logger.info("Using existing Firebase Admin SDK instance")
@@ -97,13 +100,24 @@ class FirebaseAuthService:
             # Extract custom claims from token (role, roles, permissions, etc.)
             # Firebase puts custom claims directly in the token, not in a nested field
             reserved_claims = {
-                'iss', 'aud', 'auth_time', 'user_id', 'sub', 'iat', 'exp',
-                'firebase', 'uid', 'email', 'email_verified', 'phone_number',
-                'name', 'picture', 'identities'
+                "iss",
+                "aud",
+                "auth_time",
+                "user_id",
+                "sub",
+                "iat",
+                "exp",
+                "firebase",
+                "uid",
+                "email",
+                "email_verified",
+                "phone_number",
+                "name",
+                "picture",
+                "identities",
             }
             custom_claims = {
-                k: v for k, v in decoded_token.items()
-                if k not in reserved_claims
+                k: v for k, v in decoded_token.items() if k not in reserved_claims
             }
 
             # Extract user information
@@ -118,11 +132,13 @@ class FirebaseAuthService:
                 "exp": decoded_token.get("exp"),
             }
 
-            logger.debug(f"Successfully verified token for user: {user_info['email']} with custom claims: {list(custom_claims.keys())}")
+            logger.debug(
+                f"Successfully verified token for user: {user_info['email']} with custom claims: {list(custom_claims.keys())}"
+            )
             return user_info
 
         except auth.ExpiredIdTokenError:
-            logger.warning(f"Expired token attempted")
+            logger.warning("Expired token attempted")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has expired",
@@ -130,7 +146,7 @@ class FirebaseAuthService:
             )
 
         except auth.RevokedIdTokenError:
-            logger.warning(f"Revoked token attempted")
+            logger.warning("Revoked token attempted")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has been revoked",
@@ -250,9 +266,7 @@ _firebase_service_instance: Optional[FirebaseAuthService] = None
 
 
 def get_firebase_auth_service(
-    project_id: str,
-    private_key: str,
-    client_email: str
+    project_id: str, private_key: str, client_email: str
 ) -> FirebaseAuthService:
     """
     Get or create FirebaseAuthService singleton instance.
@@ -269,9 +283,7 @@ def get_firebase_auth_service(
 
     if _firebase_service_instance is None:
         _firebase_service_instance = FirebaseAuthService(
-            project_id=project_id,
-            private_key=private_key,
-            client_email=client_email
+            project_id=project_id, private_key=private_key, client_email=client_email
         )
 
     return _firebase_service_instance

@@ -25,12 +25,11 @@ from typing import Dict, Any, List, Optional, Union
 from datetime import datetime
 from uuid import UUID
 from dataclasses import dataclass, field
-from enum import Enum
 
 from app.integrations.gemini_client import get_gemini_client
 
 from .cache_layer import CacheLayer, CacheOperation, get_cache_layer
-from .ai_service import PatientContext, ConcernLevel
+from .ai_service import PatientContext
 
 logger = logging.getLogger(__name__)
 

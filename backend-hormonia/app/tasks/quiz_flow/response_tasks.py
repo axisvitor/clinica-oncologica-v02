@@ -44,7 +44,9 @@ def process_quiz_response_task(
 
     try:
         with next(get_db()) as db:
-            from app.domain.quizzes.integration.flow_integration import ConversationalQuizService
+            from app.domain.quizzes.integration.flow_integration import (
+                ConversationalQuizService,
+            )
             from app.repositories.message import MessageRepository
 
             quiz_flow_service = ConversationalQuizService(db)

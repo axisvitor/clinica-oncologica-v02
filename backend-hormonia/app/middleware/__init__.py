@@ -8,11 +8,11 @@ from .enhanced_middleware import (
     EnhancedSecurityMiddleware,
     RequestLoggingMiddleware,
     RateLimitRule,
-    SecurityConfig
+    SecurityConfig,
 )
 from .security_headers import (
     SecurityHeadersMiddleware,
-    create_production_security_middleware
+    create_production_security_middleware,
 )
 from .security import SecurityHeadersMiddleware as SecurityMiddleware
 from .rate_limit import RateLimitMiddleware
@@ -28,5 +28,5 @@ __all__ = [
     "create_production_security_middleware",
     "SecurityMiddleware",
     "RateLimitMiddleware",
-    "LoggingMiddleware"
+    "LoggingMiddleware",
 ]

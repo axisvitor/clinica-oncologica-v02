@@ -2,8 +2,9 @@
 Quiz template service for loading and managing quiz templates from PostgreSQL database.
 Replaces YAML-based QuizTemplateLoader with database-backed service.
 """
+
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 from uuid import UUID
 from sqlalchemy.orm import Session
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 class QuizTemplateLoadError(Exception):
     """Quiz template loading error."""
+
     pass
 
 
@@ -37,7 +39,9 @@ class QuizTemplateService:
         self.db = db
         self._templates_cache: Dict[str, tuple[Dict[str, Any], datetime]] = {}
         self._cache_ttl = timedelta(hours=cache_ttl_hours)
-        logger.info(f"QuizTemplateService initialized - DB-only mode, cache TTL: {cache_ttl_hours}h")
+        logger.info(
+            f"QuizTemplateService initialized - DB-only mode, cache TTL: {cache_ttl_hours}h"
+        )
 
     def load_quiz_template(self, template_name: str) -> Optional[Dict[str, Any]]:
         """
@@ -69,12 +73,13 @@ class QuizTemplateService:
             from app.models.quiz import QuizTemplate
 
             # Load from database
-            template = self.db.query(QuizTemplate).filter(
-                and_(
-                    QuizTemplate.name == template_name,
-                    QuizTemplate.is_active == True
+            template = (
+                self.db.query(QuizTemplate)
+                .filter(
+                    and_(QuizTemplate.name == template_name, QuizTemplate.is_active)
                 )
-            ).first()
+                .first()
+            )
 
             if not template:
                 logger.warning(f"Quiz template not found in database: {template_name}")
@@ -82,26 +87,28 @@ class QuizTemplateService:
 
             # Convert to dict format
             template_data = {
-                'id': str(template.id),
-                'name': template.name,
-                'version': template.version,
-                'description': template.description,
-                'questions': template.questions,  # JSONB field
-                'category': template.category,
-                'tags': template.tags,
-                'passing_score': template.passing_score,
-                'time_limit_minutes': template.time_limit_minutes,
-                'randomize_questions': template.randomize_questions,
-                'is_active': template.is_active,
-                'created_at': template.created_at,
-                'updated_at': template.updated_at
+                "id": str(template.id),
+                "name": template.name,
+                "version": template.version,
+                "description": template.description,
+                "questions": template.questions,  # JSONB field
+                "category": template.category,
+                "tags": template.tags,
+                "passing_score": template.passing_score,
+                "time_limit_minutes": template.time_limit_minutes,
+                "randomize_questions": template.randomize_questions,
+                "is_active": template.is_active,
+                "created_at": template.created_at,
+                "updated_at": template.updated_at,
             }
 
             # Validate template structure
             if self._validate_template(template_data):
                 # Cache the template
                 self._cache_template(cache_key, template_data)
-                logger.info(f"Loaded quiz template from DB: {template_name} v{template.version}")
+                logger.info(
+                    f"Loaded quiz template from DB: {template_name} v{template.version}"
+                )
                 return template_data
             else:
                 logger.error(f"Invalid template structure: {template_name}")
@@ -109,7 +116,9 @@ class QuizTemplateService:
 
         except Exception as e:
             logger.error(f"Failed to load quiz template {template_name}: {e}")
-            raise QuizTemplateLoadError(f"Failed to load quiz template {template_name}: {str(e)}")
+            raise QuizTemplateLoadError(
+                f"Failed to load quiz template {template_name}: {str(e)}"
+            )
 
     def load_all_quiz_templates(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -122,23 +131,23 @@ class QuizTemplateService:
             from app.models.quiz import QuizTemplate
 
             templates = {}
-            db_templates = self.db.query(QuizTemplate).filter(
-                QuizTemplate.is_active == True
-            ).all()
+            db_templates = (
+                self.db.query(QuizTemplate).filter(QuizTemplate.is_active).all()
+            )
 
             for template in db_templates:
                 template_data = {
-                    'id': str(template.id),
-                    'name': template.name,
-                    'version': template.version,
-                    'description': template.description,
-                    'questions': template.questions,
-                    'category': template.category,
-                    'tags': template.tags,
-                    'passing_score': template.passing_score,
-                    'time_limit_minutes': template.time_limit_minutes,
-                    'randomize_questions': template.randomize_questions,
-                    'is_active': template.is_active
+                    "id": str(template.id),
+                    "name": template.name,
+                    "version": template.version,
+                    "description": template.description,
+                    "questions": template.questions,
+                    "category": template.category,
+                    "tags": template.tags,
+                    "passing_score": template.passing_score,
+                    "time_limit_minutes": template.time_limit_minutes,
+                    "randomize_questions": template.randomize_questions,
+                    "is_active": template.is_active,
                 }
 
                 if self._validate_template(template_data):
@@ -164,27 +173,29 @@ class QuizTemplateService:
         try:
             from app.models.quiz import QuizTemplate
 
-            template = self.db.query(QuizTemplate).filter(
-                QuizTemplate.id == template_id
-            ).first()
+            template = (
+                self.db.query(QuizTemplate)
+                .filter(QuizTemplate.id == template_id)
+                .first()
+            )
 
             if not template:
                 return None
 
             return {
-                'id': str(template.id),
-                'name': template.name,
-                'version': template.version,
-                'description': template.description,
-                'questions': template.questions,
-                'category': template.category,
-                'tags': template.tags,
-                'passing_score': template.passing_score,
-                'time_limit_minutes': template.time_limit_minutes,
-                'randomize_questions': template.randomize_questions,
-                'is_active': template.is_active,
-                'created_at': template.created_at,
-                'updated_at': template.updated_at
+                "id": str(template.id),
+                "name": template.name,
+                "version": template.version,
+                "description": template.description,
+                "questions": template.questions,
+                "category": template.category,
+                "tags": template.tags,
+                "passing_score": template.passing_score,
+                "time_limit_minutes": template.time_limit_minutes,
+                "randomize_questions": template.randomize_questions,
+                "is_active": template.is_active,
+                "created_at": template.created_at,
+                "updated_at": template.updated_at,
             }
 
         except Exception as e:
@@ -262,13 +273,21 @@ class QuizTemplateService:
             if "validation_rules" in question:
                 for rule in question["validation_rules"]:
                     if rule.get("type") == "range":
-                        if "value" not in rule or "min" not in rule["value"] or "max" not in rule["value"]:
-                            logger.error(f"Scale question {index} has invalid range validation")
+                        if (
+                            "value" not in rule
+                            or "min" not in rule["value"]
+                            or "max" not in rule["value"]
+                        ):
+                            logger.error(
+                                f"Scale question {index} has invalid range validation"
+                            )
                             return False
 
         return True
 
-    def get_question_by_id(self, template_name: str, question_id: str) -> Optional[Dict[str, Any]]:
+    def get_question_by_id(
+        self, template_name: str, question_id: str
+    ) -> Optional[Dict[str, Any]]:
         """
         Get a specific question from a template.
 
@@ -303,14 +322,17 @@ class QuizTemplateService:
     def get_cache_stats(self) -> Dict[str, Any]:
         """Get cache statistics for monitoring."""
         now = datetime.utcnow()
-        expired_count = sum(1 for _, cached_time in self._templates_cache.values()
-                          if now - cached_time >= self._cache_ttl)
+        expired_count = sum(
+            1
+            for _, cached_time in self._templates_cache.values()
+            if now - cached_time >= self._cache_ttl
+        )
 
         return {
             "cache_size": len(self._templates_cache),
             "expired_entries": expired_count,
             "cache_ttl_hours": self._cache_ttl.total_seconds() / 3600,
-            "database_enabled": True
+            "database_enabled": True,
         }
 
 

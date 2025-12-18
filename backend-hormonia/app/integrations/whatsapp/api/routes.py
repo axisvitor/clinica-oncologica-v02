@@ -1,16 +1,20 @@
 """
 WhatsApp API routes for message management and instance control.
 """
+
 import logging
-from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
+from datetime import datetime
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select
 
 from ..models.message import (
-    MessageRequest, MessageResponse, ContactResponse, InstanceStatus,
-    MessageStatus, WhatsAppMessage, WhatsAppContact, WhatsAppInstance
+    MessageRequest,
+    MessageResponse,
+    InstanceStatus,
+    WhatsAppContact,
+    WhatsAppInstance,
 )
 from ..services.evolution_client import EvolutionAPIClient, validate_phone_number
 from ..services.message_service import WhatsAppMessageService, MessageQueue
@@ -24,22 +28,26 @@ router = APIRouter(prefix="/api/v2/whatsapp", tags=["WhatsApp"])
 
 async def get_evolution_client() -> EvolutionAPIClient:
     """Get Evolution API client instance."""
-    if not hasattr(settings, 'EVOLUTION_API_URL') or not settings.WHATSAPP_EVOLUTION_API_URL:
+    if (
+        not hasattr(settings, "EVOLUTION_API_URL")
+        or not settings.WHATSAPP_EVOLUTION_API_URL
+    ):
         raise HTTPException(status_code=501, detail="Evolution API not configured")
 
     # Use mock client for development if no real API configured
     if settings.WHATSAPP_EVOLUTION_API_URL.startswith("http://localhost:8080"):
         from ..services.mock_evolution import MockEvolutionAPIClient
+
         client = MockEvolutionAPIClient(
             base_url=settings.WHATSAPP_EVOLUTION_API_URL,
             api_key=settings.WHATSAPP_EVOLUTION_API_KEY,
-            global_webhook_url=settings.WHATSAPP_EVOLUTION_WEBHOOK_URL
+            global_webhook_url=settings.WHATSAPP_EVOLUTION_WEBHOOK_URL,
         )
     else:
         client = EvolutionAPIClient(
             base_url=settings.WHATSAPP_EVOLUTION_API_URL,
             api_key=settings.WHATSAPP_EVOLUTION_API_KEY,
-            global_webhook_url=settings.WHATSAPP_EVOLUTION_WEBHOOK_URL
+            global_webhook_url=settings.WHATSAPP_EVOLUTION_WEBHOOK_URL,
         )
 
     await client.connect()
@@ -48,7 +56,7 @@ async def get_evolution_client() -> EvolutionAPIClient:
 
 async def get_message_service(
     db: AsyncSession = Depends(get_db),
-    evolution_client: EvolutionAPIClient = Depends(get_evolution_client)
+    evolution_client: EvolutionAPIClient = Depends(get_evolution_client),
 ) -> WhatsAppMessageService:
     """Get WhatsApp message service instance."""
     message_queue = MessageQueue(redis_url=settings.REDIS_URL)
@@ -61,7 +69,7 @@ async def create_instance(
     instance_name: str,
     webhook_url: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    evolution_client: EvolutionAPIClient = Depends(get_evolution_client)
+    evolution_client: EvolutionAPIClient = Depends(get_evolution_client),
 ):
     """Create a new WhatsApp instance."""
     try:
@@ -75,8 +83,7 @@ async def create_instance(
 
         # Create instance via Evolution API
         instance_status = await evolution_client.create_instance(
-            instance_name=instance_name,
-            webhook_url=webhook_url
+            instance_name=instance_name, webhook_url=webhook_url
         )
 
         # Save instance to database
@@ -86,7 +93,7 @@ async def create_instance(
             status=instance_status.status,
             qr_code=instance_status.qr_code,
             webhook_url=webhook_url,
-            is_connected=instance_status.is_connected
+            is_connected=instance_status.is_connected,
         )
 
         db.add(instance)
@@ -103,7 +110,7 @@ async def create_instance(
 @router.get("/instances/{instance_name}", response_model=InstanceStatus)
 async def get_instance_status(
     instance_name: str,
-    evolution_client: EvolutionAPIClient = Depends(get_evolution_client)
+    evolution_client: EvolutionAPIClient = Depends(get_evolution_client),
 ):
     """Get instance connection status."""
     try:
@@ -116,7 +123,7 @@ async def get_instance_status(
 @router.get("/instances/{instance_name}/qr")
 async def get_qr_code(
     instance_name: str,
-    evolution_client: EvolutionAPIClient = Depends(get_evolution_client)
+    evolution_client: EvolutionAPIClient = Depends(get_evolution_client),
 ):
     """Get QR code for instance connection."""
     try:
@@ -133,7 +140,7 @@ async def get_qr_code(
 @router.post("/instances/{instance_name}/restart")
 async def restart_instance(
     instance_name: str,
-    evolution_client: EvolutionAPIClient = Depends(get_evolution_client)
+    evolution_client: EvolutionAPIClient = Depends(get_evolution_client),
 ):
     """Restart WhatsApp instance."""
     try:
@@ -151,7 +158,7 @@ async def restart_instance(
 async def delete_instance(
     instance_name: str,
     db: AsyncSession = Depends(get_db),
-    evolution_client: EvolutionAPIClient = Depends(get_evolution_client)
+    evolution_client: EvolutionAPIClient = Depends(get_evolution_client),
 ):
     """Delete WhatsApp instance."""
     try:
@@ -160,7 +167,9 @@ async def delete_instance(
 
         if success:
             # Delete from database
-            stmt = select(WhatsAppInstance).where(WhatsAppInstance.name == instance_name)
+            stmt = select(WhatsAppInstance).where(
+                WhatsAppInstance.name == instance_name
+            )
             result = await db.execute(stmt)
             instance = result.scalar_one_or_none()
 
@@ -180,7 +189,7 @@ async def delete_instance(
 @router.post("/messages", response_model=MessageResponse)
 async def send_message(
     request: MessageRequest,
-    message_service: WhatsAppMessageService = Depends(get_message_service)
+    message_service: WhatsAppMessageService = Depends(get_message_service),
 ):
     """Send WhatsApp message."""
     try:
@@ -198,7 +207,7 @@ async def get_message_history(
     chat_id: str,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    message_service: WhatsAppMessageService = Depends(get_message_service)
+    message_service: WhatsAppMessageService = Depends(get_message_service),
 ):
     """Get message history for a chat."""
     try:
@@ -222,13 +231,13 @@ async def get_message_history(
                     "delivered_at": msg.delivered_at,
                     "read_at": msg.read_at,
                     "retry_count": msg.retry_count,
-                    "message_data": msg.message_data
+                    "message_data": msg.message_data,
                 }
                 for msg in messages
             ],
             "total": len(messages),
             "limit": limit,
-            "offset": offset
+            "offset": offset,
         }
     except Exception as e:
         logger.error(f"Error getting message history: {e}")
@@ -240,7 +249,7 @@ async def get_message_statistics(
     instance_name: str,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
-    message_service: WhatsAppMessageService = Depends(get_message_service)
+    message_service: WhatsAppMessageService = Depends(get_message_service),
 ):
     """Get message statistics for an instance."""
     try:
@@ -249,12 +258,9 @@ async def get_message_statistics(
         )
         return {
             "instance_name": instance_name,
-            "period": {
-                "start_date": start_date,
-                "end_date": end_date
-            },
+            "period": {"start_date": start_date, "end_date": end_date},
             "statistics": stats,
-            "generated_at": datetime.utcnow()
+            "generated_at": datetime.utcnow(),
         }
     except Exception as e:
         logger.error(f"Error getting message statistics: {e}")
@@ -266,7 +272,7 @@ async def get_message_statistics(
 async def sync_contacts(
     instance_name: str,
     background_tasks: BackgroundTasks,
-    message_service: WhatsAppMessageService = Depends(get_message_service)
+    message_service: WhatsAppMessageService = Depends(get_message_service),
 ):
     """Synchronize contacts from WhatsApp."""
     try:
@@ -274,7 +280,7 @@ async def sync_contacts(
         return {
             "status": "sync_started",
             "instance_name": instance_name,
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.utcnow(),
         }
     except Exception as e:
         logger.error(f"Error starting contact sync: {e}")
@@ -287,17 +293,19 @@ async def get_contacts(
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
     search: Optional[str] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Get contacts for an instance."""
     try:
-        stmt = select(WhatsAppContact).where(WhatsAppContact.instance_name == instance_name)
+        stmt = select(WhatsAppContact).where(
+            WhatsAppContact.instance_name == instance_name
+        )
 
         if search:
             search_term = f"%{search}%"
             stmt = stmt.where(
-                (WhatsAppContact.name.ilike(search_term)) |
-                (WhatsAppContact.phone_number.ilike(search_term))
+                (WhatsAppContact.name.ilike(search_term))
+                | (WhatsAppContact.phone_number.ilike(search_term))
             )
 
         stmt = stmt.order_by(WhatsAppContact.name.asc()).limit(limit).offset(offset)
@@ -316,13 +324,13 @@ async def get_contacts(
                     "is_whatsapp_user": contact.is_whatsapp_user,
                     "last_seen": contact.last_seen,
                     "created_at": contact.created_at,
-                    "updated_at": contact.updated_at
+                    "updated_at": contact.updated_at,
                 }
                 for contact in contacts
             ],
             "total": len(contacts),
             "limit": limit,
-            "offset": offset
+            "offset": offset,
         }
     except Exception as e:
         logger.error(f"Error getting contacts: {e}")
@@ -333,22 +341,26 @@ async def get_contacts(
 async def check_whatsapp_number(
     instance_name: str,
     phone_number: str,
-    evolution_client: EvolutionAPIClient = Depends(get_evolution_client)
+    evolution_client: EvolutionAPIClient = Depends(get_evolution_client),
 ):
     """Check if phone number is registered on WhatsApp."""
     try:
         # Validate and format phone number
         is_valid, formatted_number = await validate_phone_number(phone_number)
         if not is_valid:
-            raise HTTPException(status_code=400, detail=f"Invalid phone number: {formatted_number}")
+            raise HTTPException(
+                status_code=400, detail=f"Invalid phone number: {formatted_number}"
+            )
 
-        is_whatsapp = await evolution_client.check_whatsapp_number(instance_name, formatted_number)
+        is_whatsapp = await evolution_client.check_whatsapp_number(
+            instance_name, formatted_number
+        )
 
         return {
             "phone_number": phone_number,
             "formatted_number": formatted_number,
             "is_whatsapp_user": is_whatsapp,
-            "checked_at": datetime.utcnow()
+            "checked_at": datetime.utcnow(),
         }
     except Exception as e:
         logger.error(f"Error checking WhatsApp number: {e}")
@@ -362,10 +374,7 @@ async def get_queue_stats():
     try:
         message_queue = MessageQueue(redis_url=settings.REDIS_URL)
         stats = await message_queue.get_queue_stats()
-        return {
-            "queue_statistics": stats,
-            "timestamp": datetime.utcnow()
-        }
+        return {"queue_statistics": stats, "timestamp": datetime.utcnow()}
     except Exception as e:
         logger.error(f"Error getting queue stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -374,15 +383,12 @@ async def get_queue_stats():
 @router.post("/queue/process")
 async def start_queue_processing(
     background_tasks: BackgroundTasks,
-    message_service: WhatsAppMessageService = Depends(get_message_service)
+    message_service: WhatsAppMessageService = Depends(get_message_service),
 ):
     """Start message queue processing."""
     try:
         background_tasks.add_task(message_service.process_message_queue)
-        return {
-            "status": "queue_processing_started",
-            "timestamp": datetime.utcnow()
-        }
+        return {"status": "queue_processing_started", "timestamp": datetime.utcnow()}
     except Exception as e:
         logger.error(f"Error starting queue processing: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -396,7 +402,7 @@ async def health_check():
         "status": "healthy",
         "service": "whatsapp-integration",
         "timestamp": datetime.utcnow(),
-        "version": "1.0.0"
+        "version": "1.0.0",
     }
 
 
@@ -418,12 +424,12 @@ async def list_instances(db: AsyncSession = Depends(get_db)):
                     "phone_number": instance.phone_number,
                     "profile_name": instance.profile_name,
                     "created_at": instance.created_at,
-                    "last_activity": instance.last_activity
+                    "last_activity": instance.last_activity,
                 }
                 for instance in instances
             ],
             "total": len(instances),
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.utcnow(),
         }
     except Exception as e:
         logger.error(f"Error listing instances: {e}")

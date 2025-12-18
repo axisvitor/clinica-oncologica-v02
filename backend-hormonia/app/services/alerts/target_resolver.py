@@ -6,7 +6,7 @@ alert severity, type, and context.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import List, Optional
 from uuid import UUID
 
 from .types import (
@@ -98,13 +98,16 @@ class TargetResolver:
                         "alert_id": str(alert.id),
                         "severity": alert.severity.value,
                         "rule_type": alert.rule_type.value,
-                    }
+                    },
                 )
             )
 
         logger.info(
             f"Resolved {len(targets)} notification targets for alert {alert.id}",
-            extra={"severity": alert.severity.value, "channels": [c.value for c in channels]}
+            extra={
+                "severity": alert.severity.value,
+                "channels": [c.value for c in channels],
+            },
         )
 
         return targets
@@ -145,7 +148,11 @@ class TargetResolver:
                     patient = await patient_repo.get_by_id(
                         UUID(patient_id) if isinstance(patient_id, str) else patient_id
                     )
-                    if patient and hasattr(patient, 'assigned_doctor_id') and patient.assigned_doctor_id:
+                    if (
+                        patient
+                        and hasattr(patient, "assigned_doctor_id")
+                        and patient.assigned_doctor_id
+                    ):
                         target_user_ids.append(patient.assigned_doctor_id)
                     break
             except Exception as e:

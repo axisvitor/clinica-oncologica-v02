@@ -20,7 +20,6 @@ from app.repositories.quiz import QuizResponseRepository
 from app.models.alert import Alert, AlertSeverity, AlertStatus
 
 from .alert_manager import AlertManager
-from .types import AlertStatistics, DashboardData
 
 logger = logging.getLogger(__name__)
 

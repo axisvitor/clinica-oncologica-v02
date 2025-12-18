@@ -34,7 +34,7 @@ RATE_LIMIT_READ = "100/minute"
     responses={
         200: {"description": "List of API endpoints"},
         400: {"model": ErrorResponse, "description": "Invalid parameters"},
-    }
+    },
 )
 @limiter.limit(RATE_LIMIT_READ)
 async def list_api_endpoints(
@@ -43,7 +43,9 @@ async def list_api_endpoints(
     method: Optional[str] = Query(None, description="Filter by HTTP method"),
     search: Optional[str] = Query(None, description="Search in path or description"),
     deprecated: Optional[bool] = Query(None, description="Filter by deprecated status"),
-    requires_auth: Optional[bool] = Query(None, description="Filter by authentication requirement"),
+    requires_auth: Optional[bool] = Query(
+        None, description="Filter by authentication requirement"
+    ),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
 ):
     """
@@ -61,9 +63,15 @@ async def list_api_endpoints(
     """
     try:
         # Check cache
-        cache_key = get_cache_key("endpoints", category=category, method=method,
-                                   search=search, deprecated=deprecated,
-                                   requires_auth=requires_auth, limit=limit)
+        cache_key = get_cache_key(
+            "endpoints",
+            category=category,
+            method=method,
+            search=search,
+            deprecated=deprecated,
+            requires_auth=requires_auth,
+            limit=limit,
+        )
         cached = await get_cached_result(cache_key)
         if cached:
             return cached
@@ -75,7 +83,11 @@ async def list_api_endpoints(
         filtered = endpoints
 
         if category:
-            filtered = [e for e in filtered if category.lower() in [t.lower() for t in e["tags"]]]
+            filtered = [
+                e
+                for e in filtered
+                if category.lower() in [t.lower() for t in e["tags"]]
+            ]
 
         if method:
             filtered = [e for e in filtered if e["method"].lower() == method.lower()]
@@ -83,7 +95,8 @@ async def list_api_endpoints(
         if search:
             search_lower = search.lower()
             filtered = [
-                e for e in filtered
+                e
+                for e in filtered
                 if search_lower in e["path"].lower()
                 or search_lower in e["summary"].lower()
                 or search_lower in e["description"].lower()
@@ -123,7 +136,7 @@ async def list_api_endpoints(
         logger.error(f"Error listing endpoints: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to list API endpoints"
+            detail="Failed to list API endpoints",
         )
 
 
@@ -135,7 +148,7 @@ async def list_api_endpoints(
     responses={
         200: {"description": "Endpoint documentation"},
         404: {"model": ErrorResponse, "description": "Endpoint not found"},
-    }
+    },
 )
 @limiter.limit(RATE_LIMIT_READ)
 async def get_endpoint_documentation(
@@ -179,7 +192,7 @@ async def get_endpoint_documentation(
         if not endpoint:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Endpoint {method.upper()} {path} not found"
+                detail=f"Endpoint {method.upper()} {path} not found",
             )
 
         # Find related endpoints (same category)
@@ -205,5 +218,5 @@ async def get_endpoint_documentation(
         logger.error(f"Error getting endpoint documentation: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get endpoint documentation"
+            detail="Failed to get endpoint documentation",
         )

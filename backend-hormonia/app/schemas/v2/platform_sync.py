@@ -3,10 +3,17 @@ V2 Platform Sync Schemas
 Pydantic models for multi-platform synchronization with conflict resolution.
 """
 
-from typing import Optional, List, Dict, Any, Literal
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field, HttpUrl, model_validator, field_validator, ConfigDict
+from pydantic import (
+    BaseModel,
+    Field,
+    HttpUrl,
+    model_validator,
+    field_validator,
+    ConfigDict,
+)
 from uuid import UUID
 
 
@@ -15,6 +22,7 @@ from uuid import UUID
 # ============================================================================
 class PlatformType(str, Enum):
     """External platform types"""
+
     EHR = "ehr"  # Electronic Health Records
     ANALYTICS = "analytics"  # Analytics platforms
     NOTIFICATIONS = "notifications"  # Notification services
@@ -25,6 +33,7 @@ class PlatformType(str, Enum):
 
 class SyncJobStatus(str, Enum):
     """Sync job status"""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -35,6 +44,7 @@ class SyncJobStatus(str, Enum):
 
 class SyncStrategy(str, Enum):
     """Sync execution strategy"""
+
     FULL = "full"  # Complete data snapshot
     INCREMENTAL = "incremental"  # Changes only
     SELECTIVE = "selective"  # Specific entities
@@ -42,6 +52,7 @@ class SyncStrategy(str, Enum):
 
 class ConflictStrategy(str, Enum):
     """Conflict resolution strategy"""
+
     LAST_WRITE_WINS = "last_write_wins"  # Most recent update wins
     MANUAL = "manual"  # Require manual resolution
     FIELD_LEVEL = "field_level"  # Field-by-field resolution
@@ -50,6 +61,7 @@ class ConflictStrategy(str, Enum):
 
 class SyncDirection(str, Enum):
     """Sync direction"""
+
     PUSH = "push"  # Local to remote
     PULL = "pull"  # Remote to local
     BIDIRECTIONAL = "bidirectional"  # Both directions
@@ -57,6 +69,7 @@ class SyncDirection(str, Enum):
 
 class ConflictResolutionStrategy(str, Enum):
     """How to resolve a specific conflict"""
+
     USE_LOCAL = "use_local"
     USE_REMOTE = "use_remote"
     MERGE = "merge"
@@ -68,11 +81,16 @@ class ConflictResolutionStrategy(str, Enum):
 # ============================================================================
 class SyncJobCreate(BaseModel):
     """Create new sync job"""
+
     platform: PlatformType = Field(..., description="Target platform")
     strategy: SyncStrategy = Field(..., description="Sync strategy")
-    direction: SyncDirection = Field(SyncDirection.BIDIRECTIONAL, description="Sync direction")
+    direction: SyncDirection = Field(
+        SyncDirection.BIDIRECTIONAL, description="Sync direction"
+    )
     entity_types: Optional[List[str]] = Field(None, description="Entity types to sync")
-    entity_ids: Optional[List[str]] = Field(None, description="Specific entity IDs (for selective)")
+    entity_ids: Optional[List[str]] = Field(
+        None, description="Specific entity IDs (for selective)"
+    )
     batch_size: int = Field(1000, ge=1, le=10000, description="Items per batch")
     dry_run: bool = Field(False, description="Simulate without applying changes")
 
@@ -84,33 +102,41 @@ class SyncJobCreate(BaseModel):
             raise ValueError("entity_ids required for selective sync")
         return v
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "platform": "ehr",
                 "strategy": "incremental",
                 "direction": "bidirectional",
                 "entity_types": ["patients", "appointments"],
                 "batch_size": 1000,
-                "dry_run": False
+                "dry_run": False,
             }
-        })
+        }
+    )
 
 
 class SyncJobUpdate(BaseModel):
     """Update sync job"""
-    status: Optional[SyncJobStatus] = Field(None, description="Job status")
-    cancel_reason: Optional[str] = Field(None, max_length=500, description="Cancellation reason")
 
-    model_config = ConfigDict(json_schema_extra={
+    status: Optional[SyncJobStatus] = Field(None, description="Job status")
+    cancel_reason: Optional[str] = Field(
+        None, max_length=500, description="Cancellation reason"
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "status": "cancelled",
-                "cancel_reason": "Manual cancellation by admin"
+                "cancel_reason": "Manual cancellation by admin",
             }
-        })
+        }
+    )
 
 
 class SyncJobResponse(BaseModel):
     """Sync job response"""
+
     id: UUID = Field(..., description="Job ID")
     platform: str = Field(..., description="Target platform")
     strategy: str = Field(..., description="Sync strategy")
@@ -153,27 +179,30 @@ class SyncJobResponse(BaseModel):
                 "started_at": "2025-01-01T10:00:05Z",
                 "completed_at": "2025-01-01T10:15:00Z",
                 "duration_seconds": 895.5,
-                "error_message": None
+                "error_message": None,
             }
-        }
+        },
     )
 
 
 class SyncJobList(BaseModel):
     """Paginated sync job list"""
+
     data: List[SyncJobResponse] = Field(..., description="Sync jobs")
     next_cursor: Optional[str] = Field(None, description="Cursor for next page")
     has_more: bool = Field(..., description="More items available")
     total: Optional[int] = Field(None, description="Total count")
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "data": [],
                 "next_cursor": "eyJpZCI6MTIzfQ==",
                 "has_more": True,
-                "total": 50
+                "total": 50,
             }
-        })
+        }
+    )
 
 
 # ============================================================================
@@ -181,19 +210,22 @@ class SyncJobList(BaseModel):
 # ============================================================================
 class SyncTriggerRequest(BaseModel):
     """Request to trigger manual sync"""
+
     platform: PlatformType = Field(..., description="Target platform")
     strategy: SyncStrategy = Field(..., description="Sync strategy")
-    direction: SyncDirection = Field(SyncDirection.BIDIRECTIONAL, description="Sync direction")
+    direction: SyncDirection = Field(
+        SyncDirection.BIDIRECTIONAL, description="Sync direction"
+    )
     entity_types: Optional[List[str]] = Field(None, description="Entity types to sync")
     entity_ids: Optional[List[str]] = Field(None, description="Specific entity IDs")
     batch_size: int = Field(1000, ge=1, le=10000, description="Items per batch")
     conflict_strategy: ConflictStrategy = Field(
-        ConflictStrategy.LAST_WRITE_WINS,
-        description="Conflict resolution strategy"
+        ConflictStrategy.LAST_WRITE_WINS, description="Conflict resolution strategy"
     )
     dry_run: bool = Field(False, description="Simulate without applying changes")
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "platform": "ehr",
                 "strategy": "incremental",
@@ -201,13 +233,15 @@ class SyncTriggerRequest(BaseModel):
                 "entity_types": ["patients"],
                 "batch_size": 1000,
                 "conflict_strategy": "last_write_wins",
-                "dry_run": False
+                "dry_run": False,
             }
-        })
+        }
+    )
 
 
 class SyncTriggerResponse(BaseModel):
     """Response for sync trigger"""
+
     job_id: UUID = Field(..., description="Created job ID")
     transaction_id: str = Field(..., description="Transaction ID")
     status: SyncJobStatus = Field(..., description="Initial status")
@@ -215,34 +249,44 @@ class SyncTriggerResponse(BaseModel):
     estimated_items: int = Field(..., description="Estimated items to sync")
     started_at: datetime = Field(..., description="Start timestamp")
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "job_id": "550e8400-e29b-41d4-a716-446655440000",
                 "transaction_id": "sync_txn_abc123",
                 "status": "pending",
                 "message": "Sync job created successfully",
                 "estimated_items": 500,
-                "started_at": "2025-01-01T10:00:00Z"
+                "started_at": "2025-01-01T10:00:00Z",
             }
-        })
+        }
+    )
 
 
 class SyncStatusResponse(BaseModel):
     """Real-time sync status"""
+
     job_id: UUID = Field(..., description="Job ID")
     status: str = Field(..., description="Current status")
-    progress_percentage: float = Field(..., ge=0, le=100, description="Progress percentage")
+    progress_percentage: float = Field(
+        ..., ge=0, le=100, description="Progress percentage"
+    )
     total_items: int = Field(..., description="Total items")
     processed_items: int = Field(..., description="Processed items")
     current_batch: int = Field(..., description="Current batch number")
     total_batches: int = Field(..., description="Total batches")
     items_per_second: float = Field(..., description="Processing rate")
-    estimated_completion: Optional[datetime] = Field(None, description="Estimated completion time")
-    current_entity_type: Optional[str] = Field(None, description="Currently processing entity type")
+    estimated_completion: Optional[datetime] = Field(
+        None, description="Estimated completion time"
+    )
+    current_entity_type: Optional[str] = Field(
+        None, description="Currently processing entity type"
+    )
     errors: List[str] = Field(default_factory=list, description="Recent errors")
     warnings: List[str] = Field(default_factory=list, description="Warnings")
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "job_id": "550e8400-e29b-41d4-a716-446655440000",
                 "status": "running",
@@ -255,9 +299,10 @@ class SyncStatusResponse(BaseModel):
                 "estimated_completion": "2025-01-01T10:15:00Z",
                 "current_entity_type": "patients",
                 "errors": [],
-                "warnings": ["3 items skipped due to validation errors"]
+                "warnings": ["3 items skipped due to validation errors"],
             }
-        })
+        }
+    )
 
 
 # ============================================================================
@@ -265,24 +310,36 @@ class SyncStatusResponse(BaseModel):
 # ============================================================================
 class SyncConfigCreate(BaseModel):
     """Create sync configuration"""
+
     platform: PlatformType = Field(..., description="Platform type")
-    name: str = Field(..., min_length=1, max_length=100, description="Configuration name")
+    name: str = Field(
+        ..., min_length=1, max_length=100, description="Configuration name"
+    )
     description: Optional[str] = Field(None, max_length=500, description="Description")
     endpoint_url: HttpUrl = Field(..., description="Platform API endpoint")
-    auth_type: str = Field(..., description="Authentication type (bearer, api_key, oauth2)")
-    auth_token: Optional[str] = Field(None, description="Authentication token (not stored in response)")
+    auth_type: str = Field(
+        ..., description="Authentication type (bearer, api_key, oauth2)"
+    )
+    auth_token: Optional[str] = Field(
+        None, description="Authentication token (not stored in response)"
+    )
     enabled: bool = Field(True, description="Enable automatic sync")
-    sync_interval_minutes: int = Field(60, ge=5, le=1440, description="Auto-sync interval (5-1440 min)")
+    sync_interval_minutes: int = Field(
+        60, ge=5, le=1440, description="Auto-sync interval (5-1440 min)"
+    )
     conflict_strategy: ConflictStrategy = Field(
-        ConflictStrategy.LAST_WRITE_WINS,
-        description="Default conflict strategy"
+        ConflictStrategy.LAST_WRITE_WINS, description="Default conflict strategy"
     )
     retry_enabled: bool = Field(True, description="Enable automatic retries")
     max_retries: int = Field(3, ge=0, le=10, description="Maximum retry attempts")
     batch_size: int = Field(1000, ge=1, le=10000, description="Items per batch")
     timeout_seconds: int = Field(30, ge=5, le=300, description="Request timeout")
-    custom_headers: Optional[Dict[str, str]] = Field(None, description="Custom HTTP headers")
-    custom_settings: Optional[Dict[str, Any]] = Field(None, description="Platform-specific settings")
+    custom_headers: Optional[Dict[str, str]] = Field(
+        None, description="Custom HTTP headers"
+    )
+    custom_settings: Optional[Dict[str, Any]] = Field(
+        None, description="Platform-specific settings"
+    )
 
     @field_validator("auth_type")
     @classmethod
@@ -293,7 +350,8 @@ class SyncConfigCreate(BaseModel):
             raise ValueError(f"auth_type must be one of: {', '.join(allowed)}")
         return v
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "platform": "ehr",
                 "name": "Main EHR System",
@@ -306,39 +364,52 @@ class SyncConfigCreate(BaseModel):
                 "retry_enabled": True,
                 "max_retries": 3,
                 "batch_size": 1000,
-                "timeout_seconds": 30
+                "timeout_seconds": 30,
             }
-        })
+        }
+    )
 
 
 class SyncConfigUpdate(BaseModel):
     """Update sync configuration"""
-    name: Optional[str] = Field(None, min_length=1, max_length=100, description="Configuration name")
+
+    name: Optional[str] = Field(
+        None, min_length=1, max_length=100, description="Configuration name"
+    )
     description: Optional[str] = Field(None, max_length=500, description="Description")
     endpoint_url: Optional[HttpUrl] = Field(None, description="Platform API endpoint")
     auth_type: Optional[str] = Field(None, description="Authentication type")
     auth_token: Optional[str] = Field(None, description="Authentication token")
     enabled: Optional[bool] = Field(None, description="Enable automatic sync")
-    sync_interval_minutes: Optional[int] = Field(None, ge=5, le=1440, description="Auto-sync interval")
-    conflict_strategy: Optional[ConflictStrategy] = Field(None, description="Conflict strategy")
+    sync_interval_minutes: Optional[int] = Field(
+        None, ge=5, le=1440, description="Auto-sync interval"
+    )
+    conflict_strategy: Optional[ConflictStrategy] = Field(
+        None, description="Conflict strategy"
+    )
     retry_enabled: Optional[bool] = Field(None, description="Enable retries")
     max_retries: Optional[int] = Field(None, ge=0, le=10, description="Max retries")
     batch_size: Optional[int] = Field(None, ge=1, le=10000, description="Batch size")
     timeout_seconds: Optional[int] = Field(None, ge=5, le=300, description="Timeout")
     custom_headers: Optional[Dict[str, str]] = Field(None, description="Custom headers")
-    custom_settings: Optional[Dict[str, Any]] = Field(None, description="Custom settings")
+    custom_settings: Optional[Dict[str, Any]] = Field(
+        None, description="Custom settings"
+    )
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "enabled": False,
                 "sync_interval_minutes": 120,
-                "description": "Updated configuration"
+                "description": "Updated configuration",
             }
-        })
+        }
+    )
 
 
 class SyncConfigResponse(BaseModel):
     """Sync configuration response"""
+
     id: UUID = Field(..., description="Configuration ID")
     platform: str = Field(..., description="Platform type")
     name: str = Field(..., description="Configuration name")
@@ -352,8 +423,12 @@ class SyncConfigResponse(BaseModel):
     max_retries: int = Field(..., description="Maximum retries")
     batch_size: int = Field(..., description="Batch size")
     timeout_seconds: int = Field(..., description="Request timeout")
-    custom_headers: Dict[str, str] = Field(default_factory=dict, description="Custom headers")
-    custom_settings: Dict[str, Any] = Field(default_factory=dict, description="Custom settings")
+    custom_headers: Dict[str, str] = Field(
+        default_factory=dict, description="Custom headers"
+    )
+    custom_settings: Dict[str, Any] = Field(
+        default_factory=dict, description="Custom settings"
+    )
     created_at: datetime = Field(..., description="Creation time")
     updated_at: datetime = Field(..., description="Last update time")
     last_sync_at: Optional[datetime] = Field(None, description="Last sync time")
@@ -387,26 +462,30 @@ class SyncConfigResponse(BaseModel):
                 "last_sync_status": "completed",
                 "total_syncs": 150,
                 "successful_syncs": 148,
-                "failed_syncs": 2
+                "failed_syncs": 2,
             }
-        })
+        },
+    )
 
 
 class SyncConfigList(BaseModel):
     """Paginated sync configuration list"""
+
     data: List[SyncConfigResponse] = Field(..., description="Sync configurations")
     next_cursor: Optional[str] = Field(None, description="Cursor for next page")
     has_more: bool = Field(..., description="More items available")
     total: Optional[int] = Field(None, description="Total count")
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "data": [],
                 "next_cursor": "eyJpZCI6MTIzfQ==",
                 "has_more": True,
-                "total": 10
+                "total": 10,
             }
-        })
+        }
+    )
 
 
 # ============================================================================
@@ -414,6 +493,7 @@ class SyncConfigList(BaseModel):
 # ============================================================================
 class PlatformTestRequest(BaseModel):
     """Request to test platform connection"""
+
     platform: PlatformType = Field(..., description="Platform to test")
     endpoint_url: HttpUrl = Field(..., description="API endpoint")
     auth_type: str = Field(..., description="Authentication type")
@@ -421,28 +501,34 @@ class PlatformTestRequest(BaseModel):
     timeout_seconds: int = Field(10, ge=1, le=60, description="Test timeout")
     custom_headers: Optional[Dict[str, str]] = Field(None, description="Custom headers")
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "platform": "ehr",
                 "endpoint_url": "https://ehr.example.com/api/v2/health",
                 "auth_type": "bearer",
                 "auth_token": "test_token_123",
-                "timeout_seconds": 10
+                "timeout_seconds": 10,
             }
-        })
+        }
+    )
 
 
 class PlatformTestResponse(BaseModel):
     """Platform connection test result"""
+
     success: bool = Field(..., description="Test successful")
     status_code: Optional[int] = Field(None, description="HTTP status code")
     response_time_ms: float = Field(..., description="Response time in milliseconds")
     message: str = Field(..., description="Test result message")
-    platform_info: Optional[Dict[str, Any]] = Field(None, description="Platform information")
+    platform_info: Optional[Dict[str, Any]] = Field(
+        None, description="Platform information"
+    )
     errors: List[str] = Field(default_factory=list, description="Error messages")
     warnings: List[str] = Field(default_factory=list, description="Warnings")
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "success": True,
                 "status_code": 200,
@@ -451,12 +537,13 @@ class PlatformTestResponse(BaseModel):
                 "platform_info": {
                     "status": "available",
                     "version": "2.0",
-                    "features": ["sync", "webhooks"]
+                    "features": ["sync", "webhooks"],
                 },
                 "errors": [],
-                "warnings": []
+                "warnings": [],
             }
-        })
+        }
+    )
 
 
 # ============================================================================
@@ -464,29 +551,40 @@ class PlatformTestResponse(BaseModel):
 # ============================================================================
 class ConflictResolutionRequest(BaseModel):
     """Request to resolve sync conflict"""
+
     conflict_id: UUID = Field(..., description="Conflict ID")
-    resolution_strategy: ConflictResolutionStrategy = Field(..., description="Resolution strategy")
-    merged_data: Optional[Dict[str, Any]] = Field(None, description="Merged data (for merge strategy)")
+    resolution_strategy: ConflictResolutionStrategy = Field(
+        ..., description="Resolution strategy"
+    )
+    merged_data: Optional[Dict[str, Any]] = Field(
+        None, description="Merged data (for merge strategy)"
+    )
     notes: Optional[str] = Field(None, max_length=1000, description="Resolution notes")
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_merge_data(self):
         """Validate merged_data for merge strategy"""
-        if self.resolution_strategy == ConflictResolutionStrategy.MERGE and not self.merged_data:
+        if (
+            self.resolution_strategy == ConflictResolutionStrategy.MERGE
+            and not self.merged_data
+        ):
             raise ValueError("merged_data required for merge strategy")
         return self
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "conflict_id": "550e8400-e29b-41d4-a716-446655440000",
                 "resolution_strategy": "use_local",
-                "notes": "Local version is more accurate"
+                "notes": "Local version is more accurate",
             }
-        })
+        }
+    )
 
 
 class ConflictResolutionResponse(BaseModel):
     """Response for conflict resolution"""
+
     conflict_id: UUID = Field(..., description="Conflict ID")
     status: str = Field(..., description="Resolution status")
     resolution_strategy: str = Field(..., description="Strategy used")
@@ -494,16 +592,18 @@ class ConflictResolutionResponse(BaseModel):
     message: str = Field(..., description="Status message")
     resolved_at: datetime = Field(..., description="Resolution timestamp")
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "conflict_id": "550e8400-e29b-41d4-a716-446655440000",
                 "status": "resolved",
                 "resolution_strategy": "use_local",
                 "resolved_value": {"name": "John Doe", "age": 35},
                 "message": "Conflict resolved successfully",
-                "resolved_at": "2025-01-01T10:00:00Z"
+                "resolved_at": "2025-01-01T10:00:00Z",
             }
-        })
+        }
+    )
 
 
 # ============================================================================
@@ -511,6 +611,7 @@ class ConflictResolutionResponse(BaseModel):
 # ============================================================================
 class SyncHistoryResponse(BaseModel):
     """Sync history entry with detailed logs"""
+
     id: UUID = Field(..., description="History entry ID")
     job_id: UUID = Field(..., description="Sync job ID")
     transaction_id: str = Field(..., description="Transaction ID")
@@ -524,7 +625,9 @@ class SyncHistoryResponse(BaseModel):
     started_at: datetime = Field(..., description="Start time")
     completed_at: Optional[datetime] = Field(None, description="Completion time")
     error_summary: Optional[str] = Field(None, description="Error summary")
-    detailed_logs: List[Dict[str, Any]] = Field(default_factory=list, description="Detailed logs")
+    detailed_logs: List[Dict[str, Any]] = Field(
+        default_factory=list, description="Detailed logs"
+    )
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -543,26 +646,30 @@ class SyncHistoryResponse(BaseModel):
                 "started_at": "2025-01-01T10:00:00Z",
                 "completed_at": "2025-01-01T10:15:00Z",
                 "error_summary": "5 items failed validation",
-                "detailed_logs": []
+                "detailed_logs": [],
             }
-        })
+        },
+    )
 
 
 class SyncHistoryList(BaseModel):
     """Paginated sync history list"""
+
     data: List[SyncHistoryResponse] = Field(..., description="History entries")
     next_cursor: Optional[str] = Field(None, description="Cursor for next page")
     has_more: bool = Field(..., description="More items available")
     total: Optional[int] = Field(None, description="Total count")
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "data": [],
                 "next_cursor": "eyJpZCI6MTIzfQ==",
                 "has_more": True,
-                "total": 200
+                "total": 200,
             }
-        })
+        }
+    )
 
 
 # ============================================================================
@@ -570,21 +677,27 @@ class SyncHistoryList(BaseModel):
 # ============================================================================
 class SyncRollbackRequest(BaseModel):
     """Request to rollback sync transaction"""
+
     transaction_id: str = Field(..., description="Transaction ID to rollback")
-    reason: str = Field(..., min_length=1, max_length=500, description="Rollback reason")
+    reason: str = Field(
+        ..., min_length=1, max_length=500, description="Rollback reason"
+    )
     dry_run: bool = Field(False, description="Simulate rollback without applying")
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "transaction_id": "sync_txn_abc123",
                 "reason": "Data corruption detected in sync batch",
-                "dry_run": False
+                "dry_run": False,
             }
-        })
+        }
+    )
 
 
 class SyncRollbackResponse(BaseModel):
     """Response for rollback operation"""
+
     rollback_job_id: UUID = Field(..., description="Rollback job ID")
     original_transaction_id: str = Field(..., description="Original transaction ID")
     status: str = Field(..., description="Rollback status")
@@ -592,14 +705,15 @@ class SyncRollbackResponse(BaseModel):
     estimated_items_to_revert: int = Field(..., description="Estimated items to revert")
     started_at: datetime = Field(..., description="Rollback start time")
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "rollback_job_id": "550e8400-e29b-41d4-a716-446655440002",
                 "original_transaction_id": "sync_txn_abc123",
                 "status": "pending",
                 "message": "Rollback initiated successfully",
                 "estimated_items_to_revert": 495,
-                "started_at": "2025-01-01T11:00:00Z"
+                "started_at": "2025-01-01T11:00:00Z",
             }
-        })
-
+        }
+    )

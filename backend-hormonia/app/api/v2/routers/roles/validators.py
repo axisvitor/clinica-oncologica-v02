@@ -21,7 +21,7 @@ def get_role_permissions(role: UserRole) -> List[str]:
     Returns:
         List of permission strings
     """
-    role_str = role.value if hasattr(role, 'value') else str(role)
+    role_str = role.value if hasattr(role, "value") else str(role)
     return get_permissions_for_role(role_str)
 
 
@@ -56,7 +56,7 @@ def group_permissions(permissions: List[str]) -> Dict[str, List[str]]:
 
     for perm in permissions:
         # Extract category from permission (e.g., "users.read" -> "users")
-        parts = perm.split('.')
+        parts = perm.split(".")
         category = parts[0] if parts else "general"
 
         if category not in groups:

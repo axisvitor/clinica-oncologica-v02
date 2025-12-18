@@ -6,13 +6,12 @@ incorrect treatment monitoring due to missing or invalid data.
 
 Critical P7 Fix: Ensures flows don't start with incomplete patient information.
 """
+
 from typing import Dict, List, Any, Optional
 from datetime import datetime, date
-import re
 import logging
-from uuid import UUID
 
-from app.models.patient import Patient, FlowState
+from app.models.patient import Patient
 from app.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
@@ -56,10 +55,10 @@ class RequiredFieldRule(ValidationRule):
     def validate(self, value: Any, patient: Patient) -> Optional[Dict[str, str]]:
         if value is None or (isinstance(value, str) and not value.strip()):
             return {
-                'field': self.field_name,
-                'message': f"{self.display_name} não informado",
-                'severity': self.severity,
-                'code': 'REQUIRED_FIELD_MISSING'
+                "field": self.field_name,
+                "message": f"{self.display_name} não informado",
+                "severity": self.severity,
+                "code": "REQUIRED_FIELD_MISSING",
             }
         return None
 
@@ -68,46 +67,46 @@ class CPFValidationRule(ValidationRule):
     """Validates Brazilian CPF format."""
 
     def __init__(self):
-        super().__init__('cpf', 'error')
+        super().__init__("cpf", "error")
 
     def validate(self, value: Any, patient: Patient) -> Optional[Dict[str, str]]:
         if not value:
             return {
-                'field': 'cpf',
-                'message': 'CPF não informado',
-                'severity': 'error',
-                'code': 'CPF_MISSING'
+                "field": "cpf",
+                "message": "CPF não informado",
+                "severity": "error",
+                "code": "CPF_MISSING",
             }
 
         # Extract only digits
-        cpf_digits = ''.join(filter(str.isdigit, str(value)))
+        cpf_digits = "".join(filter(str.isdigit, str(value)))
 
         # Check length
         if len(cpf_digits) != 11:
             return {
-                'field': 'cpf',
-                'message': f'CPF com formato inválido (deve ter 11 dígitos): {value}',
-                'severity': 'error',
-                'code': 'CPF_INVALID_LENGTH',
-                'actual_length': len(cpf_digits)
+                "field": "cpf",
+                "message": f"CPF com formato inválido (deve ter 11 dígitos): {value}",
+                "severity": "error",
+                "code": "CPF_INVALID_LENGTH",
+                "actual_length": len(cpf_digits),
             }
 
         # Check for known invalid CPFs (all same digit)
         if len(set(cpf_digits)) == 1:
             return {
-                'field': 'cpf',
-                'message': f'CPF inválido (todos os dígitos iguais): {value}',
-                'severity': 'error',
-                'code': 'CPF_INVALID_FORMAT'
+                "field": "cpf",
+                "message": f"CPF inválido (todos os dígitos iguais): {value}",
+                "severity": "error",
+                "code": "CPF_INVALID_FORMAT",
             }
 
         # Validate CPF checksum
         if not self._validate_cpf_checksum(cpf_digits):
             return {
-                'field': 'cpf',
-                'message': f'CPF com dígitos verificadores inválidos: {value}',
-                'severity': 'error',
-                'code': 'CPF_INVALID_CHECKSUM'
+                "field": "cpf",
+                "message": f"CPF com dígitos verificadores inválidos: {value}",
+                "severity": "error",
+                "code": "CPF_INVALID_CHECKSUM",
             }
 
         return None
@@ -139,69 +138,109 @@ class PhoneValidationRule(ValidationRule):
     """Validates Brazilian phone number format."""
 
     def __init__(self):
-        super().__init__('phone', 'error')
+        super().__init__("phone", "error")
 
     def validate(self, value: Any, patient: Patient) -> Optional[Dict[str, str]]:
         if not value:
             return {
-                'field': 'phone',
-                'message': 'Telefone não informado',
-                'severity': 'error',
-                'code': 'PHONE_MISSING'
+                "field": "phone",
+                "message": "Telefone não informado",
+                "severity": "error",
+                "code": "PHONE_MISSING",
             }
 
         # Extract only digits
-        phone_digits = ''.join(filter(str.isdigit, str(value)))
+        phone_digits = "".join(filter(str.isdigit, str(value)))
 
         # Brazilian phones: 10 digits (landline) or 11 digits (mobile with 9)
         if len(phone_digits) < 10 or len(phone_digits) > 11:
             return {
-                'field': 'phone',
-                'message': f'Telefone com formato inválido (deve ter 10-11 dígitos): {value}',
-                'severity': 'error',
-                'code': 'PHONE_INVALID_LENGTH',
-                'actual_length': len(phone_digits)
+                "field": "phone",
+                "message": f"Telefone com formato inválido (deve ter 10-11 dígitos): {value}",
+                "severity": "error",
+                "code": "PHONE_INVALID_LENGTH",
+                "actual_length": len(phone_digits),
             }
 
         # Validate area code (DDD)
         area_code = phone_digits[:2]
         valid_area_codes = [
-            '11', '12', '13', '14', '15', '16', '17', '18', '19',  # SP
-            '21', '22', '24',  # RJ
-            '27', '28',  # ES
-            '31', '32', '33', '34', '35', '37', '38',  # MG
-            '41', '42', '43', '44', '45', '46',  # PR
-            '47', '48', '49',  # SC
-            '51', '53', '54', '55',  # RS
-            '61',  # DF
-            '62', '64',  # GO
-            '63',  # TO
-            '65', '66',  # MT
-            '67',  # MS
-            '68',  # AC
-            '69',  # RO
-            '71', '73', '74', '75', '77',  # BA
-            '79',  # SE
-            '81', '87',  # PE
-            '82',  # AL
-            '83',  # PB
-            '84',  # RN
-            '85', '88',  # CE
-            '86', '89',  # PI
-            '91', '93', '94',  # PA
-            '92', '97',  # AM
-            '95',  # RR
-            '96',  # AP
-            '98', '99',  # MA
+            "11",
+            "12",
+            "13",
+            "14",
+            "15",
+            "16",
+            "17",
+            "18",
+            "19",  # SP
+            "21",
+            "22",
+            "24",  # RJ
+            "27",
+            "28",  # ES
+            "31",
+            "32",
+            "33",
+            "34",
+            "35",
+            "37",
+            "38",  # MG
+            "41",
+            "42",
+            "43",
+            "44",
+            "45",
+            "46",  # PR
+            "47",
+            "48",
+            "49",  # SC
+            "51",
+            "53",
+            "54",
+            "55",  # RS
+            "61",  # DF
+            "62",
+            "64",  # GO
+            "63",  # TO
+            "65",
+            "66",  # MT
+            "67",  # MS
+            "68",  # AC
+            "69",  # RO
+            "71",
+            "73",
+            "74",
+            "75",
+            "77",  # BA
+            "79",  # SE
+            "81",
+            "87",  # PE
+            "82",  # AL
+            "83",  # PB
+            "84",  # RN
+            "85",
+            "88",  # CE
+            "86",
+            "89",  # PI
+            "91",
+            "93",
+            "94",  # PA
+            "92",
+            "97",  # AM
+            "95",  # RR
+            "96",  # AP
+            "98",
+            "99",  # MA
         ]
 
         if area_code not in valid_area_codes:
             return {
-                'field': 'phone',
-                'message': f'Telefone com código de área (DDD) inválido: {area_code}',
-                'severity': 'warning',  # Warning only, as new area codes may be added
-                'code': 'PHONE_INVALID_AREA_CODE',
-                'area_code': area_code
+                "field": "phone",
+                "message": f"Telefone com código de área (DDD) inválido: {area_code}",
+                "severity": "warning",  # Warning only, as new area codes may be added
+                "code": "PHONE_INVALID_AREA_CODE",
+                "area_code": area_code,
             }
 
         return None
@@ -211,36 +250,36 @@ class TreatmentTypeValidationRule(ValidationRule):
     """Validates treatment type is specified."""
 
     VALID_TREATMENT_TYPES = [
-        'hormone_therapy',
-        'chemotherapy',
-        'radiotherapy',
-        'immunotherapy',
-        'targeted_therapy',
-        'surgery',
-        'palliative_care'
+        "hormone_therapy",
+        "chemotherapy",
+        "radiotherapy",
+        "immunotherapy",
+        "targeted_therapy",
+        "surgery",
+        "palliative_care",
     ]
 
     def __init__(self):
-        super().__init__('treatment_type', 'error')
+        super().__init__("treatment_type", "error")
 
     def validate(self, value: Any, patient: Patient) -> Optional[Dict[str, str]]:
         if not value:
             return {
-                'field': 'treatment_type',
-                'message': 'Tipo de tratamento não informado',
-                'severity': 'error',
-                'code': 'TREATMENT_TYPE_MISSING'
+                "field": "treatment_type",
+                "message": "Tipo de tratamento não informado",
+                "severity": "error",
+                "code": "TREATMENT_TYPE_MISSING",
             }
 
         # Validate against known types (warning only for extensibility)
         if value not in self.VALID_TREATMENT_TYPES:
             return {
-                'field': 'treatment_type',
-                'message': f'Tipo de tratamento não reconhecido: {value}',
-                'severity': 'warning',
-                'code': 'TREATMENT_TYPE_UNKNOWN',
-                'provided_value': value,
-                'valid_types': self.VALID_TREATMENT_TYPES
+                "field": "treatment_type",
+                "message": f"Tipo de tratamento não reconhecido: {value}",
+                "severity": "warning",
+                "code": "TREATMENT_TYPE_UNKNOWN",
+                "provided_value": value,
+                "valid_types": self.VALID_TREATMENT_TYPES,
             }
 
         return None
@@ -249,9 +288,14 @@ class TreatmentTypeValidationRule(ValidationRule):
 class DateValidationRule(ValidationRule):
     """Validates date fields are reasonable."""
 
-    def __init__(self, field_name: str, display_name: str,
-                 allow_future: bool = False, allow_past: bool = True,
-                 severity: str = "warning"):
+    def __init__(
+        self,
+        field_name: str,
+        display_name: str,
+        allow_future: bool = False,
+        allow_past: bool = True,
+        severity: str = "warning",
+    ):
         super().__init__(field_name, severity)
         self.display_name = display_name
         self.allow_future = allow_future
@@ -267,10 +311,10 @@ class DateValidationRule(ValidationRule):
 
         if not isinstance(value, date):
             return {
-                'field': self.field_name,
-                'message': f'{self.display_name} com formato inválido',
-                'severity': self.severity,
-                'code': 'DATE_INVALID_FORMAT'
+                "field": self.field_name,
+                "message": f"{self.display_name} com formato inválido",
+                "severity": self.severity,
+                "code": "DATE_INVALID_FORMAT",
             }
 
         today = date.today()
@@ -278,33 +322,33 @@ class DateValidationRule(ValidationRule):
         # Check future dates
         if not self.allow_future and value > today:
             return {
-                'field': self.field_name,
-                'message': f'{self.display_name} não pode ser no futuro: {value}',
-                'severity': self.severity,
-                'code': 'DATE_IN_FUTURE',
-                'provided_date': str(value)
+                "field": self.field_name,
+                "message": f"{self.display_name} não pode ser no futuro: {value}",
+                "severity": self.severity,
+                "code": "DATE_IN_FUTURE",
+                "provided_date": str(value),
             }
 
         # Check very old dates (likely data entry errors)
         if self.allow_past and value < date(1900, 1, 1):
             return {
-                'field': self.field_name,
-                'message': f'{self.display_name} com valor muito antigo: {value}',
-                'severity': self.severity,
-                'code': 'DATE_TOO_OLD',
-                'provided_date': str(value)
+                "field": self.field_name,
+                "message": f"{self.display_name} com valor muito antigo: {value}",
+                "severity": self.severity,
+                "code": "DATE_TOO_OLD",
+                "provided_date": str(value),
             }
 
         # Check birth date specific validations
-        if self.field_name == 'birth_date':
+        if self.field_name == "birth_date":
             age_years = (today - value).days / 365.25
             if age_years > 150:
                 return {
-                    'field': self.field_name,
-                    'message': f'Data de nascimento implica idade improvável: {age_years:.0f} anos',
-                    'severity': self.severity,
-                    'code': 'DATE_IMPLAUSIBLE_AGE',
-                    'calculated_age': int(age_years)
+                    "field": self.field_name,
+                    "message": f"Data de nascimento implica idade improvável: {age_years:.0f} anos",
+                    "severity": self.severity,
+                    "code": "DATE_IMPLAUSIBLE_AGE",
+                    "calculated_age": int(age_years),
                 }
 
         return None
@@ -327,17 +371,19 @@ class FlowPreflightValidator:
         ]
 
         self.recommended_rules: List[ValidationRule] = [
-            RequiredFieldRule('name', 'Nome do paciente', severity='warning'),
-            DateValidationRule('treatment_start_date', 'Data de início do tratamento',
-                             allow_future=True, severity='warning'),
-            DateValidationRule('birth_date', 'Data de nascimento', severity='warning'),
-            RequiredFieldRule('diagnosis', 'Diagnóstico', severity='warning'),
+            RequiredFieldRule("name", "Nome do paciente", severity="warning"),
+            DateValidationRule(
+                "treatment_start_date",
+                "Data de início do tratamento",
+                allow_future=True,
+                severity="warning",
+            ),
+            DateValidationRule("birth_date", "Data de nascimento", severity="warning"),
+            RequiredFieldRule("diagnosis", "Diagnóstico", severity="warning"),
         ]
 
     def validate_patient_for_flow(
-        self,
-        patient: Patient,
-        flow_type: Optional[str] = None
+        self, patient: Patient, flow_type: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Validate patient data before starting a flow.
@@ -383,28 +429,30 @@ class FlowPreflightValidator:
 
         # Build validation result
         validation_result = {
-            'valid': len(errors) == 0,
-            'patient_id': str(patient.id),
-            'patient_name': patient.name,
-            'errors': errors,
-            'warnings': warnings,
-            'checked_fields': {
-                'critical': [rule.field_name for rule in self.critical_rules],
-                'recommended': [rule.field_name for rule in self.recommended_rules]
+            "valid": len(errors) == 0,
+            "patient_id": str(patient.id),
+            "patient_name": patient.name,
+            "errors": errors,
+            "warnings": warnings,
+            "checked_fields": {
+                "critical": [rule.field_name for rule in self.critical_rules],
+                "recommended": [rule.field_name for rule in self.recommended_rules],
             },
-            'timestamp': datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
         # Log validation results
         if errors:
-            error_summary = '; '.join([f"{e['field']}: {e['message']}" for e in errors])
+            error_summary = "; ".join([f"{e['field']}: {e['message']}" for e in errors])
             logger.error(
                 f"Patient {patient.id} failed flow pre-flight validation. "
                 f"Errors: {error_summary}"
             )
 
         if warnings:
-            warning_summary = '; '.join([f"{w['field']}: {w['message']}" for w in warnings])
+            warning_summary = "; ".join(
+                [f"{w['field']}: {w['message']}" for w in warnings]
+            )
             logger.warning(
                 f"Patient {patient.id} has validation warnings. "
                 f"Warnings: {warning_summary}"
@@ -417,15 +465,13 @@ class FlowPreflightValidator:
                 f"Dados do paciente incompletos ou inválidos. "
                 f"Corrija os seguintes erros antes de iniciar o fluxo: "
                 f"{'; '.join(error_messages)}",
-                details=validation_result
+                details=validation_result,
             )
 
         return validation_result
 
     def _validate_flow_specific_requirements(
-        self,
-        patient: Patient,
-        flow_type: str
+        self, patient: Patient, flow_type: str
     ) -> List[Dict[str, str]]:
         """
         Validate flow-type specific requirements.
@@ -440,33 +486,35 @@ class FlowPreflightValidator:
         errors = []
 
         # Hormone therapy specific validations
-        if 'hormona' in flow_type.lower() or 'hormone' in flow_type.lower():
+        if "hormona" in flow_type.lower() or "hormone" in flow_type.lower():
             if not patient.treatment_start_date:
-                errors.append({
-                    'field': 'treatment_start_date',
-                    'message': 'Data de início do tratamento é obrigatória para terapia hormonal',
-                    'severity': 'error',
-                    'code': 'HORMONE_THERAPY_START_DATE_REQUIRED',
-                    'flow_type': flow_type
-                })
+                errors.append(
+                    {
+                        "field": "treatment_start_date",
+                        "message": "Data de início do tratamento é obrigatória para terapia hormonal",
+                        "severity": "error",
+                        "code": "HORMONE_THERAPY_START_DATE_REQUIRED",
+                        "flow_type": flow_type,
+                    }
+                )
 
         # Chemotherapy specific validations
-        if 'quimio' in flow_type.lower() or 'chemo' in flow_type.lower():
+        if "quimio" in flow_type.lower() or "chemo" in flow_type.lower():
             if not patient.diagnosis:
-                errors.append({
-                    'field': 'diagnosis',
-                    'message': 'Diagnóstico é obrigatório para quimioterapia',
-                    'severity': 'error',
-                    'code': 'CHEMOTHERAPY_DIAGNOSIS_REQUIRED',
-                    'flow_type': flow_type
-                })
+                errors.append(
+                    {
+                        "field": "diagnosis",
+                        "message": "Diagnóstico é obrigatório para quimioterapia",
+                        "severity": "error",
+                        "code": "CHEMOTHERAPY_DIAGNOSIS_REQUIRED",
+                        "flow_type": flow_type,
+                    }
+                )
 
         return errors
 
     def validate_multiple_patients(
-        self,
-        patients: List[Patient],
-        flow_type: Optional[str] = None
+        self, patients: List[Patient], flow_type: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Validate multiple patients for batch flow operations.
@@ -479,33 +527,39 @@ class FlowPreflightValidator:
             Summary of validation results for all patients
         """
         results = {
-            'total_patients': len(patients),
-            'valid_patients': 0,
-            'invalid_patients': 0,
-            'patients_with_warnings': 0,
-            'validation_details': []
+            "total_patients": len(patients),
+            "valid_patients": 0,
+            "invalid_patients": 0,
+            "patients_with_warnings": 0,
+            "validation_details": [],
         }
 
         for patient in patients:
             try:
                 validation = self.validate_patient_for_flow(patient, flow_type)
-                results['valid_patients'] += 1
-                if validation['warnings']:
-                    results['patients_with_warnings'] += 1
-                results['validation_details'].append({
-                    'patient_id': str(patient.id),
-                    'patient_name': patient.name,
-                    'valid': True,
-                    'warnings': validation['warnings']
-                })
+                results["valid_patients"] += 1
+                if validation["warnings"]:
+                    results["patients_with_warnings"] += 1
+                results["validation_details"].append(
+                    {
+                        "patient_id": str(patient.id),
+                        "patient_name": patient.name,
+                        "valid": True,
+                        "warnings": validation["warnings"],
+                    }
+                )
             except ValidationError as e:
-                results['invalid_patients'] += 1
-                results['validation_details'].append({
-                    'patient_id': str(patient.id),
-                    'patient_name': patient.name,
-                    'valid': False,
-                    'errors': e.details.get('errors', []) if hasattr(e, 'details') else []
-                })
+                results["invalid_patients"] += 1
+                results["validation_details"].append(
+                    {
+                        "patient_id": str(patient.id),
+                        "patient_name": patient.name,
+                        "valid": False,
+                        "errors": e.details.get("errors", [])
+                        if hasattr(e, "details")
+                        else [],
+                    }
+                )
 
         return results
 

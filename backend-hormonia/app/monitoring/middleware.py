@@ -8,7 +8,7 @@ import time
 import asyncio
 import functools
 import logging
-from typing import Callable, Any, Dict, Optional
+from typing import Callable, Optional
 from datetime import datetime
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -25,9 +25,13 @@ logger = logging.getLogger(__name__)
 class MonitoringMiddleware(BaseHTTPMiddleware):
     """FastAPI middleware for comprehensive monitoring."""
 
-    def __init__(self, app, apm_collector: APMCollector,
-                 db_monitor: DatabasePerformanceMonitor,
-                 business_metrics: BusinessMetricsCollector):
+    def __init__(
+        self,
+        app,
+        apm_collector: APMCollector,
+        db_monitor: DatabasePerformanceMonitor,
+        business_metrics: BusinessMetricsCollector,
+    ):
         super().__init__(app)
         self.apm_collector = apm_collector
         self.db_monitor = db_monitor
@@ -38,7 +42,9 @@ class MonitoringMiddleware(BaseHTTPMiddleware):
         start_time = time.time()
 
         # Generate request ID if not present
-        request_id = request.headers.get("X-Request-ID", f"req_{int(time.time() * 1000000)}")
+        request_id = request.headers.get(
+            "X-Request-ID", f"req_{int(time.time() * 1000000)}"
+        )
 
         # Get user ID from request state (set by auth middleware)
         user_id = getattr(request.state, "user_id", None)
@@ -50,7 +56,7 @@ class MonitoringMiddleware(BaseHTTPMiddleware):
             "db_queries": 0,
             "cache_hits": 0,
             "cache_misses": 0,
-            "errors": []
+            "errors": [],
         }
 
         try:
@@ -71,7 +77,7 @@ class MonitoringMiddleware(BaseHTTPMiddleware):
                 user_id=user_id,
                 db_queries=request.state.monitoring.get("db_queries", 0),
                 cache_hits=request.state.monitoring.get("cache_hits", 0),
-                cache_misses=request.state.monitoring.get("cache_misses", 0)
+                cache_misses=request.state.monitoring.get("cache_misses", 0),
             )
 
             # Record APM metrics
@@ -101,15 +107,16 @@ class MonitoringMiddleware(BaseHTTPMiddleware):
                 error_type=type(e).__name__,
                 db_queries=request.state.monitoring.get("db_queries", 0),
                 cache_hits=request.state.monitoring.get("cache_hits", 0),
-                cache_misses=request.state.monitoring.get("cache_misses", 0)
+                cache_misses=request.state.monitoring.get("cache_misses", 0),
             )
 
             await self.apm_collector.record_request(error_metrics)
 
             raise
 
-    async def _record_business_metrics(self, request: Request, response: Response,
-                                     response_time: float) -> None:
+    async def _record_business_metrics(
+        self, request: Request, response: Response, response_time: float
+    ) -> None:
         """Record business metrics based on endpoint patterns."""
         try:
             path = request.url.path
@@ -162,64 +169,72 @@ class MonitoringMiddleware(BaseHTTPMiddleware):
 
 def monitor_database_query(db_monitor: DatabasePerformanceMonitor):
     """Decorator to monitor database queries."""
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
             start_time = time.time()
-            error = None
 
             try:
                 result = await func(*args, **kwargs)
                 return result
             except Exception as e:
-                error = str(e)
+                str(e)
                 raise
             finally:
                 end_time = time.time()
                 execution_time = end_time - start_time
 
                 # Extract query information from function name/args
-                query_text = f"{func.__name__}({', '.join(str(arg)[:50] for arg in args[:2])})"
+                query_text = (
+                    f"{func.__name__}({', '.join(str(arg)[:50] for arg in args[:2])})"
+                )
 
                 # Record in database monitor
                 await db_monitor._record_query_async(
                     statement=query_text,
                     execution_time=execution_time,
-                    rows_affected=None
+                    rows_affected=None,
                 )
 
         @functools.wraps(func)
         def sync_wrapper(*args, **kwargs):
             start_time = time.time()
-            error = None
 
             try:
                 result = func(*args, **kwargs)
                 return result
             except Exception as e:
-                error = str(e)
+                str(e)
                 raise
             finally:
                 end_time = time.time()
                 execution_time = end_time - start_time
 
                 # Extract query information
-                query_text = f"{func.__name__}({', '.join(str(arg)[:50] for arg in args[:2])})"
+                query_text = (
+                    f"{func.__name__}({', '.join(str(arg)[:50] for arg in args[:2])})"
+                )
 
                 # Record in database monitor (sync version)
-                asyncio.create_task(db_monitor._record_query_async(
-                    statement=query_text,
-                    execution_time=execution_time,
-                    rows_affected=None
-                ))
+                asyncio.create_task(
+                    db_monitor._record_query_async(
+                        statement=query_text,
+                        execution_time=execution_time,
+                        rows_affected=None,
+                    )
+                )
 
         return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
+
     return decorator
 
 
-def monitor_business_operation(business_metrics: BusinessMetricsCollector,
-                             metric_type: MetricType):
+def monitor_business_operation(
+    business_metrics: BusinessMetricsCollector, metric_type: MetricType
+):
     """Decorator to monitor business operations."""
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
@@ -230,7 +245,7 @@ def monitor_business_operation(business_metrics: BusinessMetricsCollector,
                 result = await func(*args, **kwargs)
                 success = True
                 return result
-            except Exception as e:
+            except Exception:
                 success = False
                 raise
             finally:
@@ -238,8 +253,12 @@ def monitor_business_operation(business_metrics: BusinessMetricsCollector,
                 duration = end_time - start_time
 
                 # Extract patient/user ID from arguments or kwargs
-                patient_id = kwargs.get('patient_id') or (args[0] if args and hasattr(args[0], 'patient_id') else None)
-                user_id = kwargs.get('user_id') or (args[0] if args and hasattr(args[0], 'user_id') else None)
+                patient_id = kwargs.get("patient_id") or (
+                    args[0] if args and hasattr(args[0], "patient_id") else None
+                )
+                kwargs.get("user_id") or (
+                    args[0] if args and hasattr(args[0], "user_id") else None
+                )
 
                 # Record business metric based on type
                 if metric_type == MetricType.PATIENT_FLOW:
@@ -268,7 +287,7 @@ def monitor_business_operation(business_metrics: BusinessMetricsCollector,
                 result = func(*args, **kwargs)
                 success = True
                 return result
-            except Exception as e:
+            except Exception:
                 success = False
                 raise
             finally:
@@ -276,43 +295,57 @@ def monitor_business_operation(business_metrics: BusinessMetricsCollector,
                 duration = end_time - start_time
 
                 # Extract patient/user ID
-                patient_id = kwargs.get('patient_id') or (args[0] if args and hasattr(args[0], 'patient_id') else None)
-                user_id = kwargs.get('user_id') or (args[0] if args and hasattr(args[0], 'user_id') else None)
+                patient_id = kwargs.get("patient_id") or (
+                    args[0] if args and hasattr(args[0], "patient_id") else None
+                )
+                kwargs.get("user_id") or (
+                    args[0] if args and hasattr(args[0], "user_id") else None
+                )
 
                 # Record business metric asynchronously
                 if metric_type == MetricType.PATIENT_FLOW and patient_id:
-                    asyncio.create_task(business_metrics.record_patient_flow_completion(
-                        patient_id, func.__name__, success, duration / 60
-                    ))
+                    asyncio.create_task(
+                        business_metrics.record_patient_flow_completion(
+                            patient_id, func.__name__, success, duration / 60
+                        )
+                    )
                 elif metric_type == MetricType.MESSAGE_DELIVERY and patient_id:
-                    asyncio.create_task(business_metrics.record_message_delivered(
-                        patient_id, func.__name__, success, duration
-                    ))
+                    asyncio.create_task(
+                        business_metrics.record_message_delivered(
+                            patient_id, func.__name__, success, duration
+                        )
+                    )
                 elif metric_type == MetricType.AI_RESPONSE and patient_id:
                     accuracy = 0.8 if success else 0.0
-                    asyncio.create_task(business_metrics.record_ai_response(
-                        patient_id, func.__name__, accuracy, duration * 1000
-                    ))
+                    asyncio.create_task(
+                        business_metrics.record_ai_response(
+                            patient_id, func.__name__, accuracy, duration * 1000
+                        )
+                    )
 
         return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
+
     return decorator
 
 
 @asynccontextmanager
-async def monitor_operation(operation_name: str, business_metrics: BusinessMetricsCollector,
-                           metric_type: MetricType, patient_id: Optional[str] = None,
-                           user_id: Optional[str] = None):
+async def monitor_operation(
+    operation_name: str,
+    business_metrics: BusinessMetricsCollector,
+    metric_type: MetricType,
+    patient_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+):
     """Context manager for monitoring operations."""
     start_time = time.time()
     success = False
-    error = None
 
     try:
         yield
         success = True
     except Exception as e:
         success = False
-        error = str(e)
+        str(e)
         raise
     finally:
         end_time = time.time()
@@ -349,23 +382,23 @@ class DatabaseQueryTracker:
 
     def increment_query_count(self):
         """Increment database query count for current request."""
-        if hasattr(self.request.state, 'monitoring'):
-            self.request.state.monitoring['db_queries'] += 1
+        if hasattr(self.request.state, "monitoring"):
+            self.request.state.monitoring["db_queries"] += 1
 
     def increment_cache_hit(self):
         """Increment cache hit count for current request."""
-        if hasattr(self.request.state, 'monitoring'):
-            self.request.state.monitoring['cache_hits'] += 1
+        if hasattr(self.request.state, "monitoring"):
+            self.request.state.monitoring["cache_hits"] += 1
 
     def increment_cache_miss(self):
         """Increment cache miss count for current request."""
-        if hasattr(self.request.state, 'monitoring'):
-            self.request.state.monitoring['cache_misses'] += 1
+        if hasattr(self.request.state, "monitoring"):
+            self.request.state.monitoring["cache_misses"] += 1
 
     def add_error(self, error: str):
         """Add error to current request tracking."""
-        if hasattr(self.request.state, 'monitoring'):
-            self.request.state.monitoring['errors'].append(error)
+        if hasattr(self.request.state, "monitoring"):
+            self.request.state.monitoring["errors"].append(error)
 
 
 def get_query_tracker(request: Request) -> DatabaseQueryTracker:

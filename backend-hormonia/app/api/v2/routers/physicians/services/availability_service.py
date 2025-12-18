@@ -39,7 +39,7 @@ class PhysicianAvailabilityService:
         physician_id: UUID,
         start_date: date,
         end_date: date,
-        slot_duration_minutes: int = 30
+        slot_duration_minutes: int = 30,
     ) -> List[Dict[str, Any]]:
         """
         Get available time slots for a physician within a date range.
@@ -54,15 +54,17 @@ class PhysicianAvailabilityService:
             List of available time slots with metadata
         """
         # Get existing appointments in the range
-        appointments = self.db.query(Appointment).filter(
+        self.db.query(Appointment).filter(
             Appointment.practitioner_id == physician_id,
             Appointment.scheduled_at >= datetime.combine(start_date, time.min),
             Appointment.scheduled_at <= datetime.combine(end_date, time.max),
-            Appointment.status.in_([
-                AppointmentStatus.SCHEDULED.value,
-                AppointmentStatus.CONFIRMED.value,
-                AppointmentStatus.IN_PROGRESS.value,
-            ])
+            Appointment.status.in_(
+                [
+                    AppointmentStatus.SCHEDULED.value,
+                    AppointmentStatus.CONFIRMED.value,
+                    AppointmentStatus.IN_PROGRESS.value,
+                ]
+            ),
         ).order_by(Appointment.scheduled_at).all()
 
         # TODO: Implement slot generation logic based on working hours
@@ -72,10 +74,7 @@ class PhysicianAvailabilityService:
         return available_slots
 
     def get_schedule(
-        self,
-        physician_id: UUID,
-        start_date: date,
-        end_date: date
+        self, physician_id: UUID, start_date: date, end_date: date
     ) -> Dict[str, Any]:
         """
         Get physician's complete schedule for a date range.
@@ -88,11 +87,16 @@ class PhysicianAvailabilityService:
         Returns:
             Dictionary with schedule information
         """
-        appointments = self.db.query(Appointment).filter(
-            Appointment.practitioner_id == physician_id,
-            Appointment.scheduled_at >= datetime.combine(start_date, time.min),
-            Appointment.scheduled_at <= datetime.combine(end_date, time.max)
-        ).order_by(Appointment.scheduled_at).all()
+        appointments = (
+            self.db.query(Appointment)
+            .filter(
+                Appointment.practitioner_id == physician_id,
+                Appointment.scheduled_at >= datetime.combine(start_date, time.min),
+                Appointment.scheduled_at <= datetime.combine(end_date, time.max),
+            )
+            .order_by(Appointment.scheduled_at)
+            .all()
+        )
 
         return {
             "physician_id": str(physician_id),
@@ -114,7 +118,7 @@ class PhysicianAvailabilityService:
         self,
         physician_id: UUID,
         requested_datetime: datetime,
-        duration_minutes: int = 30
+        duration_minutes: int = 30,
     ) -> bool:
         """
         Check if physician is available at a specific datetime.
@@ -130,26 +134,32 @@ class PhysicianAvailabilityService:
         end_time = requested_datetime + timedelta(minutes=duration_minutes)
 
         # Check for overlapping appointments
-        overlapping = self.db.query(Appointment).filter(
-            Appointment.practitioner_id == physician_id,
-            Appointment.status.in_([
-                AppointmentStatus.SCHEDULED.value,
-                AppointmentStatus.CONFIRMED.value,
-                AppointmentStatus.IN_PROGRESS.value,
-            ]),
-            or_(
-                # Appointment starts during requested slot
-                and_(
-                    Appointment.scheduled_at >= requested_datetime,
-                    Appointment.scheduled_at < end_time
+        overlapping = (
+            self.db.query(Appointment)
+            .filter(
+                Appointment.practitioner_id == physician_id,
+                Appointment.status.in_(
+                    [
+                        AppointmentStatus.SCHEDULED.value,
+                        AppointmentStatus.CONFIRMED.value,
+                        AppointmentStatus.IN_PROGRESS.value,
+                    ]
                 ),
-                # Appointment ends during requested slot
-                and_(
-                    Appointment.scheduled_at < requested_datetime,
-                    Appointment.scheduled_at >= end_time
+                or_(
+                    # Appointment starts during requested slot
+                    and_(
+                        Appointment.scheduled_at >= requested_datetime,
+                        Appointment.scheduled_at < end_time,
+                    ),
+                    # Appointment ends during requested slot
+                    and_(
+                        Appointment.scheduled_at < requested_datetime,
+                        Appointment.scheduled_at >= end_time,
+                    ),
                 ),
             )
-        ).first()
+            .first()
+        )
 
         return overlapping is None
 
@@ -158,7 +168,7 @@ class PhysicianAvailabilityService:
         physician_id: UUID,
         after_datetime: Optional[datetime] = None,
         duration_minutes: int = 30,
-        max_days_ahead: int = 30
+        max_days_ahead: int = 30,
     ) -> Optional[datetime]:
         """
         Find the next available appointment slot.

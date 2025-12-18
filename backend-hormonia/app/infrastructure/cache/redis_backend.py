@@ -6,7 +6,6 @@ This module handles all Redis operations, serialization, and local cache fallbac
 
 import json
 import pickle
-import logging
 from typing import Any, Optional, Union, Dict
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -29,6 +28,7 @@ logger = get_logger(__name__)
 
 class SerializationMethod(str, Enum):
     """Serialization methods for cache data."""
+
     JSON = "json"
     PICKLE = "pickle"
 
@@ -41,7 +41,7 @@ class RedisBackend:
     def __init__(
         self,
         redis_client: Optional[Union[Redis, AsyncRedis]] = None,
-        enable_local_fallback: bool = True
+        enable_local_fallback: bool = True,
     ):
         """
         Initialize Redis backend.
@@ -62,25 +62,29 @@ class RedisBackend:
             return float(obj)
         elif BaseModel is not None and isinstance(obj, BaseModel):
             return obj.model_dump(mode="json")
-        elif hasattr(obj, '__dict__'):
+        elif hasattr(obj, "__dict__"):
             # For SQLAlchemy models or complex objects
-            return {k: v for k, v in obj.__dict__.items() if not k.startswith('_')}
+            return {k: v for k, v in obj.__dict__.items() if not k.startswith("_")}
         else:
             return str(obj)
 
-    def serialize_for_cache(self, obj: Any, method: SerializationMethod) -> Union[str, bytes]:
+    def serialize_for_cache(
+        self, obj: Any, method: SerializationMethod
+    ) -> Union[str, bytes]:
         """Serialize complex objects for caching."""
         try:
             if method == SerializationMethod.JSON:
                 if isinstance(obj, str):
                     return obj
                 if BaseModel is not None and isinstance(obj, BaseModel):
-                    return json.dumps(obj.model_dump(mode="json"), default=self._json_serializer)
-                elif hasattr(obj, '__dict__'):
+                    return json.dumps(
+                        obj.model_dump(mode="json"), default=self._json_serializer
+                    )
+                elif hasattr(obj, "__dict__"):
                     # For SQLAlchemy models or complex objects
                     data = {}
                     for key, value in obj.__dict__.items():
-                        if not key.startswith('_') and not callable(value):
+                        if not key.startswith("_") and not callable(value):
                             data[key] = value
                     return json.dumps(data, default=self._json_serializer)
                 else:
@@ -93,7 +97,9 @@ class RedisBackend:
             logger.warning(f"Serialization failed: {e}")
             return str(obj)
 
-    def deserialize_from_cache(self, data: Union[str, bytes], method: SerializationMethod) -> Any:
+    def deserialize_from_cache(
+        self, data: Union[str, bytes], method: SerializationMethod
+    ) -> Any:
         """Deserialize data from cache with fallback."""
         try:
             if method == SerializationMethod.JSON:
@@ -147,7 +153,7 @@ class RedisBackend:
 
         self._local_cache[cache_key] = {
             "data": value,
-            "expires_at": datetime.utcnow() + timedelta(seconds=ttl)
+            "expires_at": datetime.utcnow() + timedelta(seconds=ttl),
         }
 
     def remove_from_local_cache(self, cache_key: str):
@@ -241,14 +247,18 @@ class RedisBackend:
                 logger.warning(f"Async Redis GET failed for {cache_key}: {e}")
         return None
 
-    async def redis_set_async(self, cache_key: str, value: Union[str, bytes], ttl: int) -> bool:
+    async def redis_set_async(
+        self, cache_key: str, value: Union[str, bytes], ttl: int
+    ) -> bool:
         """Set value in Redis (asynchronous)."""
         redis_client = await self.get_async_redis_client()
         if redis_client:
             try:
                 success = await redis_client.set(cache_key, value, ex=ttl)
                 if success:
-                    logger.debug(f"Cached in Redis (Async) for key: {cache_key} (TTL: {ttl}s)")
+                    logger.debug(
+                        f"Cached in Redis (Async) for key: {cache_key} (TTL: {ttl}s)"
+                    )
                 return bool(success)
             except Exception as e:
                 logger.warning(f"Async Redis SET failed for {cache_key}: {e}")
@@ -287,7 +297,4 @@ class RedisBackend:
         return []
 
 
-__all__ = [
-    "RedisBackend",
-    "SerializationMethod"
-]
+__all__ = ["RedisBackend", "SerializationMethod"]

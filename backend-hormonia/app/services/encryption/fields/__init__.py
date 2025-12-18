@@ -13,8 +13,8 @@ from .email import EmailEncryptor
 from .phone import PhoneEncryptor
 
 __all__ = [
-    'BaseFieldEncryptor',
-    'CPFEncryptor',
-    'EmailEncryptor',
-    'PhoneEncryptor',
+    "BaseFieldEncryptor",
+    "CPFEncryptor",
+    "EmailEncryptor",
+    "PhoneEncryptor",
 ]

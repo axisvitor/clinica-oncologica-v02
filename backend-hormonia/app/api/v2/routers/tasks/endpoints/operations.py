@@ -44,8 +44,8 @@ async def cancel_task(
     task_id: str,
     cancel_data: TaskV2Cancel,
     request: Request,
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> Dict[str, Any]:
     """
@@ -71,8 +71,7 @@ async def cancel_task(
 
         if not task_data:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
             )
 
         # Check RBAC
@@ -83,27 +82,29 @@ async def cancel_task(
             if not task_user_id or task_user_id != current_user_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You do not have access to this task"
+                    detail="You do not have access to this task",
                 )
 
         # Cancel in Celery
         celery_app.control.revoke(
             celery_task_id,
             terminate=cancel_data.force,
-            signal='SIGKILL' if cancel_data.force else 'SIGTERM'
+            signal="SIGKILL" if cancel_data.force else "SIGTERM",
         )
 
         # Update registry
-        task_registry[celery_task_id].update({
-            "status": TaskStatus.CANCELLED,
-            "completed_at": datetime.utcnow(),
-            "metadata": {
-                **task_data.get("metadata", {}),
-                "cancellation_reason": cancel_data.reason,
-                "cancelled_by": current_user.get("id"),
-                "forced": cancel_data.force
+        task_registry[celery_task_id].update(
+            {
+                "status": TaskStatus.CANCELLED,
+                "completed_at": datetime.utcnow(),
+                "metadata": {
+                    **task_data.get("metadata", {}),
+                    "cancellation_reason": cancel_data.reason,
+                    "cancelled_by": current_user.get("id"),
+                    "forced": cancel_data.force,
+                },
             }
-        })
+        )
 
         # Invalidate caches
         await redis_cache.delete(f"task:{task_id}:*")
@@ -127,7 +128,7 @@ async def cancel_task(
         logger.error(f"Error cancelling task {task_id}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to cancel task"
+            detail="Failed to cancel task",
         )
 
 
@@ -137,8 +138,8 @@ async def retry_task(
     task_id: str,
     retry_data: TaskV2Retry,
     request: Request,
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> Dict[str, Any]:
     """
@@ -165,8 +166,7 @@ async def retry_task(
 
         if not task_data:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
             )
 
         # Check RBAC
@@ -177,7 +177,7 @@ async def retry_task(
             if not task_user_id or task_user_id != current_user_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You do not have access to this task"
+                    detail="You do not have access to this task",
                 )
 
         # Check if task can be retried
@@ -185,7 +185,7 @@ async def retry_task(
         if current_status not in [TaskStatus.FAILURE, TaskStatus.RETRY]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Cannot retry task in {current_status} status"
+                detail=f"Cannot retry task in {current_status} status",
             )
 
         # Check retry limit
@@ -197,7 +197,7 @@ async def retry_task(
             if retry_count >= max_retries:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Task has exceeded maximum retry attempts ({max_retries})"
+                    detail=f"Task has exceeded maximum retry attempts ({max_retries})",
                 )
 
         # Calculate delay
@@ -208,23 +208,25 @@ async def retry_task(
                 retry_count,
                 strategy,
                 retry_config.get("base_delay", 60),
-                retry_config.get("max_delay", 3600)
+                retry_config.get("max_delay", 3600),
             )
 
         # Retry the task
         # Note: In a real implementation, you would requeue the original task
         # For now, we'll update the status
-        task_registry[celery_task_id].update({
-            "status": TaskStatus.RETRY,
-            "retry_count": retry_count + 1,
-            "metadata": {
-                **task_data.get("metadata", {}),
-                "manual_retry": True,
-                "retry_notes": retry_data.notes,
-                "retried_by": current_user.get("id"),
-                "retried_at": datetime.utcnow().isoformat()
+        task_registry[celery_task_id].update(
+            {
+                "status": TaskStatus.RETRY,
+                "retry_count": retry_count + 1,
+                "metadata": {
+                    **task_data.get("metadata", {}),
+                    "manual_retry": True,
+                    "retry_notes": retry_data.notes,
+                    "retried_by": current_user.get("id"),
+                    "retried_at": datetime.utcnow().isoformat(),
+                },
             }
-        })
+        )
 
         # Invalidate caches
         await redis_cache.delete(f"task:{task_id}:*")
@@ -247,5 +249,5 @@ async def retry_task(
         logger.error(f"Error retrying task {task_id}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retry task"
+            detail="Failed to retry task",
         )

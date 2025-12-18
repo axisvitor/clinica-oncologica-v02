@@ -6,7 +6,7 @@ Handles building comprehensive context for message composition.
 
 import json
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from uuid import UUID
 
 from app.integrations.gemini_client import GeminiClient
@@ -22,7 +22,7 @@ class MessageContextBuilder:
         self,
         gemini_client: GeminiClient,
         conversation_memory: ConversationMemory,
-        context_window: int = 10
+        context_window: int = 10,
     ):
         """Initialize context builder."""
         self.gemini_client = gemini_client
@@ -31,9 +31,7 @@ class MessageContextBuilder:
         self.logger = get_logger("message_composer.context")
 
     async def build_composition_context(
-        self,
-        patient: Patient,
-        additional_context: Dict[str, Any]
+        self, patient: Patient, additional_context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Build comprehensive context for message composition."""
         try:
@@ -50,7 +48,9 @@ class MessageContextBuilder:
             recent_patterns = await self.conversation_memory.get_recent_patterns(
                 patient_id, limit=self.context_window
             )
-            conversation_history = [p.to_dict() for p in recent_patterns] if recent_patterns else []
+            conversation_history = (
+                [p.to_dict() for p in recent_patterns] if recent_patterns else []
+            )
 
             # Calculate treatment timeline
             enrollment_date = patient.enrollment_date or patient.created_at
@@ -64,23 +64,27 @@ class MessageContextBuilder:
             time_context = {
                 "hour": current_time.hour,
                 "day_of_week": current_time.weekday(),
-                "time_of_day": self._get_time_of_day(current_time.hour)
+                "time_of_day": self._get_time_of_day(current_time.hour),
             }
 
             composition_context = {
                 "patient": {
                     "id": str(patient.id),
                     "name": patient.name,
-                    "age": getattr(patient, 'age', None),
-                    "treatment_type": getattr(patient, 'treatment_type', 'hormone_therapy'),
+                    "age": getattr(patient, "age", None),
+                    "treatment_type": getattr(
+                        patient, "treatment_type", "hormone_therapy"
+                    ),
                     "days_since_enrollment": days_since_enrollment,
-                    "treatment_phase": self._determine_treatment_phase(days_since_enrollment)
+                    "treatment_phase": self._determine_treatment_phase(
+                        days_since_enrollment
+                    ),
                 },
                 "communication_preferences": comm_prefs,
                 "conversation_history": conversation_history,
                 "emotional_context": emotional_context,
                 "time_context": time_context,
-                "additional_context": additional_context
+                "additional_context": additional_context,
             }
 
             return composition_context
@@ -97,7 +101,9 @@ class MessageContextBuilder:
                 patient_id
             )
             # Convert preferences to history format if needed
-            history = history.get("recent_messages", []) if isinstance(history, dict) else []
+            history = (
+                history.get("recent_messages", []) if isinstance(history, dict) else []
+            )
 
             if not history:
                 return {"mood_score": 0.5, "stress_level": 0.5, "confidence": "low"}
@@ -136,14 +142,16 @@ class MessageContextBuilder:
                 "mood_score": 0.5,
                 "stress_level": 0.5,
                 "anxiety_indicators": False,
-                "confidence": "low"
+                "confidence": "low",
             }
 
         except Exception as e:
             self.logger.error(f"Emotional analysis failed: {e}")
             return {"mood_score": 0.5, "stress_level": 0.5, "confidence": "error"}
 
-    async def analyze_previous_interaction(self, interaction: Dict[str, Any]) -> Dict[str, Any]:
+    async def analyze_previous_interaction(
+        self, interaction: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Analyze previous interaction for follow-up context."""
         try:
             if not interaction:
@@ -174,7 +182,7 @@ class MessageContextBuilder:
             return {
                 "summary": analysis or "Análise não disponível",
                 "needs_follow_up": True,
-                "interaction_type": interaction_type
+                "interaction_type": interaction_type,
             }
 
         except Exception as e:

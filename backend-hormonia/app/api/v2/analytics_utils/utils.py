@@ -100,7 +100,9 @@ async def get_cached_result(cache_key: str):
             return json.loads(cached_data)
     except Exception as e:
         # Cache failure should not break functionality
-        logger.warning(f"Cache retrieval failed for key '{cache_key}': {e}", exc_info=True)
+        logger.warning(
+            f"Cache retrieval failed for key '{cache_key}': {e}", exc_info=True
+        )
 
     return None
 
@@ -117,20 +119,16 @@ async def set_cached_result(cache_key: str, data: dict, ttl: int):
     try:
         from app.database import redis_client
 
-        redis_client.setex(
-            cache_key,
-            ttl,
-            json.dumps(data, default=str)
-        )
+        redis_client.setex(cache_key, ttl, json.dumps(data, default=str))
     except Exception as e:
         # Cache failure should not break functionality
-        logger.warning(f"Cache storage failed for key '{cache_key}': {e}", exc_info=True)
+        logger.warning(
+            f"Cache storage failed for key '{cache_key}': {e}", exc_info=True
+        )
 
 
 def parse_date_range(
-    time_range: TimeRange,
-    start_date: Optional[datetime],
-    end_date: Optional[datetime]
+    time_range: TimeRange, start_date: Optional[datetime], end_date: Optional[datetime]
 ) -> Tuple[datetime, datetime]:
     """
     Parse time range into start and end datetimes.

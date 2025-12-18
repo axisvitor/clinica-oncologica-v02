@@ -50,7 +50,9 @@ class PatientV2Base(BaseModel):
     doctor_notes: Optional[str] = Field(None, max_length=2000)
     diagnosis: Optional[str] = Field(None, max_length=500)
     treatment_phase: Optional[str] = Field(None, max_length=100)
-    timezone: str = Field("America/Sao_Paulo", description="Patient timezone (e.g., America/Sao_Paulo)")
+    timezone: str = Field(
+        "America/Sao_Paulo", description="Patient timezone (e.g., America/Sao_Paulo)"
+    )
 
     @field_validator("cpf")
     @classmethod
@@ -77,10 +79,10 @@ class PatientV2Base(BaseModel):
             return v
 
         # Remove common formatting characters
-        cleaned = re.sub(r'[\s\-\(\)]', '', v)
+        cleaned = re.sub(r"[\s\-\(\)]", "", v)
 
         # Check if it's E.164 format (starts with +)
-        if cleaned.startswith('+'):
+        if cleaned.startswith("+"):
             # E.164 should be 10-15 digits after the +
             digits_only = cleaned[1:]
             if not digits_only.isdigit():
@@ -90,9 +92,11 @@ class PatientV2Base(BaseModel):
             return cleaned  # Return normalized E.164
 
         # Brazilian format (without +55)
-        digits_only = re.sub(r'\D', '', v)
+        digits_only = re.sub(r"\D", "", v)
         if len(digits_only) < 10 or len(digits_only) > 11:
-            raise ValueError("Telefone brasileiro deve ter 10-11 dígitos (DDD + número)")
+            raise ValueError(
+                "Telefone brasileiro deve ter 10-11 dígitos (DDD + número)"
+            )
 
         # Return original format for backwards compatibility
         return v
@@ -101,7 +105,8 @@ class PatientV2Base(BaseModel):
 class PatientV2Create(PatientV2Base):
     """Schema for creating a patient"""
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "João Silva",
                 "email": "joao@example.com",
@@ -111,9 +116,10 @@ class PatientV2Create(PatientV2Base):
                 "treatment_type": "Reposição Hormonal",
                 "treatment_start_date": "2025-01-10",
                 "doctor_notes": "Paciente apresentou boa resposta ao tratamento.",
-                "doctor_id": "123e4567-e89b-12d3-a456-426614174000"
+                "doctor_id": "123e4567-e89b-12d3-a456-426614174000",
             }
-        })
+        }
+    )
 
     phone: str = Field(..., max_length=20, description="Patient phone number (E.164)")
     doctor_id: str = Field(..., description="Doctor UUID")
@@ -122,14 +128,16 @@ class PatientV2Create(PatientV2Base):
 class PatientV2Update(BaseModel):
     """Schema for updating a patient"""
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "phone": "(11) 91234-5678",
                 "email": "joao.novo@example.com",
                 "treatment_type": "Tratamento Personalizado",
-                "doctor_notes": "Ajuste de dosagem realizado em 12/02."
+                "doctor_notes": "Ajuste de dosagem realizado em 12/02.",
             }
-        })
+        }
+    )
 
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     email: Optional[EmailStr] = None
@@ -168,10 +176,10 @@ class PatientV2Response(PatientV2Base):
                 "doctor": {
                     "id": "223e4567-e89b-12d3-a456-426614174001",
                     "name": "Dr. Maria Santos",
-                    "email": "maria@example.com"
-                }
+                    "email": "maria@example.com",
+                },
             }
-        }
+        },
     )
 
     id: str
@@ -189,7 +197,8 @@ class PatientV2Response(PatientV2Base):
 class PatientV2List(CursorPaginatedResponse[PatientV2Response]):
     """Paginated list of patients"""
 
-    model_config = ConfigDict(json_schema_extra={
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "data": [
                     {
@@ -198,11 +207,12 @@ class PatientV2List(CursorPaginatedResponse[PatientV2Response]):
                         "email": "joao@example.com",
                         "doctor_id": "223e4567-e89b-12d3-a456-426614174001",
                         "created_at": "2025-01-01T10:00:00Z",
-                        "updated_at": "2025-01-15T14:30:00Z"
+                        "updated_at": "2025-01-15T14:30:00Z",
                     }
                 ],
                 "next_cursor": "eyJpZCI6IjEyM2U0NTY3LWU4OWItMTJkMy1hNDU2LTQyNjYxNDE3NDAwMCJ9",
                 "has_more": True,
-                "total": 150
+                "total": 150,
             }
-        })
+        }
+    )

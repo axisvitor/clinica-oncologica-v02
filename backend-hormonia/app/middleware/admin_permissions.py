@@ -4,10 +4,11 @@ Admin permissions middleware for user administration endpoints.
 This middleware ensures that only users with admin role can access
 admin-specific endpoints and provides RBAC functionality.
 """
+
 import logging
 from typing import Optional, List, Callable
 from fastapi import Request, HTTPException, status, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 from uuid import UUID
 
@@ -20,13 +21,16 @@ from app.models.user import User, UserRole
 def _get_audit_service():
     """Lazy import of AuditService to avoid circular import."""
     from app.services.audit import AuditService
+
     return AuditService
 
 
 def _get_current_user_dependency():
     """Lazy import of get_current_user to avoid circular import."""
     from app.dependencies.auth_dependencies import get_current_user
+
     return get_current_user
+
 
 logger = logging.getLogger(__name__)
 security = HTTPBearer()
@@ -36,10 +40,7 @@ class AdminPermissionError(HTTPException):
     """Custom exception for admin permission errors."""
 
     def __init__(self, detail: str = "Insufficient permissions"):
-        super().__init__(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=detail
-        )
+        super().__init__(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
 
 class AdminPermissions:
@@ -53,16 +54,17 @@ class AdminPermissions:
         Returns:
             Dependency function that checks for admin role
         """
+
         async def check_admin_permission(
             current_user: User = Depends(_get_current_user_dependency()),
             db: Session = Depends(get_db),
-            request: Request = None
+            request: Request = None,
         ) -> User:
             """Check if current user has admin role."""
             if not current_user:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required"
+                    detail="Authentication required",
                 )
 
             if current_user.role != UserRole.ADMIN:
@@ -74,14 +76,16 @@ class AdminPermissions:
                     event_category="security",
                     severity="warning",
                     actor_id=current_user.id,
-                    ip_address=request.client.host if request and request.client else None,
-                    user_agent=request.headers.get('user-agent') if request else None,
+                    ip_address=request.client.host
+                    if request and request.client
+                    else None,
+                    user_agent=request.headers.get("user-agent") if request else None,
                     event_data={
                         "attempted_action": "admin_endpoint_access",
                         "user_role": current_user.role.value,
-                        "endpoint": str(request.url) if request else None
+                        "endpoint": str(request.url) if request else None,
                     },
-                    result="blocked"
+                    result="blocked",
                 )
 
                 raise AdminPermissionError(
@@ -97,12 +101,12 @@ class AdminPermissions:
                 severity="info",
                 actor_id=current_user.id,
                 ip_address=request.client.host if request and request.client else None,
-                user_agent=request.headers.get('user-agent') if request else None,
+                user_agent=request.headers.get("user-agent") if request else None,
                 event_data={
                     "action": "admin_endpoint_access",
-                    "endpoint": str(request.url) if request else None
+                    "endpoint": str(request.url) if request else None,
                 },
-                result="success"
+                result="success",
             )
 
             return current_user
@@ -120,16 +124,17 @@ class AdminPermissions:
         Returns:
             Dependency function that checks permissions
         """
+
         async def check_admin_or_self_permission(
             current_user: User = Depends(_get_current_user_dependency()),
             db: Session = Depends(get_db),
-            request: Request = None
+            request: Request = None,
         ) -> User:
             """Check if current user has admin role or is accessing their own data."""
             if not current_user:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required"
+                    detail="Authentication required",
                 )
 
             # Admin can access everything
@@ -150,13 +155,13 @@ class AdminPermissions:
                 actor_id=current_user.id,
                 subject_id=target_user_id,
                 ip_address=request.client.host if request and request.client else None,
-                user_agent=request.headers.get('user-agent') if request else None,
+                user_agent=request.headers.get("user-agent") if request else None,
                 event_data={
                     "attempted_action": "user_data_access",
                     "user_role": current_user.role.value,
-                    "target_user_id": str(target_user_id) if target_user_id else None
+                    "target_user_id": str(target_user_id) if target_user_id else None,
                 },
-                result="blocked"
+                result="blocked",
             )
 
             raise AdminPermissionError(
@@ -176,16 +181,17 @@ class AdminPermissions:
         Returns:
             Dependency function that checks for required roles
         """
+
         async def check_role_permission(
             current_user: User = Depends(_get_current_user_dependency()),
             db: Session = Depends(get_db),
-            request: Request = None
+            request: Request = None,
         ) -> User:
             """Check if current user has one of the required roles."""
             if not current_user:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required"
+                    detail="Authentication required",
                 )
 
             if current_user.role not in allowed_roles:
@@ -197,15 +203,17 @@ class AdminPermissions:
                     event_category="security",
                     severity="warning",
                     actor_id=current_user.id,
-                    ip_address=request.client.host if request and request.client else None,
-                    user_agent=request.headers.get('user-agent') if request else None,
+                    ip_address=request.client.host
+                    if request and request.client
+                    else None,
+                    user_agent=request.headers.get("user-agent") if request else None,
                     event_data={
                         "attempted_action": "role_restricted_access",
                         "user_role": current_user.role.value,
                         "required_roles": [role.value for role in allowed_roles],
-                        "endpoint": str(request.url) if request else None
+                        "endpoint": str(request.url) if request else None,
                     },
-                    result="blocked"
+                    result="blocked",
                 )
 
                 allowed_role_names = [role.value for role in allowed_roles]
@@ -233,7 +241,7 @@ class AdminAuditMixin:
         target_user_id: Optional[UUID] = None,
         action_data: Optional[dict] = None,
         request: Optional[Request] = None,
-        result: str = "success"
+        result: str = "success",
     ) -> None:
         """
         Log admin action for audit trail.
@@ -253,15 +261,15 @@ class AdminAuditMixin:
             actor_id=admin_user.id,
             subject_id=target_user_id,
             ip_address=request.client.host if request and request.client else None,
-            user_agent=request.headers.get('user-agent') if request else None,
+            user_agent=request.headers.get("user-agent") if request else None,
             event_data={
                 "admin_action": action_type,
                 "admin_role": admin_user.role.value,
-                **(action_data or {})
+                **(action_data or {}),
             },
             result=result,
             data_subject_id=target_user_id,
-            legal_basis="legitimate_interest"
+            legal_basis="legitimate_interest",
         )
 
 
@@ -284,7 +292,9 @@ def require_admin_or_doctor():
     """Get admin or doctor requirement dependency (lazy initialization)."""
     global _cached_require_admin_or_doctor
     if _cached_require_admin_or_doctor is None:
-        _cached_require_admin_or_doctor = AdminPermissions.require_role([UserRole.ADMIN, UserRole.DOCTOR])
+        _cached_require_admin_or_doctor = AdminPermissions.require_role(
+            [UserRole.ADMIN, UserRole.DOCTOR]
+        )
     return _cached_require_admin_or_doctor
 
 
@@ -292,7 +302,9 @@ def require_any_role():
     """Get any role requirement dependency (lazy initialization)."""
     global _cached_require_any_role
     if _cached_require_any_role is None:
-        _cached_require_any_role = AdminPermissions.require_role([UserRole.ADMIN, UserRole.DOCTOR])
+        _cached_require_any_role = AdminPermissions.require_role(
+            [UserRole.ADMIN, UserRole.DOCTOR]
+        )
     return _cached_require_any_role
 
 
@@ -301,9 +313,7 @@ def _get_admin_dependency():
     return require_admin()
 
 
-async def get_admin_user(
-    current_user: User = Depends(_get_admin_dependency)
-) -> User:
+async def get_admin_user(current_user: User = Depends(_get_admin_dependency)) -> User:
     """
     Convenience function to get current admin user.
 
@@ -317,9 +327,7 @@ async def get_admin_user(
 
 
 async def validate_user_modification_permission(
-    target_user_id: UUID,
-    admin_user: User,
-    db: Session
+    target_user_id: UUID, admin_user: User, db: Session
 ) -> User:
     """
     Validate that admin can modify the target user.
@@ -340,14 +348,14 @@ async def validate_user_modification_permission(
     if not target_user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User with ID {target_user_id} not found"
+            detail=f"User with ID {target_user_id} not found",
         )
 
     # Prevent admin from modifying themselves for certain actions
     if str(target_user.id) == str(admin_user.id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot perform this action on your own account"
+            detail="Cannot perform this action on your own account",
         )
 
     return target_user
@@ -367,5 +375,5 @@ def get_client_info(request: Request) -> dict:
     return {
         "ip_address": client.host if client else None,
         "port": client.port if client else None,
-        "user_agent": request.headers.get('user-agent') if request else None
+        "user_agent": request.headers.get("user-agent") if request else None,
     }

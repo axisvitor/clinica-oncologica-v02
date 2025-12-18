@@ -6,8 +6,7 @@ chi-square tests, effect size calculations, power analysis, and confidence inter
 """
 
 import logging
-import statistics
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List, Any
 
 import numpy as np
 from scipy import stats
@@ -28,14 +27,11 @@ class StatisticalAnalyzer:
             EffectSizeMagnitude.SMALL: 0.2,
             EffectSizeMagnitude.MEDIUM: 0.5,
             EffectSizeMagnitude.LARGE: 0.8,
-            EffectSizeMagnitude.VERY_LARGE: 1.2
+            EffectSizeMagnitude.VERY_LARGE: 1.2,
         }
 
     def perform_comprehensive_statistical_tests(
-        self,
-        control_data: List[Dict],
-        treatment_data: List[Dict],
-        primary_metric: str
+        self, control_data: List[Dict], treatment_data: List[Dict], primary_metric: str
     ) -> Dict[str, Any]:
         """Perform comprehensive statistical testing."""
         results = {}
@@ -43,21 +39,32 @@ class StatisticalAnalyzer:
         try:
             # Extract primary metric values
             if primary_metric == "response_rate":
-                control_responses = len([d for d in control_data if d["event_type"] == "responded"])
-                treatment_responses = len([d for d in treatment_data if d["event_type"] == "responded"])
+                control_responses = len(
+                    [d for d in control_data if d["event_type"] == "responded"]
+                )
+                treatment_responses = len(
+                    [d for d in treatment_data if d["event_type"] == "responded"]
+                )
 
                 # Chi-square test for proportions
-                contingency_table = np.array([
-                    [control_responses, len(control_data) - control_responses],
-                    [treatment_responses, len(treatment_data) - treatment_responses]
-                ])
+                contingency_table = np.array(
+                    [
+                        [control_responses, len(control_data) - control_responses],
+                        [
+                            treatment_responses,
+                            len(treatment_data) - treatment_responses,
+                        ],
+                    ]
+                )
 
                 if contingency_table.sum() > 0:
-                    chi2, p_value, dof, expected = stats.chi2_contingency(contingency_table)
+                    chi2, p_value, dof, expected = stats.chi2_contingency(
+                        contingency_table
+                    )
                     results["chi_square"] = {
                         "statistic": chi2,
                         "p_value": p_value,
-                        "degrees_of_freedom": dof
+                        "degrees_of_freedom": dof,
                     }
 
                 # Fisher's exact test
@@ -65,27 +72,33 @@ class StatisticalAnalyzer:
                     odds_ratio, fisher_p = stats.fisher_exact(contingency_table)
                     results["fisher_exact"] = {
                         "odds_ratio": odds_ratio,
-                        "p_value": fisher_p
+                        "p_value": fisher_p,
                     }
 
             # T-test for continuous metrics
-            control_times = [d["response_time"] for d in control_data if d["response_time"] is not None]
-            treatment_times = [d["response_time"] for d in treatment_data if d["response_time"] is not None]
+            control_times = [
+                d["response_time"]
+                for d in control_data
+                if d["response_time"] is not None
+            ]
+            treatment_times = [
+                d["response_time"]
+                for d in treatment_data
+                if d["response_time"] is not None
+            ]
 
             if len(control_times) > 1 and len(treatment_times) > 1:
                 # Welch's t-test (unequal variances)
-                t_stat, t_p_value = stats.ttest_ind(control_times, treatment_times, equal_var=False)
-                results["t_test"] = {
-                    "statistic": t_stat,
-                    "p_value": t_p_value
-                }
+                t_stat, t_p_value = stats.ttest_ind(
+                    control_times, treatment_times, equal_var=False
+                )
+                results["t_test"] = {"statistic": t_stat, "p_value": t_p_value}
 
                 # Mann-Whitney U test (non-parametric)
-                u_stat, u_p_value = stats.mannwhitneyu(control_times, treatment_times, alternative='two-sided')
-                results["mann_whitney"] = {
-                    "statistic": u_stat,
-                    "p_value": u_p_value
-                }
+                u_stat, u_p_value = stats.mannwhitneyu(
+                    control_times, treatment_times, alternative="two-sided"
+                )
+                results["mann_whitney"] = {"statistic": u_stat, "p_value": u_p_value}
 
             # Determine significance level
             min_p_value = min([test.get("p_value", 1.0) for test in results.values()])
@@ -95,7 +108,9 @@ class StatisticalAnalyzer:
                 "min_p_value": min_p_value,
                 "significance_level": significance_level,
                 "is_significant": min_p_value < 0.05,
-                "conclusion": self.generate_statistical_conclusion(min_p_value, primary_metric)
+                "conclusion": self.generate_statistical_conclusion(
+                    min_p_value, primary_metric
+                ),
             }
 
             return results
@@ -105,9 +120,7 @@ class StatisticalAnalyzer:
             return {"error": str(e)}
 
     def calculate_comprehensive_effect_sizes(
-        self,
-        control_stats: Dict[str, Any],
-        treatment_stats: Dict[str, Any]
+        self, control_stats: Dict[str, Any], treatment_stats: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Calculate comprehensive effect size measures."""
         effect_sizes = {}
@@ -120,7 +133,9 @@ class StatisticalAnalyzer:
             treatment_n = treatment_stats.get("sample_size", 1)
 
             # Pooled standard deviation for proportions
-            pooled_p = ((control_rate * control_n) + (treatment_rate * treatment_n)) / (control_n + treatment_n)
+            pooled_p = ((control_rate * control_n) + (treatment_rate * treatment_n)) / (
+                control_n + treatment_n
+            )
             pooled_std = np.sqrt(pooled_p * (1 - pooled_p))
 
             if pooled_std > 0:
@@ -135,22 +150,31 @@ class StatisticalAnalyzer:
             effect_sizes["absolute_difference"] = treatment_rate - control_rate
             effect_sizes["relative_change"] = (
                 (treatment_rate - control_rate) / control_rate
-                if control_rate > 0 else 0
+                if control_rate > 0
+                else 0
             )
 
             # Glass's delta (for unequal variances)
             control_std = control_stats.get("response_time_stats", {}).get("std", 0)
             if control_std > 0:
-                control_mean = control_stats.get("response_time_stats", {}).get("mean", 0)
-                treatment_mean = treatment_stats.get("response_time_stats", {}).get("mean", 0)
+                control_mean = control_stats.get("response_time_stats", {}).get(
+                    "mean", 0
+                )
+                treatment_mean = treatment_stats.get("response_time_stats", {}).get(
+                    "mean", 0
+                )
                 glass_delta = (treatment_mean - control_mean) / control_std
                 effect_sizes["glass_delta"] = glass_delta
 
             # Cliff's delta (non-parametric effect size)
-            effect_sizes["cliffs_delta"] = self.calculate_cliffs_delta(control_stats, treatment_stats)
+            effect_sizes["cliffs_delta"] = self.calculate_cliffs_delta(
+                control_stats, treatment_stats
+            )
 
             # Practical significance assessment
-            effect_sizes["practical_significance"] = self.assess_practical_significance(effect_sizes)
+            effect_sizes["practical_significance"] = self.assess_practical_significance(
+                effect_sizes
+            )
 
             return effect_sizes
 
@@ -162,14 +186,16 @@ class StatisticalAnalyzer:
         self,
         control_stats: Dict[str, Any],
         treatment_stats: Dict[str, Any],
-        statistical_results: Dict[str, Any]
+        statistical_results: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Perform power analysis for the experiment."""
         try:
-            observed_effect_size = statistical_results.get("overall", {}).get("min_p_value", 1.0)
+            observed_effect_size = statistical_results.get("overall", {}).get(
+                "min_p_value", 1.0
+            )
             sample_sizes = {
                 "control": control_stats.get("sample_size", 0),
-                "treatment": treatment_stats.get("sample_size", 0)
+                "treatment": treatment_stats.get("sample_size", 0),
             }
 
             # Calculate achieved power
@@ -187,7 +213,7 @@ class StatisticalAnalyzer:
                 "achieved_power": achieved_power,
                 "required_sample_sizes": required_sample_sizes,
                 "current_sample_size": sum(sample_sizes.values()),
-                "power_adequate": achieved_power >= 0.8
+                "power_adequate": achieved_power >= 0.8,
             }
 
         except Exception as e:
@@ -198,7 +224,7 @@ class StatisticalAnalyzer:
         self,
         control_stats: Dict[str, Any],
         treatment_stats: Dict[str, Any],
-        confidence_levels: List[float]
+        confidence_levels: List[float],
     ) -> Dict[str, Any]:
         """Calculate confidence intervals for different confidence levels."""
         intervals = {}
@@ -216,8 +242,8 @@ class StatisticalAnalyzer:
 
                 # Standard error for difference in proportions
                 se = np.sqrt(
-                    (control_rate * (1 - control_rate) / control_n) +
-                    (treatment_rate * (1 - treatment_rate) / treatment_n)
+                    (control_rate * (1 - control_rate) / control_n)
+                    + (treatment_rate * (1 - treatment_rate) / treatment_n)
                 )
 
                 margin_of_error = z_score * se
@@ -226,7 +252,7 @@ class StatisticalAnalyzer:
                     "lower_bound": difference - margin_of_error,
                     "upper_bound": difference + margin_of_error,
                     "margin_of_error": margin_of_error,
-                    "point_estimate": difference
+                    "point_estimate": difference,
                 }
 
             return intervals
@@ -235,12 +261,18 @@ class StatisticalAnalyzer:
             logger.error(f"Error calculating confidence intervals: {str(e)}")
             return {"error": str(e)}
 
-    def perform_sprt(self, control_data: List[Dict], treatment_data: List[Dict]) -> Dict[str, Any]:
+    def perform_sprt(
+        self, control_data: List[Dict], treatment_data: List[Dict]
+    ) -> Dict[str, Any]:
         """Perform sequential probability ratio test (SPRT)."""
         try:
             # Simplified SPRT implementation
-            control_successes = len([d for d in control_data if d["event_type"] == "responded"])
-            treatment_successes = len([d for d in treatment_data if d["event_type"] == "responded"])
+            control_successes = len(
+                [d for d in control_data if d["event_type"] == "responded"]
+            )
+            treatment_successes = len(
+                [d for d in treatment_data if d["event_type"] == "responded"]
+            )
 
             control_total = len(control_data)
             treatment_total = len(treatment_data)
@@ -253,14 +285,15 @@ class StatisticalAnalyzer:
 
             # Calculate log-likelihood ratio
             if control_rate > 0 and treatment_rate > 0:
-                llr = (treatment_successes * np.log(treatment_rate / control_rate) +
-                       (treatment_total - treatment_successes) * np.log((1 - treatment_rate) / (1 - control_rate)))
+                llr = treatment_successes * np.log(treatment_rate / control_rate) + (
+                    treatment_total - treatment_successes
+                ) * np.log((1 - treatment_rate) / (1 - control_rate))
             else:
                 llr = 0
 
             # Thresholds for SPRT (Type I and II error rates of 0.05)
             threshold_upper = np.log(19)  # log(1-beta/alpha)
-            threshold_lower = np.log(1/19)  # log(beta/1-alpha)
+            threshold_lower = np.log(1 / 19)  # log(beta/1-alpha)
 
             if llr >= threshold_upper:
                 decision = "stop_treatment_wins"
@@ -275,18 +308,24 @@ class StatisticalAnalyzer:
                 "threshold_lower": threshold_lower,
                 "decision": decision,
                 "control_rate": control_rate,
-                "treatment_rate": treatment_rate
+                "treatment_rate": treatment_rate,
             }
 
         except Exception as e:
             logger.error(f"Error in SPRT: {str(e)}")
             return {"error": str(e)}
 
-    def perform_bayesian_analysis(self, control_data: List[Dict], treatment_data: List[Dict]) -> Dict[str, Any]:
+    def perform_bayesian_analysis(
+        self, control_data: List[Dict], treatment_data: List[Dict]
+    ) -> Dict[str, Any]:
         """Perform Bayesian analysis of experiment results."""
         try:
-            control_successes = len([d for d in control_data if d["event_type"] == "responded"])
-            treatment_successes = len([d for d in treatment_data if d["event_type"] == "responded"])
+            control_successes = len(
+                [d for d in control_data if d["event_type"] == "responded"]
+            )
+            treatment_successes = len(
+                [d for d in treatment_data if d["event_type"] == "responded"]
+            )
 
             control_total = len(control_data)
             treatment_total = len(treatment_data)
@@ -305,7 +344,9 @@ class StatisticalAnalyzer:
             # Monte Carlo simulation for probability that treatment is better
             n_samples = 10000
             control_samples = np.random.beta(control_alpha, control_beta, n_samples)
-            treatment_samples = np.random.beta(treatment_alpha, treatment_beta, n_samples)
+            treatment_samples = np.random.beta(
+                treatment_alpha, treatment_beta, n_samples
+            )
 
             prob_treatment_better = np.mean(treatment_samples > control_samples)
 
@@ -314,18 +355,30 @@ class StatisticalAnalyzer:
                 "treatment_posterior_mean": treatment_mean,
                 "probability_treatment_better": prob_treatment_better,
                 "probability_control_better": 1 - prob_treatment_better,
-                "credible_difference": treatment_mean - control_mean
+                "credible_difference": treatment_mean - control_mean,
             }
 
         except Exception as e:
             logger.error(f"Error in Bayesian analysis: {str(e)}")
             return {"error": str(e)}
 
-    def assess_futility(self, control_data: List[Dict], treatment_data: List[Dict]) -> Dict[str, Any]:
+    def assess_futility(
+        self, control_data: List[Dict], treatment_data: List[Dict]
+    ) -> Dict[str, Any]:
         """Assess futility of continuing the experiment."""
         try:
-            control_rate = len([d for d in control_data if d["event_type"] == "responded"]) / len(control_data) if control_data else 0
-            treatment_rate = len([d for d in treatment_data if d["event_type"] == "responded"]) / len(treatment_data) if treatment_data else 0
+            control_rate = (
+                len([d for d in control_data if d["event_type"] == "responded"])
+                / len(control_data)
+                if control_data
+                else 0
+            )
+            treatment_rate = (
+                len([d for d in treatment_data if d["event_type"] == "responded"])
+                / len(treatment_data)
+                if treatment_data
+                else 0
+            )
 
             # Conditional power calculation (simplified)
             current_difference = abs(treatment_rate - control_rate)
@@ -345,7 +398,7 @@ class StatisticalAnalyzer:
                 "futility_score": futility_score,
                 "current_difference": current_difference,
                 "minimal_detectable_effect": minimal_detectable_effect,
-                "recommendation": recommendation
+                "recommendation": recommendation,
             }
 
         except Exception as e:
@@ -380,14 +433,18 @@ class StatisticalAnalyzer:
         else:
             return EffectSizeMagnitude.VERY_LARGE
 
-    def generate_statistical_conclusion(self, p_value: float, primary_metric: str) -> str:
+    def generate_statistical_conclusion(
+        self, p_value: float, primary_metric: str
+    ) -> str:
         """Generate human-readable statistical conclusion."""
         significance = self.determine_significance_level(p_value)
 
         if significance == StatisticalSignificance.NOT_SIGNIFICANT:
             return f"No statistically significant difference found in {primary_metric}"
         elif significance == StatisticalSignificance.MARGINALLY_SIGNIFICANT:
-            return f"Marginally significant difference found in {primary_metric} (p < 0.1)"
+            return (
+                f"Marginally significant difference found in {primary_metric} (p < 0.1)"
+            )
         elif significance == StatisticalSignificance.SIGNIFICANT:
             return f"Statistically significant difference found in {primary_metric} (p < 0.05)"
         elif significance == StatisticalSignificance.VERY_SIGNIFICANT:
@@ -395,7 +452,9 @@ class StatisticalAnalyzer:
         else:
             return f"Very highly significant difference found in {primary_metric} (p < 0.001)"
 
-    def calculate_cliffs_delta(self, control_stats: Dict[str, Any], treatment_stats: Dict[str, Any]) -> float:
+    def calculate_cliffs_delta(
+        self, control_stats: Dict[str, Any], treatment_stats: Dict[str, Any]
+    ) -> float:
         """Calculate Cliff's delta (non-parametric effect size)."""
         # Simplified implementation - would need actual data points for true calculation
         control_rate = control_stats.get("response_rate", 0)
@@ -429,12 +488,14 @@ class StatisticalAnalyzer:
         else:
             return 0.9  # Excellent power
 
-    def calculate_required_sample_size(self, effect_size: float, alpha: float, power: float) -> int:
+    def calculate_required_sample_size(
+        self, effect_size: float, alpha: float, power: float
+    ) -> int:
         """Calculate required sample size for desired power."""
         # Simplified sample size calculation
         # Based on Cohen's formula for two-sample t-test
-        z_alpha = stats.norm.ppf(1 - alpha/2)
+        z_alpha = stats.norm.ppf(1 - alpha / 2)
         z_beta = stats.norm.ppf(power)
 
-        n = ((z_alpha + z_beta) ** 2 * 2) / (effect_size ** 2)
+        n = ((z_alpha + z_beta) ** 2 * 2) / (effect_size**2)
         return int(np.ceil(n))

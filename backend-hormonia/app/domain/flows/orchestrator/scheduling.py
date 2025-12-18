@@ -21,9 +21,7 @@ class FlowSchedulingOrchestrator:
     """Orchestrates quiz and follow-up scheduling for flow execution."""
 
     def __init__(
-        self,
-        quiz_scheduler: QuizScheduler,
-        follow_up_scheduler: FollowUpScheduler
+        self, quiz_scheduler: QuizScheduler, follow_up_scheduler: FollowUpScheduler
     ):
         """
         Initialize FlowSchedulingOrchestrator.
@@ -36,11 +34,7 @@ class FlowSchedulingOrchestrator:
         self.follow_up_scheduler = follow_up_scheduler
 
     async def execute_quiz_step(
-        self,
-        patient_id: UUID,
-        flow_state: Any,
-        flow_type: str,
-        current_day: int
+        self, patient_id: UUID, flow_state: Any, flow_type: str, current_day: int
     ) -> Dict[str, Any]:
         """
         Execute quiz step if needed.
@@ -63,22 +57,25 @@ class FlowSchedulingOrchestrator:
                 )
 
             return {
-                'success': True,
-                'message': 'No quiz scheduled for this day',
-                'quiz_triggered': False
+                "success": True,
+                "message": "No quiz scheduled for this day",
+                "quiz_triggered": False,
             }
 
         except Exception as e:
-            logger.error(f"Error executing quiz step: {e}", extra={
-                "patient_id": str(patient_id),
-                "flow_type": flow_type,
-                "day": current_day
-            })
+            logger.error(
+                f"Error executing quiz step: {e}",
+                extra={
+                    "patient_id": str(patient_id),
+                    "flow_type": flow_type,
+                    "day": current_day,
+                },
+            )
             return {
-                'success': False,
-                'message': f'Quiz execution failed: {str(e)}',
-                'error': str(e),
-                'quiz_triggered': False
+                "success": False,
+                "message": f"Quiz execution failed: {str(e)}",
+                "error": str(e),
+                "quiz_triggered": False,
             }
 
     async def schedule_monthly_assessment(
@@ -87,7 +84,7 @@ class FlowSchedulingOrchestrator:
         assessment_date: Optional[datetime],
         flow_state_creator: Callable,
         analytics_callback: Callable,
-        logger_instance: Optional[logging.Logger] = None
+        logger_instance: Optional[logging.Logger] = None,
     ) -> FlowExecutionResult:
         """
         Schedule monthly assessment for patient.
@@ -115,26 +112,27 @@ class FlowSchedulingOrchestrator:
                 patient=patient,
                 assessment_date=assessment_date,
                 flow_state_creator=flow_state_creator,
-                analytics_callback=analytics_callback
+                analytics_callback=analytics_callback,
             )
 
             return FlowExecutionResult(
-                success=result.get('success', False),
+                success=result.get("success", False),
                 patient_id=patient_id,
                 operation=FlowOperationType.START,
-                message=result.get('message', 'Monthly assessment scheduled'),
-                data=result
+                message=result.get("message", "Monthly assessment scheduled"),
+                data=result,
             )
 
         except Exception as e:
-            log.error(f"Error scheduling monthly assessment: {e}", extra={
-                "patient_id": str(patient_id)
-            })
+            log.error(
+                f"Error scheduling monthly assessment: {e}",
+                extra={"patient_id": str(patient_id)},
+            )
 
             return FlowExecutionResult(
                 success=False,
                 patient_id=patient_id,
                 operation=FlowOperationType.START,
                 message=f"Monthly assessment scheduling failed: {str(e)}",
-                errors=[str(e)]
+                errors=[str(e)],
             )

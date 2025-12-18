@@ -1,14 +1,20 @@
 """
 Core MessageScheduler service for time-based message delivery.
 """
+
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from uuid import UUID
 from sqlalchemy.orm import Session
 
-from app.models.patient import Patient
-from app.models.message import Message, MessageType, MessageDirection, MessageStatus, DeliveryStatus
+from app.models.message import (
+    Message,
+    MessageType,
+    MessageDirection,
+    MessageStatus,
+    DeliveryStatus,
+)
 from app.repositories.patient import PatientRepository
 from app.repositories.message import MessageRepository
 from app.domain.messaging.delivery import MessageSender
@@ -47,12 +53,14 @@ class MessageScheduler:
         self.metrics_collector = MetricsCollector(db)
 
     @with_db_retry(max_retries=3)
-    async def schedule_message(self,
-                             patient_id: UUID,
-                             message_content: str,
-                             scheduling_window: SchedulingWindow = SchedulingWindow.BUSINESS_HOURS,
-                             message_type: str = "text",
-                             metadata: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def schedule_message(
+        self,
+        patient_id: UUID,
+        message_content: str,
+        scheduling_window: SchedulingWindow = SchedulingWindow.BUSINESS_HOURS,
+        message_type: str = "text",
+        metadata: Dict[str, Any] = None,
+    ) -> Dict[str, Any]:
         """
         Schedule a message for delivery to a patient.
 
@@ -74,7 +82,9 @@ class MessageScheduler:
             raise ValidationError("Message content cannot be empty")
 
         if len(message_content) > self.config.MAX_MESSAGE_LENGTH:
-            raise ValidationError(f"Message content exceeds maximum length ({self.config.MAX_MESSAGE_LENGTH} characters)")
+            raise ValidationError(
+                f"Message content exceeds maximum length ({self.config.MAX_MESSAGE_LENGTH} characters)"
+            )
 
         if not isinstance(scheduling_window, SchedulingWindow):
             raise ValidationError("Invalid scheduling window")
@@ -86,7 +96,9 @@ class MessageScheduler:
                 raise NotFoundError(f"Patient {patient_id} not found")
 
             # Calculate optimal delivery time
-            delivery_time = await self.timezone_handler.calculate_optimal_delivery_time(patient, scheduling_window)
+            delivery_time = await self.timezone_handler.calculate_optimal_delivery_time(
+                patient, scheduling_window
+            )
 
             # Create message record
             message = Message(
@@ -96,7 +108,7 @@ class MessageScheduler:
                 content=message_content,
                 status=MessageStatus.SCHEDULED,
                 scheduled_for=delivery_time,
-                message_metadata=metadata or {}
+                message_metadata=metadata or {},
             )
 
             # Save to database
@@ -105,7 +117,9 @@ class MessageScheduler:
             self.db.refresh(message)
 
             # Schedule Celery task
-            task_result = await self.task_scheduler.schedule_celery_task(message, delivery_time)
+            task_result = await self.task_scheduler.schedule_celery_task(
+                message, delivery_time
+            )
 
             # Update message with task ID
             message.message_metadata["celery_task_id"] = task_result.get("task_id")
@@ -117,7 +131,7 @@ class MessageScheduler:
                 "scheduled_for": delivery_time.isoformat(),
                 "status": DeliveryStatus.SCHEDULED.value,
                 "scheduling_window": scheduling_window.value,
-                "task_id": task_result.get("task_id")
+                "task_id": task_result.get("task_id"),
             }
 
         except Exception as e:
@@ -125,13 +139,15 @@ class MessageScheduler:
             raise
 
     @with_db_retry(max_retries=3)
-    async def schedule_flow_message(self,
-                                  patient_id: UUID,
-                                  flow_day: int,
-                                  flow_type: str,
-                                  template_id: str,
-                                  personalized_content: str,
-                                  scheduling_window: SchedulingWindow = SchedulingWindow.BUSINESS_HOURS) -> Dict[str, Any]:
+    async def schedule_flow_message(
+        self,
+        patient_id: UUID,
+        flow_day: int,
+        flow_type: str,
+        template_id: str,
+        personalized_content: str,
+        scheduling_window: SchedulingWindow = SchedulingWindow.BUSINESS_HOURS,
+    ) -> Dict[str, Any]:
         """
         Schedule a flow-specific message with flow context.
 
@@ -152,7 +168,7 @@ class MessageScheduler:
                 "flow_type": flow_type,
                 "template_id": template_id,
                 "personalized": True,
-                "generated_at": datetime.utcnow().isoformat()
+                "generated_at": datetime.utcnow().isoformat(),
             }
         }
 
@@ -160,7 +176,7 @@ class MessageScheduler:
             patient_id=patient_id,
             message_content=personalized_content,
             scheduling_window=scheduling_window,
-            metadata=flow_metadata
+            metadata=flow_metadata,
         )
 
     @with_db_retry(max_retries=3)
@@ -181,7 +197,9 @@ class MessageScheduler:
                 return False
 
             if message.status not in [MessageStatus.SCHEDULED, MessageStatus.PENDING]:
-                logger.warning(f"Cannot cancel message {message_id} with status {message.status}")
+                logger.warning(
+                    f"Cannot cancel message {message_id} with status {message.status}"
+                )
                 return False
 
             # Cancel Celery task if exists
@@ -201,10 +219,12 @@ class MessageScheduler:
             return False
 
     @with_db_retry(max_retries=3)
-    async def reschedule_message(self,
-                               message_id: UUID,
-                               new_delivery_time: datetime,
-                               reason: str = "user_requested") -> Dict[str, Any]:
+    async def reschedule_message(
+        self,
+        message_id: UUID,
+        new_delivery_time: datetime,
+        reason: str = "user_requested",
+    ) -> Dict[str, Any]:
         """
         Reschedule a message to a new delivery time.
 
@@ -225,7 +245,9 @@ class MessageScheduler:
                 raise NotFoundError(f"Message {message_id} not found")
 
             if message.status not in [MessageStatus.SCHEDULED, MessageStatus.PENDING]:
-                raise ValidationError(f"Cannot reschedule message with status {message.status}")
+                raise ValidationError(
+                    f"Cannot reschedule message with status {message.status}"
+                )
 
             # Cancel old task
             old_task_id = message.message_metadata.get("celery_task_id")
@@ -233,24 +255,28 @@ class MessageScheduler:
                 self.task_scheduler.cancel_celery_task(old_task_id)
 
             # Schedule new task
-            task_result = await self.task_scheduler.schedule_celery_task(message, new_delivery_time)
+            task_result = await self.task_scheduler.schedule_celery_task(
+                message, new_delivery_time
+            )
 
             # Update message
             message.scheduled_for = new_delivery_time
             message.status = MessageStatus.SCHEDULED
-            message.message_metadata.update({
-                "celery_task_id": task_result.get("task_id"),
-                "rescheduled_at": datetime.utcnow().isoformat(),
-                "reschedule_reason": reason,
-                "previous_task_id": old_task_id
-            })
+            message.message_metadata.update(
+                {
+                    "celery_task_id": task_result.get("task_id"),
+                    "rescheduled_at": datetime.utcnow().isoformat(),
+                    "reschedule_reason": reason,
+                    "previous_task_id": old_task_id,
+                }
+            )
             self.db.commit()
 
             return {
                 "message_id": str(message_id),
                 "new_delivery_time": new_delivery_time.isoformat(),
                 "task_id": task_result.get("task_id"),
-                "reason": reason
+                "reason": reason,
             }
 
         except Exception as e:
@@ -258,11 +284,13 @@ class MessageScheduler:
             raise
 
     @with_db_retry(max_retries=3)
-    async def update_delivery_status(self,
-                                   message_id: UUID,
-                                   status: DeliveryStatus,
-                                   whatsapp_id: str = None,
-                                   delivery_info: Dict[str, Any] = None) -> bool:
+    async def update_delivery_status(
+        self,
+        message_id: UUID,
+        status: DeliveryStatus,
+        whatsapp_id: str = None,
+        delivery_info: Dict[str, Any] = None,
+    ) -> bool:
         """
         Update message delivery status.
 
@@ -298,10 +326,12 @@ class MessageScheduler:
                 message.whatsapp_id = whatsapp_id
 
             # Update metadata
-            message.message_metadata.update({
-                "status_updated_at": datetime.utcnow().isoformat(),
-                "delivery_status": status.value
-            })
+            message.message_metadata.update(
+                {
+                    "status_updated_at": datetime.utcnow().isoformat(),
+                    "delivery_status": status.value,
+                }
+            )
 
             if delivery_info:
                 message.message_metadata["delivery_tracking"] = delivery_info
@@ -310,14 +340,15 @@ class MessageScheduler:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to update delivery status for message {message_id}: {e}")
+            logger.error(
+                f"Failed to update delivery status for message {message_id}: {e}"
+            )
             return False
 
     @with_db_retry(max_retries=3)
-    async def schedule_existing_message(self,
-                                       message_id: UUID,
-                                       send_time: datetime,
-                                       priority: str = 'normal') -> bool:
+    async def schedule_existing_message(
+        self, message_id: UUID, send_time: datetime, priority: str = "normal"
+    ) -> bool:
         """
         Schedule an existing message that has already been created in the database.
         This method is used when the message record exists but needs to be scheduled for delivery.
@@ -336,10 +367,10 @@ class MessageScheduler:
         """
         try:
             # Validate priority
-            valid_priorities = ['low', 'normal', 'high', 'urgent']
+            valid_priorities = ["low", "normal", "high", "urgent"]
             if priority not in valid_priorities:
                 logger.warning(f"Invalid priority '{priority}', using 'normal'")
-                priority = 'normal'
+                priority = "normal"
 
             # Get the existing message
             message = self.message_repo.get(message_id)
@@ -355,7 +386,9 @@ class MessageScheduler:
 
             # Validate send_time is in the future
             if send_time <= datetime.utcnow():
-                logger.warning(f"Send time {send_time} is in the past, adjusting to 1 minute from now")
+                logger.warning(
+                    f"Send time {send_time} is in the past, adjusting to 1 minute from now"
+                )
                 send_time = datetime.utcnow() + timedelta(minutes=1)
 
             # Update message with scheduling information
@@ -365,16 +398,18 @@ class MessageScheduler:
             # Add priority to metadata
             if message.message_metadata is None:
                 message.message_metadata = {}
-            message.message_metadata['priority'] = priority
-            message.message_metadata['scheduled_at'] = datetime.utcnow().isoformat()
+            message.message_metadata["priority"] = priority
+            message.message_metadata["scheduled_at"] = datetime.utcnow().isoformat()
 
             # Schedule Celery task
-            task_result = await self.task_scheduler.schedule_celery_task(message, send_time)
+            task_result = await self.task_scheduler.schedule_celery_task(
+                message, send_time
+            )
 
-            if task_result.get('task_id'):
+            if task_result.get("task_id"):
                 # Update message with task ID
-                message.message_metadata['celery_task_id'] = task_result.get('task_id')
-                message.message_metadata['scheduling_status'] = 'success'
+                message.message_metadata["celery_task_id"] = task_result.get("task_id")
+                message.message_metadata["scheduling_status"] = "success"
                 self.db.commit()
 
                 logger.info(
@@ -384,8 +419,10 @@ class MessageScheduler:
                 return True
             else:
                 # Scheduling failed
-                message.message_metadata['scheduling_status'] = 'failed'
-                message.message_metadata['scheduling_error'] = task_result.get('error', 'Unknown error')
+                message.message_metadata["scheduling_status"] = "failed"
+                message.message_metadata["scheduling_error"] = task_result.get(
+                    "error", "Unknown error"
+                )
                 message.status = MessageStatus.FAILED
                 self.db.commit()
 
@@ -401,7 +438,9 @@ class MessageScheduler:
             logger.error(f"Invalid message state for scheduling: {message_id}")
             raise
         except Exception as e:
-            logger.error(f"Failed to schedule existing message {message_id}: {e}", exc_info=True)
+            logger.error(
+                f"Failed to schedule existing message {message_id}: {e}", exc_info=True
+            )
             self.db.rollback()
             return False
 
@@ -410,7 +449,7 @@ class MessageScheduler:
         self,
         message_id: UUID,
         failure_reason: str,
-        whatsapp_error: Optional[Dict[str, Any]] = None
+        whatsapp_error: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Handle message delivery failure with retry logic and flow state update.
@@ -426,11 +465,13 @@ class MessageScheduler:
         try:
             message = self.message_repo.get(message_id)
             if not message:
-                logger.error(f"Message {message_id} not found for delivery failure handling")
+                logger.error(
+                    f"Message {message_id} not found for delivery failure handling"
+                )
                 return {
                     "status": "error",
                     "message": "Message not found",
-                    "message_id": str(message_id)
+                    "message_id": str(message_id),
                 }
 
             # Update delivery status
@@ -443,12 +484,16 @@ class MessageScheduler:
             if whatsapp_error:
                 message.message_metadata = message.message_metadata or {}
                 message.message_metadata["whatsapp_error"] = whatsapp_error
-                message.message_metadata["failure_timestamp"] = datetime.utcnow().isoformat()
+                message.message_metadata["failure_timestamp"] = (
+                    datetime.utcnow().isoformat()
+                )
 
             # Check if we should retry
             if message.retry_count < self.config.MAX_DELIVERY_RETRIES:
                 # Calculate exponential backoff
-                retry_delay = self.retry_handler.calculate_retry_delay(message.retry_count)
+                retry_delay = self.retry_handler.calculate_retry_delay(
+                    message.retry_count
+                )
                 next_retry = datetime.utcnow() + retry_delay
 
                 message.retry_count += 1
@@ -469,14 +514,16 @@ class MessageScheduler:
                     "message_id": str(message_id),
                     "retry_count": message.retry_count,
                     "next_retry_at": next_retry.isoformat(),
-                    "failure_reason": failure_reason
+                    "failure_reason": failure_reason,
                 }
             else:
                 # Max retries exceeded - route to DLQ and update flow state
                 message.next_retry_at = None
 
                 # Route to DLQ before committing
-                await self.retry_handler.route_to_dlq_on_max_retries(message, failure_reason, whatsapp_error)
+                await self.retry_handler.route_to_dlq_on_max_retries(
+                    message, failure_reason, whatsapp_error
+                )
 
                 self.db.commit()
 
@@ -494,29 +541,33 @@ class MessageScheduler:
                     "retry_count": message.retry_count,
                     "failure_reason": failure_reason,
                     "flow_notified": True,
-                    "dlq_routed": True
+                    "dlq_routed": True,
                 }
 
         except Exception as e:
-            logger.error(f"Error handling delivery failure for message {message_id}: {e}")
+            logger.error(
+                f"Error handling delivery failure for message {message_id}: {e}"
+            )
             self.db.rollback()
-            return {
-                "status": "error",
-                "message": str(e),
-                "message_id": str(message_id)
-            }
+            return {"status": "error", "message": str(e), "message_id": str(message_id)}
 
     # Delegate metrics methods to MetricsCollector
-    async def get_scheduled_messages(self, patient_id: UUID = None, limit: int = 50) -> List[Dict[str, Any]]:
+    async def get_scheduled_messages(
+        self, patient_id: UUID = None, limit: int = 50
+    ) -> List[Dict[str, Any]]:
         """Get scheduled messages with optional patient filter."""
         return await self.metrics_collector.get_scheduled_messages(patient_id, limit)
 
-    async def get_delivery_metrics(self, patient_id: UUID = None, days_back: int = 7) -> Dict[str, Any]:
+    async def get_delivery_metrics(
+        self, patient_id: UUID = None, days_back: int = 7
+    ) -> Dict[str, Any]:
         """Get message delivery metrics."""
         return await self.metrics_collector.get_delivery_metrics(patient_id, days_back)
 
 
 # Dependency injection function
-def get_message_scheduler(db: Session, config: MessageSchedulerConfig = None) -> MessageScheduler:
+def get_message_scheduler(
+    db: Session, config: MessageSchedulerConfig = None
+) -> MessageScheduler:
     """Get MessageScheduler instance with database session and optional configuration."""
     return MessageScheduler(db, config)

@@ -17,14 +17,16 @@ class ConsensusManager:
         agent_id: str,
         logger: logging.Logger,
         send_message_fn: Callable,
-        consensus_threshold: float = 0.7
+        consensus_threshold: float = 0.7,
     ):
         self.agent_id = agent_id
         self.logger = logger
         self.send_message_fn = send_message_fn
         self.consensus_threshold = consensus_threshold
 
-    async def seek_agent_consensus(self, decision_topic: str, decision_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def seek_agent_consensus(
+        self, decision_topic: str, decision_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Seek consensus from other agents on important decisions."""
         try:
             # Send consensus request to relevant agents
@@ -33,16 +35,16 @@ class ConsensusManager:
 
             # Send messages to agents
             for agent_type in consensus_agents:
-                response_id = await self.send_message_fn(
+                await self.send_message_fn(
                     f"{agent_type}_agent",  # Assuming agent naming convention
                     "consensus_request",
                     {
                         "decision_topic": decision_topic,
                         "decision_data": decision_data,
-                        "requesting_agent": self.agent_id
+                        "requesting_agent": self.agent_id,
                     },
                     MessagePriority.HIGH,
-                    requires_response=True
+                    requires_response=True,
                 )
 
                 # For now, simulate consensus (would wait for actual responses)
@@ -55,7 +57,7 @@ class ConsensusManager:
             return {
                 "consensus_reached": consensus_reached,
                 "votes": votes,
-                "approval_rate": approvals / len(votes)
+                "approval_rate": approvals / len(votes),
             }
 
         except Exception as e:
@@ -74,8 +76,8 @@ class ConsensusManager:
             "recommended_actions": [
                 "schedule_medical_consultation",
                 "increase_monitoring_frequency",
-                "review_treatment_plan"
-            ]
+                "review_treatment_plan",
+            ],
         }
 
         # Send alert to alert analyzer agent
@@ -83,7 +85,7 @@ class ConsensusManager:
             "alert_analyzer_agent",
             "escalation_alert",
             alert_data,
-            MessagePriority.CRITICAL
+            MessagePriority.CRITICAL,
         )
 
 

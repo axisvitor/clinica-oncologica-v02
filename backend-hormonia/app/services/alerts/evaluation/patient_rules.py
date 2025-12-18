@@ -6,8 +6,11 @@ migrated from the original AlertService.
 """
 
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, TYPE_CHECKING
 from datetime import datetime, timedelta
+
+if TYPE_CHECKING:
+    from ..rule_engine import RuleEngine
 
 from ..types import (
     AlertRule,
@@ -44,7 +47,7 @@ async def evaluate_no_response(
     logger.debug(f"Evaluating no_response rule: {rule.name}")
 
     # Extract context
-    patient_id = context.get("patient_id")
+    context.get("patient_id")
     last_inbound_at = context.get("last_inbound_message_at")
     outbound_count = context.get("outbound_messages_since_response", 0)
     patient_created_at = context.get("patient_created_at", datetime.utcnow())
@@ -112,7 +115,7 @@ async def evaluate_missed_quiz(
     logger.debug(f"Evaluating missed_quiz rule: {rule.name}")
 
     # Extract context
-    patient_id = context.get("patient_id")
+    context.get("patient_id")
     completed_count = context.get("quiz_responses_count", 0)
     expected_count = context.get("expected_quiz_count", 1)
 
@@ -179,9 +182,9 @@ async def evaluate_negative_sentiment(
     logger.debug(f"Evaluating negative_sentiment rule: {rule.name}")
 
     # Extract context
-    patient_id = context.get("patient_id")
+    context.get("patient_id")
     sentiment_scores = context.get("sentiment_scores", [])
-    recent_messages = context.get("recent_messages", [])
+    context.get("recent_messages", [])
 
     # Extract rule configuration
     threshold = rule.condition.get("threshold", 0.5)
@@ -275,9 +278,9 @@ async def evaluate_treatment_adherence(
     logger.debug(f"Evaluating treatment_adherence rule: {rule.name}")
 
     # Extract context
-    patient_id = context.get("patient_id")
+    context.get("patient_id")
     adherence_scores = context.get("adherence_scores", [])
-    quiz_responses_count = context.get("quiz_responses_count", 0)
+    context.get("quiz_responses_count", 0)
 
     # Extract rule configuration
     threshold = rule.condition.get("threshold", 0.7)
@@ -356,7 +359,7 @@ async def evaluate_emergency_keywords(
     logger.debug(f"Evaluating emergency_keywords rule: {rule.name}")
 
     # Extract context
-    patient_id = context.get("patient_id")
+    context.get("patient_id")
     recent_messages = context.get("recent_messages", [])
 
     # Extract rule configuration

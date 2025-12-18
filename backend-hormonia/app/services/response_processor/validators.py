@@ -1,6 +1,7 @@
 """
 Response validation logic.
 """
+
 import logging
 from typing import Optional
 
@@ -10,7 +11,7 @@ from .models import (
     ResponseValidationResult,
     ResponseType,
     InboundMessage,
-    InteractiveResponse
+    InteractiveResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -28,10 +29,12 @@ class ResponseValidator:
         """
         self.message_limit = message_limit
 
-    async def validate_response(self,
-                               inbound_message: InboundMessage,
-                               response_type: ResponseType,
-                               flow_state: Optional[PatientFlowState]) -> ResponseValidationResult:
+    async def validate_response(
+        self,
+        inbound_message: InboundMessage,
+        response_type: ResponseType,
+        flow_state: Optional[PatientFlowState],
+    ) -> ResponseValidationResult:
         """
         Validate response based on expected context.
 
@@ -52,11 +55,13 @@ class ResponseValidator:
 
             # Flow context validation
             if flow_state:
-                expected_responses = flow_state.state_data.get('expected_responses', [])
+                expected_responses = flow_state.state_data.get("expected_responses", [])
                 if expected_responses and response_type == ResponseType.BUTTON:
                     # Validate button response against expected options
                     if inbound_message.content not in expected_responses:
-                        errors.append(f"Invalid button response: {inbound_message.content}")
+                        errors.append(
+                            f"Invalid button response: {inbound_message.content}"
+                        )
 
             # Content length validation
             if len(inbound_message.content) > self.message_limit:
@@ -69,7 +74,7 @@ class ResponseValidator:
                 is_valid=is_valid,
                 response_type=response_type,
                 extracted_value=extracted_value,
-                validation_errors=errors
+                validation_errors=errors,
             )
 
         except Exception as e:
@@ -77,12 +82,12 @@ class ResponseValidator:
             return ResponseValidationResult(
                 is_valid=False,
                 response_type=response_type,
-                validation_errors=[f"Validation error: {str(e)}"]
+                validation_errors=[f"Validation error: {str(e)}"],
             )
 
-    async def validate_interactive_response(self,
-                                           interactive_response: InteractiveResponse,
-                                           flow_state: PatientFlowState) -> ResponseValidationResult:
+    async def validate_interactive_response(
+        self, interactive_response: InteractiveResponse, flow_state: PatientFlowState
+    ) -> ResponseValidationResult:
         """
         Validate interactive response against flow context.
 
@@ -101,14 +106,19 @@ class ResponseValidator:
                 errors.append("Empty response value")
 
             # Validate against expected responses in flow state
-            expected_responses = flow_state.state_data.get('expected_responses', [])
+            expected_responses = flow_state.state_data.get("expected_responses", [])
             if expected_responses:
                 if interactive_response.response_value not in expected_responses:
-                    errors.append(f"Unexpected response: {interactive_response.response_value}")
+                    errors.append(
+                        f"Unexpected response: {interactive_response.response_value}"
+                    )
 
             # Validate response type consistency
-            expected_type = flow_state.state_data.get('expected_response_type')
-            if expected_type and expected_type != interactive_response.response_type.value:
+            expected_type = flow_state.state_data.get("expected_response_type")
+            if (
+                expected_type
+                and expected_type != interactive_response.response_type.value
+            ):
                 errors.append(
                     f"Response type mismatch: expected {expected_type}, "
                     f"got {interactive_response.response_type.value}"
@@ -119,8 +129,10 @@ class ResponseValidator:
             return ResponseValidationResult(
                 is_valid=is_valid,
                 response_type=interactive_response.response_type,
-                extracted_value=interactive_response.response_value if is_valid else None,
-                validation_errors=errors
+                extracted_value=interactive_response.response_value
+                if is_valid
+                else None,
+                validation_errors=errors,
             )
 
         except Exception as e:
@@ -128,5 +140,5 @@ class ResponseValidator:
             return ResponseValidationResult(
                 is_valid=False,
                 response_type=interactive_response.response_type,
-                validation_errors=[f"Validation error: {str(e)}"]
+                validation_errors=[f"Validation error: {str(e)}"],
             )

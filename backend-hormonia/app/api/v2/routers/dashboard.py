@@ -39,34 +39,35 @@ logger = logging.getLogger(__name__)
 # Cache TTL configurations
 CACHE_TTL_REALTIME = 120  # 2 minutes for real-time widgets
 
-def get_dashboard_service(db = Depends(get_db)) -> DashboardService:
+
+def get_dashboard_service(db=Depends(get_db)) -> DashboardService:
     """Dependency to get DashboardService instance."""
     return DashboardService(db)
 
+
 async def _get_current_user_simple(
     session_id: str = Header(None, alias="X-Session-ID"),
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache)
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
 ) -> Dict[str, Any]:
     """Simplified session validation for V2 endpoints."""
     if not session_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session ID not provided in X-Session-ID header"
+            detail="Session ID not provided in X-Session-ID header",
         )
 
     session_data = await redis_cache.get_session(session_id)
     if not session_data:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session"
+            detail="Invalid or expired session",
         )
 
     firebase_uid = session_data.get("firebase_uid")
     if not firebase_uid:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid session data"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session data"
         )
 
     # Get user from cache or DB
@@ -75,23 +76,21 @@ async def _get_current_user_simple(
         user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found"
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
             )
         user_data = {
             "id": str(user.id),
             "firebase_uid": user.firebase_uid,
             "email": user.email,
             "full_name": user.full_name,
-            "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
-            "is_active": user.is_active
+            "role": user.role.value if hasattr(user.role, "value") else str(user.role),
+            "is_active": user.is_active,
         }
         await redis_cache.cache_user_data(firebase_uid, user_data, ttl=900)
 
     if not user_data.get("is_active", False):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is inactive"
+            status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive"
         )
 
     return user_data
@@ -110,14 +109,20 @@ def _extract_user_role(current_user: Dict[str, Any]) -> UserRole:
 @limiter.limit("30/minute")
 async def get_main_dashboard(
     request: Request,
-    time_range: TimeRangeEnum = Query(TimeRangeEnum.WEEK, description="Time range for metrics"),
-    custom_start: Optional[datetime] = Query(None, description="Custom start date (for CUSTOM range)"),
-    custom_end: Optional[datetime] = Query(None, description="Custom end date (for CUSTOM range)"),
+    time_range: TimeRangeEnum = Query(
+        TimeRangeEnum.WEEK, description="Time range for metrics"
+    ),
+    custom_start: Optional[datetime] = Query(
+        None, description="Custom start date (for CUSTOM range)"
+    ),
+    custom_end: Optional[datetime] = Query(
+        None, description="Custom end date (for CUSTOM range)"
+    ),
     fields: Optional[List[str]] = Depends(get_field_selection),
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
-    service: DashboardService = Depends(get_dashboard_service)
+    service: DashboardService = Depends(get_dashboard_service),
 ) -> Dict[str, Any]:
     """
     Get main dashboard overview with key metrics and widgets.
@@ -136,13 +141,18 @@ async def get_main_dashboard(
             return apply_field_selection(cached_data, fields) if fields else cached_data
 
         # Calculate date range
-        start_date, end_date = service.calculate_date_range(time_range, custom_start, custom_end)
+        start_date, end_date = service.calculate_date_range(
+            time_range, custom_start, custom_end
+        )
 
         # Determine patient scope based on role
         patient_ids = None
         if role == UserRole.DOCTOR:
             # Get doctor's patients
-            patient_ids = [p.id for p in db.query(Patient.id).filter(Patient.doctor_id == user_id).all()]
+            patient_ids = [
+                p.id
+                for p in db.query(Patient.id).filter(Patient.doctor_id == user_id).all()
+            ]
 
         # Fetch all metrics using service
         patient_metrics = service.get_patient_metrics(patient_ids, start_date, end_date)
@@ -176,7 +186,7 @@ async def get_main_dashboard(
         logger.error(f"Error fetching main dashboard: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve main dashboard"
+            detail="Failed to retrieve main dashboard",
         )
 
 
@@ -185,14 +195,16 @@ async def get_main_dashboard(
 async def get_patient_dashboard(
     patient_id: UUID,
     request: Request,
-    time_range: TimeRangeEnum = Query(TimeRangeEnum.MONTH, description="Time range for metrics"),
+    time_range: TimeRangeEnum = Query(
+        TimeRangeEnum.MONTH, description="Time range for metrics"
+    ),
     custom_start: Optional[datetime] = Query(None, description="Custom start date"),
     custom_end: Optional[datetime] = Query(None, description="Custom end date"),
     fields: Optional[List[str]] = Depends(get_field_selection),
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
-    service: DashboardService = Depends(get_dashboard_service)
+    service: DashboardService = Depends(get_dashboard_service),
 ) -> Dict[str, Any]:
     """
     Get patient-specific dashboard with detailed health metrics.
@@ -205,15 +217,14 @@ async def get_patient_dashboard(
         patient = db.query(Patient).filter(Patient.id == patient_id).first()
         if not patient:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Patient not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"
             )
 
         # Check access
         if role == UserRole.DOCTOR and patient.doctor_id != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied: Not your patient"
+                detail="Access denied: Not your patient",
             )
 
         # Build cache key
@@ -226,10 +237,14 @@ async def get_patient_dashboard(
             return apply_field_selection(cached_data, fields) if fields else cached_data
 
         # Calculate date range
-        start_date, end_date = service.calculate_date_range(time_range, custom_start, custom_end)
+        start_date, end_date = service.calculate_date_range(
+            time_range, custom_start, custom_end
+        )
 
         # Fetch patient-specific metrics
-        message_metrics = service.get_message_metrics([patient_id], start_date, end_date)
+        message_metrics = service.get_message_metrics(
+            [patient_id], start_date, end_date
+        )
         alert_metrics = service.get_alert_metrics([patient_id], start_date, end_date)
         flow_metrics = service.get_flow_metrics([patient_id], start_date, end_date)
         recent_activity = service.get_recent_activity([patient_id], limit=15)
@@ -241,7 +256,9 @@ async def get_patient_dashboard(
             "full_name": patient.full_name,
             "email": patient.email,
             "is_active": patient.is_active,
-            "created_at": patient.created_at.isoformat() if patient.created_at else None,
+            "created_at": patient.created_at.isoformat()
+            if patient.created_at
+            else None,
         }
 
         # Build response
@@ -266,10 +283,13 @@ async def get_patient_dashboard(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error fetching patient dashboard for {patient_id}: {str(e)}", exc_info=True)
+        logger.error(
+            f"Error fetching patient dashboard for {patient_id}: {str(e)}",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve patient dashboard"
+            detail="Failed to retrieve patient dashboard",
         )
 
 
@@ -277,14 +297,16 @@ async def get_patient_dashboard(
 @limiter.limit("30/minute")
 async def get_physician_dashboard(
     request: Request,
-    time_range: TimeRangeEnum = Query(TimeRangeEnum.WEEK, description="Time range for metrics"),
+    time_range: TimeRangeEnum = Query(
+        TimeRangeEnum.WEEK, description="Time range for metrics"
+    ),
     custom_start: Optional[datetime] = Query(None, description="Custom start date"),
     custom_end: Optional[datetime] = Query(None, description="Custom end date"),
     fields: Optional[List[str]] = Depends(get_field_selection),
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
-    service: DashboardService = Depends(get_dashboard_service)
+    service: DashboardService = Depends(get_dashboard_service),
 ) -> Dict[str, Any]:
     """
     Get physician-specific dashboard with practice metrics.
@@ -303,21 +325,26 @@ async def get_physician_dashboard(
             return apply_field_selection(cached_data, fields) if fields else cached_data
 
         # Calculate date range
-        start_date, end_date = service.calculate_date_range(time_range, custom_start, custom_end)
+        start_date, end_date = service.calculate_date_range(
+            time_range, custom_start, custom_end
+        )
 
         # Get physician's patients
         patient_ids = None
         if role == UserRole.DOCTOR:
-            patient_ids = [p.id for p in db.query(Patient.id).filter(Patient.doctor_id == user_id).all()]
+            patient_ids = [
+                p.id
+                for p in db.query(Patient.id).filter(Patient.doctor_id == user_id).all()
+            ]
 
         # Fetch metrics
         patient_metrics = service.get_patient_metrics(patient_ids, start_date, end_date)
         message_metrics = service.get_message_metrics(patient_ids, start_date, end_date)
         alert_metrics = service.get_alert_metrics(patient_ids, start_date, end_date)
         flow_metrics = service.get_flow_metrics(patient_ids, start_date, end_date)
-        
+
         # Stub data for now as they weren't fully implemented in original file
-        high_priority_alerts = [] 
+        high_priority_alerts = []
         top_risk_patients = []
 
         response = {
@@ -345,5 +372,5 @@ async def get_physician_dashboard(
         logger.error(f"Error fetching physician dashboard: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve physician dashboard"
+            detail="Failed to retrieve physician dashboard",
         )

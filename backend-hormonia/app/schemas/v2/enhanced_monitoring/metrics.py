@@ -66,7 +66,9 @@ class ResourceHistoricalResponse(BaseModel):
     """Historical resource usage data."""
 
     time_range_minutes: int = Field(..., ge=1, description="Time range in minutes")
-    data_points: List[ResourceTimeSeriesPoint] = Field(..., description="Time series data")
+    data_points: List[ResourceTimeSeriesPoint] = Field(
+        ..., description="Time series data"
+    )
     summary: Dict[str, Any] = Field(..., description="Summary statistics")
 
     model_config = ConfigDict(

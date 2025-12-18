@@ -18,7 +18,6 @@ Features:
 
 import asyncio
 import json
-import logging
 import smtplib
 from dataclasses import dataclass
 from datetime import datetime
@@ -38,6 +37,7 @@ logger = get_logger(__name__)
 
 class NotificationChannel(Enum):
     """Supported notification channels."""
+
     EMAIL = "email"
     SLACK = "slack"
     PAGERDUTY = "pagerduty"
@@ -47,6 +47,7 @@ class NotificationChannel(Enum):
 
 class NotificationPriority(Enum):
     """Notification priority levels."""
+
     LOW = "low"
     NORMAL = "normal"
     HIGH = "high"
@@ -56,6 +57,7 @@ class NotificationPriority(Enum):
 @dataclass
 class NotificationResult:
     """Result of a notification send attempt."""
+
     success: bool
     channel: NotificationChannel
     message_id: Optional[str] = None
@@ -91,24 +93,24 @@ class NotificationService:
     def __init__(self):
         """Initialize notification service."""
         # Email configuration
-        self.smtp_host = getattr(settings, 'SMTP_HOST', 'smtp.gmail.com')
-        self.smtp_port = getattr(settings, 'SMTP_PORT', 587)
-        self.smtp_username = getattr(settings, 'SMTP_USERNAME', '')
-        self.smtp_password = getattr(settings, 'SMTP_PASSWORD', '')
-        self.smtp_from = getattr(settings, 'SMTP_FROM_EMAIL', 'noreply@example.com')
-        self.smtp_use_tls = getattr(settings, 'SMTP_USE_TLS', True)
+        self.smtp_host = getattr(settings, "SMTP_HOST", "smtp.gmail.com")
+        self.smtp_port = getattr(settings, "SMTP_PORT", 587)
+        self.smtp_username = getattr(settings, "SMTP_USERNAME", "")
+        self.smtp_password = getattr(settings, "SMTP_PASSWORD", "")
+        self.smtp_from = getattr(settings, "SMTP_FROM_EMAIL", "noreply@example.com")
+        self.smtp_use_tls = getattr(settings, "SMTP_USE_TLS", True)
 
         # Slack configuration
-        self.slack_webhook = getattr(settings, 'SLACK_WEBHOOK_URL', '')
-        self.slack_channel = getattr(settings, 'SLACK_DEFAULT_CHANNEL', '#alerts')
+        self.slack_webhook = getattr(settings, "SLACK_WEBHOOK_URL", "")
+        self.slack_channel = getattr(settings, "SLACK_DEFAULT_CHANNEL", "#alerts")
 
         # PagerDuty configuration
-        self.pagerduty_api_key = getattr(settings, 'PAGERDUTY_API_KEY', '')
-        self.pagerduty_service_key = getattr(settings, 'PAGERDUTY_SERVICE_KEY', '')
+        self.pagerduty_api_key = getattr(settings, "PAGERDUTY_API_KEY", "")
+        self.pagerduty_service_key = getattr(settings, "PAGERDUTY_SERVICE_KEY", "")
 
         # Retry configuration
-        self.max_retries = getattr(settings, 'NOTIFICATION_RETRY_ATTEMPTS', 3)
-        self.retry_delay = getattr(settings, 'NOTIFICATION_RETRY_DELAY', 5)
+        self.max_retries = getattr(settings, "NOTIFICATION_RETRY_ATTEMPTS", 3)
+        self.retry_delay = getattr(settings, "NOTIFICATION_RETRY_DELAY", 5)
 
         # HTTP client for webhooks/APIs
         self.http_client = httpx.AsyncClient(timeout=30.0)
@@ -119,9 +121,9 @@ class NotificationService:
                 "channels_enabled": {
                     "email": bool(self.smtp_username),
                     "slack": bool(self.slack_webhook),
-                    "pagerduty": bool(self.pagerduty_service_key)
+                    "pagerduty": bool(self.pagerduty_service_key),
                 }
-            }
+            },
         )
 
     async def send_notification(
@@ -132,7 +134,7 @@ class NotificationService:
         recipients: Optional[List[str]] = None,
         priority: NotificationPriority = NotificationPriority.NORMAL,
         template_data: Optional[Dict[str, Any]] = None,
-        fallback: bool = True
+        fallback: bool = True,
     ) -> Dict[NotificationChannel, NotificationResult]:
         """
         Send notification across multiple channels.
@@ -154,8 +156,8 @@ class NotificationService:
             extra={
                 "channels": [c.value for c in channels],
                 "priority": priority.value,
-                "recipients": len(recipients) if recipients else 0
-            }
+                "recipients": len(recipients) if recipients else 0,
+            },
         )
 
         results = {}
@@ -169,7 +171,7 @@ class NotificationService:
                     message=message,
                     recipients=recipients,
                     priority=priority,
-                    template_data=template_data
+                    template_data=template_data,
                 )
 
                 results[channel] = result
@@ -180,14 +182,9 @@ class NotificationService:
                     break
 
             except Exception as e:
-                logger.error(
-                    f"Failed to send via {channel.value}: {e}",
-                    exc_info=True
-                )
+                logger.error(f"Failed to send via {channel.value}: {e}", exc_info=True)
                 results[channel] = NotificationResult(
-                    success=False,
-                    channel=channel,
-                    error=str(e)
+                    success=False, channel=channel, error=str(e)
                 )
 
         return results
@@ -199,7 +196,7 @@ class NotificationService:
         message: str,
         recipients: Optional[List[str]],
         priority: NotificationPriority,
-        template_data: Optional[Dict[str, Any]]
+        template_data: Optional[Dict[str, Any]],
     ) -> NotificationResult:
         """
         Send notification to specific channel with retry logic.
@@ -221,7 +218,9 @@ class NotificationService:
 
                 # Route to appropriate sender
                 if channel == NotificationChannel.EMAIL:
-                    message_id = await self._send_email(subject, message, recipients, template_data)
+                    message_id = await self._send_email(
+                        subject, message, recipients, template_data
+                    )
                 elif channel == NotificationChannel.SLACK:
                     message_id = await self._send_slack(subject, message, priority)
                 elif channel == NotificationChannel.PAGERDUTY:
@@ -229,24 +228,28 @@ class NotificationService:
                 elif channel == NotificationChannel.WHATSAPP:
                     message_id = await self._send_whatsapp(message, recipients)
                 else:
-                    raise NotImplementedError(f"Channel {channel.value} not implemented")
+                    raise NotImplementedError(
+                        f"Channel {channel.value} not implemented"
+                    )
 
-                delivery_time_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+                delivery_time_ms = int(
+                    (datetime.utcnow() - start_time).total_seconds() * 1000
+                )
 
                 logger.info(
                     f"Sent via {channel.value} in {delivery_time_ms}ms",
                     extra={
                         "channel": channel.value,
                         "message_id": message_id,
-                        "attempt": attempt + 1
-                    }
+                        "attempt": attempt + 1,
+                    },
                 )
 
                 return NotificationResult(
                     success=True,
                     channel=channel,
                     message_id=message_id,
-                    delivery_time_ms=delivery_time_ms
+                    delivery_time_ms=delivery_time_ms,
                 )
 
             except Exception as e:
@@ -256,14 +259,12 @@ class NotificationService:
 
                 if attempt < self.max_retries - 1:
                     # Exponential backoff
-                    delay = self.retry_delay * (2 ** attempt)
+                    delay = self.retry_delay * (2**attempt)
                     await asyncio.sleep(delay)
                 else:
                     # Final attempt failed
                     return NotificationResult(
-                        success=False,
-                        channel=channel,
-                        error=str(e)
+                        success=False, channel=channel, error=str(e)
                     )
 
     async def _send_email(
@@ -271,7 +272,7 @@ class NotificationService:
         subject: str,
         message: str,
         recipients: Optional[List[str]],
-        template_data: Optional[Dict[str, Any]]
+        template_data: Optional[Dict[str, Any]],
     ) -> str:
         """
         Send email notification via SMTP.
@@ -300,14 +301,14 @@ class NotificationService:
             message = template.render(**template_data)
 
         # Create message
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = subject
-        msg['From'] = self.smtp_from
-        msg['To'] = ', '.join(recipients)
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = self.smtp_from
+        msg["To"] = ", ".join(recipients)
 
         # Add HTML and plain text versions
-        text_part = MIMEText(message, 'plain', 'utf-8')
-        html_part = MIMEText(f"<html><body>{message}</body></html>", 'html', 'utf-8')
+        text_part = MIMEText(message, "plain", "utf-8")
+        html_part = MIMEText(f"<html><body>{message}</body></html>", "html", "utf-8")
 
         msg.attach(text_part)
         msg.attach(html_part)
@@ -321,11 +322,15 @@ class NotificationService:
                 server.login(self.smtp_username, self.smtp_password)
                 server.send_message(msg)
 
-            message_id = msg['Message-ID'] if 'Message-ID' in msg else f"email-{datetime.utcnow().timestamp()}"
+            message_id = (
+                msg["Message-ID"]
+                if "Message-ID" in msg
+                else f"email-{datetime.utcnow().timestamp()}"
+            )
 
             logger.info(
                 f"Email sent to {len(recipients)} recipients",
-                extra={"recipients": recipients, "subject": subject}
+                extra={"recipients": recipients, "subject": subject},
             )
 
             return message_id
@@ -335,10 +340,7 @@ class NotificationService:
             raise
 
     async def _send_slack(
-        self,
-        subject: str,
-        message: str,
-        priority: NotificationPriority
+        self, subject: str, message: str, priority: NotificationPriority
     ) -> str:
         """
         Send Slack notification via webhook.
@@ -362,7 +364,7 @@ class NotificationService:
             NotificationPriority.LOW: "#36a64f",  # Green
             NotificationPriority.NORMAL: "#2196F3",  # Blue
             NotificationPriority.HIGH: "#ff9800",  # Orange
-            NotificationPriority.CRITICAL: "#f44336"  # Red
+            NotificationPriority.CRITICAL: "#f44336",  # Red
         }
 
         slack_message = {
@@ -373,16 +375,16 @@ class NotificationService:
                     "title": subject,
                     "text": message,
                     "footer": "Notification Service",
-                    "ts": int(datetime.utcnow().timestamp())
+                    "ts": int(datetime.utcnow().timestamp()),
                 }
-            ]
+            ],
         }
 
         # Send webhook
         response = await self.http_client.post(
             self.slack_webhook,
             json=slack_message,
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
         )
 
         response.raise_for_status()
@@ -392,10 +394,7 @@ class NotificationService:
         return f"slack-{datetime.utcnow().timestamp()}"
 
     async def _send_pagerduty(
-        self,
-        subject: str,
-        message: str,
-        priority: NotificationPriority
+        self, subject: str, message: str, priority: NotificationPriority
     ) -> str:
         """
         Send PagerDuty alert via Events API v2.
@@ -419,7 +418,7 @@ class NotificationService:
             NotificationPriority.LOW: "info",
             NotificationPriority.NORMAL: "warning",
             NotificationPriority.HIGH: "error",
-            NotificationPriority.CRITICAL: "critical"
+            NotificationPriority.CRITICAL: "critical",
         }
 
         # Build PagerDuty event
@@ -435,16 +434,16 @@ class NotificationService:
                 "source": "notification-service",
                 "custom_details": {
                     "message": message,
-                    "timestamp": datetime.utcnow().isoformat()
-                }
-            }
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
+            },
         }
 
         # Send to PagerDuty Events API
         response = await self.http_client.post(
             "https://events.pagerduty.com/v2/enqueue",
             json=event,
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
         )
 
         response.raise_for_status()
@@ -454,9 +453,7 @@ class NotificationService:
         return dedup_key
 
     async def _send_whatsapp(
-        self,
-        message: str,
-        recipients: Optional[List[str]]
+        self, message: str, recipients: Optional[List[str]]
     ) -> str:
         """
         Send WhatsApp notification.
@@ -474,7 +471,6 @@ class NotificationService:
         if not recipients:
             raise ValueError("No WhatsApp recipients provided")
 
-        from app.services.unified_whatsapp_service import create_unified_whatsapp_service
         from app.integrations.whatsapp.services.message_service import MessageQueue
         from app.config import settings
         from uuid import uuid4
@@ -488,10 +484,7 @@ class NotificationService:
             # Queue message for delivery
             msg_id = str(uuid4())
             await message_queue.enqueue_message(
-                message_id=msg_id,
-                phone_number=phone,
-                content=message,
-                priority="high"
+                message_id=msg_id, phone_number=phone, content=message, priority="high"
             )
             message_ids.append(msg_id)
 
@@ -505,7 +498,7 @@ class NotificationService:
         title: str,
         description: str,
         severity: str = "normal",
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ) -> Dict[NotificationChannel, NotificationResult]:
         """
         Send alert notification with automatic channel selection.
@@ -525,7 +518,7 @@ class NotificationService:
             "low": NotificationPriority.LOW,
             "normal": NotificationPriority.NORMAL,
             "high": NotificationPriority.HIGH,
-            "critical": NotificationPriority.CRITICAL
+            "critical": NotificationPriority.CRITICAL,
         }
 
         priority = priority_map.get(severity.lower(), NotificationPriority.NORMAL)
@@ -535,13 +528,10 @@ class NotificationService:
             channels = [
                 NotificationChannel.PAGERDUTY,
                 NotificationChannel.SLACK,
-                NotificationChannel.EMAIL
+                NotificationChannel.EMAIL,
             ]
         elif priority == NotificationPriority.HIGH:
-            channels = [
-                NotificationChannel.SLACK,
-                NotificationChannel.EMAIL
-            ]
+            channels = [NotificationChannel.SLACK, NotificationChannel.EMAIL]
         else:
             channels = [NotificationChannel.SLACK]
 
@@ -564,7 +554,7 @@ Timestamp: {datetime.utcnow().isoformat()}
             subject=title,
             message=message,
             priority=priority,
-            fallback=True
+            fallback=True,
         )
 
 

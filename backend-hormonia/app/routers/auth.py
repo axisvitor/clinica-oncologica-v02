@@ -5,7 +5,7 @@ Provides endpoints for Firebase authentication, session management,
 and user authentication flow with Redis-based session storage.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 import uuid
 
@@ -18,7 +18,7 @@ from app.core.redis_manager import FirebaseRedisCache
 from app.dependencies.auth_dependencies import (
     get_current_user_from_session,
     get_redis_cache,
-    verify_firebase_token
+    verify_firebase_token,
 )
 from app.models.user import User
 from app.core.config import settings
@@ -32,13 +32,16 @@ router = APIRouter(prefix="/api/v2/auth", tags=["authentication"])
 # Request/Response Models
 # ============================================================================
 
+
 class SessionCreate(BaseModel):
     """Request model for creating a new session"""
+
     id_token: str = Field(..., description="Firebase ID token")
 
 
 class SessionResponse(BaseModel):
     """Response model for session creation"""
+
     session_id: str = Field(..., description="Unique session identifier")
     user: dict = Field(..., description="User information")
     expires_in: int = Field(..., description="Session expiration time in seconds")
@@ -46,17 +49,20 @@ class SessionResponse(BaseModel):
 
 class LogoutResponse(BaseModel):
     """Response model for logout"""
+
     message: str
 
 
 class LogoutAllResponse(BaseModel):
     """Response model for logout all sessions"""
+
     message: str
     sessions_deleted: int
 
 
 class SessionStatusResponse(BaseModel):
     """Response model for session status check"""
+
     valid: bool
     expires_in: Optional[int] = None
     last_activity: Optional[str] = None
@@ -66,13 +72,16 @@ class SessionStatusResponse(BaseModel):
 # Endpoints
 # ============================================================================
 
-@router.post("/session", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/session", response_model=SessionResponse, status_code=status.HTTP_201_CREATED
+)
 @limiter.limit("20/minute")  # Rate limit: 20 session creations per minute per IP
 async def create_session(
     request: Request,
     session_data: SessionCreate,
     db: Session = Depends(get_db),
-    redis_cache: FirebaseRedisCache = Depends(get_redis_cache)
+    redis_cache: FirebaseRedisCache = Depends(get_redis_cache),
 ):
     """
     Create a new session from Firebase ID token.
@@ -97,13 +106,12 @@ async def create_session(
         HTTPException 500: Internal server error
     """
     try:
-
         # Step 1: Validate Firebase token (uses Layer 1 cache)
         firebase_user = await verify_firebase_token(session_data.id_token)
         if not firebase_user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired Firebase token"
+                detail="Invalid or expired Firebase token",
             )
 
         firebase_uid = firebase_user.get("uid")
@@ -115,19 +123,18 @@ async def create_session(
             firebase_uid=firebase_uid,
             email=email,
             display_name=firebase_user.get("name"),
-            photo_url=firebase_user.get("picture")
+            photo_url=firebase_user.get("picture"),
         )
 
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create or retrieve user"
+                detail="Failed to create or retrieve user",
             )
 
         if not user.is_active:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User account is inactive"
+                status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive"
             )
 
         # Step 3: Create Redis session (Layer 3)
@@ -138,13 +145,13 @@ async def create_session(
             session_id=session_id,
             firebase_uid=firebase_uid,
             user_id=user.id,
-            ttl=session_ttl
+            ttl=session_ttl,
         )
 
         if not session_created:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create session"
+                detail="Failed to create session",
             )
 
         # Step 4: Return session information
@@ -157,13 +164,11 @@ async def create_session(
             "role": user.role,
             "is_active": user.is_active,
             "created_at": user.created_at.isoformat() if user.created_at else None,
-            "last_login": user.last_login.isoformat() if user.last_login else None
+            "last_login": user.last_login.isoformat() if user.last_login else None,
         }
 
         return SessionResponse(
-            session_id=session_id,
-            user=user_data,
-            expires_in=session_ttl
+            session_id=session_id, user=user_data, expires_in=session_ttl
         )
 
     except HTTPException:
@@ -171,7 +176,7 @@ async def create_session(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Session creation failed: {str(e)}"
+            detail=f"Session creation failed: {str(e)}",
         )
 
 
@@ -180,7 +185,7 @@ async def create_session(
 async def logout(
     request: Request,
     x_session_id: str = Header(..., description="Session ID to invalidate"),
-    redis_cache: FirebaseRedisCache = Depends(get_redis_cache)
+    redis_cache: FirebaseRedisCache = Depends(get_redis_cache),
 ):
     """
     Logout and invalidate current session.
@@ -197,14 +202,13 @@ async def logout(
         HTTPException 500: Internal server error
     """
     try:
-
         # Invalidate session in Redis
         success = await redis_cache.invalidate_session(x_session_id)
 
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Session not found or already expired"
+                detail="Session not found or already expired",
             )
 
         return LogoutResponse(message="Logout successful")
@@ -214,7 +218,7 @@ async def logout(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Logout failed: {str(e)}"
+            detail=f"Logout failed: {str(e)}",
         )
 
 
@@ -223,7 +227,7 @@ async def logout(
 async def logout_all(
     request: Request,
     current_user: User = Depends(get_current_user_from_session),
-    redis_cache: FirebaseRedisCache = Depends(get_redis_cache)
+    redis_cache: FirebaseRedisCache = Depends(get_redis_cache),
 ):
     """
     Logout from all sessions for current user.
@@ -241,29 +245,27 @@ async def logout_all(
         HTTPException 500: Internal server error
     """
     try:
-
         # Invalidate all sessions for this user's firebase_uid
         deleted_count = await redis_cache.invalidate_all_user_sessions(
             current_user.firebase_uid
         )
 
         return LogoutAllResponse(
-            message=f"Successfully logged out from all devices",
-            sessions_deleted=deleted_count
+            message="Successfully logged out from all devices",
+            sessions_deleted=deleted_count,
         )
 
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Logout all failed: {str(e)}"
+            detail=f"Logout all failed: {str(e)}",
         )
 
 
 @router.get("/me")
 @limiter.limit("100/minute")  # Rate limit: 100 profile fetches per minute per IP
 async def get_current_user(
-    request: Request,
-    current_user: User = Depends(get_current_user_from_session)
+    request: Request, current_user: User = Depends(get_current_user_from_session)
 ):
     """
     Get current authenticated user information.
@@ -282,8 +284,12 @@ async def get_current_user(
         "photo_url": current_user.photo_url,
         "role": current_user.role,
         "is_active": current_user.is_active,
-        "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
-        "last_login": current_user.last_login.isoformat() if current_user.last_login else None
+        "created_at": current_user.created_at.isoformat()
+        if current_user.created_at
+        else None,
+        "last_login": current_user.last_login.isoformat()
+        if current_user.last_login
+        else None,
     }
 
 
@@ -292,7 +298,7 @@ async def get_current_user(
 async def get_session_status(
     request: Request,
     x_session_id: str = Header(..., description="Session ID to check"),
-    redis_cache: FirebaseRedisCache = Depends(get_redis_cache)
+    redis_cache: FirebaseRedisCache = Depends(get_redis_cache),
 ):
     """
     Check session status and validity.
@@ -309,15 +315,12 @@ async def get_session_status(
         HTTPException 500: Internal server error
     """
     try:
-
         # Get session data from Redis
         session_data = await redis_cache.get_session(x_session_id)
 
         if not session_data:
             return SessionStatusResponse(
-                valid=False,
-                expires_in=None,
-                last_activity=None
+                valid=False, expires_in=None, last_activity=None
             )
 
         # Get TTL for session
@@ -326,19 +329,20 @@ async def get_session_status(
         return SessionStatusResponse(
             valid=True,
             expires_in=ttl if ttl > 0 else 0,
-            last_activity=session_data.get("last_activity")
+            last_activity=session_data.get("last_activity"),
         )
 
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Session status check failed: {str(e)}"
+            detail=f"Session status check failed: {str(e)}",
         )
 
 
 # ============================================================================
 # Health Check
 # ============================================================================
+
 
 @router.get("/health")
 @limiter.limit("60/minute")  # Rate limit: 60 health checks per minute per IP
@@ -352,5 +356,5 @@ async def health_check(request: Request):
     return {
         "status": "healthy",
         "service": "authentication",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat(),
     }

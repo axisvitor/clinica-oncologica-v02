@@ -43,23 +43,24 @@ class IdempotencyCleanupService:
         try:
             # Get statistics before cleanup
             total_events = db.query(func.count(WebhookEvent.event_id)).scalar()
-            expired_count = db.query(func.count(WebhookEvent.event_id)).filter(
-                WebhookEvent.expires_at < datetime.utcnow()
-            ).scalar()
+            expired_count = (
+                db.query(func.count(WebhookEvent.event_id))
+                .filter(WebhookEvent.expires_at < datetime.utcnow())
+                .scalar()
+            )
 
             logger.info(
                 "Starting idempotency cleanup",
                 extra={
                     "total_events": total_events,
                     "expired_events": expired_count,
-                    "batch_size": self.batch_size
-                }
+                    "batch_size": self.batch_size,
+                },
             )
 
             # Run cleanup
             deleted_count = await cleanup_expired_events(
-                db=db,
-                batch_size=self.batch_size
+                db=db, batch_size=self.batch_size
             )
 
             # Get statistics after cleanup
@@ -73,20 +74,17 @@ class IdempotencyCleanupService:
                 "before_count": total_events,
                 "after_count": remaining_events,
                 "execution_time_seconds": execution_time,
-                "timestamp": start_time.isoformat()
+                "timestamp": start_time.isoformat(),
             }
 
-            logger.info(
-                "Idempotency cleanup completed",
-                extra=result
-            )
+            logger.info("Idempotency cleanup completed", extra=result)
 
             return result
 
         except Exception as e:
             logger.error(
                 "Idempotency cleanup failed",
-                extra={"error": str(e), "error_type": type(e).__name__}
+                extra={"error": str(e), "error_type": type(e).__name__},
             )
             raise
 
@@ -103,39 +101,55 @@ class IdempotencyCleanupService:
         try:
             total_events = db.query(func.count(WebhookEvent.event_id)).scalar()
 
-            expired_events = db.query(func.count(WebhookEvent.event_id)).filter(
-                WebhookEvent.expires_at < datetime.utcnow()
-            ).scalar()
+            expired_events = (
+                db.query(func.count(WebhookEvent.event_id))
+                .filter(WebhookEvent.expires_at < datetime.utcnow())
+                .scalar()
+            )
 
-            active_events = db.query(func.count(WebhookEvent.event_id)).filter(
-                WebhookEvent.expires_at >= datetime.utcnow()
-            ).scalar()
+            active_events = (
+                db.query(func.count(WebhookEvent.event_id))
+                .filter(WebhookEvent.expires_at >= datetime.utcnow())
+                .scalar()
+            )
 
             # Get events by status
-            processing_events = db.query(func.count(WebhookEvent.event_id)).filter(
-                WebhookEvent.status == "processing"
-            ).scalar()
+            processing_events = (
+                db.query(func.count(WebhookEvent.event_id))
+                .filter(WebhookEvent.status == "processing")
+                .scalar()
+            )
 
-            completed_events = db.query(func.count(WebhookEvent.event_id)).filter(
-                WebhookEvent.status == "completed"
-            ).scalar()
+            completed_events = (
+                db.query(func.count(WebhookEvent.event_id))
+                .filter(WebhookEvent.status == "completed")
+                .scalar()
+            )
 
-            failed_events = db.query(func.count(WebhookEvent.event_id)).filter(
-                WebhookEvent.status == "failed"
-            ).scalar()
+            failed_events = (
+                db.query(func.count(WebhookEvent.event_id))
+                .filter(WebhookEvent.status == "failed")
+                .scalar()
+            )
 
             # Get events with retries (duplicates detected)
-            duplicate_events = db.query(func.count(WebhookEvent.event_id)).filter(
-                WebhookEvent.retry_count > 0
-            ).scalar()
+            duplicate_events = (
+                db.query(func.count(WebhookEvent.event_id))
+                .filter(WebhookEvent.retry_count > 0)
+                .scalar()
+            )
 
             total_retries = db.query(func.sum(WebhookEvent.retry_count)).scalar() or 0
 
             # Get events by provider
-            provider_stats = db.query(
-                WebhookEvent.provider,
-                func.count(WebhookEvent.event_id).label('count')
-            ).group_by(WebhookEvent.provider).all()
+            provider_stats = (
+                db.query(
+                    WebhookEvent.provider,
+                    func.count(WebhookEvent.event_id).label("count"),
+                )
+                .group_by(WebhookEvent.provider)
+                .all()
+            )
 
             return {
                 "total_events": total_events,
@@ -149,13 +163,13 @@ class IdempotencyCleanupService:
                 "provider_breakdown": {
                     provider: count for provider, count in provider_stats
                 },
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
         except Exception as e:
             logger.error(
                 "Error getting cleanup stats",
-                extra={"error": str(e), "error_type": type(e).__name__}
+                extra={"error": str(e), "error_type": type(e).__name__},
             )
             raise
 

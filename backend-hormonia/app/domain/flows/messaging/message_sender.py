@@ -7,7 +7,7 @@ Handles message scheduling and delivery through WhatsApp service.
 import logging
 import random
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -37,7 +37,7 @@ class MessageSender:
         self,
         db: Session,
         message_scheduler: MessageScheduler,
-        whatsapp_circuit_breaker: CircuitBreaker
+        whatsapp_circuit_breaker: CircuitBreaker,
     ):
         """
         Initialize MessageSender.
@@ -63,7 +63,7 @@ class MessageSender:
         operation: str,
         message_template_intent: str,
         message_template_day: int,
-        personalized_content: str
+        personalized_content: str,
     ) -> Dict[str, Any]:
         """
         Schedule message delivery with WhatsApp service using circuit breaker.
@@ -91,19 +91,19 @@ class MessageSender:
                 content=personalized_content,
                 status=MessageStatus.PENDING,
                 message_metadata={
-                    'flow_context': {
-                        'flow_state_id': str(flow_state_id),
-                        'flow_type': flow_type,
-                        'current_day': current_day,
-                        'template_intent': message_template_intent,
-                        'operation': operation
+                    "flow_context": {
+                        "flow_state_id": str(flow_state_id),
+                        "flow_type": flow_type,
+                        "current_day": current_day,
+                        "template_intent": message_template_intent,
+                        "operation": operation,
                     },
-                    'template_data': {
-                        'intent': message_template_intent,
-                        'day': message_template_day,
-                        'ai_generated': True
-                    }
-                }
+                    "template_data": {
+                        "intent": message_template_intent,
+                        "day": message_template_day,
+                        "ai_generated": True,
+                    },
+                },
             )
 
             self.db.add(message)
@@ -115,9 +115,7 @@ class MessageSender:
             # Schedule message with circuit breaker protection
             async def schedule_call():
                 return await self.message_scheduler.schedule_message(
-                    message_id=message.id,
-                    send_time=send_time,
-                    priority='normal'
+                    message_id=message.id, send_time=send_time, priority="normal"
                 )
 
             scheduled = await self.whatsapp_circuit_breaker.call(schedule_call)
@@ -126,33 +124,27 @@ class MessageSender:
                 self.db.commit()
                 self.db.refresh(message)
 
-                logger.info(f"Message scheduled for patient {patient_id} at {send_time}")
+                logger.info(
+                    f"Message scheduled for patient {patient_id} at {send_time}"
+                )
 
                 return {
-                    'success': True,
-                    'message_id': message.id,
-                    'scheduled_for': send_time.isoformat(),
-                    'send_time': send_time
+                    "success": True,
+                    "message_id": message.id,
+                    "scheduled_for": send_time.isoformat(),
+                    "send_time": send_time,
                 }
             else:
                 self.db.rollback()
-                return {
-                    'success': False,
-                    'error': 'Message scheduling failed'
-                }
+                return {"success": False, "error": "Message scheduling failed"}
 
         except Exception as e:
             logger.error(f"Error scheduling flow message: {e}", exc_info=True)
             self.db.rollback()
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def calculate_optimal_send_time(
-        self,
-        patient: Patient,
-        current_day: int
+        self, patient: Patient, current_day: int
     ) -> datetime:
         """
         Calculate optimal send time for patient message.
@@ -166,12 +158,14 @@ class MessageSender:
         """
         try:
             # Get patient preferences
-            preferred_hour = getattr(patient, 'preferred_message_hour', 10)
-            timezone = getattr(patient, 'timezone', 'America/Sao_Paulo')
+            preferred_hour = getattr(patient, "preferred_message_hour", 10)
+            timezone = getattr(patient, "timezone", "America/Sao_Paulo")
 
             # Calculate send time for today or next business day
             now = datetime.utcnow()
-            send_time = now.replace(hour=preferred_hour, minute=0, second=0, microsecond=0)
+            send_time = now.replace(
+                hour=preferred_hour, minute=0, second=0, microsecond=0
+            )
 
             # If time has passed, schedule for next business day
             if send_time <= now:

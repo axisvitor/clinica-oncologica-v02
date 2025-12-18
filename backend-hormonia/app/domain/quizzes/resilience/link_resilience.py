@@ -4,6 +4,7 @@ Quiz Link Resilience Service for Hormonia Backend System.
 Handles token expiry monitoring, automatic link regeneration,
 fallback mechanisms, and retry logic for quiz reminders.
 """
+
 import logging
 import hashlib
 import asyncio
@@ -13,14 +14,13 @@ from uuid import UUID
 from enum import Enum
 from dataclasses import dataclass, field
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy import and_
 
 from app.models.quiz import QuizSession
-from app.models.patient import Patient
 from app.repositories.quiz import QuizSessionRepository
 from app.services.quiz.quiz_service import MonthlyQuizService
 from app.core.monthly_quiz_config import get_monthly_quiz_config
-from app.exceptions import ValidationError, NotFoundError
+from app.exceptions import NotFoundError
 from app.schemas.monthly_quiz import DeliveryMethod, QuizLinkStatus
 from app.monitoring.business_metrics import BusinessMetricsCollector
 
@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 class FailureReason(str, Enum):
     """Reasons for quiz link or reminder failures."""
+
     TOKEN_EXPIRED = "token_expired"
     LINK_ACCESS_FAILED = "link_access_failed"
     DELIVERY_FAILED = "delivery_failed"
@@ -40,6 +41,7 @@ class FailureReason(str, Enum):
 
 class CircuitBreakerState(str, Enum):
     """Circuit breaker states for delivery channels."""
+
     CLOSED = "closed"  # Normal operation
     OPEN = "open"  # Channel is failing, use alternative
     HALF_OPEN = "half_open"  # Testing if channel recovered
@@ -48,6 +50,7 @@ class CircuitBreakerState(str, Enum):
 @dataclass
 class ResilienceMetrics:
     """Metrics for tracking link and reminder resilience."""
+
     total_links_created: int = 0
     expired_links_count: int = 0
     regenerated_links_count: int = 0
@@ -95,12 +98,17 @@ class QuizLinkResilienceService:
 
         # Query for sessions with expired tokens
         now = datetime.utcnow()
-        sessions = self.db.query(QuizSession).filter(
-            and_(
-                QuizSession.status != 'completed',
-                QuizSession.session_metadata.isnot(None)
+        sessions = (
+            self.db.query(QuizSession)
+            .filter(
+                and_(
+                    QuizSession.status != "completed",
+                    QuizSession.session_metadata.isnot(None),
+                )
             )
-        ).limit(limit).all()
+            .limit(limit)
+            .all()
+        )
 
         expired_links = []
         for session in sessions:
@@ -113,15 +121,19 @@ class QuizLinkResilienceService:
             try:
                 expires_at = datetime.fromisoformat(expires_at_str)
                 if now > expires_at:
-                    expired_links.append({
-                        "session_id": session.id,
-                        "patient_id": session.patient_id,
-                        "quiz_template_id": session.quiz_template_id,
-                        "expires_at": expires_at,
-                        "regeneration_count": metadata.get("regeneration_count", 0),
-                        "failure_count": metadata.get("failure_count", 0),
-                        "delivery_method": metadata.get("delivery_method", "whatsapp")
-                    })
+                    expired_links.append(
+                        {
+                            "session_id": session.id,
+                            "patient_id": session.patient_id,
+                            "quiz_template_id": session.quiz_template_id,
+                            "expires_at": expires_at,
+                            "regeneration_count": metadata.get("regeneration_count", 0),
+                            "failure_count": metadata.get("failure_count", 0),
+                            "delivery_method": metadata.get(
+                                "delivery_method", "whatsapp"
+                            ),
+                        }
+                    )
             except (ValueError, TypeError) as e:
                 logger.error(f"Invalid expires_at format for session {session.id}: {e}")
                 continue
@@ -130,10 +142,7 @@ class QuizLinkResilienceService:
         return expired_links
 
     def handle_expired_token(
-        self,
-        session_id: UUID,
-        patient_id: UUID,
-        quiz_template_id: UUID
+        self, session_id: UUID, patient_id: UUID, quiz_template_id: UUID
     ) -> Dict[str, Any]:
         """
         Handle expired token by regenerating or falling back to WhatsApp.
@@ -162,7 +171,9 @@ class QuizLinkResilienceService:
                 f"Max regenerations ({self.MAX_LINK_REGENERATIONS}) exceeded "
                 f"for session {session_id}. Falling back to WhatsApp."
             )
-            return asyncio.run(self._fallback_to_whatsapp(session, patient_id, quiz_template_id))
+            return asyncio.run(
+                self._fallback_to_whatsapp(session, patient_id, quiz_template_id)
+            )
 
         # Check if failures exceed threshold
         if failure_count >= self.FALLBACK_THRESHOLD:
@@ -170,28 +181,31 @@ class QuizLinkResilienceService:
                 f"Failure threshold ({self.FALLBACK_THRESHOLD}) exceeded "
                 f"for session {session_id}. Falling back to WhatsApp."
             )
-            return asyncio.run(self._fallback_to_whatsapp(session, patient_id, quiz_template_id))
+            return asyncio.run(
+                self._fallback_to_whatsapp(session, patient_id, quiz_template_id)
+            )
 
         # Attempt to regenerate link
         try:
-            result = asyncio.run(self.regenerate_link(session_id, patient_id, quiz_template_id))
+            result = asyncio.run(
+                self.regenerate_link(session_id, patient_id, quiz_template_id)
+            )
             return {
                 "action": "regenerated",
                 "session_id": str(session_id),
                 "new_token": result["token"],
                 "new_expires_at": result["expires_at"],
-                "regeneration_count": regeneration_count + 1
+                "regeneration_count": regeneration_count + 1,
             }
         except Exception as e:
             logger.error(f"Failed to regenerate link for session {session_id}: {e}")
             self.track_failure(session_id, FailureReason.LINK_ACCESS_FAILED)
-            return asyncio.run(self._fallback_to_whatsapp(session, patient_id, quiz_template_id))
+            return asyncio.run(
+                self._fallback_to_whatsapp(session, patient_id, quiz_template_id)
+            )
 
     async def regenerate_link(
-        self,
-        session_id: UUID,
-        patient_id: UUID,
-        quiz_template_id: UUID
+        self, session_id: UUID, patient_id: UUID, quiz_template_id: UUID
     ) -> Dict[str, Any]:
         """
         Regenerate a new token and link for an expired session.
@@ -223,7 +237,7 @@ class QuizLinkResilienceService:
             patient_id=patient_id,
             quiz_template_id=quiz_template_id,
             expires_at=new_expires_at,
-            rotation_count=regeneration_count + 1
+            rotation_count=regeneration_count + 1,
         )
 
         # Update session metadata
@@ -237,13 +251,15 @@ class QuizLinkResilienceService:
         self.db.commit()
 
         # Record token rotation metrics
-        asyncio.run(self.metrics_collector.record_token_rotated(
-            patient_id=str(session.patient_id),
-            quiz_session_id=str(session_id),
-            old_token_prefix="rotated",  # We don't have the old token here
-            new_token_prefix=new_token[:10],
-            rotation_count=regeneration_count + 1
-        ))
+        asyncio.run(
+            self.metrics_collector.record_token_rotated(
+                patient_id=str(session.patient_id),
+                quiz_session_id=str(session_id),
+                old_token_prefix="rotated",  # We don't have the old token here
+                new_token_prefix=new_token[:10],
+                rotation_count=regeneration_count + 1,
+            )
+        )
 
         logger.info(
             f"Successfully regenerated link for session {session_id} "
@@ -254,14 +270,14 @@ class QuizLinkResilienceService:
             "token": new_token,
             "expires_at": new_expires_at.isoformat(),
             "regeneration_count": regeneration_count + 1,
-            "link_url": f"{self.config.MONTHLY_QUIZ_BASE_URL}?token={new_token}"
+            "link_url": f"{self.config.MONTHLY_QUIZ_BASE_URL}?token={new_token}",
         }
 
     def track_failure(
         self,
         session_id: UUID,
         reason: FailureReason,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Track failure for monitoring repeated failures.
@@ -291,7 +307,7 @@ class QuizLinkResilienceService:
         failure_record = {
             "timestamp": datetime.utcnow().isoformat(),
             "reason": reason.value,
-            "details": details or {}
+            "details": details or {},
         }
         metadata["failures"].append(failure_record)
 
@@ -309,10 +325,7 @@ class QuizLinkResilienceService:
         )
 
     async def _fallback_to_whatsapp(
-        self,
-        session: QuizSession,
-        patient_id: UUID,
-        quiz_template_id: UUID
+        self, session: QuizSession, patient_id: UUID, quiz_template_id: UUID
     ) -> Dict[str, Any]:
         """
         Fallback to WhatsApp conversational flow when link-based approach fails.
@@ -338,12 +351,14 @@ class QuizLinkResilienceService:
         self.db.commit()
 
         # Record fallback activation metrics
-        asyncio.run(self.metrics_collector.record_fallback_activated(
-            patient_id=str(patient_id),
-            quiz_session_id=str(session.id),
-            reason="max_failures_exceeded",
-            fallback_type="whatsapp"
-        ))
+        asyncio.run(
+            self.metrics_collector.record_fallback_activated(
+                patient_id=str(patient_id),
+                quiz_session_id=str(session.id),
+                reason="max_failures_exceeded",
+                fallback_type="whatsapp",
+            )
+        )
 
         logger.info(f"Fallback to WhatsApp activated for session {session.id}")
 
@@ -352,7 +367,7 @@ class QuizLinkResilienceService:
             "session_id": str(session.id),
             "patient_id": str(patient_id),
             "quiz_template_id": str(quiz_template_id),
-            "fallback_reason": "max_failures_exceeded"
+            "fallback_reason": "max_failures_exceeded",
         }
 
     def _record_channel_failure(self, channel: str) -> None:
@@ -409,10 +424,12 @@ class QuizLinkResilienceService:
                 self._channel_failures[channel][-1].isoformat()
                 if channel in self._channel_failures and self._channel_failures[channel]
                 else None
-            )
+            ),
         }
 
-    def should_use_alternative_channel(self, preferred_channel: str) -> Tuple[bool, Optional[str]]:
+    def should_use_alternative_channel(
+        self, preferred_channel: str
+    ) -> Tuple[bool, Optional[str]]:
         """
         Determine if alternative delivery channel should be used.
 
@@ -427,7 +444,9 @@ class QuizLinkResilienceService:
         if health["state"] == CircuitBreakerState.OPEN.value:
             # Circuit breaker is open, use alternative
             alternatives = ["whatsapp", "email", "sms"]
-            alternatives.remove(preferred_channel) if preferred_channel in alternatives else None
+            alternatives.remove(
+                preferred_channel
+            ) if preferred_channel in alternatives else None
 
             # Find healthy alternative
             for alt in alternatives:
@@ -445,9 +464,7 @@ class QuizLinkResilienceService:
         return False, None
 
     def get_resilience_metrics(
-        self,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
     ) -> ResilienceMetrics:
         """
         Calculate resilience metrics for monitoring.
@@ -491,10 +508,12 @@ class QuizLinkResilienceService:
             if expires_at_str:
                 try:
                     expires_at = datetime.fromisoformat(expires_at_str)
-                    if datetime.utcnow() > expires_at and session.status != 'completed':
+                    if datetime.utcnow() > expires_at and session.status != "completed":
                         expired_count += 1
                 except (ValueError, TypeError) as e:
-                    logger.debug(f"Failed to parse expires_at from session metadata: {e}")
+                    logger.debug(
+                        f"Failed to parse expires_at from session metadata: {e}"
+                    )
 
             # Count regenerations
             if metadata.get("regeneration_count", 0) > 0:
@@ -511,12 +530,14 @@ class QuizLinkResilienceService:
                     reminder_failure += 1
 
             # Successful delivery (accessed and completed)
-            if metadata.get("accessed_at") and session.status == 'completed':
+            if metadata.get("accessed_at") and session.status == "completed":
                 reminder_success += 1
 
             # Completion times
-            if session.status == 'completed' and session.completed_at:
-                duration = (session.completed_at - session.started_at).total_seconds() / 60
+            if session.status == "completed" and session.completed_at:
+                duration = (
+                    session.completed_at - session.started_at
+                ).total_seconds() / 60
                 completion_times.append(duration)
 
         metrics.expired_links_count = expired_count
@@ -528,14 +549,18 @@ class QuizLinkResilienceService:
         # Calculate rates
         if metrics.total_links_created > 0:
             metrics.link_expiry_rate = expired_count / metrics.total_links_created
-            metrics.fallback_activation_rate = fallback_count / metrics.total_links_created
+            metrics.fallback_activation_rate = (
+                fallback_count / metrics.total_links_created
+            )
 
         total_reminders = reminder_success + reminder_failure
         if total_reminders > 0:
             metrics.reminder_success_rate = reminder_success / total_reminders
 
         if completion_times:
-            metrics.average_completion_time_minutes = sum(completion_times) / len(completion_times)
+            metrics.average_completion_time_minutes = sum(completion_times) / len(
+                completion_times
+            )
 
         # Channel health
         for channel in ["whatsapp", "email", "sms"]:
@@ -545,10 +570,7 @@ class QuizLinkResilienceService:
         return metrics
 
     def create_dead_letter_record(
-        self,
-        session_id: UUID,
-        reason: str,
-        payload: Dict[str, Any]
+        self, session_id: UUID, reason: str, payload: Dict[str, Any]
     ) -> None:
         """
         Create a dead letter queue record for failed reminders.
@@ -574,7 +596,7 @@ class QuizLinkResilienceService:
             "timestamp": datetime.utcnow().isoformat(),
             "reason": reason,
             "payload": payload,
-            "retry_count": payload.get("retry_count", 0)
+            "retry_count": payload.get("retry_count", 0),
         }
 
         metadata["dead_letter_queue"].append(dlq_record)

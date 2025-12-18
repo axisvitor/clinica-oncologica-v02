@@ -4,9 +4,13 @@ Export metrics in Prometheus format for monitoring.
 """
 
 from prometheus_client import (
-    Counter, Gauge, Histogram, Summary,
-    CollectorRegistry, generate_latest,
-    CONTENT_TYPE_LATEST
+    Counter,
+    Gauge,
+    Histogram,
+    Summary,
+    CollectorRegistry,
+    generate_latest,
+    CONTENT_TYPE_LATEST,
 )
 from fastapi import APIRouter, Response
 from typing import Dict, Any
@@ -19,246 +23,200 @@ logger = logging.getLogger(__name__)
 registry = CollectorRegistry()
 
 # System metrics
-cpu_usage = Gauge(
-    'system_cpu_usage_percent',
-    'CPU usage percentage',
-    registry=registry
-)
+cpu_usage = Gauge("system_cpu_usage_percent", "CPU usage percentage", registry=registry)
 
 memory_usage = Gauge(
-    'system_memory_usage_bytes',
-    'Memory usage in bytes',
-    registry=registry
+    "system_memory_usage_bytes", "Memory usage in bytes", registry=registry
 )
 
 memory_percent = Gauge(
-    'system_memory_usage_percent',
-    'Memory usage percentage',
-    registry=registry
+    "system_memory_usage_percent", "Memory usage percentage", registry=registry
 )
 
-disk_usage = Gauge(
-    'system_disk_usage_bytes',
-    'Disk usage in bytes',
-    registry=registry
-)
+disk_usage = Gauge("system_disk_usage_bytes", "Disk usage in bytes", registry=registry)
 
 disk_percent = Gauge(
-    'system_disk_usage_percent',
-    'Disk usage percentage',
-    registry=registry
+    "system_disk_usage_percent", "Disk usage percentage", registry=registry
 )
 
 # Network metrics
 network_bytes_sent = Counter(
-    'system_network_bytes_sent_total',
-    'Total bytes sent',
-    registry=registry
+    "system_network_bytes_sent_total", "Total bytes sent", registry=registry
 )
 
 network_bytes_recv = Counter(
-    'system_network_bytes_recv_total',
-    'Total bytes received',
-    registry=registry
+    "system_network_bytes_recv_total", "Total bytes received", registry=registry
 )
 
 # API metrics
 http_requests_total = Counter(
-    'http_requests_total',
-    'Total HTTP requests',
-    ['method', 'endpoint', 'status'],
-    registry=registry
+    "http_requests_total",
+    "Total HTTP requests",
+    ["method", "endpoint", "status"],
+    registry=registry,
 )
 
 http_request_duration = Histogram(
-    'http_request_duration_seconds',
-    'HTTP request duration',
-    ['method', 'endpoint'],
-    registry=registry
+    "http_request_duration_seconds",
+    "HTTP request duration",
+    ["method", "endpoint"],
+    registry=registry,
 )
 
 http_response_size = Summary(
-    'http_response_size_bytes',
-    'HTTP response size',
-    ['method', 'endpoint'],
-    registry=registry
+    "http_response_size_bytes",
+    "HTTP response size",
+    ["method", "endpoint"],
+    registry=registry,
 )
 
 # Database metrics
 db_connections_active = Gauge(
-    'database_connections_active',
-    'Active database connections',
-    registry=registry
+    "database_connections_active", "Active database connections", registry=registry
 )
 
 db_query_duration = Histogram(
-    'database_query_duration_seconds',
-    'Database query duration',
-    ['operation'],
-    registry=registry
+    "database_query_duration_seconds",
+    "Database query duration",
+    ["operation"],
+    registry=registry,
 )
 
 db_errors_total = Counter(
-    'database_errors_total',
-    'Total database errors',
-    ['error_type'],
-    registry=registry
+    "database_errors_total", "Total database errors", ["error_type"], registry=registry
 )
 
 # Cache metrics
 cache_hits_total = Counter(
-    'cache_hits_total',
-    'Total cache hits',
-    ['cache_type'],
-    registry=registry
+    "cache_hits_total", "Total cache hits", ["cache_type"], registry=registry
 )
 
 cache_misses_total = Counter(
-    'cache_misses_total',
-    'Total cache misses',
-    ['cache_type'],
-    registry=registry
+    "cache_misses_total", "Total cache misses", ["cache_type"], registry=registry
 )
 
 cache_size = Gauge(
-    'cache_size_bytes',
-    'Cache size in bytes',
-    ['cache_type'],
-    registry=registry
+    "cache_size_bytes", "Cache size in bytes", ["cache_type"], registry=registry
 )
 
 # Application metrics
-active_users = Gauge(
-    'app_active_users',
-    'Number of active users',
-    registry=registry
-)
+active_users = Gauge("app_active_users", "Number of active users", registry=registry)
 
 total_patients = Gauge(
-    'app_total_patients',
-    'Total number of patients',
-    registry=registry
+    "app_total_patients", "Total number of patients", registry=registry
 )
 
 quiz_sessions_active = Gauge(
-    'app_quiz_sessions_active',
-    'Active quiz sessions',
-    registry=registry
+    "app_quiz_sessions_active", "Active quiz sessions", registry=registry
 )
 
 whatsapp_messages_sent = Counter(
-    'whatsapp_messages_sent_total',
-    'Total WhatsApp messages sent',
-    ['message_type'],
-    registry=registry
+    "whatsapp_messages_sent_total",
+    "Total WhatsApp messages sent",
+    ["message_type"],
+    registry=registry,
 )
 
 whatsapp_messages_received = Counter(
-    'whatsapp_messages_received_total',
-    'Total WhatsApp messages received',
-    ['message_type'],
-    registry=registry
+    "whatsapp_messages_received_total",
+    "Total WhatsApp messages received",
+    ["message_type"],
+    registry=registry,
 )
 
 # Health check metrics
 health_check_status = Gauge(
-    'health_check_status',
-    'Health check status (1=healthy, 0=unhealthy)',
-    ['service'],
-    registry=registry
+    "health_check_status",
+    "Health check status (1=healthy, 0=unhealthy)",
+    ["service"],
+    registry=registry,
 )
 
 health_check_duration = Histogram(
-    'health_check_duration_seconds',
-    'Health check duration',
-    ['service'],
-    registry=registry
+    "health_check_duration_seconds",
+    "Health check duration",
+    ["service"],
+    registry=registry,
 )
 
 # Alert metrics
 alerts_active = Gauge(
-    'alerts_active_total',
-    'Total active alerts',
-    ['severity'],
-    registry=registry
+    "alerts_active_total", "Total active alerts", ["severity"], registry=registry
 )
 
 alerts_triggered = Counter(
-    'alerts_triggered_total',
-    'Total alerts triggered',
-    ['severity', 'source'],
-    registry=registry
+    "alerts_triggered_total",
+    "Total alerts triggered",
+    ["severity", "source"],
+    registry=registry,
 )
 
 # Quiz metrics
 quiz_link_generated = Counter(
-    'quiz_link_generated_total',
-    'Total quiz links generated',
-    ['delivery_method', 'quiz_type'],
-    registry=registry
+    "quiz_link_generated_total",
+    "Total quiz links generated",
+    ["delivery_method", "quiz_type"],
+    registry=registry,
 )
 
 quiz_access_success = Counter(
-    'quiz_access_success_total',
-    'Total successful quiz accesses',
-    ['quiz_type'],
-    registry=registry
+    "quiz_access_success_total",
+    "Total successful quiz accesses",
+    ["quiz_type"],
+    registry=registry,
 )
 
 quiz_access_failure = Counter(
-    'quiz_access_failure_total',
-    'Total failed quiz access attempts',
-    ['reason'],
-    registry=registry
+    "quiz_access_failure_total",
+    "Total failed quiz access attempts",
+    ["reason"],
+    registry=registry,
 )
 
 quiz_submit_success = Counter(
-    'quiz_submit_success_total',
-    'Total successful quiz submissions',
-    ['quiz_type', 'is_encrypted'],
-    registry=registry
+    "quiz_submit_success_total",
+    "Total successful quiz submissions",
+    ["quiz_type", "is_encrypted"],
+    registry=registry,
 )
 
 quiz_submit_failure = Counter(
-    'quiz_submit_failure_total',
-    'Total failed quiz submissions',
-    ['reason'],
-    registry=registry
+    "quiz_submit_failure_total",
+    "Total failed quiz submissions",
+    ["reason"],
+    registry=registry,
 )
 
 token_rotated = Counter(
-    'token_rotated_total',
-    'Total token rotations',
-    ['quiz_type'],
-    registry=registry
+    "token_rotated_total", "Total token rotations", ["quiz_type"], registry=registry
 )
 
 fallback_activated = Counter(
-    'fallback_activated_total',
-    'Total fallback activations',
-    ['reason', 'fallback_type'],
-    registry=registry
+    "fallback_activated_total",
+    "Total fallback activations",
+    ["reason", "fallback_type"],
+    registry=registry,
 )
 
 quiz_completion_rate = Gauge(
-    'quiz_completion_rate_percent',
-    'Quiz completion rate percentage',
-    ['quiz_type', 'month'],
-    registry=registry
+    "quiz_completion_rate_percent",
+    "Quiz completion rate percentage",
+    ["quiz_type", "month"],
+    registry=registry,
 )
 
 token_expiry_rate = Gauge(
-    'token_expiry_rate_percent',
-    'Token expiry rate percentage',
-    ['quiz_type', 'month'],
-    registry=registry
+    "token_expiry_rate_percent",
+    "Token expiry rate percentage",
+    ["quiz_type", "month"],
+    registry=registry,
 )
 
 fallback_activation_frequency = Gauge(
-    'fallback_activation_frequency_percent',
-    'Fallback activation frequency percentage',
-    ['reason', 'month'],
-    registry=registry
+    "fallback_activation_frequency_percent",
+    "Fallback activation frequency percentage",
+    ["reason", "month"],
+    registry=registry,
 )
 
 
@@ -269,15 +227,15 @@ class MetricsExporter:
     async def update_system_metrics(metrics: Dict[str, Any]):
         """Update system metrics"""
         try:
-            cpu_usage.set(metrics.get('cpu_percent', 0))
-            memory_usage.set(metrics.get('memory_used', 0))
-            memory_percent.set(metrics.get('memory_percent', 0))
-            disk_usage.set(metrics.get('disk_used', 0))
-            disk_percent.set(metrics.get('disk_percent', 0))
+            cpu_usage.set(metrics.get("cpu_percent", 0))
+            memory_usage.set(metrics.get("memory_used", 0))
+            memory_percent.set(metrics.get("memory_percent", 0))
+            disk_usage.set(metrics.get("disk_used", 0))
+            disk_percent.set(metrics.get("disk_percent", 0))
 
             # Network metrics are counters, so we set the total
-            network_bytes_sent._value.set(metrics.get('network_bytes_sent', 0))
-            network_bytes_recv._value.set(metrics.get('network_bytes_recv', 0))
+            network_bytes_sent._value.set(metrics.get("network_bytes_sent", 0))
+            network_bytes_recv._value.set(metrics.get("network_bytes_recv", 0))
 
         except Exception as e:
             logger.error(f"Error updating system metrics: {e}")
@@ -286,8 +244,12 @@ class MetricsExporter:
     def record_http_request(method: str, endpoint: str, status: int, duration: float):
         """Record HTTP request metrics"""
         try:
-            http_requests_total.labels(method=method, endpoint=endpoint, status=status).inc()
-            http_request_duration.labels(method=method, endpoint=endpoint).observe(duration)
+            http_requests_total.labels(
+                method=method, endpoint=endpoint, status=status
+            ).inc()
+            http_request_duration.labels(method=method, endpoint=endpoint).observe(
+                duration
+            )
         except Exception as e:
             logger.error(f"Error recording HTTP metrics: {e}")
 
@@ -351,7 +313,7 @@ class MetricsExporter:
     def update_app_metrics(
         active_users_count: int = 0,
         total_patients_count: int = 0,
-        quiz_sessions_count: int = 0
+        quiz_sessions_count: int = 0,
     ):
         """Update application metrics"""
         try:
@@ -365,9 +327,9 @@ class MetricsExporter:
     def record_whatsapp_message(direction: str, message_type: str):
         """Record WhatsApp message"""
         try:
-            if direction == 'sent':
+            if direction == "sent":
                 whatsapp_messages_sent.labels(message_type=message_type).inc()
-            elif direction == 'received':
+            elif direction == "received":
                 whatsapp_messages_received.labels(message_type=message_type).inc()
         except Exception as e:
             logger.error(f"Error recording WhatsApp message: {e}")
@@ -409,7 +371,9 @@ class MetricsExporter:
     def record_quiz_link_generated(delivery_method: str, quiz_type: str = "monthly"):
         """Record quiz link generation"""
         try:
-            quiz_link_generated.labels(delivery_method=delivery_method, quiz_type=quiz_type).inc()
+            quiz_link_generated.labels(
+                delivery_method=delivery_method, quiz_type=quiz_type
+            ).inc()
         except Exception as e:
             logger.error(f"Error recording quiz link generation: {e}")
 
@@ -430,10 +394,14 @@ class MetricsExporter:
             logger.error(f"Error recording quiz access failure: {e}")
 
     @staticmethod
-    def record_quiz_submit_success(quiz_type: str = "monthly", is_encrypted: bool = False):
+    def record_quiz_submit_success(
+        quiz_type: str = "monthly", is_encrypted: bool = False
+    ):
         """Record successful quiz submission"""
         try:
-            quiz_submit_success.labels(quiz_type=quiz_type, is_encrypted=str(is_encrypted)).inc()
+            quiz_submit_success.labels(
+                quiz_type=quiz_type, is_encrypted=str(is_encrypted)
+            ).inc()
         except Exception as e:
             logger.error(f"Error recording quiz submit success: {e}")
 
@@ -462,35 +430,46 @@ class MetricsExporter:
             logger.error(f"Error recording fallback activation: {e}")
 
     @staticmethod
-    def update_quiz_completion_rate(rate: float, quiz_type: str = "monthly", month: str = None):
+    def update_quiz_completion_rate(
+        rate: float, quiz_type: str = "monthly", month: str = None
+    ):
         """Update quiz completion rate"""
         try:
             if month is None:
                 from datetime import datetime
+
                 month = datetime.now().strftime("%Y-%m")
             quiz_completion_rate.labels(quiz_type=quiz_type, month=month).set(rate)
         except Exception as e:
             logger.error(f"Error updating quiz completion rate: {e}")
 
     @staticmethod
-    def update_token_expiry_rate(rate: float, quiz_type: str = "monthly", month: str = None):
+    def update_token_expiry_rate(
+        rate: float, quiz_type: str = "monthly", month: str = None
+    ):
         """Update token expiry rate"""
         try:
             if month is None:
                 from datetime import datetime
+
                 month = datetime.now().strftime("%Y-%m")
             token_expiry_rate.labels(quiz_type=quiz_type, month=month).set(rate)
         except Exception as e:
             logger.error(f"Error updating token expiry rate: {e}")
 
     @staticmethod
-    def update_fallback_activation_frequency(frequency: float, reason: str, month: str = None):
+    def update_fallback_activation_frequency(
+        frequency: float, reason: str, month: str = None
+    ):
         """Update fallback activation frequency"""
         try:
             if month is None:
                 from datetime import datetime
+
                 month = datetime.now().strftime("%Y-%m")
-            fallback_activation_frequency.labels(reason=reason, month=month).set(frequency)
+            fallback_activation_frequency.labels(reason=reason, month=month).set(
+                frequency
+            )
         except Exception as e:
             logger.error(f"Error updating fallback activation frequency: {e}")
 
@@ -507,16 +486,13 @@ async def metrics():
     """
     try:
         metrics_output = generate_latest(registry)
-        return Response(
-            content=metrics_output,
-            media_type=CONTENT_TYPE_LATEST
-        )
+        return Response(content=metrics_output, media_type=CONTENT_TYPE_LATEST)
     except Exception as e:
         logger.error(f"Error generating metrics: {e}")
         return Response(
             content=f"# Error generating metrics: {e}\n",
             media_type=CONTENT_TYPE_LATEST,
-            status_code=500
+            status_code=500,
         )
 
 

@@ -40,7 +40,11 @@ from .test import router as test_router
 
 # Import health check functions for backward compatibility
 from .database_health import check_database_health
-from .service_health import check_redis_health, check_worker_health, check_external_services
+from .service_health import (
+    check_redis_health,
+    check_worker_health,
+    check_external_services,
+)
 from .storage_external import check_storage_health
 from .utils import calculate_health_score, determine_overall_status, APP_START_TIME
 

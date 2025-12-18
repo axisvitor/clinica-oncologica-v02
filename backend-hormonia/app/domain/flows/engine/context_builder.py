@@ -2,7 +2,8 @@
 Context builder for flow execution.
 Builds execution context with patient data, flow state, quiz responses, and messages.
 """
-from typing import Dict, List, Optional, Any
+
+from typing import List, Optional, Any
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from uuid import UUID
@@ -25,7 +26,7 @@ class ContextBuilder:
         self,
         patient: Patient,
         flow_state: PatientFlowState,
-        additional_context: Optional[dict[str, Any]] = None
+        additional_context: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
         """
         Build execution context for flow processing.
@@ -47,14 +48,14 @@ class ContextBuilder:
                 "treatment_start_date": patient.treatment_start_date,
                 "current_day": patient.current_day,
                 "flow_state": patient.flow_state.value,
-                "metadata": patient.patient_data or {}
+                "metadata": patient.patient_data or {},
             },
             "flow_start_time": flow_state.started_at,
             "current_time": datetime.utcnow(),
             "flow_data": flow_state.state_data or {},
             "quiz_responses": self._get_recent_quiz_responses(patient.id),
             "message_count": self._get_message_count(patient.id),
-            "recent_messages": self._get_recent_messages(patient.id)
+            "recent_messages": self._get_recent_messages(patient.id),
         }
 
         if additional_context:
@@ -90,7 +91,7 @@ class ContextBuilder:
                 "type": msg.type.value,
                 "content": msg.content,
                 "status": msg.status.value,
-                "created_at": msg.created_at
+                "created_at": msg.created_at,
             }
             for msg in messages
         ]

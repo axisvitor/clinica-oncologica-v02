@@ -7,18 +7,28 @@ intervals, and feature flags.
 
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field
-from datetime import timedelta
 import os
 
 
 class APMConfig(BaseModel):
     """APM monitoring configuration."""
+
     enabled: bool = Field(default=True, description="Enable APM monitoring")
-    apdex_threshold: float = Field(default=0.5, description="Apdex threshold in seconds")
-    apdex_toleration: float = Field(default=2.0, description="Apdex toleration in seconds")
-    slow_request_threshold: float = Field(default=1.0, description="Slow request threshold in seconds")
-    error_rate_threshold: float = Field(default=5.0, description="Error rate threshold percentage")
-    max_stored_requests: int = Field(default=10000, description="Maximum stored request metrics")
+    apdex_threshold: float = Field(
+        default=0.5, description="Apdex threshold in seconds"
+    )
+    apdex_toleration: float = Field(
+        default=2.0, description="Apdex toleration in seconds"
+    )
+    slow_request_threshold: float = Field(
+        default=1.0, description="Slow request threshold in seconds"
+    )
+    error_rate_threshold: float = Field(
+        default=5.0, description="Error rate threshold percentage"
+    )
+    max_stored_requests: int = Field(
+        default=10000, description="Maximum stored request metrics"
+    )
 
     # Endpoint-specific thresholds
     endpoint_thresholds: Dict[str, Dict[str, float]] = Field(
@@ -26,18 +36,27 @@ class APMConfig(BaseModel):
             "POST /api/v2/messages": {"response_time": 2.0, "error_rate": 3.0},
             "POST /api/v2/quiz": {"response_time": 1.5, "error_rate": 2.0},
             "GET /api/v2/patients": {"response_time": 0.5, "error_rate": 1.0},
-            "POST /api/v2/auth/login": {"response_time": 1.0, "error_rate": 5.0}
+            "POST /api/v2/auth/login": {"response_time": 1.0, "error_rate": 5.0},
         }
     )
 
 
 class DatabaseMonitorConfig(BaseModel):
     """Database monitoring configuration."""
+
     enabled: bool = Field(default=True, description="Enable database monitoring")
-    slow_query_threshold: float = Field(default=1.0, description="Slow query threshold in seconds")
-    very_slow_query_threshold: float = Field(default=5.0, description="Very slow query threshold")
-    connection_pool_utilization_threshold: float = Field(default=80.0, description="Pool utilization threshold")
-    max_stored_queries: int = Field(default=5000, description="Maximum stored query metrics")
+    slow_query_threshold: float = Field(
+        default=1.0, description="Slow query threshold in seconds"
+    )
+    very_slow_query_threshold: float = Field(
+        default=5.0, description="Very slow query threshold"
+    )
+    connection_pool_utilization_threshold: float = Field(
+        default=80.0, description="Pool utilization threshold"
+    )
+    max_stored_queries: int = Field(
+        default=5000, description="Maximum stored query metrics"
+    )
 
     # Query type thresholds
     query_thresholds: Dict[str, float] = Field(
@@ -45,37 +64,59 @@ class DatabaseMonitorConfig(BaseModel):
             "SELECT": 0.5,
             "INSERT": 1.0,
             "UPDATE": 1.5,
-            "DELETE": 2.0
+            "DELETE": 2.0,
         }
     )
 
 
 class ResourceMonitorConfig(BaseModel):
     """Resource monitoring configuration."""
+
     enabled: bool = Field(default=True, description="Enable resource monitoring")
-    sample_interval: float = Field(default=10.0, description="Sampling interval in seconds")
-    cpu_threshold: float = Field(default=80.0, description="CPU usage threshold percentage")
-    memory_threshold: float = Field(default=85.0, description="Memory usage threshold percentage")
-    disk_threshold: float = Field(default=90.0, description="Disk usage threshold percentage")
-    network_threshold: float = Field(default=100.0, description="Network usage threshold MB/s")
-    max_snapshots: int = Field(default=720, description="Maximum stored snapshots (2 hours at 10s)")
+    sample_interval: float = Field(
+        default=10.0, description="Sampling interval in seconds"
+    )
+    cpu_threshold: float = Field(
+        default=80.0, description="CPU usage threshold percentage"
+    )
+    memory_threshold: float = Field(
+        default=85.0, description="Memory usage threshold percentage"
+    )
+    disk_threshold: float = Field(
+        default=90.0, description="Disk usage threshold percentage"
+    )
+    network_threshold: float = Field(
+        default=100.0, description="Network usage threshold MB/s"
+    )
+    max_snapshots: int = Field(
+        default=720, description="Maximum stored snapshots (2 hours at 10s)"
+    )
 
     # Alert thresholds by severity
     alert_thresholds: Dict[str, Dict[str, float]] = Field(
         default_factory=lambda: {
             "warning": {"cpu": 70.0, "memory": 75.0, "disk": 80.0},
-            "critical": {"cpu": 90.0, "memory": 95.0, "disk": 95.0}
+            "critical": {"cpu": 90.0, "memory": 95.0, "disk": 95.0},
         }
     )
 
 
 class BusinessMetricsConfig(BaseModel):
     """Business metrics configuration."""
+
     enabled: bool = Field(default=True, description="Enable business metrics")
-    patient_flow_timeout: float = Field(default=30.0, description="Patient flow timeout in minutes")
-    message_delivery_timeout: float = Field(default=30.0, description="Message delivery timeout in seconds")
-    ai_response_timeout: float = Field(default=10.0, description="AI response timeout in seconds")
-    max_stored_metrics: int = Field(default=10000, description="Maximum stored business metrics")
+    patient_flow_timeout: float = Field(
+        default=30.0, description="Patient flow timeout in minutes"
+    )
+    message_delivery_timeout: float = Field(
+        default=30.0, description="Message delivery timeout in seconds"
+    )
+    ai_response_timeout: float = Field(
+        default=10.0, description="AI response timeout in seconds"
+    )
+    max_stored_metrics: int = Field(
+        default=10000, description="Maximum stored business metrics"
+    )
 
     # Success rate thresholds
     success_rate_thresholds: Dict[str, float] = Field(
@@ -84,17 +125,24 @@ class BusinessMetricsConfig(BaseModel):
             "message_delivery": 98.0,
             "ai_response": 90.0,
             "quiz_completion": 85.0,
-            "treatment_adherence": 80.0
+            "treatment_adherence": 80.0,
         }
     )
 
 
 class DashboardConfig(BaseModel):
     """Real-time dashboard configuration."""
+
     enabled: bool = Field(default=True, description="Enable real-time dashboard")
-    update_interval: float = Field(default=5.0, description="Dashboard update interval in seconds")
-    max_connections: int = Field(default=100, description="Maximum WebSocket connections")
-    websocket_timeout: float = Field(default=300.0, description="WebSocket timeout in seconds")
+    update_interval: float = Field(
+        default=5.0, description="Dashboard update interval in seconds"
+    )
+    max_connections: int = Field(
+        default=100, description="Maximum WebSocket connections"
+    )
+    websocket_timeout: float = Field(
+        default=300.0, description="WebSocket timeout in seconds"
+    )
 
     # Dashboard features
     features: Dict[str, bool] = Field(
@@ -103,18 +151,25 @@ class DashboardConfig(BaseModel):
             "alerts": True,
             "anomaly_detection": True,
             "historical_charts": True,
-            "export_metrics": True
+            "export_metrics": True,
         }
     )
 
 
 class AnomalyDetectionConfig(BaseModel):
     """Anomaly detection configuration."""
+
     enabled: bool = Field(default=True, description="Enable anomaly detection")
-    z_score_threshold: float = Field(default=3.0, description="Z-score threshold for anomalies")
+    z_score_threshold: float = Field(
+        default=3.0, description="Z-score threshold for anomalies"
+    )
     trend_threshold: float = Field(default=0.3, description="Trend change threshold")
-    minimum_data_points: int = Field(default=30, description="Minimum data points for detection")
-    window_size: int = Field(default=100, description="Window size for statistical analysis")
+    minimum_data_points: int = Field(
+        default=30, description="Minimum data points for detection"
+    )
+    window_size: int = Field(
+        default=100, description="Window size for statistical analysis"
+    )
 
     # Metric-specific configurations
     metric_configs: Dict[str, Dict[str, Any]] = Field(
@@ -123,29 +178,43 @@ class AnomalyDetectionConfig(BaseModel):
             "error_rate": {"z_threshold": 2.0, "enable_trend": True},
             "cpu_percent": {"z_threshold": 2.0, "enable_trend": True},
             "memory_percent": {"z_threshold": 2.0, "enable_trend": True},
-            "db_query_time": {"z_threshold": 3.0, "enable_trend": True}
+            "db_query_time": {"z_threshold": 3.0, "enable_trend": True},
         }
     )
 
 
 class ExportConfig(BaseModel):
     """Metrics export configuration."""
+
     enabled: bool = Field(default=True, description="Enable metrics export")
-    prometheus_enabled: bool = Field(default=True, description="Enable Prometheus export")
-    grafana_enabled: bool = Field(default=True, description="Enable Grafana compatibility")
-    export_interval: float = Field(default=30.0, description="Export interval in seconds")
+    prometheus_enabled: bool = Field(
+        default=True, description="Enable Prometheus export"
+    )
+    grafana_enabled: bool = Field(
+        default=True, description="Enable Grafana compatibility"
+    )
+    export_interval: float = Field(
+        default=30.0, description="Export interval in seconds"
+    )
 
     # Export endpoints
-    prometheus_endpoint: str = Field(default="/metrics", description="Prometheus metrics endpoint")
-    grafana_endpoint: str = Field(default="/api/v2/monitoring/grafana", description="Grafana API endpoint")
+    prometheus_endpoint: str = Field(
+        default="/metrics", description="Prometheus metrics endpoint"
+    )
+    grafana_endpoint: str = Field(
+        default="/api/v2/monitoring/grafana", description="Grafana API endpoint"
+    )
 
     # Retention settings
     retention_days: int = Field(default=7, description="Metrics retention in days")
-    max_data_points: int = Field(default=1000, description="Maximum data points per query")
+    max_data_points: int = Field(
+        default=1000, description="Maximum data points per query"
+    )
 
 
 class RedisConfig(BaseModel):
     """Redis configuration for monitoring."""
+
     enabled: bool = Field(default=True, description="Enable Redis for monitoring")
     host: str = Field(default="localhost", description="Redis host")
     port: int = Field(default=6379, description="Redis port")
@@ -161,13 +230,14 @@ class RedisConfig(BaseModel):
             "resources": "monitoring:resources:",
             "business": "monitoring:business:",
             "anomalies": "monitoring:anomalies:",
-            "alerts": "monitoring:alerts:"
+            "alerts": "monitoring:alerts:",
         }
     )
 
 
 class MonitoringConfig(BaseModel):
     """Main monitoring system configuration."""
+
     enabled: bool = Field(default=True, description="Enable monitoring system")
     debug: bool = Field(default=False, description="Enable debug mode")
 
@@ -175,16 +245,22 @@ class MonitoringConfig(BaseModel):
     apm: APMConfig = Field(default_factory=APMConfig)
     database: DatabaseMonitorConfig = Field(default_factory=DatabaseMonitorConfig)
     resources: ResourceMonitorConfig = Field(default_factory=ResourceMonitorConfig)
-    business_metrics: BusinessMetricsConfig = Field(default_factory=BusinessMetricsConfig)
+    business_metrics: BusinessMetricsConfig = Field(
+        default_factory=BusinessMetricsConfig
+    )
     dashboard: DashboardConfig = Field(default_factory=DashboardConfig)
-    anomaly_detection: AnomalyDetectionConfig = Field(default_factory=AnomalyDetectionConfig)
+    anomaly_detection: AnomalyDetectionConfig = Field(
+        default_factory=AnomalyDetectionConfig
+    )
     export: ExportConfig = Field(default_factory=ExportConfig)
     redis: RedisConfig = Field(default_factory=RedisConfig)
 
     # Global settings
     log_level: str = Field(default="INFO", description="Monitoring log level")
     startup_checks: bool = Field(default=True, description="Run startup health checks")
-    graceful_shutdown: bool = Field(default=True, description="Enable graceful shutdown")
+    graceful_shutdown: bool = Field(
+        default=True, description="Enable graceful shutdown"
+    )
 
     @classmethod
     def from_env(cls) -> "MonitoringConfig":
@@ -203,25 +279,35 @@ class MonitoringConfig(BaseModel):
             config.apm.apdex_threshold = float(os.getenv("APM_APDEX_THRESHOLD"))
 
         if os.getenv("APM_SLOW_REQUEST_THRESHOLD"):
-            config.apm.slow_request_threshold = float(os.getenv("APM_SLOW_REQUEST_THRESHOLD"))
+            config.apm.slow_request_threshold = float(
+                os.getenv("APM_SLOW_REQUEST_THRESHOLD")
+            )
 
         # Database configuration
         if os.getenv("DB_SLOW_QUERY_THRESHOLD"):
-            config.database.slow_query_threshold = float(os.getenv("DB_SLOW_QUERY_THRESHOLD"))
+            config.database.slow_query_threshold = float(
+                os.getenv("DB_SLOW_QUERY_THRESHOLD")
+            )
 
         # Resource configuration
         if os.getenv("RESOURCE_SAMPLE_INTERVAL"):
-            config.resources.sample_interval = float(os.getenv("RESOURCE_SAMPLE_INTERVAL"))
+            config.resources.sample_interval = float(
+                os.getenv("RESOURCE_SAMPLE_INTERVAL")
+            )
 
         if os.getenv("RESOURCE_CPU_THRESHOLD"):
             config.resources.cpu_threshold = float(os.getenv("RESOURCE_CPU_THRESHOLD"))
 
         if os.getenv("RESOURCE_MEMORY_THRESHOLD"):
-            config.resources.memory_threshold = float(os.getenv("RESOURCE_MEMORY_THRESHOLD"))
+            config.resources.memory_threshold = float(
+                os.getenv("RESOURCE_MEMORY_THRESHOLD")
+            )
 
         # Dashboard configuration
         if os.getenv("DASHBOARD_UPDATE_INTERVAL"):
-            config.dashboard.update_interval = float(os.getenv("DASHBOARD_UPDATE_INTERVAL"))
+            config.dashboard.update_interval = float(
+                os.getenv("DASHBOARD_UPDATE_INTERVAL")
+            )
 
         # Redis configuration
         if os.getenv("MONITORING_REDIS_HOST"):
@@ -242,15 +328,15 @@ class MonitoringConfig(BaseModel):
 
         # First priority: Use REDIS_URL environment variable if available (from settings)
         redis_url = settings.REDIS_URL
-        if redis_url and not redis_url.startswith('redis://localhost'):
+        if redis_url and not redis_url.startswith("redis://localhost"):
             # Parse URL to safely replace database number
             parsed = urlparse(redis_url)
 
             # Extract path and replace/add database number
-            path = parsed.path or ''
+            path = parsed.path or ""
             # Remove existing /N suffix if present
-            if '/' in path and path.split('/')[-1].isdigit():
-                path = '/'.join(path.split('/')[:-1])
+            if "/" in path and path.split("/")[-1].isdigit():
+                path = "/".join(path.split("/")[:-1])
 
             # Add monitoring DB (1)
             new_path = f"{path}/{self.redis.db}" if path else f"/{self.redis.db}"

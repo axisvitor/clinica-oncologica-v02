@@ -4,7 +4,6 @@ Dead Letter Queue Implementation
 Handles persistent failures with retry and recovery mechanisms.
 """
 
-import json
 import time
 import threading
 from typing import Any, Dict, List, Optional, Callable
@@ -18,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 class MessageStatus(Enum):
     """Dead letter message status"""
+
     PENDING = "pending"
     PROCESSING = "processing"
     FAILED = "failed"
@@ -28,6 +28,7 @@ class MessageStatus(Enum):
 @dataclass
 class DeadLetterMessage:
     """Dead letter queue message"""
+
     id: str
     content: Dict[str, Any]
     status: MessageStatus = MessageStatus.PENDING
@@ -62,12 +63,14 @@ class DeadLetterQueue:
     - Processing callbacks
     """
 
-    def __init__(self,
-                 max_size: int = 10000,
-                 max_age_hours: int = 24,
-                 max_retries: int = 3,
-                 retry_backoff: float = 300.0,  # 5 minutes
-                 cleanup_interval: float = 3600.0):  # 1 hour
+    def __init__(
+        self,
+        max_size: int = 10000,
+        max_age_hours: int = 24,
+        max_retries: int = 3,
+        retry_backoff: float = 300.0,  # 5 minutes
+        cleanup_interval: float = 3600.0,
+    ):  # 1 hour
         self.max_size = max_size
         self.max_age_hours = max_age_hours
         self.max_retries = max_retries
@@ -104,10 +107,7 @@ class DeadLetterQueue:
         """Add message to dead letter queue"""
         message_id = self._generate_message_id()
 
-        message = DeadLetterMessage(
-            id=message_id,
-            content=content
-        )
+        message = DeadLetterMessage(id=message_id, content=content)
 
         with self._lock:
             # Check size limit
@@ -129,7 +129,9 @@ class DeadLetterQueue:
                 logger.error(f"Failed to queue message {message_id}: {str(e)}")
                 raise
 
-    def get_message(self, timeout: Optional[float] = None) -> Optional[DeadLetterMessage]:
+    def get_message(
+        self, timeout: Optional[float] = None
+    ) -> Optional[DeadLetterMessage]:
         """Get next message for processing"""
         try:
             message_id = self._queue.get(timeout=timeout)
@@ -221,8 +223,9 @@ class DeadLetterQueue:
         if not self._messages:
             return
 
-        oldest_id = min(self._messages.keys(),
-                       key=lambda k: self._messages[k].created_at)
+        oldest_id = min(
+            self._messages.keys(), key=lambda k: self._messages[k].created_at
+        )
 
         message = self._messages[oldest_id]
         del self._messages[oldest_id]
@@ -232,6 +235,7 @@ class DeadLetterQueue:
     def _generate_message_id(self) -> str:
         """Generate unique message ID"""
         import uuid
+
         return f"dlq_{int(time.time())}_{uuid.uuid4().hex[:8]}"
 
     def add_processor(self, processor: Callable[[DeadLetterMessage], bool]):
@@ -251,8 +255,7 @@ class DeadLetterQueue:
 
         self._stop_processing.clear()
         self._processing_thread = threading.Thread(
-            target=self._process_messages,
-            daemon=True
+            target=self._process_messages, daemon=True
         )
         self._processing_thread.start()
 
@@ -328,58 +331,60 @@ class DeadLetterQueue:
         """Get dead letter queue metrics"""
         with self._lock:
             pending_count = sum(
-                1 for m in self._messages.values()
-                if m.status == MessageStatus.PENDING
+                1 for m in self._messages.values() if m.status == MessageStatus.PENDING
             )
             processing_count = sum(
-                1 for m in self._messages.values()
+                1
+                for m in self._messages.values()
                 if m.status == MessageStatus.PROCESSING
             )
             failed_count = sum(
-                1 for m in self._messages.values()
-                if m.status == MessageStatus.FAILED
+                1 for m in self._messages.values() if m.status == MessageStatus.FAILED
             )
             discarded_count = sum(
-                1 for m in self._messages.values()
+                1
+                for m in self._messages.values()
                 if m.status == MessageStatus.DISCARDED
             )
 
         return {
-            'total_messages': self._total_messages,
-            'processed_messages': self._processed_messages,
-            'failed_messages': self._failed_messages,
-            'discarded_messages': self._discarded_messages,
-            'requeued_messages': self._requeued_messages,
-            'current_size': len(self._messages),
-            'max_size': self.max_size,
-            'queue_size': self._queue.qsize(),
-            'pending_count': pending_count,
-            'processing_count': processing_count,
-            'failed_count': failed_count,
-            'discarded_count': discarded_count,
-            'processors_count': len(self._processors),
-            'processing_active': (
+            "total_messages": self._total_messages,
+            "processed_messages": self._processed_messages,
+            "failed_messages": self._failed_messages,
+            "discarded_messages": self._discarded_messages,
+            "requeued_messages": self._requeued_messages,
+            "current_size": len(self._messages),
+            "max_size": self.max_size,
+            "queue_size": self._queue.qsize(),
+            "pending_count": pending_count,
+            "processing_count": processing_count,
+            "failed_count": failed_count,
+            "discarded_count": discarded_count,
+            "processors_count": len(self._processors),
+            "processing_active": (
                 self._processing_thread and self._processing_thread.is_alive()
-            )
+            ),
         }
 
-    def get_messages(self,
-                    status: Optional[MessageStatus] = None,
-                    limit: int = 100) -> List[Dict]:
+    def get_messages(
+        self, status: Optional[MessageStatus] = None, limit: int = 100
+    ) -> List[Dict]:
         """Get messages with optional status filter"""
         with self._lock:
             messages = []
             for message in self._messages.values():
                 if status is None or message.status == status:
-                    messages.append({
-                        'id': message.id,
-                        'status': message.status.value,
-                        'age': message.age,
-                        'attempts': message.attempts,
-                        'requeue_count': message.requeue_count,
-                        'last_error': message.last_error,
-                        'content': message.content
-                    })
+                    messages.append(
+                        {
+                            "id": message.id,
+                            "status": message.status.value,
+                            "age": message.age,
+                            "attempts": message.attempts,
+                            "requeue_count": message.requeue_count,
+                            "last_error": message.last_error,
+                            "content": message.content,
+                        }
+                    )
 
                 if len(messages) >= limit:
                     break

@@ -4,18 +4,16 @@ Patient Authorization Middleware for WhatsApp Access Control.
 Provides comprehensive patient validation and security monitoring for
 all WhatsApp-related operations with proper logging and rate limiting.
 """
+
 import logging
-import asyncio
 from typing import Optional, Dict, Any, List
-from datetime import datetime, timedelta
+from datetime import datetime
 from sqlalchemy.orm import Session
-from fastapi import Request, HTTPException, status
+from fastapi import status
 from fastapi.responses import JSONResponse
-import redis.asyncio as redis
 
 from app.models.patient import Patient
 from app.repositories.patient import PatientRepository
-from app.core.redis_unified import get_async_redis
 from app.core.security_config import get_security_config
 from app.services.security_monitor import SecurityMonitor
 
@@ -49,9 +47,7 @@ class PatientAuthorizationMiddleware:
         logger.info("PatientAuthorizationMiddleware initialized")
 
     async def validate_patient_access(
-        self,
-        phone: str,
-        request_context: Optional[Dict[str, Any]] = None
+        self, phone: str, request_context: Optional[Dict[str, Any]] = None
     ) -> tuple[Optional[Patient], Dict[str, Any]]:
         """
         Validate patient access with comprehensive security checks.
@@ -69,29 +65,34 @@ class PatientAuthorizationMiddleware:
             "reason": None,
             "attempt_count": 0,
             "should_block": False,
-            "security_level": "low"
+            "security_level": "low",
         }
 
         try:
             # Step 1: Normalize phone number
             normalized_phone = self._normalize_phone_comprehensive(phone)
             if not normalized_phone:
-                validation_result.update({
-                    "reason": "invalid_phone_format",
-                    "security_level": "medium"
-                })
-                await self._log_validation_attempt(phone, validation_result, request_context)
+                validation_result.update(
+                    {"reason": "invalid_phone_format", "security_level": "medium"}
+                )
+                await self._log_validation_attempt(
+                    phone, validation_result, request_context
+                )
                 return None, validation_result
 
             # Step 2: Check if phone is already blocked
             is_blocked = await self.security_monitor.is_phone_blocked(normalized_phone)
             if is_blocked:
-                validation_result.update({
-                    "reason": "phone_blocked",
-                    "should_block": True,
-                    "security_level": "high"
-                })
-                await self._log_validation_attempt(phone, validation_result, request_context)
+                validation_result.update(
+                    {
+                        "reason": "phone_blocked",
+                        "should_block": True,
+                        "security_level": "high",
+                    }
+                )
+                await self._log_validation_attempt(
+                    phone, validation_result, request_context
+                )
                 return None, validation_result
 
             # Step 3: Multi-strategy patient lookup
@@ -99,39 +100,51 @@ class PatientAuthorizationMiddleware:
 
             if patient:
                 # Patient found - authorize access
-                validation_result.update({
-                    "authorized": True,
-                    "patient": patient,
-                    "reason": "patient_found",
-                    "security_level": "low"
-                })
+                validation_result.update(
+                    {
+                        "authorized": True,
+                        "patient": patient,
+                        "reason": "patient_found",
+                        "security_level": "low",
+                    }
+                )
 
                 # Log successful authorization (for audit trail)
                 await self.security_monitor.log_authorized_access(
                     phone=normalized_phone,
                     patient_id=patient.id,
-                    source_metadata=request_context or {}
+                    source_metadata=request_context or {},
                 )
 
-                logger.info(f"Patient access authorized for {normalized_phone} (patient_id: {patient.id})")
+                logger.info(
+                    f"Patient access authorized for {normalized_phone} (patient_id: {patient.id})"
+                )
                 return patient, validation_result
 
             # Step 4: Patient not found - security checks
-            attempt_count = await self.security_monitor.get_attempt_count(normalized_phone)
-            should_block = await self.security_monitor.should_block_phone(normalized_phone)
+            attempt_count = await self.security_monitor.get_attempt_count(
+                normalized_phone
+            )
+            should_block = await self.security_monitor.should_block_phone(
+                normalized_phone
+            )
 
-            validation_result.update({
-                "reason": "patient_not_found",
-                "attempt_count": attempt_count,
-                "should_block": should_block,
-                "security_level": "high" if attempt_count > 3 else "medium"
-            })
+            validation_result.update(
+                {
+                    "reason": "patient_not_found",
+                    "attempt_count": attempt_count,
+                    "should_block": should_block,
+                    "security_level": "high" if attempt_count > 3 else "medium",
+                }
+            )
 
             # Log unauthorized attempt
             await self.security_monitor.log_unauthorized_access(
                 phone=normalized_phone,
-                message_content=request_context.get("message_content", "") if request_context else "",
-                source_metadata=request_context or {}
+                message_content=request_context.get("message_content", "")
+                if request_context
+                else "",
+                source_metadata=request_context or {},
             )
 
             # Block phone if threshold exceeded
@@ -139,9 +152,11 @@ class PatientAuthorizationMiddleware:
                 await self.security_monitor.block_phone(
                     phone=normalized_phone,
                     reason=f"Exceeded unauthorized attempt threshold ({attempt_count} attempts)",
-                    duration_hours=self.block_duration_hours
+                    duration_hours=self.block_duration_hours,
                 )
-                logger.warning(f"Phone {normalized_phone} blocked after {attempt_count} unauthorized attempts")
+                logger.warning(
+                    f"Phone {normalized_phone} blocked after {attempt_count} unauthorized attempts"
+                )
 
             logger.warning(
                 f"Patient access denied for {normalized_phone} "
@@ -151,11 +166,12 @@ class PatientAuthorizationMiddleware:
             return None, validation_result
 
         except Exception as e:
-            logger.error(f"Error validating patient access for {phone}: {e}", exc_info=True)
-            validation_result.update({
-                "reason": "validation_error",
-                "security_level": "high"
-            })
+            logger.error(
+                f"Error validating patient access for {phone}: {e}", exc_info=True
+            )
+            validation_result.update(
+                {"reason": "validation_error", "security_level": "high"}
+            )
             return None, validation_result
 
     async def _find_patient_multi_strategy(self, phone: str) -> Optional[Patient]:
@@ -200,7 +216,9 @@ class PatientAuthorizationMiddleware:
                 search_attempts.append(("with_country_plus", with_country))
                 patient = await self._safe_patient_lookup(with_country)
                 if patient:
-                    logger.debug(f"Patient found with added country code: {with_country}")
+                    logger.debug(
+                        f"Patient found with added country code: {with_country}"
+                    )
                     return patient
 
                 # Also try without +
@@ -208,7 +226,9 @@ class PatientAuthorizationMiddleware:
                 search_attempts.append(("with_country_no_plus", with_country_no_plus))
                 patient = await self._safe_patient_lookup(with_country_no_plus)
                 if patient:
-                    logger.debug(f"Patient found with country code (no +): {with_country_no_plus}")
+                    logger.debug(
+                        f"Patient found with country code (no +): {with_country_no_plus}"
+                    )
                     return patient
 
             # Strategy 4: Remove country code (last 10-11 digits for Brazilian numbers)
@@ -230,7 +250,9 @@ class PatientAuthorizationMiddleware:
                 search_attempts.append((alt_desc, alt_phone))
                 patient = await self._safe_patient_lookup(alt_phone)
                 if patient:
-                    logger.debug(f"Patient found with alternative format ({alt_desc}): {alt_phone}")
+                    logger.debug(
+                        f"Patient found with alternative format ({alt_desc}): {alt_phone}"
+                    )
                     return patient
 
             # Log all search attempts for debugging
@@ -242,7 +264,10 @@ class PatientAuthorizationMiddleware:
             return None
 
         except Exception as e:
-            logger.error(f"Error in multi-strategy patient lookup for {phone}: {e}", exc_info=True)
+            logger.error(
+                f"Error in multi-strategy patient lookup for {phone}: {e}",
+                exc_info=True,
+            )
             return None
 
     async def _safe_patient_lookup(self, phone: str) -> Optional[Patient]:
@@ -305,7 +330,10 @@ class PatientAuthorizationMiddleware:
         patterns_to_try = [
             ("no_leading_9", phone.lstrip("9")),
             ("no_leading_0", phone.lstrip("0")),
-            ("no_country_prefix_55", phone.replace("55", "", 1) if phone.startswith("55") else phone),
+            (
+                "no_country_prefix_55",
+                phone.replace("55", "", 1) if phone.startswith("55") else phone,
+            ),
         ]
 
         for desc, alt_phone in patterns_to_try:
@@ -318,7 +346,7 @@ class PatientAuthorizationMiddleware:
         self,
         phone: str,
         validation_result: Dict[str, Any],
-        request_context: Optional[Dict[str, Any]]
+        request_context: Optional[Dict[str, Any]],
     ) -> None:
         """Log validation attempt for audit and monitoring."""
         try:
@@ -329,7 +357,7 @@ class PatientAuthorizationMiddleware:
                 "attempt_count": validation_result.get("attempt_count", 0),
                 "security_level": validation_result["security_level"],
                 "timestamp": datetime.utcnow().isoformat(),
-                "context": request_context or {}
+                "context": request_context or {},
             }
 
             # Log at appropriate level based on security level
@@ -344,8 +372,7 @@ class PatientAuthorizationMiddleware:
             logger.error(f"Failed to log validation attempt: {e}")
 
     async def create_authorization_response(
-        self,
-        validation_result: Dict[str, Any]
+        self, validation_result: Dict[str, Any]
     ) -> JSONResponse:
         """
         Create appropriate HTTP response for authorization result.
@@ -359,7 +386,7 @@ class PatientAuthorizationMiddleware:
         if validation_result["authorized"]:
             return JSONResponse(
                 status_code=status.HTTP_200_OK,
-                content={"message": "Access authorized", "status": "success"}
+                content={"message": "Access authorized", "status": "success"},
             )
 
         # Determine response based on reason
@@ -372,8 +399,8 @@ class PatientAuthorizationMiddleware:
                 content={
                     "message": "Phone number temporarily blocked due to security violations",
                     "status": "blocked",
-                    "retry_after": "24 hours"
-                }
+                    "retry_after": "24 hours",
+                },
             )
         elif reason == "patient_not_found":
             if attempt_count > 3:
@@ -382,8 +409,8 @@ class PatientAuthorizationMiddleware:
                     content={
                         "message": "Access denied - multiple unauthorized attempts detected",
                         "status": "security_violation",
-                        "attempt_count": attempt_count
-                    }
+                        "attempt_count": attempt_count,
+                    },
                 )
             else:
                 return JSONResponse(
@@ -391,32 +418,30 @@ class PatientAuthorizationMiddleware:
                     content={
                         "message": "Phone number not registered for clinical follow-up",
                         "status": "unauthorized",
-                        "attempt_count": attempt_count
-                    }
+                        "attempt_count": attempt_count,
+                    },
                 )
         elif reason == "invalid_phone_format":
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 content={
                     "message": "Invalid phone number format",
-                    "status": "invalid_input"
-                }
+                    "status": "invalid_input",
+                },
             )
         else:
             return JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 content={
                     "message": "Authorization validation error",
-                    "status": "error"
-                }
+                    "status": "error",
+                },
             )
 
 
 # Utility functions for use in other services
 async def validate_whatsapp_access(
-    db: Session,
-    phone: str,
-    message_content: str = ""
+    db: Session, phone: str, message_content: str = ""
 ) -> tuple[Optional[Patient], Dict[str, Any]]:
     """
     Standalone function for validating WhatsApp access.
@@ -434,7 +459,7 @@ async def validate_whatsapp_access(
     request_context = {
         "message_content": message_content[:100],  # First 100 chars
         "source": "whatsapp",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat(),
     }
 
     return await middleware.validate_patient_access(phone, request_context)

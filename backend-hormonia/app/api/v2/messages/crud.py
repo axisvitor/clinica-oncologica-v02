@@ -41,18 +41,24 @@ logger = logging.getLogger(__name__)
     "/",
     response_model=MessageV2List,
     summary="List messages with filters",
-    description="Get paginated list of messages with cursor pagination and optional filters"
+    description="Get paginated list of messages with cursor pagination and optional filters",
 )
 async def list_messages(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
-    pagination = Depends(get_pagination_params),
+    current_user=Depends(get_current_user_from_session),
+    pagination=Depends(get_pagination_params),
     fields: Optional[List[str]] = Depends(get_field_selection),
     include: Optional[List[str]] = Depends(get_eager_load_params),
     patient_id: Optional[str] = Query(None, description="Filter by patient ID"),
-    status_filter: Optional[MessageStatusV2] = Query(None, alias="status", description="Filter by status"),
-    direction: Optional[str] = Query(None, description="Filter by direction (inbound/outbound)"),
-    message_type: Optional[str] = Query(None, alias="type", description="Filter by message type"),
+    status_filter: Optional[MessageStatusV2] = Query(
+        None, alias="status", description="Filter by status"
+    ),
+    direction: Optional[str] = Query(
+        None, description="Filter by direction (inbound/outbound)"
+    ),
+    message_type: Optional[str] = Query(
+        None, alias="type", description="Filter by message type"
+    ),
     start_date: Optional[datetime] = Query(None, description="Filter from date"),
     end_date: Optional[datetime] = Query(None, description="Filter to date"),
 ):
@@ -84,7 +90,7 @@ async def list_messages(
         if not user_uuid:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Unable to determine user permissions"
+                detail="Unable to determine user permissions",
             )
         # Join with patients to filter by doctor_id
         query = query.join(Patient, Message.patient_id == Patient.id)
@@ -93,10 +99,12 @@ async def list_messages(
     # Cursor pagination
     if cursor_data and "id" in cursor_data:
         cursor_id = UUID(cursor_data["id"])
-        cursor_created_at = datetime.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
+        cursor_created_at = datetime.fromisoformat(
+            cursor_data["created_at"].replace("Z", "+00:00")
+        )
         filters.append(
-            (Message.created_at < cursor_created_at) |
-            ((Message.created_at == cursor_created_at) & (Message.id > cursor_id))
+            (Message.created_at < cursor_created_at)
+            | ((Message.created_at == cursor_created_at) & (Message.id > cursor_id))
         )
 
     # Additional filters
@@ -162,7 +170,9 @@ async def list_messages(
     # Convert to response models
     message_responses = []
     for message in messages:
-        msg_dict = _serialize_message(message, include_patient="patient" in (include or []))
+        msg_dict = _serialize_message(
+            message, include_patient="patient" in (include or [])
+        )
 
         # Apply field selection
         if fields:
@@ -182,12 +192,12 @@ async def list_messages(
     "/{message_id}",
     response_model=MessageV2Response,
     summary="Get message by ID",
-    description="Get a single message with optional field selection and eager loading"
+    description="Get a single message with optional field selection and eager loading",
 )
 async def get_message(
     message_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
     fields: Optional[List[str]] = Depends(get_field_selection),
     include: Optional[List[str]] = Depends(get_eager_load_params),
 ):
@@ -196,8 +206,7 @@ async def get_message(
         msg_uuid = UUID(message_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid message ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid message ID format"
         )
 
     query = db.query(Message)
@@ -210,7 +219,7 @@ async def get_message(
     if not message:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Message {message_id} not found"
+            detail=f"Message {message_id} not found",
         )
 
     # RBAC check
@@ -219,8 +228,7 @@ async def get_message(
         patient = db.query(Patient).filter(Patient.id == message.patient_id).first()
         if not patient or str(patient.doctor_id) != user_id:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied"
+                status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
             )
 
     msg_dict = _serialize_message(message, include_patient="patient" in (include or []))
@@ -235,13 +243,13 @@ async def get_message(
     "/status/{status}",
     response_model=MessageV2List,
     summary="Filter messages by status",
-    description="Get messages filtered by specific status with cursor pagination"
+    description="Get messages filtered by specific status with cursor pagination",
 )
 async def filter_by_status(
     status: MessageStatusV2,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
-    pagination = Depends(get_pagination_params),
+    current_user=Depends(get_current_user_from_session),
+    pagination=Depends(get_pagination_params),
 ):
     """Filter messages by status."""
     cursor_data = pagination["cursor_data"]
@@ -262,7 +270,7 @@ async def filter_by_status(
     if not db_status:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,  # type: ignore[attr-defined]
-            detail="Invalid status"
+            detail="Invalid status",
         )
 
     query = db.query(Message).filter(Message.status == db_status)
@@ -277,10 +285,12 @@ async def filter_by_status(
     # Cursor pagination
     if cursor_data and "id" in cursor_data:
         cursor_id = UUID(cursor_data["id"])
-        cursor_created_at = datetime.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
+        cursor_created_at = datetime.fromisoformat(
+            cursor_data["created_at"].replace("Z", "+00:00")
+        )
         query = query.filter(
-            (Message.created_at < cursor_created_at) |
-            ((Message.created_at == cursor_created_at) & (Message.id > cursor_id))
+            (Message.created_at < cursor_created_at)
+            | ((Message.created_at == cursor_created_at) & (Message.id > cursor_id))
         )
 
     total = None

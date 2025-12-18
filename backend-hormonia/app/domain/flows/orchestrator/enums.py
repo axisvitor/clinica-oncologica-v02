@@ -9,6 +9,7 @@ from enum import Enum
 
 class FlowExecutionState(str, Enum):
     """Flow execution states."""
+
     PENDING = "pending"
     ACTIVE = "active"
     PAUSED = "paused"
@@ -19,6 +20,7 @@ class FlowExecutionState(str, Enum):
 
 class FlowOperationType(str, Enum):
     """Types of flow operations."""
+
     START = "start"
     ADVANCE = "advance"
     PAUSE = "pause"

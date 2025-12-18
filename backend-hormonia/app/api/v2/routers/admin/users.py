@@ -13,11 +13,10 @@ Features:
 """
 
 import logging
-from typing import List, Optional, Dict, Any
+from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
 from app.database import get_db
@@ -59,11 +58,12 @@ logger = logging.getLogger(__name__)
 # ENDPOINT 1: LIST USERS
 # ============================================================================
 
+
 @router.get(
     "/users",
     response_model=UserListResponse,
     summary="List Users with Cursor Pagination",
-    description="Retrieve paginated list of users with cursor-based pagination, field selection, and eager loading."
+    description="Retrieve paginated list of users with cursor-based pagination, field selection, and eager loading.",
 )
 @limiter.limit("100/minute")
 @cache_response(ttl=300, key_prefix="admin:users:list")  # Cache for 5 minutes
@@ -71,13 +71,15 @@ async def list_users(
     request: Request,
     cursor: Optional[str] = Query(None, description="Pagination cursor"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
-    fields: Optional[str] = Query(None, description="Comma-separated fields to include"),
+    fields: Optional[str] = Query(
+        None, description="Comma-separated fields to include"
+    ),
     role: Optional[str] = Query(None, description="Filter by role"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     search: Optional[str] = Query(None, description="Search in email and full_name"),
-    db = Depends(get_db),
+    db=Depends(get_db),
     admin_user: User = Depends(get_admin_user),
-    context: RequestContext = Depends(get_request_context)
+    context: RequestContext = Depends(get_request_context),
 ):
     """
     List all users with cursor pagination and filters.
@@ -112,7 +114,7 @@ async def list_users(
             except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid role: {role}. Valid roles: admin, doctor"
+                    detail=f"Invalid role: {role}. Valid roles: admin, doctor",
                 )
 
         if is_active is not None:
@@ -123,7 +125,7 @@ async def list_users(
             query = query.filter(
                 or_(
                     User.email.ilike(search_pattern),
-                    User.full_name.ilike(search_pattern)
+                    User.full_name.ilike(search_pattern),
                 )
             )
 
@@ -148,15 +150,21 @@ async def list_users(
 
         # Log action
         await _log_admin_action(
-            db, "list_users", admin_user, context,
-            additional_data={"count": len(users), "filters": {"role": role, "is_active": is_active, "search": search}}
+            db,
+            "list_users",
+            admin_user,
+            context,
+            additional_data={
+                "count": len(users),
+                "filters": {"role": role, "is_active": is_active, "search": search},
+            },
         )
 
         return {
             "data": serialized_users,
             "next_cursor": next_cursor,
             "has_more": has_more,
-            "total": None  # Cursor pagination doesn't include total for performance
+            "total": None,  # Cursor pagination doesn't include total for performance
         }
 
     except HTTPException:
@@ -165,7 +173,7 @@ async def list_users(
         logger.error(f"Error listing users: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error retrieving user list"
+            detail="Error retrieving user list",
         )
 
 
@@ -173,19 +181,22 @@ async def list_users(
 # ENDPOINT 2: GET SINGLE USER
 # ============================================================================
 
+
 @router.get(
     "/users/{user_id}",
     response_model=UserResponse,
     summary="Get User Details",
-    description="Retrieve detailed information about a specific user. Cached for 10 minutes."
+    description="Retrieve detailed information about a specific user. Cached for 10 minutes.",
 )
 @cache_response(ttl=600, key_prefix="admin:user")  # Cache for 10 minutes
 async def get_user(
     user_id: UUID,
-    fields: Optional[str] = Query(None, description="Comma-separated fields to include"),
-    db = Depends(get_db),
+    fields: Optional[str] = Query(
+        None, description="Comma-separated fields to include"
+    ),
+    db=Depends(get_db),
     admin_user: User = Depends(get_admin_user),
-    context: RequestContext = Depends(get_request_context)
+    context: RequestContext = Depends(get_request_context),
 ):
     """
     Get user details by ID.
@@ -201,8 +212,7 @@ async def get_user(
         user = user_repo.get(user_id)
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
         # Parse field selection
@@ -221,7 +231,7 @@ async def get_user(
         logger.error(f"Error retrieving user {user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error retrieving user"
+            detail="Error retrieving user",
         )
 
 
@@ -229,20 +239,21 @@ async def get_user(
 # ENDPOINT 3: CREATE USER
 # ============================================================================
 
+
 @router.post(
     "/users",
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create New User",
-    description="Create a new user account with password validation and role assignment."
+    description="Create a new user account with password validation and role assignment.",
 )
 @limiter.limit("10/hour")  # Strict rate limit for user creation
 async def create_user(
     request: Request,
     user_data: UserCreateRequest,
-    db = Depends(get_db),
+    db=Depends(get_db),
     admin_user: User = Depends(get_admin_user),
-    context: RequestContext = Depends(get_request_context)
+    context: RequestContext = Depends(get_request_context),
 ):
     """
     Create a new user.
@@ -261,7 +272,7 @@ async def create_user(
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User with this email already exists"
+                detail="User with this email already exists",
             )
 
         # Validate password strength
@@ -274,24 +285,29 @@ async def create_user(
         role_enum = UserRole(user_data.role.lower())
 
         # Create user
-        new_user = user_repo.create({
-            "email": user_data.email.lower(),
-            "hashed_password": hashed_password,
-            "full_name": user_data.full_name,
-            "role": role_enum,
-            "is_active": user_data.is_active
-        })
+        new_user = user_repo.create(
+            {
+                "email": user_data.email.lower(),
+                "hashed_password": hashed_password,
+                "full_name": user_data.full_name,
+                "role": role_enum,
+                "is_active": user_data.is_active,
+            }
+        )
         db.commit()
         db.refresh(new_user)
 
         # Log action
         await _log_admin_action(
-            db, "create_user", admin_user, context,
+            db,
+            "create_user",
+            admin_user,
+            context,
             target_user_id=new_user.id,
             additional_data={
                 "created_email": user_data.email,
-                "created_role": user_data.role
-            }
+                "created_role": user_data.role,
+            },
         )
 
         logger.info(f"Admin {admin_user.email} created user {new_user.email}")
@@ -305,7 +321,7 @@ async def create_user(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error creating user: {str(e)}"
+            detail=f"Error creating user: {str(e)}",
         )
 
 
@@ -313,20 +329,21 @@ async def create_user(
 # ENDPOINT 4: UPDATE USER
 # ============================================================================
 
+
 @router.put(
     "/users/{user_id}",
     response_model=UserResponse,
     summary="Update User",
-    description="Update user information with cache invalidation."
+    description="Update user information with cache invalidation.",
 )
 @limiter.limit("20/hour")  # Rate limit for updates
 async def update_user(
     request: Request,
     user_id: UUID,
     user_data: UserUpdateRequest,
-    db = Depends(get_db),
+    db=Depends(get_db),
     admin_user: User = Depends(get_admin_user),
-    context: RequestContext = Depends(get_request_context)
+    context: RequestContext = Depends(get_request_context),
 ):
     """
     Update user information.
@@ -344,8 +361,7 @@ async def update_user(
         user = user_repo.get(user_id)
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
         # Prepare update data
@@ -358,7 +374,7 @@ async def update_user(
             if existing and existing.id != user_id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Email already exists"
+                    detail="Email already exists",
                 )
             update_data["email"] = user_data.email.lower()
             changes.append(f"email: {user.email} -> {user_data.email.lower()}")
@@ -387,9 +403,12 @@ async def update_user(
 
             # Log action
             await _log_admin_action(
-                db, "update_user", admin_user, context,
+                db,
+                "update_user",
+                admin_user,
+                context,
                 target_user_id=user_id,
-                additional_data={"changes": changes}
+                additional_data={"changes": changes},
             )
 
             logger.info(f"Admin {admin_user.email} updated user {user.email}")
@@ -405,7 +424,7 @@ async def update_user(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error updating user: {str(e)}"
+            detail=f"Error updating user: {str(e)}",
         )
 
 
@@ -413,19 +432,20 @@ async def update_user(
 # ENDPOINT 5: DELETE USER
 # ============================================================================
 
+
 @router.delete(
     "/users/{user_id}",
     response_model=UserActionResponse,
     summary="Delete User (Soft Delete)",
-    description="Soft delete (deactivate) a user account."
+    description="Soft delete (deactivate) a user account.",
 )
 @limiter.limit("10/hour")  # Strict rate limit for deletions
 async def delete_user(
     request: Request,
     user_id: UUID,
-    db = Depends(get_db),
+    db=Depends(get_db),
     admin_user: User = Depends(get_admin_user),
-    context: RequestContext = Depends(get_request_context)
+    context: RequestContext = Depends(get_request_context),
 ):
     """
     Soft delete (deactivate) a user.
@@ -443,14 +463,13 @@ async def delete_user(
         if user_id == admin_user.id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot delete your own account"
+                detail="Cannot delete your own account",
             )
 
         user = user_repo.get(user_id)
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
         # Soft delete (deactivate)
@@ -462,17 +481,18 @@ async def delete_user(
 
         # Log action
         await _log_admin_action(
-            db, "delete_user", admin_user, context,
+            db,
+            "delete_user",
+            admin_user,
+            context,
             target_user_id=user_id,
-            additional_data={"deletion_type": "soft_delete", "user_email": user.email}
+            additional_data={"deletion_type": "soft_delete", "user_email": user.email},
         )
 
         logger.info(f"Admin {admin_user.email} deleted user {user.email}")
 
         return UserActionResponse(
-            success=True,
-            message="User deleted successfully",
-            user_id=user_id
+            success=True, message="User deleted successfully", user_id=user_id
         )
 
     except HTTPException:
@@ -482,5 +502,5 @@ async def delete_user(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error deleting user"
+            detail="Error deleting user",
         )

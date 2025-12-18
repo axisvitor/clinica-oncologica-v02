@@ -33,7 +33,7 @@ RATE_LIMIT_READ = "100/minute"
     description="Get list of documentation guides and tutorials",
     responses={
         200: {"description": "List of guides"},
-    }
+    },
 )
 @limiter.limit(RATE_LIMIT_READ)
 async def list_guides(
@@ -69,7 +69,8 @@ async def list_guides(
         if tags:
             tag_list = [t.strip().lower() for t in tags.split(",")]
             guides = [
-                g for g in guides
+                g
+                for g in guides
                 if any(tag in [t.lower() for t in g["tags"]] for tag in tag_list)
             ]
 
@@ -91,7 +92,7 @@ async def list_guides(
         logger.error(f"Error listing guides: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to list guides"
+            detail="Failed to list guides",
         )
 
 
@@ -103,7 +104,7 @@ async def list_guides(
     responses={
         200: {"description": "Guide details"},
         404: {"model": ErrorResponse, "description": "Guide not found"},
-    }
+    },
 )
 @limiter.limit(RATE_LIMIT_READ)
 async def get_guide_by_slug(
@@ -136,7 +137,7 @@ async def get_guide_by_slug(
         if not guide:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Guide '{slug}' not found"
+                detail=f"Guide '{slug}' not found",
             )
 
         # Find related guides (same category)
@@ -162,5 +163,5 @@ async def get_guide_by_slug(
         logger.error(f"Error getting guide: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get guide"
+            detail="Failed to get guide",
         )

@@ -122,7 +122,7 @@ class BusinessRuleError(APIException):
         message: str,
         field: Optional[str] = None,
         code: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize business rule error.
@@ -139,12 +139,7 @@ class BusinessRuleError(APIException):
         if code:
             error_details["code"] = code
 
-        super().__init__(
-            message,
-            400,
-            code or "BUSINESS_RULE_VIOLATION",
-            error_details
-        )
+        super().__init__(message, 400, code or "BUSINESS_RULE_VIOLATION", error_details)
         self.field = field
         self.code = code
 
@@ -172,7 +167,7 @@ class ValidationError(APIException):
         self,
         message: str,
         details: Optional[Dict[str, Any]] = None,
-        errors: Optional[Dict[str, str]] = None
+        errors: Optional[Dict[str, str]] = None,
     ):
         """
         Initialize validation error.

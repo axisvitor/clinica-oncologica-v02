@@ -7,6 +7,7 @@ Phase 2 Simplification:
 - Removed SagaIntegrationService wrapper (0% business logic)
 - Now passes SagaOrchestrator directly to coordinator
 """
+
 from typing import Any, Optional
 from concurrent.futures import ThreadPoolExecutor
 
@@ -24,10 +25,14 @@ from app.domain.patient.onboarding.creation_service import CreationService
 from app.orchestration.saga_orchestrator import SagaOrchestrator
 
 # Global thread pool for sync operations in async context
-_onboarding_thread_pool = ThreadPoolExecutor(max_workers=5, thread_name_prefix="onboarding_factory")
+_onboarding_thread_pool = ThreadPoolExecutor(
+    max_workers=5, thread_name_prefix="onboarding_factory"
+)
 
 
-def get_onboarding_coordinator(db: Any, saga_orchestrator: Optional[SagaOrchestrator] = None) -> OnboardingCoordinator:
+def get_onboarding_coordinator(
+    db: Any, saga_orchestrator: Optional[SagaOrchestrator] = None
+) -> OnboardingCoordinator:
     """
     Factory function to create a fully configured OnboardingCoordinator instance.
     Handles all dependency injection and service wiring.

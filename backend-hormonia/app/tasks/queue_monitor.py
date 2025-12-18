@@ -17,13 +17,13 @@ logger = logging.getLogger(__name__)
 
 # Default queues to monitor
 DEFAULT_QUEUES = [
-    'celery',           # Default queue
-    'high_priority',    # High priority tasks
-    'low_priority',     # Low priority tasks
-    'quiz_flow',        # Quiz workflow tasks
-    'alerts',           # Alert processing
-    'whatsapp',         # WhatsApp message sending
-    'reports',          # Report generation
+    "celery",  # Default queue
+    "high_priority",  # High priority tasks
+    "low_priority",  # Low priority tasks
+    "quiz_flow",  # Quiz workflow tasks
+    "alerts",  # Alert processing
+    "whatsapp",  # WhatsApp message sending
+    "reports",  # Report generation
 ]
 
 
@@ -37,7 +37,7 @@ class QueueMonitor:
         celery_app: Celery,
         redis_client: Optional[Redis] = None,
         queues: Optional[List[str]] = None,
-        update_interval: int = 10
+        update_interval: int = 10,
     ):
         """
         Initialize queue monitor.
@@ -108,7 +108,7 @@ class QueueMonitor:
             queue_names = set()
             for worker, queues in active_queues_data.items():
                 for queue in queues:
-                    queue_names.add(queue['name'])
+                    queue_names.add(queue["name"])
 
             discovered = list(queue_names)
             logger.info(f"Discovered {len(discovered)} active queues: {discovered}")
@@ -132,9 +132,7 @@ class QueueMonitor:
 
                 # Log if queue is backed up
                 if length > 100:
-                    logger.warning(
-                        f"Queue {queue_name} has {length} pending tasks"
-                    )
+                    logger.warning(f"Queue {queue_name} has {length} pending tasks")
 
             logger.debug(f"Updated queue metrics: {lengths}")
 
@@ -181,9 +179,9 @@ class QueueMonitor:
 # CELERY BEAT TASK
 # ============================================================================
 
+
 async def monitor_queue_lengths_task(
-    celery_app: Celery,
-    redis_client: Optional[Redis] = None
+    celery_app: Celery, redis_client: Optional[Redis] = None
 ):
     """
     Background task to monitor queue lengths.
@@ -195,9 +193,7 @@ async def monitor_queue_lengths_task(
         redis_client: Redis client
     """
     monitor = QueueMonitor(
-        celery_app=celery_app,
-        redis_client=redis_client,
-        update_interval=10
+        celery_app=celery_app, redis_client=redis_client, update_interval=10
     )
 
     try:
@@ -209,6 +205,7 @@ async def monitor_queue_lengths_task(
 # ============================================================================
 # SYNCHRONOUS WRAPPER FOR CELERY
 # ============================================================================
+
 
 def monitor_queue_lengths_sync(celery_app: Celery):
     """
@@ -228,9 +225,7 @@ def monitor_queue_lengths_sync(celery_app: Celery):
             asyncio.set_event_loop(loop)
 
         # Run async task
-        loop.run_until_complete(
-            monitor_queue_lengths_task(celery_app)
-        )
+        loop.run_until_complete(monitor_queue_lengths_task(celery_app))
 
     except Exception as e:
         logger.error(f"Error in sync queue monitor: {e}", exc_info=True)
@@ -240,10 +235,8 @@ def monitor_queue_lengths_sync(celery_app: Celery):
 # STANDALONE MONITORING SERVICE
 # ============================================================================
 
-async def run_queue_monitor_service(
-    celery_app: Celery,
-    update_interval: int = 10
-):
+
+async def run_queue_monitor_service(celery_app: Celery, update_interval: int = 10):
     """
     Run queue monitor as a standalone service.
 
@@ -253,10 +246,7 @@ async def run_queue_monitor_service(
         celery_app: Celery application instance
         update_interval: Seconds between updates
     """
-    monitor = QueueMonitor(
-        celery_app=celery_app,
-        update_interval=update_interval
-    )
+    monitor = QueueMonitor(celery_app=celery_app, update_interval=update_interval)
 
     try:
         await monitor.run()
@@ -274,7 +264,7 @@ if __name__ == "__main__":
 
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
     asyncio.run(run_queue_monitor_service(celery_app))

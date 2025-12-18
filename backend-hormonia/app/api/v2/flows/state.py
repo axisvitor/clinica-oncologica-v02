@@ -7,12 +7,11 @@ import logging
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.models.user import User
-from app.models.patient import Patient
 from app.schemas.v2.flows import (
     FlowStateV2Response,
     FlowAdvanceV2Request,
@@ -28,10 +27,10 @@ from ..dependencies import (
 )
 from app.dependencies import (
     get_current_user,
-    validate_patient_access,
     get_flow_management_service,
 )
 from app.services.flow_management import FlowManagementService
+from app.repositories.patient import PatientRepository
 from app.exceptions import (
     FlowStateNotFoundError,
     FlowOperationError,
@@ -51,12 +50,10 @@ logger = logging.getLogger(__name__)
 # Helper Functions
 # ============================================================================
 
+
 def _create_cursor(item_id: str, created_at: datetime) -> str:
     """Create cursor for pagination"""
-    cursor_data = {
-        "id": str(item_id),
-        "created_at": created_at.isoformat()
-    }
+    cursor_data = {"id": str(item_id), "created_at": created_at.isoformat()}
     return base64.b64encode(json.dumps(cursor_data).encode()).decode()
 
 
@@ -64,11 +61,12 @@ def _create_cursor(item_id: str, created_at: datetime) -> str:
 # Flow State Operations (5 endpoints)
 # ============================================================================
 
+
 @router.get(
     "/{patient_id}/state",
     response_model=FlowStateV2Response,
     summary="Get flow state",
-    description="Get patient's current flow state with optional eager loading"
+    description="Get patient's current flow state with optional eager loading",
 )
 async def get_flow_state(
     patient_id: UUID,
@@ -87,11 +85,11 @@ async def get_flow_state(
     patient = repo.get_by_id(patient_id)
     if not patient:
         raise flow_not_found_exception(str(patient_id))
-    
+
     if patient.doctor_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access this patient"
+            detail="Not authorized to access this patient",
         )
 
     try:
@@ -111,7 +109,7 @@ async def get_flow_state(
 
     except FlowStateNotFoundError:
         raise flow_not_found_exception(str(patient_id))
-    except Exception as e:
+    except Exception:
         logger.exception(f"Error getting flow state for patient {patient_id}")
         raise internal_server_exception("Failed to get flow state")
 
@@ -120,13 +118,13 @@ async def get_flow_state(
     "/{patient_id}/advance",
     response_model=FlowAdvanceV2Response,
     summary="Advance flow",
-    description="Manually advance patient flow to next step or specific day"
+    description="Manually advance patient flow to next step or specific day",
 )
 async def advance_patient_flow(
     patient_id: UUID,
     request: FlowAdvanceV2Request,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    patient_service: PatientService = Depends(get_patient_service),
     flow_management: FlowManagementService = Depends(get_flow_management_service),
 ):
     """Advance patient flow with optional force to specific day"""
@@ -135,17 +133,16 @@ async def advance_patient_flow(
     patient = repo.get_by_id(patient_id)
     if not patient:
         raise flow_not_found_exception(str(patient_id))
-    
+
     if patient.doctor_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access this patient"
+            detail="Not authorized to access this patient",
         )
 
     try:
         advancement = await flow_management.advance_patient_flow(
-            patient_id=patient_id,
-            force_day=request.force_day
+            patient_id=patient_id, force_day=request.force_day
         )
 
         return FlowAdvanceV2Response(
@@ -154,14 +151,14 @@ async def advance_patient_flow(
             previous_step=advancement.get("previous_step", 0),
             current_step=advancement.get("current_step", 0),
             next_actions=advancement.get("next_actions", []),
-            message=advancement.get("message", "Flow advanced successfully")
+            message=advancement.get("message", "Flow advanced successfully"),
         )
 
     except FlowStateNotFoundError:
         raise flow_not_found_exception(str(patient_id))
     except FlowOperationError as e:
         raise flow_operation_exception("advance_flow", str(e))
-    except Exception as e:
+    except Exception:
         logger.exception(f"Error advancing flow for patient {patient_id}")
         raise internal_server_exception("Failed to advance flow")
 
@@ -170,11 +167,12 @@ async def advance_patient_flow(
     "/{patient_id}/pause",
     response_model=FlowPauseV2Response,
     summary="Pause flow",
-    description="Pause patient flow with optional auto-resume duration"
+    description="Pause patient flow with optional auto-resume duration",
 )
 async def pause_patient_flow(
     patient_id: UUID,
     request: Optional[FlowPauseV2Request] = None,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     flow_management: FlowManagementService = Depends(get_flow_management_service),
 ):
@@ -184,11 +182,11 @@ async def pause_patient_flow(
     patient = repo.get_by_id(patient_id)
     if not patient:
         raise flow_not_found_exception(str(patient_id))
-    
+
     if patient.doctor_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access this patient"
+            detail="Not authorized to access this patient",
         )
 
     try:
@@ -199,7 +197,7 @@ async def pause_patient_flow(
             patient_id=patient_id,
             reason=reason,
             duration_hours=duration_hours,
-            user_id=current_user.id
+            user_id=current_user.id,
         )
 
         return FlowPauseV2Response(
@@ -208,14 +206,14 @@ async def pause_patient_flow(
             paused_at=pause_result.get("paused_at", datetime.utcnow()),
             reason=reason,
             auto_resume_at=pause_result.get("auto_resume_at"),
-            message=pause_result.get("message", "Flow paused successfully")
+            message=pause_result.get("message", "Flow paused successfully"),
         )
 
     except FlowStateNotFoundError:
         raise flow_not_found_exception(str(patient_id))
     except FlowStateConflictError as e:
         raise flow_operation_exception("pause_flow", str(e))
-    except Exception as e:
+    except Exception:
         logger.exception(f"Error pausing flow for patient {patient_id}")
         raise internal_server_exception("Failed to pause flow")
 
@@ -224,10 +222,11 @@ async def pause_patient_flow(
     "/{patient_id}/resume",
     response_model=FlowResumeV2Response,
     summary="Resume flow",
-    description="Resume a paused patient flow"
+    description="Resume a paused patient flow",
 )
 async def resume_patient_flow(
     patient_id: UUID,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     flow_management: FlowManagementService = Depends(get_flow_management_service),
 ):
@@ -237,17 +236,16 @@ async def resume_patient_flow(
     patient = repo.get_by_id(patient_id)
     if not patient:
         raise flow_not_found_exception(str(patient_id))
-    
+
     if patient.doctor_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access this patient"
+            detail="Not authorized to access this patient",
         )
 
     try:
         resume_result = await flow_management.resume_patient_flow(
-            patient_id=patient_id,
-            user_id=current_user.id
+            patient_id=patient_id, user_id=current_user.id
         )
 
         return FlowResumeV2Response(
@@ -256,14 +254,14 @@ async def resume_patient_flow(
             resumed_at=resume_result.get("resumed_at", datetime.utcnow()),
             paused_duration_hours=resume_result.get("paused_duration_hours", 0.0),
             next_message_at=resume_result.get("next_message_at"),
-            message=resume_result.get("message", "Flow resumed successfully")
+            message=resume_result.get("message", "Flow resumed successfully"),
         )
 
     except FlowStateNotFoundError:
         raise flow_not_found_exception(str(patient_id))
     except FlowStateConflictError as e:
         raise flow_operation_exception("resume_flow", str(e))
-    except Exception as e:
+    except Exception:
         logger.exception(f"Error resuming flow for patient {patient_id}")
         raise internal_server_exception("Failed to resume flow")
 
@@ -272,14 +270,14 @@ async def resume_patient_flow(
     "/{patient_id}/history",
     response_model=FlowHistoryV2Response,
     summary="Get flow history",
-    description="Get paginated flow history for a patient"
+    description="Get paginated flow history for a patient",
 )
 async def get_patient_flow_history(
     patient_id: UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     flow_management: FlowManagementService = Depends(get_flow_management_service),
-    pagination = Depends(get_pagination_params),
+    pagination=Depends(get_pagination_params),
     include: Optional[List[str]] = Depends(get_eager_load_params),
 ):
     """
@@ -293,11 +291,11 @@ async def get_patient_flow_history(
     patient = repo.get_by_id(patient_id)
     if not patient:
         raise flow_not_found_exception(str(patient_id))
-    
+
     if patient.doctor_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access this patient"
+            detail="Not authorized to access this patient",
         )
 
     try:
@@ -306,9 +304,8 @@ async def get_patient_flow_history(
 
         # Build query
         from app.models.flow import FlowState as FlowStateModel
-        query = db.query(FlowStateModel).filter(
-            FlowStateModel.patient_id == patient_id
-        )
+
+        query = db.query(FlowStateModel).filter(FlowStateModel.patient_id == patient_id)
 
         # Apply eager loading
         if include:
@@ -320,10 +317,15 @@ async def get_patient_flow_history(
         # Apply cursor pagination
         if cursor_data and "id" in cursor_data:
             cursor_id = UUID(cursor_data["id"])
-            cursor_created = datetime.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
+            cursor_created = datetime.fromisoformat(
+                cursor_data["created_at"].replace("Z", "+00:00")
+            )
             query = query.filter(
-                (FlowStateModel.created_at < cursor_created) |
-                ((FlowStateModel.created_at == cursor_created) & (FlowStateModel.id > cursor_id))
+                (FlowStateModel.created_at < cursor_created)
+                | (
+                    (FlowStateModel.created_at == cursor_created)
+                    & (FlowStateModel.id > cursor_id)
+                )
             )
 
         # Get total count (only on first page)
@@ -354,9 +356,11 @@ async def get_patient_flow_history(
             next_cursor=next_cursor,
             has_more=has_more,
             total=total,
-            current_flow=FlowStateV2Response.from_orm(current_flow) if current_flow else None
+            current_flow=FlowStateV2Response.from_orm(current_flow)
+            if current_flow
+            else None,
         )
 
-    except Exception as e:
+    except Exception:
         logger.exception(f"Error getting flow history for patient {patient_id}")
         raise internal_server_exception("Failed to get flow history")

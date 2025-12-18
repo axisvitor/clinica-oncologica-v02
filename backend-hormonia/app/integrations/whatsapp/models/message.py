@@ -1,16 +1,18 @@
 """
 WhatsApp message models for Evolution API integration.
 """
+
 from datetime import datetime
 from enum import Enum
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
-from sqlalchemy import Column, String, DateTime, Text, JSON, Boolean, Integer, ForeignKey
+from sqlalchemy import Column, String, DateTime, Text, JSON, Boolean, Integer
 from app.database import Base
 
 
 class MessageStatus(str, Enum):
     """Message delivery status enumeration."""
+
     PENDING = "pending"
     SENT = "sent"
     DELIVERED = "delivered"
@@ -21,6 +23,7 @@ class MessageStatus(str, Enum):
 
 class MessageType(str, Enum):
     """Message type enumeration."""
+
     TEXT = "text"
     IMAGE = "image"
     DOCUMENT = "document"
@@ -34,6 +37,7 @@ class MessageType(str, Enum):
 
 class WhatsAppMessage(Base):
     """WhatsApp message database model."""
+
     __tablename__ = "whatsapp_messages"
 
     id = Column(String, primary_key=True)
@@ -60,6 +64,7 @@ class WhatsAppMessage(Base):
 
 class WhatsAppContact(Base):
     """WhatsApp contact database model."""
+
     __tablename__ = "whatsapp_contacts"
 
     id = Column(String, primary_key=True)
@@ -77,6 +82,7 @@ class WhatsAppContact(Base):
 
 class WhatsAppInstance(Base):
     """WhatsApp instance database model."""
+
     __tablename__ = "whatsapp_instances"
 
     id = Column(String, primary_key=True)
@@ -97,6 +103,7 @@ class WhatsAppInstance(Base):
 # Pydantic models for API requests/responses
 class MessageRequest(BaseModel):
     """Request model for sending WhatsApp messages."""
+
     instance_name: str
     to: str
     message_type: MessageType = MessageType.TEXT
@@ -111,6 +118,7 @@ class MessageRequest(BaseModel):
 
 class MessageResponse(BaseModel):
     """Response model for WhatsApp message operations."""
+
     id: str
     external_id: Optional[str] = None
     status: MessageStatus
@@ -121,6 +129,7 @@ class MessageResponse(BaseModel):
 
 class ContactRequest(BaseModel):
     """Request model for contact operations."""
+
     instance_name: str
     phone_number: str
     name: Optional[str] = None
@@ -128,6 +137,7 @@ class ContactRequest(BaseModel):
 
 class ContactResponse(BaseModel):
     """Response model for contact operations."""
+
     id: str
     phone_number: str
     formatted_number: str
@@ -139,6 +149,7 @@ class ContactResponse(BaseModel):
 
 class InstanceStatus(BaseModel):
     """WhatsApp instance status model."""
+
     name: str
     status: str
     is_connected: bool
@@ -150,6 +161,7 @@ class InstanceStatus(BaseModel):
 
 class WebhookPayload(BaseModel):
     """Webhook payload model for incoming messages."""
+
     instance: str
     data: Dict[str, Any]
     event: str
@@ -158,6 +170,7 @@ class WebhookPayload(BaseModel):
 
 class MessageStatusUpdate(BaseModel):
     """Message status update model."""
+
     message_id: str
     status: MessageStatus
     timestamp: datetime = Field(default_factory=datetime.utcnow)

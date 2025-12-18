@@ -5,9 +5,9 @@ V2 VERSIONING SYSTEM:
 - API v2 (current version)
 - Essential health/monitoring endpoints
 """
-from datetime import datetime, timezone
+
+from datetime import datetime
 from fastapi import FastAPI
-import os
 from app.config import settings
 from app.utils.logging import get_logger
 import redis.asyncio as redis
@@ -40,15 +40,20 @@ def register_routers(app: FastAPI) -> None:
     # Import v2 API (current)
     try:
         from app.api.v2 import api_v2_router
+
         logger.info("✓ API v2 router imported successfully (current)")
     except ImportError as e:
         logger.critical(f"FATAL: API v2 could not be imported. Error: {e}")
-        raise RuntimeError("Application startup failed: API v2 router could not be imported") from e
+        raise RuntimeError(
+            "Application startup failed: API v2 router could not be imported"
+        ) from e
 
     # === ESSENTIAL ROUTERS (ACTIVE) ===
     # Monitoring health endpoints
     app.include_router(health_monitoring, tags=["Health"])
-    logger.info("✓ Health monitoring endpoints registered (/health/live, /health/ready, /health/metrics)")
+    logger.info(
+        "✓ Health monitoring endpoints registered (/health/live, /health/ready, /health/metrics)"
+    )
 
     # Include Prometheus metrics router
     app.include_router(prometheus_exporters.router)
@@ -62,10 +67,16 @@ def register_routers(app: FastAPI) -> None:
     @app.get("/api/v2/redis/health", tags=["Health"])
     async def redis_health():
         redis_url = settings.REDIS_URL
-        health_data = {"timestamp": datetime.utcnow().isoformat() + 'Z', "redis_url": mask_sensitive_url(redis_url), "status": "unknown"}
+        health_data = {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "redis_url": mask_sensitive_url(redis_url),
+            "status": "unknown",
+        }
         redis_client = None
         try:
-            redis_client = redis.from_url(redis_url, decode_responses=True, socket_connect_timeout=3)
+            redis_client = redis.from_url(
+                redis_url, decode_responses=True, socket_connect_timeout=3
+            )
             await redis_client.ping()
             info = await redis_client.info()
             health_data["status"] = "healthy"
@@ -79,6 +90,7 @@ def register_routers(app: FastAPI) -> None:
             if redis_client:
                 await redis_client.close()
         return health_data
+
     logger.info("✓ Redis health check endpoint registered (/api/v2/redis/health)")
 
     # === VERSIONING SETUP ===
@@ -86,11 +98,7 @@ def register_routers(app: FastAPI) -> None:
     versioned_router = get_versioned_router()
 
     # Register v2 API (current version)
-    versioned_router.add_version(
-        version="v2",
-        router=api_v2_router,
-        is_default=True
-    )
+    versioned_router.add_version(version="v2", router=api_v2_router, is_default=True)
     app.include_router(api_v2_router, tags=["API v2"])
     logger.info("✓ API v2 endpoints registered (/api/v2) - CURRENT VERSION")
 
@@ -100,8 +108,9 @@ def register_routers(app: FastAPI) -> None:
 
     # WhatsApp integration (if enabled)
     try:
-        if getattr(settings, 'ENABLE_EVOLUTION', False):
+        if getattr(settings, "ENABLE_EVOLUTION", False):
             from app.integrations.whatsapp import whatsapp_router, webhook_router
+
             app.include_router(whatsapp_router, tags=["WhatsApp"])
             app.include_router(webhook_router)
             logger.info("✓ WhatsApp integration endpoints registered")

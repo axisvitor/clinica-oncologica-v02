@@ -10,13 +10,12 @@ HIPAA Compliance:
 - § 164.312(c)(1) - Integrity verification
 - § 164.316(b)(2)(i) - Archival & retention
 """
+
 from datetime import datetime
 from typing import Optional, Dict, Any
-from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
 
 class AuditRepository:
@@ -29,9 +28,7 @@ class AuditRepository:
         self.db = db
 
     async def verify_integrity(
-        self,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
     ) -> Dict[str, Any]:
         """
         Verify audit log integrity using the PostgreSQL verify_audit_log_integrity function.
@@ -52,8 +49,7 @@ class AuditRepository:
                 )
             """)
             result = await self.db.execute(
-                query,
-                {"start_timestamp": start_date, "end_timestamp": end_date}
+                query, {"start_timestamp": start_date, "end_timestamp": end_date}
             )
         else:
             query = text("SELECT * FROM verify_audit_log_integrity()")
@@ -68,8 +64,10 @@ class AuditRepository:
                 "invalid_count": row[2],
                 "chain_breaks": row[3],
                 "invalid_log_ids": row[4] or [],
-                "integrity_score": round((row[1] / row[0] * 100), 2) if row[0] > 0 else 100.0,
-                "has_tampering": row[2] > 0 or row[3] > 0
+                "integrity_score": round((row[1] / row[0] * 100), 2)
+                if row[0] > 0
+                else 100.0,
+                "has_tampering": row[2] > 0 or row[3] > 0,
             }
         else:
             return {
@@ -79,7 +77,7 @@ class AuditRepository:
                 "chain_breaks": 0,
                 "invalid_log_ids": [],
                 "integrity_score": 100.0,
-                "has_tampering": False
+                "has_tampering": False,
             }
 
     async def archive_old_logs(self) -> int:
@@ -129,13 +127,16 @@ class AuditRepository:
                 "total_logs": main_row[0] if main_row else 0,
                 "archived_logs": main_row[1] if main_row else 0,
                 "eligible_for_archive": main_row[2] if main_row else 0,
-                "oldest_log": main_row[3].isoformat() if main_row and main_row[3] else None,
-                "newest_log": main_row[4].isoformat() if main_row and main_row[4] else None
+                "oldest_log": main_row[3].isoformat()
+                if main_row and main_row[3]
+                else None,
+                "newest_log": main_row[4].isoformat()
+                if main_row and main_row[4]
+                else None,
             },
-            "archive_table": {
-                "total_logs": archive_row[0] if archive_row else 0
-            },
-            "total_system_logs": (main_row[0] if main_row else 0) + (archive_row[0] if archive_row else 0)
+            "archive_table": {"total_logs": archive_row[0] if archive_row else 0},
+            "total_system_logs": (main_row[0] if main_row else 0)
+            + (archive_row[0] if archive_row else 0),
         }
 
     async def get_disk_usage_estimate(self) -> Dict[str, Any]:
@@ -163,7 +164,7 @@ class AuditRepository:
                 "total_size": f"{total_bytes / (1024**3):.2f} GB",
                 "main_table_bytes": row[2],
                 "archive_table_bytes": row[3],
-                "total_bytes": total_bytes
+                "total_bytes": total_bytes,
             }
         else:
             return {
@@ -172,7 +173,7 @@ class AuditRepository:
                 "total_size": "0.00 GB",
                 "main_table_bytes": 0,
                 "archive_table_bytes": 0,
-                "total_bytes": 0
+                "total_bytes": 0,
             }
 
     async def get_index_health(self) -> Dict[str, Any]:
@@ -200,21 +201,22 @@ class AuditRepository:
 
         indexes = []
         for row in rows:
-            indexes.append({
-                "schema": row[0],
-                "table": row[1],
-                "index_name": row[2],
-                "size": row[3],
-                "scans": row[4],
-                "tuples_read": row[5],
-                "tuples_fetched": row[6],
-                "efficiency": round((row[6] / row[5] * 100), 2) if row[5] > 0 else 0.0
-            })
+            indexes.append(
+                {
+                    "schema": row[0],
+                    "table": row[1],
+                    "index_name": row[2],
+                    "size": row[3],
+                    "scans": row[4],
+                    "tuples_read": row[5],
+                    "tuples_fetched": row[6],
+                    "efficiency": round((row[6] / row[5] * 100), 2)
+                    if row[5] > 0
+                    else 0.0,
+                }
+            )
 
-        return {
-            "indexes": indexes,
-            "total_indexes": len(indexes)
-        }
+        return {"indexes": indexes, "total_indexes": len(indexes)}
 
     async def check_immutability_rules(self) -> Dict[str, Any]:
         """
@@ -236,7 +238,7 @@ class AuditRepository:
         return {
             "update_rule_active": row[0] > 0 if row else False,
             "delete_rule_active": row[1] > 0 if row else False,
-            "fully_immutable": (row[0] > 0 and row[1] > 0) if row else False
+            "fully_immutable": (row[0] > 0 and row[1] > 0) if row else False,
         }
 
     async def get_checksum_coverage(self) -> Dict[str, Any]:
@@ -268,8 +270,12 @@ class AuditRepository:
                 "logs_with_checksum": with_checksum,
                 "logs_with_chain": with_chain,
                 "unverified_logs": unverified,
-                "checksum_coverage": round((with_checksum / total * 100), 2) if total > 0 else 0.0,
-                "chain_coverage": round((with_chain / total * 100), 2) if total > 0 else 0.0
+                "checksum_coverage": round((with_checksum / total * 100), 2)
+                if total > 0
+                else 0.0,
+                "chain_coverage": round((with_chain / total * 100), 2)
+                if total > 0
+                else 0.0,
             }
         else:
             return {
@@ -278,5 +284,5 @@ class AuditRepository:
                 "logs_with_chain": 0,
                 "unverified_logs": 0,
                 "checksum_coverage": 0.0,
-                "chain_coverage": 0.0
+                "chain_coverage": 0.0,
             }

@@ -6,7 +6,6 @@ to ensure existing code continues to work with the refactored AlertManager.
 """
 
 import logging
-from typing import Optional
 
 from .alert_manager_refactored import (
     AlertManager as RefactoredAlertManager,

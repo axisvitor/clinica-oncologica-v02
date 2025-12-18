@@ -50,7 +50,7 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
                 status="healthy",
                 latency_ms=latency_ms,
                 last_check=datetime.utcnow(),
-                metadata={"type": "postgresql"}
+                metadata={"type": "postgresql"},
             )
 
         elif component_name == "redis":
@@ -64,21 +64,21 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
                     status="healthy",
                     latency_ms=latency_ms,
                     last_check=datetime.utcnow(),
-                    metadata={"type": "cache"}
+                    metadata={"type": "cache"},
                 )
             else:
                 return ComponentHealth(
                     name="redis",
                     status="unhealthy",
                     error="Redis client unavailable",
-                    last_check=datetime.utcnow()
+                    last_check=datetime.utcnow(),
                 )
 
         elif component_name == "firebase":
             # Check Firebase Admin SDK actual connectivity
             try:
                 import firebase_admin
-                from firebase_admin import auth as firebase_auth
+                from firebase_admin import auth as firebase_auth  # noqa: F401
 
                 # Check if Firebase app is initialized
                 app = firebase_admin.get_app()
@@ -92,15 +92,15 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
                         last_check=datetime.utcnow(),
                         metadata={
                             "configured": True,
-                            "project_id": settings.FIREBASE_ADMIN_PROJECT_ID
-                        }
+                            "project_id": settings.FIREBASE_ADMIN_PROJECT_ID,
+                        },
                     )
                 else:
                     return ComponentHealth(
                         name="firebase",
                         status="degraded",
                         last_check=datetime.utcnow(),
-                        metadata={"configured": False, "reason": "not_initialized"}
+                        metadata={"configured": False, "reason": "not_initialized"},
                     )
             except (ValueError, ImportError):
                 # Firebase not initialized or not installed
@@ -108,7 +108,10 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
                     name="firebase",
                     status="unknown",
                     last_check=datetime.utcnow(),
-                    metadata={"configured": bool(settings.FIREBASE_ADMIN_PROJECT_ID), "reason": "sdk_not_initialized"}
+                    metadata={
+                        "configured": bool(settings.FIREBASE_ADMIN_PROJECT_ID),
+                        "reason": "sdk_not_initialized",
+                    },
                 )
 
         elif component_name == "external_apis":
@@ -117,7 +120,7 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
                 name="external_apis",
                 status="unknown",
                 last_check=datetime.utcnow(),
-                metadata={"evolution_enabled": settings.WHATSAPP_ENABLE_SERVICE}
+                metadata={"evolution_enabled": settings.WHATSAPP_ENABLE_SERVICE},
             )
 
         else:
@@ -125,7 +128,7 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
                 name=component_name,
                 status="unknown",
                 error="Unknown component",
-                last_check=datetime.utcnow()
+                last_check=datetime.utcnow(),
             )
 
     except Exception as e:
@@ -135,7 +138,7 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
             status="unhealthy",
             latency_ms=latency_ms,
             error=str(e),
-            last_check=datetime.utcnow()
+            last_check=datetime.utcnow(),
         )
 
 

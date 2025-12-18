@@ -19,7 +19,7 @@ class BaseFieldEncryptor(ABC):
         self,
         encrypt_func: Callable[[str, FieldType], str],
         decrypt_func: Callable[[str, FieldType], str],
-        hash_func: Callable[[str, FieldType], str]
+        hash_func: Callable[[str, FieldType], str],
     ):
         """
         Initialize field encryptor.

@@ -43,6 +43,7 @@ logger = logging.getLogger(__name__)
 # Auth Debug Endpoints
 # ============================================================================
 
+
 @router.post(
     "/token",
     response_model=DebugResponse,
@@ -56,14 +57,14 @@ logger = logging.getLogger(__name__)
     - Sensitive claims masked
     - Token signature validated
     - Full audit trail
-    """
+    """,
 )
 @limiter.limit("5/minute")
 async def debug_token_decode(
     request: Request,
     token: str,
     admin_user: User = Depends(get_admin_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Decode and validate JWT token with sensitive data masking.
@@ -81,42 +82,42 @@ async def debug_token_decode(
 
     token_value = token.strip()
     token_info = None
-    error_msg = None
 
     try:
         # First try to decode without verification to get token structure
         unverified_payload = jwt.decode(
-            token_value,
-            options={"verify_signature": False}
+            token_value, options={"verify_signature": False}
         )
 
         # Extract claims with sensitive data masking
         claims = []
-        sensitive_keys = {'email', 'phone_number', 'name', 'picture', 'sub', 'uid'}
+        sensitive_keys = {"email", "phone_number", "name", "picture", "sub", "uid"}
 
         for key, value in unverified_payload.items():
             if key in sensitive_keys and value:
                 # Mask sensitive data
                 if isinstance(value, str):
-                    if '@' in value:  # Email
-                        masked_value = value[:2] + '***@' + value.split('@')[1]
+                    if "@" in value:  # Email
+                        masked_value = value[:2] + "***@" + value.split("@")[1]
                     else:
-                        masked_value = value[:4] + '***' if len(value) > 4 else '***'
+                        masked_value = value[:4] + "***" if len(value) > 4 else "***"
                 else:
-                    masked_value = '***'
+                    masked_value = "***"
                 claims.append(f"{key}: {masked_value}")
             else:
                 claims.append(f"{key}: {value}")
 
         # Check if token is expired
         import time
-        exp_timestamp = unverified_payload.get('exp', 0)
+
+        exp_timestamp = unverified_payload.get("exp", 0)
         is_expired = exp_timestamp < time.time() if exp_timestamp else False
 
         # Try to verify with Firebase (if it's a Firebase token)
         is_valid = False
         try:
             from app.dependencies.auth_dependencies import verify_firebase_token
+
             firebase_data = await verify_firebase_token(token_value)
             if firebase_data:
                 is_valid = True
@@ -125,40 +126,35 @@ async def debug_token_decode(
             pass
 
         token_info = TokenDebugInfo(
-            valid=is_valid,
-            expired=is_expired,
-            claims=claims,
-            error=None
+            valid=is_valid, expired=is_expired, claims=claims, error=None
         )
 
-        logger.info(f"JWT token decoded successfully. Valid: {is_valid}, Expired: {is_expired}")
+        logger.info(
+            f"JWT token decoded successfully. Valid: {is_valid}, Expired: {is_expired}"
+        )
 
     except ExpiredSignatureError:
         token_info = TokenDebugInfo(
-            valid=False,
-            expired=True,
-            claims=[],
-            error="Token has expired"
+            valid=False, expired=True, claims=[], error="Token has expired"
         )
-        error_msg = "Token expired"
 
     except InvalidTokenError as e:
         token_info = TokenDebugInfo(
             valid=False,
             expired=False,
             claims=[],
-            error=f"Invalid token format: {str(e)}"
+            error=f"Invalid token format: {str(e)}",
         )
-        error_msg = f"Invalid token: {str(e)}"
+        f"Invalid token: {str(e)}"
 
     except Exception as e:
         token_info = TokenDebugInfo(
             valid=False,
             expired=False,
             claims=[],
-            error=f"Token decode failed: {str(e)}"
+            error=f"Token decode failed: {str(e)}",
         )
-        error_msg = str(e)
+        str(e)
 
     # Audit log
     await log_debug_operation(
@@ -167,7 +163,7 @@ async def debug_token_decode(
         endpoint="/auth/token",
         parameters={"token": "***"},
         result_summary=f"Token decoded. Valid: {token_info.valid}, Expired: {token_info.expired}",
-        request=request
+        request=request,
     )
 
     return DebugResponse(
@@ -175,7 +171,7 @@ async def debug_token_decode(
         data=token_info.dict(),
         audit_logged=True,
         timestamp=datetime.utcnow(),
-        warning="JWT decoding not yet implemented"
+        warning="JWT decoding not yet implemented",
     )
 
 
@@ -193,14 +189,14 @@ async def debug_token_decode(
     - Password validation
     - Account status
     - Session creation
-    """
+    """,
 )
 @limiter.limit("5/minute")
 async def test_login_flow(
     request: Request,
     login_request: LoginTestRequest,
     admin_user: User = Depends(get_admin_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Test login flow with step-by-step diagnostics.
@@ -225,12 +221,15 @@ async def test_login_flow(
                 account_active=False,
                 session_created=False,
                 error="User not found",
-                steps_completed=steps_completed
+                steps_completed=steps_completed,
             )
         else:
             # Step 2: Password validation
             from app.utils.security import verify_password
-            password_valid = verify_password(login_request.password, user.hashed_password)
+
+            password_valid = verify_password(
+                login_request.password, user.hashed_password
+            )
             steps_completed.append("password_verify")
 
             # Step 3: Account status
@@ -249,8 +248,10 @@ async def test_login_flow(
                 account_active=account_active,
                 session_created=session_created,
                 token_generated="debug_token_***" if session_created else None,
-                error=None if session_created else "Login failed (check password/status)",
-                steps_completed=steps_completed
+                error=None
+                if session_created
+                else "Login failed (check password/status)",
+                steps_completed=steps_completed,
             )
 
         # Audit log
@@ -260,21 +261,21 @@ async def test_login_flow(
             endpoint="/auth/test-login",
             parameters={"email": login_request.email},
             result_summary=f"Login test: {'success' if result.success else 'failed'} ({len(steps_completed)} steps)",
-            request=request
+            request=request,
         )
 
         return DebugResponse(
             success=True,
             data=result.dict(),
             audit_logged=True,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.utcnow(),
         )
 
     except Exception as e:
         logger.error(f"Login test error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to test login: {str(e)}"
+            detail=f"Failed to test login: {str(e)}",
         )
 
 
@@ -291,14 +292,14 @@ async def test_login_flow(
     - User role lookup
     - Permission grants
     - Resource-level permissions
-    """
+    """,
 )
 @limiter.limit("5/minute")
 async def test_permissions(
     request: Request,
     perm_request: PermissionTestRequest,
     admin_user: User = Depends(get_admin_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Test permission checking for user.
@@ -310,19 +311,19 @@ async def test_permissions(
     try:
         # Look up user
         from uuid import UUID
+
         user_uuid = UUID(perm_request.user_id)
         user = db.query(User).filter(User.id == user_uuid).first()
 
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
         # Implement actual RBAC permission checking
         from app.dependencies.auth_dependencies import get_permissions_for_role
 
-        user_role = user.role.value if hasattr(user.role, 'value') else str(user.role)
+        user_role = user.role.value if hasattr(user.role, "value") else str(user.role)
 
         # Get all permissions for user's role
         permissions_granted = get_permissions_for_role(user_role)
@@ -331,11 +332,11 @@ async def test_permissions(
         has_permission = perm_request.permission in permissions_granted
 
         # Check for wildcard/hierarchical permissions
-        if not has_permission and '.' in perm_request.permission:
-            permission_parts = perm_request.permission.split('.')
+        if not has_permission and "." in perm_request.permission:
+            permission_parts = perm_request.permission.split(".")
             for i in range(len(permission_parts)):
                 # Check parent permissions (e.g., "admin.*" grants "admin.read")
-                parent_perm = '.'.join(permission_parts[:i+1])
+                parent_perm = ".".join(permission_parts[: i + 1])
                 if any(p.startswith(parent_perm) for p in permissions_granted):
                     has_permission = True
                     break
@@ -344,7 +345,7 @@ async def test_permissions(
             has_permission=has_permission,
             user_role=user_role,
             permissions_granted=permissions_granted,
-            reason=f"User role '{user_role}' {'grants' if has_permission else 'does not grant'} permission '{perm_request.permission}' (checked against {len(permissions_granted)} permissions)"
+            reason=f"User role '{user_role}' {'grants' if has_permission else 'does not grant'} permission '{perm_request.permission}' (checked against {len(permissions_granted)} permissions)",
         )
 
         # Audit log
@@ -354,17 +355,17 @@ async def test_permissions(
             endpoint="/auth/permissions",
             parameters={
                 "user_id": perm_request.user_id,
-                "permission": perm_request.permission
+                "permission": perm_request.permission,
             },
             result_summary=f"Permission check: {perm_request.permission} = {has_permission}",
-            request=request
+            request=request,
         )
 
         return DebugResponse(
             success=True,
             data=result.dict(),
             audit_logged=True,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.utcnow(),
         )
 
     except HTTPException:
@@ -373,7 +374,7 @@ async def test_permissions(
         logger.error(f"Permission test error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to test permissions: {str(e)}"
+            detail=f"Failed to test permissions: {str(e)}",
         )
 
 
@@ -388,14 +389,14 @@ async def test_permissions(
 
     Creates temporary debug session (max 60 minutes).
     Session is clearly marked as debug/temporary.
-    """
+    """,
 )
 @limiter.limit("5/minute")
 async def simulate_authentication(
     request: Request,
     sim_request: AuthSimulationRequest,
     admin_user: User = Depends(get_admin_user),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     Simulate user authentication for testing.
@@ -407,19 +408,21 @@ async def simulate_authentication(
     try:
         # Look up user
         from uuid import UUID
+
         user_uuid = UUID(sim_request.user_id)
         user = db.query(User).filter(User.id == user_uuid).first()
 
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
         # Create temporary debug session
         if sim_request.simulate_session:
             session_id = f"debug_sess_{uuid4().hex[:12]}"
-            expires_at = datetime.utcnow() + timedelta(minutes=sim_request.duration_minutes)
+            expires_at = datetime.utcnow() + timedelta(
+                minutes=sim_request.duration_minutes
+            )
 
             result = AuthSimulationResult(
                 success=True,
@@ -429,9 +432,11 @@ async def simulate_authentication(
                 user_info={
                     "id": str(user.id),
                     "email": user.email,
-                    "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
-                    "is_active": user.is_active
-                }
+                    "role": user.role.value
+                    if hasattr(user.role, "value")
+                    else str(user.role),
+                    "is_active": user.is_active,
+                },
             )
         else:
             result = AuthSimulationResult(
@@ -442,8 +447,10 @@ async def simulate_authentication(
                 user_info={
                     "id": str(user.id),
                     "email": user.email,
-                    "role": user.role.value if hasattr(user.role, 'value') else str(user.role)
-                }
+                    "role": user.role.value
+                    if hasattr(user.role, "value")
+                    else str(user.role),
+                },
             )
 
         # Audit log
@@ -453,11 +460,11 @@ async def simulate_authentication(
             endpoint="/auth/simulate",
             parameters={
                 "user_id": sim_request.user_id,
-                "duration_minutes": sim_request.duration_minutes
+                "duration_minutes": sim_request.duration_minutes,
             },
             result_summary=f"Auth simulation for user {user.email}",
             request=request,
-            severity=DebugSeverity.WARNING  # Important security event
+            severity=DebugSeverity.WARNING,  # Important security event
         )
 
         return DebugResponse(
@@ -465,7 +472,7 @@ async def simulate_authentication(
             data=result.dict(),
             audit_logged=True,
             timestamp=datetime.utcnow(),
-            warning="Debug session created - temporary use only"
+            warning="Debug session created - temporary use only",
         )
 
     except HTTPException:
@@ -474,5 +481,5 @@ async def simulate_authentication(
         logger.error(f"Auth simulation error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to simulate authentication: {str(e)}"
+            detail=f"Failed to simulate authentication: {str(e)}",
         )

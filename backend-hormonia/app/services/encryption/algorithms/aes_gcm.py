@@ -39,14 +39,14 @@ class AESGCMAlgorithm(BaseAlgorithm):
         nonce = os.urandom(12)
 
         # Create AESGCM cipher
-        aesgcm = AESGCM(self.keys['phi'])
+        aesgcm = AESGCM(self.keys["phi"])
 
         # Encrypt (returns ciphertext + tag)
         ciphertext = aesgcm.encrypt(nonce, plaintext.encode(), None)
 
         # Combine nonce + ciphertext, then base64 encode
         combined = nonce + ciphertext
-        encrypted = base64.b64encode(combined).decode('utf-8')
+        encrypted = base64.b64encode(combined).decode("utf-8")
 
         return f"{self.get_prefix()}{encrypted}"
 
@@ -64,7 +64,7 @@ class AESGCMAlgorithm(BaseAlgorithm):
             ValueError: If authentication fails
         """
         # Remove prefix and decode
-        encrypted_data = encrypted.replace(self.get_prefix(), '')
+        encrypted_data = encrypted.replace(self.get_prefix(), "")
         combined = base64.b64decode(encrypted_data)
 
         # Extract nonce and ciphertext
@@ -72,12 +72,12 @@ class AESGCMAlgorithm(BaseAlgorithm):
         ciphertext = combined[12:]
 
         # Create AESGCM cipher
-        aesgcm = AESGCM(self.keys['phi'])
+        aesgcm = AESGCM(self.keys["phi"])
 
         # Decrypt and verify
         plaintext = aesgcm.decrypt(nonce, ciphertext, None)
 
-        return plaintext.decode('utf-8')
+        return plaintext.decode("utf-8")
 
     def get_prefix(self) -> str:
         """Get AES-GCM prefix."""

@@ -46,41 +46,41 @@ logger = logging.getLogger(__name__)
 # Conversation Operations (6 endpoints)
 # ============================================================================
 
+
 @router.get(
     "/conversations/{patient_id}",
     response_model=MessageV2List,
     summary="Get conversation history",
-    description="Get conversation history for a specific patient with cursor pagination"
+    description="Get conversation history for a specific patient with cursor pagination",
 )
 async def get_conversation_history(
     patient_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
-    pagination = Depends(get_pagination_params),
-    include: Optional[List[str]] = Query(None, description="Eager load relations (patient)"),
+    current_user=Depends(get_current_user_from_session),
+    pagination=Depends(get_pagination_params),
+    include: Optional[List[str]] = Query(
+        None, description="Eager load relations (patient)"
+    ),
 ):
     """Get conversation history for a patient."""
     try:
         patient_uuid = UUID(patient_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid patient ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid patient ID format"
         )
 
     # Verify patient exists and user has access
     patient = db.query(Patient).filter(Patient.id == patient_uuid).first()
     if not patient:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Patient not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"
         )
 
     role_enum, user_id = _extract_user_context(current_user)
     if role_enum != UserRole.ADMIN and str(patient.doctor_id) != user_id:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
         )
 
     cursor_data = pagination["cursor_data"]
@@ -94,10 +94,12 @@ async def get_conversation_history(
     # Cursor pagination
     if cursor_data and "id" in cursor_data:
         cursor_id = UUID(cursor_data["id"])
-        cursor_created_at = datetime.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
+        cursor_created_at = datetime.fromisoformat(
+            cursor_data["created_at"].replace("Z", "+00:00")
+        )
         query = query.filter(
-            (Message.created_at < cursor_created_at) |
-            ((Message.created_at == cursor_created_at) & (Message.id > cursor_id))
+            (Message.created_at < cursor_created_at)
+            | ((Message.created_at == cursor_created_at) & (Message.id > cursor_id))
         )
 
     total = None
@@ -132,12 +134,12 @@ async def get_conversation_history(
     "/conversations",
     response_model=ConversationV2List,
     summary="List all conversations",
-    description="Get list of all conversations with cursor pagination"
+    description="Get list of all conversations with cursor pagination",
 )
 async def list_conversations(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
-    pagination = Depends(get_pagination_params),
+    current_user=Depends(get_current_user_from_session),
+    pagination=Depends(get_pagination_params),
 ):
     """List all conversations."""
     cursor_data = pagination["cursor_data"]
@@ -181,41 +183,44 @@ async def list_conversations(
     patient_ids = [p.id for p in patients]
 
     # Batch query: Get unread counts for all patients at once
-    unread_subquery = db.query(
-        Message.patient_id,
-        func.count(Message.id).label("unread_count")
-    ).filter(
-        Message.patient_id.in_(patient_ids),
-        Message.direction == MessageDirection.INBOUND,
-        Message.read_at.is_(None)
-    ).group_by(Message.patient_id).subquery()
+    unread_subquery = (
+        db.query(Message.patient_id, func.count(Message.id).label("unread_count"))
+        .filter(
+            Message.patient_id.in_(patient_ids),
+            Message.direction == MessageDirection.INBOUND,
+            Message.read_at.is_(None),
+        )
+        .group_by(Message.patient_id)
+        .subquery()
+    )
 
     unread_map = {
-        row.patient_id: row.unread_count
-        for row in db.query(unread_subquery).all()
+        row.patient_id: row.unread_count for row in db.query(unread_subquery).all()
     }
 
     # Batch query: Get last message timestamp for all patients
-    last_msg_subquery = db.query(
-        Message.patient_id,
-        func.max(Message.created_at).label("last_message_at")
-    ).filter(
-        Message.patient_id.in_(patient_ids)
-    ).group_by(Message.patient_id).subquery()
+    last_msg_subquery = (
+        db.query(
+            Message.patient_id, func.max(Message.created_at).label("last_message_at")
+        )
+        .filter(Message.patient_id.in_(patient_ids))
+        .group_by(Message.patient_id)
+        .subquery()
+    )
 
     last_msg_map = {
-        row.patient_id: row.last_message_at
-        for row in db.query(last_msg_subquery).all()
+        row.patient_id: row.last_message_at for row in db.query(last_msg_subquery).all()
     }
 
     # Batch query: Get recent messages for all patients (using window function approach)
-    from sqlalchemy import over
-    from sqlalchemy.sql import text
 
     # Get latest 10 messages per patient using a single query with row_number
-    recent_messages = db.query(Message).filter(
-        Message.patient_id.in_(patient_ids)
-    ).order_by(Message.patient_id, Message.created_at.desc()).all()
+    recent_messages = (
+        db.query(Message)
+        .filter(Message.patient_id.in_(patient_ids))
+        .order_by(Message.patient_id, Message.created_at.desc())
+        .all()
+    )
 
     # Group messages by patient (keep only first 10 per patient)
     messages_by_patient = {}
@@ -234,18 +239,22 @@ async def list_conversations(
         last_message_at = last_msg_map.get(patient.id)
         patient_messages = messages_by_patient.get(patient.id, [])
 
-        conversations.append({
-            "patient_id": str(patient.id),
-            "patient": {
-                "id": str(patient.id),
-                "name": patient.name,
-                "phone": patient.phone,
-            },
-            "messages": [_serialize_message(msg) for msg in patient_messages],
-            "unread_count": unread_count,
-            "last_message_at": last_message_at.isoformat() if last_message_at else None,
-            "messaging_mode": "conversational",
-        })
+        conversations.append(
+            {
+                "patient_id": str(patient.id),
+                "patient": {
+                    "id": str(patient.id),
+                    "name": patient.name,
+                    "phone": patient.phone,
+                },
+                "messages": [_serialize_message(msg) for msg in patient_messages],
+                "unread_count": unread_count,
+                "last_message_at": last_message_at.isoformat()
+                if last_message_at
+                else None,
+                "messaging_mode": "conversational",
+            }
+        )
 
     return {
         "data": conversations,
@@ -259,42 +268,43 @@ async def list_conversations(
 @router.get(
     "/conversations/{patient_id}/unread",
     summary="Get unread message count",
-    description="Get count of unread messages for a patient"
+    description="Get count of unread messages for a patient",
 )
 async def get_unread_count(
     patient_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
 ):
     """Get unread message count for a patient."""
     try:
         patient_uuid = UUID(patient_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid patient ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid patient ID format"
         )
 
     # Verify patient exists and access
     patient = db.query(Patient).filter(Patient.id == patient_uuid).first()
     if not patient:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Patient not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"
         )
 
     role_enum, user_id = _extract_user_context(current_user)
     if role_enum != UserRole.ADMIN and str(patient.doctor_id) != user_id:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
         )
 
-    unread_count = db.query(func.count(Message.id)).filter(
-        Message.patient_id == patient_uuid,
-        Message.direction == MessageDirection.INBOUND,
-        Message.read_at.is_(None)
-    ).scalar()
+    unread_count = (
+        db.query(func.count(Message.id))
+        .filter(
+            Message.patient_id == patient_uuid,
+            Message.direction == MessageDirection.INBOUND,
+            Message.read_at.is_(None),
+        )
+        .scalar()
+    )
 
     return {
         "patient_id": patient_id,
@@ -305,43 +315,44 @@ async def get_unread_count(
 @router.post(
     "/conversations/{patient_id}/mark-read",
     summary="Mark conversation as read",
-    description="Mark all messages in a conversation as read"
+    description="Mark all messages in a conversation as read",
 )
 async def mark_conversation_read(
     patient_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
 ):
     """Mark all messages in a conversation as read."""
     try:
         patient_uuid = UUID(patient_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid patient ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid patient ID format"
         )
 
     # Verify patient exists and access
     patient = db.query(Patient).filter(Patient.id == patient_uuid).first()
     if not patient:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Patient not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"
         )
 
     role_enum, user_id = _extract_user_context(current_user)
     if role_enum != UserRole.ADMIN and str(patient.doctor_id) != user_id:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
         )
 
     # Mark all inbound messages as read
-    updated = db.query(Message).filter(
-        Message.patient_id == patient_uuid,
-        Message.direction == MessageDirection.INBOUND,
-        Message.read_at.is_(None)
-    ).update({"read_at": datetime.utcnow()})
+    updated = (
+        db.query(Message)
+        .filter(
+            Message.patient_id == patient_uuid,
+            Message.direction == MessageDirection.INBOUND,
+            Message.read_at.is_(None),
+        )
+        .update({"read_at": datetime.utcnow()})
+    )
 
     db.commit()
 
@@ -356,13 +367,13 @@ async def mark_conversation_read(
     "/search",
     response_model=MessageV2List,
     summary="Search messages",
-    description="Search messages by content with cursor pagination"
+    description="Search messages by content with cursor pagination",
 )
 async def search_messages(
     q: str = Query(..., min_length=1, description="Search query"),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
-    pagination = Depends(get_pagination_params),
+    current_user=Depends(get_current_user_from_session),
+    pagination=Depends(get_pagination_params),
 ):
     """Search messages by content."""
     cursor_data = pagination["cursor_data"]
@@ -383,10 +394,12 @@ async def search_messages(
     # Cursor pagination
     if cursor_data and "id" in cursor_data:
         cursor_id = UUID(cursor_data["id"])
-        cursor_created_at = datetime.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
+        cursor_created_at = datetime.fromisoformat(
+            cursor_data["created_at"].replace("Z", "+00:00")
+        )
         query = query.filter(
-            (Message.created_at < cursor_created_at) |
-            ((Message.created_at == cursor_created_at) & (Message.id > cursor_id))
+            (Message.created_at < cursor_created_at)
+            | ((Message.created_at == cursor_created_at) & (Message.id > cursor_id))
         )
 
     total = None
@@ -416,7 +429,7 @@ async def search_messages(
     "/inbound",
     response_model=InboundMessageV2Response,
     summary="Process inbound message",
-    description="Process an inbound message from webhook"
+    description="Process an inbound message from webhook",
 )
 async def process_inbound_message(
     inbound_data: InboundMessageV2Request,
@@ -425,6 +438,7 @@ async def process_inbound_message(
     """Process an inbound message (webhook endpoint)."""
     # Find patient by phone (LGPD: use phone_hash lookup)
     from app.services.encryption import get_lgpd_encryption_service
+
     lgpd_service = get_lgpd_encryption_service()
     phone_hash = lgpd_service.hash_phone(inbound_data.patient_phone)
     patient = db.query(Patient).filter(Patient.phone_hash == phone_hash).first()
@@ -432,7 +446,7 @@ async def process_inbound_message(
     if not patient:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Patient with phone {inbound_data.patient_phone} not found"
+            detail=f"Patient with phone {inbound_data.patient_phone} not found",
         )
 
     # Create inbound message
@@ -454,7 +468,7 @@ async def process_inbound_message(
         whatsapp_id=inbound_data.whatsapp_id,
         message_type=msg_type,
         received_at=inbound_data.received_at or datetime.utcnow(),
-        metadata=inbound_data.message_metadata or {}
+        metadata=inbound_data.message_metadata or {},
     )
 
     return {

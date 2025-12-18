@@ -6,17 +6,16 @@ HIPAA compliance for healthcare data.
 """
 
 import asyncio
-import logging
 import json
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional, Set
+from typing import Dict, Any, List, Optional
 from collections import defaultdict, deque
 import re
 from enum import Enum
 import hashlib
 import redis.asyncio as redis
 
-from app.utils.logging import get_logger, SensitiveDataFilter
+from app.utils.logging import get_logger
 
 
 logger = get_logger(__name__)
@@ -24,6 +23,7 @@ logger = get_logger(__name__)
 
 class LogLevel(str, Enum):
     """Log levels."""
+
     DEBUG = "DEBUG"
     INFO = "INFO"
     WARNING = "WARNING"
@@ -33,6 +33,7 @@ class LogLevel(str, Enum):
 
 class LogCategory(str, Enum):
     """Log categories for classification."""
+
     APPLICATION = "application"
     DATABASE = "database"
     SECURITY = "security"
@@ -75,13 +76,21 @@ class PHIDetector:
 
     # Patterns for PHI detection
     PATTERNS = {
-        'ssn': re.compile(r'\b\d{3}-\d{2}-\d{4}\b'),
-        'mrn': re.compile(r'\b(MRN|mrn|medical.?record.?number):?\s*([A-Z0-9]{6,})\b', re.IGNORECASE),
-        'phone': re.compile(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b'),
-        'email': re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'),
-        'cpf': re.compile(r'\b\d{3}\.\d{3}\.\d{3}-\d{2}\b'),
-        'date_of_birth': re.compile(r'\b(dob|birth.?date|date.?of.?birth):?\s*(\d{2}[/-]\d{2}[/-]\d{4})\b', re.IGNORECASE),
-        'address': re.compile(r'\b\d+\s+[A-Za-z\s]+(?:street|st|avenue|ave|road|rd|drive|dr)\b', re.IGNORECASE)
+        "ssn": re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),
+        "mrn": re.compile(
+            r"\b(MRN|mrn|medical.?record.?number):?\s*([A-Z0-9]{6,})\b", re.IGNORECASE
+        ),
+        "phone": re.compile(r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b"),
+        "email": re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"),
+        "cpf": re.compile(r"\b\d{3}\.\d{3}\.\d{3}-\d{2}\b"),
+        "date_of_birth": re.compile(
+            r"\b(dob|birth.?date|date.?of.?birth):?\s*(\d{2}[/-]\d{2}[/-]\d{4})\b",
+            re.IGNORECASE,
+        ),
+        "address": re.compile(
+            r"\b\d+\s+[A-Za-z\s]+(?:street|st|avenue|ave|road|rd|drive|dr)\b",
+            re.IGNORECASE,
+        ),
     }
 
     @classmethod
@@ -92,7 +101,9 @@ class PHIDetector:
         for phi_type, pattern in cls.PATTERNS.items():
             matches = pattern.findall(text)
             if matches:
-                findings[phi_type].extend([m if isinstance(m, str) else m[1] for m in matches])
+                findings[phi_type].extend(
+                    [m if isinstance(m, str) else m[1] for m in matches]
+                )
 
         return dict(findings)
 
@@ -102,7 +113,7 @@ class PHIDetector:
         redacted = text
 
         for phi_type, pattern in cls.PATTERNS.items():
-            redacted = pattern.sub(f'[{phi_type.upper()}_REDACTED]', redacted)
+            redacted = pattern.sub(f"[{phi_type.upper()}_REDACTED]", redacted)
 
         return redacted
 
@@ -120,7 +131,7 @@ class LogEntry:
         exception: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
         user_id: Optional[str] = None,
-        patient_id: Optional[str] = None
+        patient_id: Optional[str] = None,
     ):
         self.id = self._generate_id()
         self.message = message
@@ -153,21 +164,25 @@ class LogEntry:
 
     def to_dict(self, redact_phi: bool = True) -> Dict[str, Any]:
         """Convert log entry to dictionary."""
-        message = PHIDetector.redact_phi(self.message) if redact_phi and self.contains_phi else self.message
+        message = (
+            PHIDetector.redact_phi(self.message)
+            if redact_phi and self.contains_phi
+            else self.message
+        )
 
         return {
-            'id': self.id,
-            'timestamp': self.timestamp.isoformat(),
-            'level': self.level.value,
-            'category': self.category.value,
-            'message': message,
-            'context': self.context,
-            'exception': self.exception,
-            'request_id': self.request_id,
-            'user_id': self.user_id,
-            'patient_id': self.patient_id,
-            'contains_phi': self.contains_phi,
-            'phi_types': self.phi_types
+            "id": self.id,
+            "timestamp": self.timestamp.isoformat(),
+            "level": self.level.value,
+            "category": self.category.value,
+            "message": message,
+            "context": self.context,
+            "exception": self.exception,
+            "request_id": self.request_id,
+            "user_id": self.user_id,
+            "patient_id": self.patient_id,
+            "contains_phi": self.contains_phi,
+            "phi_types": self.phi_types,
         }
 
 
@@ -224,19 +239,21 @@ class ErrorPatternDetector:
 
         # Remove old entries outside window
         cutoff = now - timedelta(seconds=self.window_seconds)
-        while self.error_history[signature] and self.error_history[signature][0] < cutoff:
+        while (
+            self.error_history[signature] and self.error_history[signature][0] < cutoff
+        ):
             self.error_history[signature].popleft()
 
         # Check if threshold exceeded
         count = len(self.error_history[signature])
         if count >= self.threshold:
             return {
-                'pattern': signature,
-                'count': count,
-                'window_seconds': self.window_seconds,
-                'first_occurrence': self.error_history[signature][0].isoformat(),
-                'last_occurrence': now.isoformat(),
-                'severity': 'high' if count > self.threshold * 2 else 'medium'
+                "pattern": signature,
+                "count": count,
+                "window_seconds": self.window_seconds,
+                "first_occurrence": self.error_history[signature][0].isoformat(),
+                "last_occurrence": now.isoformat(),
+                "severity": "high" if count > self.threshold * 2 else "medium",
             }
 
         return None
@@ -251,15 +268,17 @@ class ErrorPatternDetector:
             # Filter recent timestamps
             recent = [ts for ts in timestamps if ts > cutoff]
             if recent:
-                patterns.append({
-                    'pattern': signature,
-                    'count': len(recent),
-                    'first_occurrence': min(recent).isoformat(),
-                    'last_occurrence': max(recent).isoformat()
-                })
+                patterns.append(
+                    {
+                        "pattern": signature,
+                        "count": len(recent),
+                        "first_occurrence": min(recent).isoformat(),
+                        "last_occurrence": max(recent).isoformat(),
+                    }
+                )
 
         # Sort by count descending
-        patterns.sort(key=lambda x: x['count'], reverse=True)
+        patterns.sort(key=lambda x: x["count"], reverse=True)
         return patterns[:limit]
 
 
@@ -269,30 +288,28 @@ class LogAggregator:
     def __init__(
         self,
         redis_client: Optional[redis.Redis] = None,
-        config: Optional[LogAggregationConfig] = None
+        config: Optional[LogAggregationConfig] = None,
     ):
         self.redis = redis_client
         self.config = config or LogAggregationConfig()
 
         # Buffers for different log categories
         self.buffers: Dict[LogCategory, LogBuffer] = {
-            category: LogBuffer(self.config.buffer_size)
-            for category in LogCategory
+            category: LogBuffer(self.config.buffer_size) for category in LogCategory
         }
 
         # Pattern detector
         self.pattern_detector = ErrorPatternDetector(
-            self.config.error_pattern_window,
-            self.config.error_threshold
+            self.config.error_pattern_window, self.config.error_threshold
         )
 
         # Statistics
         self.stats = {
-            'total_logs': 0,
-            'logs_by_level': defaultdict(int),
-            'logs_by_category': defaultdict(int),
-            'phi_detected': 0,
-            'patterns_detected': 0
+            "total_logs": 0,
+            "logs_by_level": defaultdict(int),
+            "logs_by_category": defaultdict(int),
+            "phi_detected": 0,
+            "patterns_detected": 0,
         }
 
         # Background tasks
@@ -332,39 +349,40 @@ class LogAggregator:
         exception: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
         user_id: Optional[str] = None,
-        patient_id: Optional[str] = None
+        patient_id: Optional[str] = None,
     ):
         """Collect a log entry."""
         # Apply sampling for debug logs
         if level == LogLevel.DEBUG and self.config.enable_sampling:
             import random
+
             if random.random() > self.config.sample_rate:
                 return
 
         # Create log entry
         entry = LogEntry(
-            message=message[:self.config.max_message_size],
+            message=message[: self.config.max_message_size],
             level=level,
             category=category,
             context=context,
             exception=exception,
             request_id=request_id,
             user_id=user_id,
-            patient_id=patient_id
+            patient_id=patient_id,
         )
 
         # Update stats
-        self.stats['total_logs'] += 1
-        self.stats['logs_by_level'][level.value] += 1
-        self.stats['logs_by_category'][category.value] += 1
+        self.stats["total_logs"] += 1
+        self.stats["logs_by_level"][level.value] += 1
+        self.stats["logs_by_category"][category.value] += 1
 
         if entry.contains_phi:
-            self.stats['phi_detected'] += 1
+            self.stats["phi_detected"] += 1
 
         # Detect error patterns
         pattern = self.pattern_detector.detect_pattern(entry)
         if pattern:
-            self.stats['patterns_detected'] += 1
+            self.stats["patterns_detected"] += 1
             await self._alert_pattern(pattern, entry)
 
         # Add to appropriate buffer
@@ -406,10 +424,10 @@ class LogAggregator:
         logger.info(
             f"Flushed {len(entries)} {category.value} logs",
             extra={
-                'event_type': 'log_flush',
-                'category': category.value,
-                'count': len(entries)
-            }
+                "event_type": "log_flush",
+                "category": category.value,
+                "count": len(entries),
+            },
         )
 
     async def _ship_to_redis(self, category: LogCategory, entries: List[LogEntry]):
@@ -429,9 +447,7 @@ class LogAggregator:
                 # Store in search index (for Elasticsearch later)
                 search_key = f"logs:search:{entry.id}"
                 pipeline.setex(
-                    search_key,
-                    retention_days * 86400,
-                    json.dumps(entry.to_dict())
+                    search_key, retention_days * 86400, json.dumps(entry.to_dict())
                 )
 
             await pipeline.execute()
@@ -456,23 +472,20 @@ class LogAggregator:
         try:
             alert_key = f"alerts:log_pattern:{pattern['pattern'][:50]}"
             alert_data = {
-                'type': 'error_pattern',
-                'pattern': pattern,
-                'sample_entry': entry.to_dict(),
-                'timestamp': datetime.utcnow().isoformat()
+                "type": "error_pattern",
+                "pattern": pattern,
+                "sample_entry": entry.to_dict(),
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
             await self.redis.setex(
                 alert_key,
                 3600,  # 1 hour
-                json.dumps(alert_data)
+                json.dumps(alert_data),
             )
 
             # Publish to alert channel
-            await self.redis.publish(
-                'alerts:log_patterns',
-                json.dumps(alert_data)
-            )
+            await self.redis.publish("alerts:log_patterns", json.dumps(alert_data))
 
         except Exception as e:
             logger.error(f"Failed to publish pattern alert: {e}")
@@ -484,7 +497,7 @@ class LogAggregator:
         level: Optional[LogLevel] = None,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """Search logs with filters."""
         if not self.redis:
@@ -508,15 +521,15 @@ class LogAggregator:
                     log_data = json.loads(log_json)
 
                     # Apply filters
-                    log_time = datetime.fromisoformat(log_data['timestamp'])
+                    log_time = datetime.fromisoformat(log_data["timestamp"])
 
                     if start_time and log_time < start_time:
                         continue
                     if end_time and log_time > end_time:
                         continue
-                    if level and log_data['level'] != level.value:
+                    if level and log_data["level"] != level.value:
                         continue
-                    if query and query.lower() not in log_data['message'].lower():
+                    if query and query.lower() not in log_data["message"].lower():
                         continue
 
                     results.append(log_data)
@@ -528,7 +541,7 @@ class LogAggregator:
                     break
 
             # Sort by timestamp descending
-            results.sort(key=lambda x: x['timestamp'], reverse=True)
+            results.sort(key=lambda x: x["timestamp"], reverse=True)
             return results[:limit]
 
         except Exception as e:
@@ -538,29 +551,29 @@ class LogAggregator:
     def get_stats(self) -> Dict[str, Any]:
         """Get aggregation statistics."""
         return {
-            'total_logs': self.stats['total_logs'],
-            'logs_by_level': dict(self.stats['logs_by_level']),
-            'logs_by_category': dict(self.stats['logs_by_category']),
-            'phi_detected': self.stats['phi_detected'],
-            'patterns_detected': self.stats['patterns_detected'],
-            'top_error_patterns': self.pattern_detector.get_top_patterns()
+            "total_logs": self.stats["total_logs"],
+            "logs_by_level": dict(self.stats["logs_by_level"]),
+            "logs_by_category": dict(self.stats["logs_by_category"]),
+            "phi_detected": self.stats["phi_detected"],
+            "patterns_detected": self.stats["patterns_detected"],
+            "top_error_patterns": self.pattern_detector.get_top_patterns(),
         }
 
     def get_health_status(self) -> Dict[str, Any]:
         """Get health status of log aggregation system."""
         return {
-            'running': self._running,
-            'redis_connected': self.redis is not None,
-            'buffer_sizes': {
+            "running": self._running,
+            "redis_connected": self.redis is not None,
+            "buffer_sizes": {
                 category.value: asyncio.create_task(buffer.size())
                 for category, buffer in self.buffers.items()
             },
-            'config': {
-                'enabled': self.config.enabled,
-                'retention_days': self.config.retention_days,
-                'phi_detection': self.config.enable_phi_detection,
-                'audit_trail': self.config.enable_audit_trail
-            }
+            "config": {
+                "enabled": self.config.enabled,
+                "retention_days": self.config.retention_days,
+                "phi_detection": self.config.enable_phi_detection,
+                "audit_trail": self.config.enable_audit_trail,
+            },
         }
 
 

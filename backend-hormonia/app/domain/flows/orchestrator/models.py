@@ -14,6 +14,7 @@ from .enums import FlowOperationType
 @dataclass
 class FlowExecutionContext:
     """Context for flow execution operations."""
+
     patient_id: UUID
     flow_type: str
     operation: FlowOperationType
@@ -27,6 +28,7 @@ class FlowExecutionContext:
 @dataclass
 class FlowExecutionResult:
     """Result of flow execution operation."""
+
     success: bool
     patient_id: UUID
     operation: FlowOperationType

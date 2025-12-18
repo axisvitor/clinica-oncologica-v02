@@ -8,7 +8,7 @@ File: app/domain/patient/onboarding/creation_service.py
 LOC: ~150
 Responsibility: Database patient creation
 """
-from datetime import datetime
+
 from typing import Optional, TYPE_CHECKING
 from uuid import UUID
 import logging
@@ -117,6 +117,7 @@ class CreationService:
 
             # Create patient via repository
             from app.repositories.patient import PatientRepository
+
             repository = PatientRepository(self.db)
 
             logger.info(
@@ -125,26 +126,21 @@ class CreationService:
                     "has_cpf": bool(patient_data.cpf),
                     "has_email": bool(patient_data.email),
                     "has_phone": bool(patient_data.phone),
-                    "doctor_id": str(doctor_id)
-                }
+                    "doctor_id": str(doctor_id),
+                },
             )
 
             # Use FastAPI's global thread pool (prevents thread leak)
             try:
                 patient = await run_in_threadpool(repository.create, patient_dict)
             except Exception as e:
-                logger.error(
-                    f"Failed to create patient: {e}",
-                    exc_info=True
-                )
+                logger.error(f"Failed to create patient: {e}", exc_info=True)
                 raise
 
             # Invalidate caches
             await self._invalidate_cache(doctor_id)
 
-            logger.info(
-                f"Patient created successfully (direct): {patient.id}"
-            )
+            logger.info(f"Patient created successfully (direct): {patient.id}")
 
         except ValidationError as e:
             logger.error(f"Patient validation failed: {e}")
@@ -163,9 +159,7 @@ class CreationService:
         # Publish WebSocket event
         try:
             await self.notification_service.publish_patient_created_event(
-                patient=patient,
-                doctor_id=doctor_id,
-                action="created"
+                patient=patient, doctor_id=doctor_id, action="created"
             )
         except Exception as e:
             logger.warning(f"Failed to publish WebSocket event: {e}")
@@ -174,9 +168,7 @@ class CreationService:
         try:
             await self.notification_service.send_welcome_message(patient, current_user)
         except Exception as e:
-            logger.error(
-                f"Failed to send welcome message to patient {patient.id}: {e}"
-            )
+            logger.error(f"Failed to send welcome message to patient {patient.id}: {e}")
             # Don't fail patient creation if WhatsApp fails
 
         # Initialize flow (if flow_service available)
@@ -187,9 +179,7 @@ class CreationService:
                     patient, current_user_id
                 )
             except Exception as e:
-                logger.error(
-                    f"Failed to initialize flow for patient {patient.id}: {e}"
-                )
+                logger.error(f"Failed to initialize flow for patient {patient.id}: {e}")
                 # Don't fail patient creation if flow initialization fails
 
         return patient
@@ -206,4 +196,3 @@ class CreationService:
             f"patient_list:*:{doctor_id}*", namespace="cache"
         )
         logger.debug(f"Invalidated patient list cache for doctor: {doctor_id}")
-

@@ -1,4 +1,3 @@
-from typing import Any
 """
 Backward compatibility shim for flow error handling.
 

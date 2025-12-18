@@ -17,10 +17,12 @@ from app.services.quiz import QuizService
 from app.services.reporting import ReportService
 from app.domain.analytics.analytics_service import AnalyticsService
 from app.domain.messaging.core import MessageService
-from app.services.flow import FlowManager, get_flow_config
-from app.services.flow import FlowEngine  # Use the consolidated engine
+from app.services.flow import FlowManager
 from app.services.enhanced_flow_engine import EnhancedFlowEngine
-from app.services.notification_service import NotificationService, get_notification_service
+from app.services.notification_service import (
+    NotificationService,
+    get_notification_service,
+)
 from app.services.file import FileService
 from app.domain.quizzes import MonthlyQuizService
 from app.services.analytics.metrics_collector import MetricsCollectorService
@@ -81,7 +83,9 @@ class ServiceProvider:
         self._metrics_redis_storage = None
         self._simple_session_service = None
 
-        logger.debug(f"ServiceProvider initialized for request {self._request_id} with {self._redis_client_type} Redis client")
+        logger.debug(
+            f"ServiceProvider initialized for request {self._request_id} with {self._redis_client_type} Redis client"
+        )
 
     def __del__(self):
         """Cleanup logging when ServiceProvider is destroyed."""
@@ -96,15 +100,17 @@ class ServiceProvider:
             return "none"
 
         # Check for async Redis client
-        if hasattr(redis_client, '__aenter__') or 'asyncio' in str(type(redis_client)):
+        if hasattr(redis_client, "__aenter__") or "asyncio" in str(type(redis_client)):
             return "async"
 
         # Check for compatibility wrapper
-        if hasattr(redis_client, 'redis_manager') or hasattr(redis_client, '_run_async'):
+        if hasattr(redis_client, "redis_manager") or hasattr(
+            redis_client, "_run_async"
+        ):
             return "wrapper"
 
         # Check for sync Redis client
-        if hasattr(redis_client, 'ping') and not hasattr(redis_client, '__aenter__'):
+        if hasattr(redis_client, "ping") and not hasattr(redis_client, "__aenter__"):
             return "sync"
 
         return "unknown"
@@ -124,17 +130,19 @@ class ServiceProvider:
             return None
 
         # Services that need async Redis
-        async_services = {'metrics_redis_storage', 'websocket_events'}
+        async_services = {"metrics_redis_storage", "websocket_events"}
 
         # Services that need sync Redis
-        sync_services = {'auth_service', 'cache_service'}
+        sync_services = {"auth_service", "cache_service"}
 
         if service_name in async_services:
             # Return async client or wrapper
             if self._redis_client_type in ["async", "wrapper"]:
                 return self.redis_client
             else:
-                logger.warning(f"Service {service_name} needs async Redis but got {self._redis_client_type}")
+                logger.warning(
+                    f"Service {service_name} needs async Redis but got {self._redis_client_type}"
+                )
                 return self.redis_client
 
         elif service_name in sync_services:
@@ -162,9 +170,9 @@ class ServiceProvider:
 
             # Try to get more information about the session state
             try:
-                if hasattr(self.db, '_transaction'):
+                if hasattr(self.db, "_transaction"):
                     logger.error(f"Session transaction state: {self.db._transaction}")
-                if hasattr(self.db, 'connection'):
+                if hasattr(self.db, "connection"):
                     logger.error(f"Session connection state: {self.db.connection()}")
             except Exception as info_error:
                 logger.error(f"Could not get session state info: {info_error}")
@@ -201,7 +209,7 @@ class ServiceProvider:
             self._auth_service = AuthService(
                 db=self.db,
                 user_repository=self.user_repository,
-                redis_client=self.redis_client
+                redis_client=self.redis_client,
             )
         return self._auth_service
 
@@ -217,8 +225,7 @@ class ServiceProvider:
         if self._patient_integrity_service is None:
             # PatientIntegrityService needs: db, PatientRepository
             self._patient_integrity_service = PatientIntegrityService(
-                db=self.db,
-                patient_repository=self.patient_repository
+                db=self.db, patient_repository=self.patient_repository
             )
         return self._patient_integrity_service
 
@@ -230,7 +237,7 @@ class ServiceProvider:
                 db=self.db,
                 patient_repository=self.patient_repository,
                 integrity_service=self.patient_integrity_service,
-                flow_engine=self.flow_engine
+                flow_engine=self.flow_engine,
             )
         return self._patient_service
 
@@ -244,7 +251,7 @@ class ServiceProvider:
                 self._quiz_service = QuizService(
                     db=self.db,
                     quiz_repository=self.quiz_repository,
-                    flow_engine=self.flow_engine
+                    flow_engine=self.flow_engine,
                 )
             except TypeError:
                 # Fallback to just db if that's all it needs
@@ -297,15 +304,19 @@ class ServiceProvider:
     @property
     def metrics_collector_service(self) -> MetricsCollectorService:
         if self._metrics_collector_service is None:
-            redis_client = self.get_redis_client_for_service('metrics_collector_service')
-            self._metrics_collector_service = MetricsCollectorService(self.db, redis_client)
+            redis_client = self.get_redis_client_for_service(
+                "metrics_collector_service"
+            )
+            self._metrics_collector_service = MetricsCollectorService(
+                self.db, redis_client
+            )
         return self._metrics_collector_service
 
     @property
     def metrics_redis_storage(self) -> MetricsRedisStorage:
         if self._metrics_redis_storage is None:
             # MetricsRedisStorage needs async Redis client
-            redis_client = self.get_redis_client_for_service('metrics_redis_storage')
+            redis_client = self.get_redis_client_for_service("metrics_redis_storage")
             self._metrics_redis_storage = MetricsRedisStorage(redis_client)
         return self._metrics_redis_storage
 
@@ -316,18 +327,19 @@ class ServiceProvider:
             # CRITICAL: SimpleSessionService requires SYNC Redis client
             # The default self.redis_client is async, so we need to get sync client
             from app.core.redis_manager import get_redis_manager
-            
+
             sync_redis_client = None
             if self.redis_client is not None:
                 try:
                     redis_manager = get_redis_manager()
-                    sync_redis_client = redis_manager.get_compatible_client('sync')
-                    logger.debug(f"Obtained sync Redis client for SimpleSessionService (request {self._request_id})")
+                    sync_redis_client = redis_manager.get_compatible_client("sync")
+                    logger.debug(
+                        f"Obtained sync Redis client for SimpleSessionService (request {self._request_id})"
+                    )
                 except Exception as e:
-                    logger.warning(f"Failed to get sync Redis client: {e}, proceeding without Redis")
-            
+                    logger.warning(
+                        f"Failed to get sync Redis client: {e}, proceeding without Redis"
+                    )
+
             self._simple_session_service = SimpleSessionService(sync_redis_client)
         return self._simple_session_service
-
-
-

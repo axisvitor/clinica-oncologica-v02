@@ -8,7 +8,7 @@ import React, { Suspense } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell
-} from '@/components/charts/LazyRechartsComponents';
+} from '@/components/ui/charts/LazyRechartsComponents';
 import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import { ChartSkeleton } from '@/components/ui/chart-skeleton';
 

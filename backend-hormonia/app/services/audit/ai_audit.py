@@ -28,7 +28,7 @@ class AIAuditMixin:
         response_time_ms: float,
         cache_hit: bool = False,
         ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
+        user_agent: Optional[str] = None,
     ) -> AuditLog:
         """Log AI chat request with HIPAA compliance."""
         # Hash message for privacy (don't store full patient data)
@@ -51,12 +51,12 @@ class AIAuditMixin:
                 "response_length": len(response),
                 "response_time_ms": response_time_ms,
                 "cache_hit": cache_hit,
-                "has_patient_context": patient_id is not None
+                "has_patient_context": patient_id is not None,
             },
             result="success",
             data_subject_id=patient_id,
             legal_basis="legitimate_interest",
-            retention_days=90  # HIPAA: 90 days for access logs
+            retention_days=90,  # HIPAA: 90 days for access logs
         )
 
     def log_ai_chat_error(
@@ -67,7 +67,7 @@ class AIAuditMixin:
         error_type: str,
         error_message: str,
         ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
+        user_agent: Optional[str] = None,
     ) -> AuditLog:
         """Log AI chat error."""
         return self.log_event(  # type: ignore[attr-defined]
@@ -81,12 +81,12 @@ class AIAuditMixin:
             event_data={
                 "user_role": user_role,
                 "error_type": error_type,
-                "error_message": error_message[:200]  # Truncate for privacy
+                "error_message": error_message[:200],  # Truncate for privacy
             },
             result="failure",
             data_subject_id=patient_id,
             legal_basis="legitimate_interest",
-            retention_days=90
+            retention_days=90,
         )
 
     def log_ai_insights_generation(
@@ -100,7 +100,7 @@ class AIAuditMixin:
         response_time_ms: float,
         cache_hit: bool = False,
         ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
+        user_agent: Optional[str] = None,
     ) -> AuditLog:
         """Log AI insights generation."""
         return self.log_event(  # type: ignore[attr-defined]
@@ -117,12 +117,12 @@ class AIAuditMixin:
                 "insights_count": insights_count,
                 "risk_level": risk_level,
                 "response_time_ms": response_time_ms,
-                "cache_hit": cache_hit
+                "cache_hit": cache_hit,
             },
             result="success",
             data_subject_id=patient_id,
             legal_basis="legitimate_interest",
-            retention_days=90
+            retention_days=90,
         )
 
     def log_ai_recommendations_generation(
@@ -136,7 +136,7 @@ class AIAuditMixin:
         response_time_ms: float,
         cache_hit: bool = False,
         ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
+        user_agent: Optional[str] = None,
     ) -> AuditLog:
         """Log AI recommendations generation."""
         return self.log_event(  # type: ignore[attr-defined]
@@ -153,12 +153,12 @@ class AIAuditMixin:
                 "action_items_count": action_items_count,
                 "confidence_level": confidence_level,
                 "response_time_ms": response_time_ms,
-                "cache_hit": cache_hit
+                "cache_hit": cache_hit,
             },
             result="success",
             data_subject_id=patient_id,
             legal_basis="legitimate_interest",
-            retention_days=90
+            retention_days=90,
         )
 
     def log_ai_analysis_request(
@@ -172,7 +172,7 @@ class AIAuditMixin:
         include_medical_history: bool,
         response_time_ms: float,
         ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
+        user_agent: Optional[str] = None,
     ) -> AuditLog:
         """Log AI analysis request."""
         return self.log_event(  # type: ignore[attr-defined]
@@ -189,12 +189,12 @@ class AIAuditMixin:
                 "date_range_days": date_range_days,
                 "include_messages": include_messages,
                 "include_medical_history": include_medical_history,
-                "response_time_ms": response_time_ms
+                "response_time_ms": response_time_ms,
             },
             result="success",
             data_subject_id=patient_id,
             legal_basis="legitimate_interest",
-            retention_days=90
+            retention_days=90,
         )
 
     def log_ai_sentiment_analysis(
@@ -208,7 +208,7 @@ class AIAuditMixin:
         confidence: float,
         response_time_ms: float,
         ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
+        user_agent: Optional[str] = None,
     ) -> AuditLog:
         """Log AI sentiment analysis."""
         message_hash = hashlib.sha256(message.encode()).hexdigest()[:16]
@@ -228,12 +228,12 @@ class AIAuditMixin:
                 "sentiment": sentiment,
                 "concern_level": concern_level,
                 "confidence": confidence,
-                "response_time_ms": response_time_ms
+                "response_time_ms": response_time_ms,
             },
             result="success",
             data_subject_id=patient_id,
             legal_basis="legitimate_interest",
-            retention_days=90
+            retention_days=90,
         )
 
     def log_ai_response_generation(
@@ -247,7 +247,7 @@ class AIAuditMixin:
         readability_score: float,
         response_time_ms: float,
         ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
+        user_agent: Optional[str] = None,
     ) -> AuditLog:
         """Log AI response generation."""
         return self.log_event(  # type: ignore[attr-defined]
@@ -264,12 +264,12 @@ class AIAuditMixin:
                 "template_length": template_length,
                 "generated_length": generated_length,
                 "readability_score": readability_score,
-                "response_time_ms": response_time_ms
+                "response_time_ms": response_time_ms,
             },
             result="success",
             data_subject_id=patient_id,
             legal_basis="legitimate_interest",
-            retention_days=90
+            retention_days=90,
         )
 
     def log_ai_cache_hit(
@@ -277,7 +277,7 @@ class AIAuditMixin:
         cache_key: str,
         endpoint: str,
         response_time_ms: float,
-        user_id: Optional[UUID] = None
+        user_id: Optional[UUID] = None,
     ) -> AuditLog:
         """Log AI cache hit for performance tracking."""
         # Hash cache key to avoid exposing sensitive data
@@ -291,10 +291,10 @@ class AIAuditMixin:
             event_data={
                 "cache_key_hash": key_hash,
                 "endpoint": endpoint,
-                "response_time_ms": response_time_ms
+                "response_time_ms": response_time_ms,
             },
             result="success",
-            retention_days=30  # Shorter retention for performance logs
+            retention_days=30,  # Shorter retention for performance logs
         )
 
     def log_ai_cache_miss(
@@ -302,7 +302,7 @@ class AIAuditMixin:
         cache_key: str,
         endpoint: str,
         response_time_ms: float,
-        user_id: Optional[UUID] = None
+        user_id: Optional[UUID] = None,
     ) -> AuditLog:
         """Log AI cache miss for performance tracking."""
         key_hash = hashlib.sha256(cache_key.encode()).hexdigest()[:16]
@@ -315,10 +315,10 @@ class AIAuditMixin:
             event_data={
                 "cache_key_hash": key_hash,
                 "endpoint": endpoint,
-                "response_time_ms": response_time_ms
+                "response_time_ms": response_time_ms,
             },
             result="success",
-            retention_days=30
+            retention_days=30,
         )
 
     def log_ai_cache_invalidation(
@@ -326,7 +326,7 @@ class AIAuditMixin:
         user_id: UUID,
         patient_id: UUID,
         invalidated_count: int,
-        ip_address: Optional[str] = None
+        ip_address: Optional[str] = None,
     ) -> AuditLog:
         """Log AI cache invalidation."""
         return self.log_event(  # type: ignore[attr-defined]
@@ -336,11 +336,9 @@ class AIAuditMixin:
             actor_id=user_id,
             subject_id=patient_id,
             ip_address=ip_address,
-            event_data={
-                "invalidated_count": invalidated_count
-            },
+            event_data={"invalidated_count": invalidated_count},
             result="success",
             data_subject_id=patient_id,
             legal_basis="legitimate_interest",
-            retention_days=90
+            retention_days=90,
         )

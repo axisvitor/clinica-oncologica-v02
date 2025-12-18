@@ -34,14 +34,12 @@ __all__ = [
     # Main conductor
     "QuizConductor",
     "QuizConductorAgent",  # Backward compatibility alias
-
     # Specialized modules
     "SessionCoordinator",
     "QuestionPresenter",
     "ResponseHandler",
     "ProgressTracker",
     "NotificationManager",
-
     # Context and types
     "QuizContext",
     "QuizAdaptationType",

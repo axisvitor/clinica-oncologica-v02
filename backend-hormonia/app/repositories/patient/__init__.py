@@ -14,6 +14,7 @@ Architecture:
 - encryption_helpers.py: Hash lookups (~80 lines)
 - audit.py: Hard delete + audit (~100 lines)
 """
+
 from .base import PatientRepositoryBase
 from .search import PatientSearchMixin
 from .pagination import PatientPaginationMixin
@@ -26,7 +27,7 @@ class PatientRepository(
     PatientSearchMixin,
     PatientPaginationMixin,
     PatientEagerLoadingMixin,
-    PatientAuditMixin
+    PatientAuditMixin,
 ):
     """
     Patient repository with soft delete filtering and advanced query capabilities.
@@ -42,10 +43,11 @@ class PatientRepository(
     - Audit trail for hard deletes
     - Right to be forgotten support
     """
+
     pass
 
 
 # Export for backward compatibility
-__all__ = ['PatientRepository']
+__all__ = ["PatientRepository"]
 
 # See docs/database/PERFORMANCE_INDEXES.md for SQL index recommendations

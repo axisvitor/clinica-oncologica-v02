@@ -17,32 +17,28 @@ from contextlib import contextmanager, asynccontextmanager
 from contextvars import ContextVar
 from typing import Optional, Generator, AsyncGenerator
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError
 import redis.asyncio as redis
 
 from app.database import SessionLocal
+
 # Import ServiceProvider from services module (will be added to __init__.py)
 from app.services import ServiceProvider
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 # Context variable for request-scoped database session
 _request_session: ContextVar[Optional[Session]] = ContextVar(
-    'request_session',
-    default=None
+    "request_session", default=None
 )
 
 # Context variable for request-scoped Redis client
 _request_redis: ContextVar[Optional[redis.Redis]] = ContextVar(
-    'request_redis',
-    default=None
+    "request_redis", default=None
 )
 
 # Context variable for request-scoped ServiceProvider
 _request_service_provider: ContextVar[Optional[ServiceProvider]] = ContextVar(
-    'request_service_provider',
-    default=None
+    "request_service_provider", default=None
 )
 
 
@@ -84,11 +80,15 @@ class SessionManager:
         # Check if we already have a session in this context
         existing_session = _request_session.get()
         if existing_session and existing_session.is_active:
-            logger.debug(f"Reusing existing active session: {hex(id(existing_session))}")
+            logger.debug(
+                f"Reusing existing active session: {hex(id(existing_session))}"
+            )
             yield existing_session
             return
         elif existing_session and not existing_session.is_active:
-            logger.warning(f"Found inactive session in context: {hex(id(existing_session))}, creating new one")
+            logger.warning(
+                f"Found inactive session in context: {hex(id(existing_session))}, creating new one"
+            )
             # Clear the inactive session from context
             _request_session.set(None)
 
@@ -97,19 +97,23 @@ class SessionManager:
             session = SessionLocal()
         except Exception as db_error:
             logger.error(f"Failed to create database session: {db_error}")
-            raise RuntimeError(f"Database session creation failed: {db_error}") from db_error
+            raise RuntimeError(
+                f"Database session creation failed: {db_error}"
+            ) from db_error
 
         session_token = _request_session.set(session)
         self._session_count += 1
 
         session_id = f"session_{self._session_count}"
         session_info = {
-            'session_id': session_id,
-            'session_hash': hex(id(session)),
-            'context_var_id': hex(id(session_token)),
-            'redis_available': self.redis_client is not None
+            "session_id": session_id,
+            "session_hash": hex(id(session)),
+            "context_var_id": hex(id(session_token)),
+            "redis_available": self.redis_client is not None,
         }
-        logger.info(f"Created database session: {session_id} (hash: {session_info['session_hash']})")
+        logger.info(
+            f"Created database session: {session_id} (hash: {session_info['session_hash']})"
+        )
         logger.debug(f"Session details: {session_info}")
 
         try:
@@ -120,8 +124,10 @@ class SessionManager:
                 new_count = len(session.new)
                 deleted_count = len(session.deleted)
                 session.commit()
-                logger.info(f"Committed transaction for session: {session_id} "
-                           f"(dirty: {dirty_count}, new: {new_count}, deleted: {deleted_count})")
+                logger.info(
+                    f"Committed transaction for session: {session_id} "
+                    f"(dirty: {dirty_count}, new: {new_count}, deleted: {deleted_count})"
+                )
             else:
                 logger.debug(f"No changes to commit for session: {session_id}")
 
@@ -131,13 +137,17 @@ class SessionManager:
                 session.rollback()
                 logger.debug(f"Rolled back transaction for session: {session_id}")
             except Exception as rollback_error:
-                logger.error(f"Rollback failed for session {session_id}: {rollback_error}")
+                logger.error(
+                    f"Rollback failed for session {session_id}: {rollback_error}"
+                )
             raise
 
         finally:
             try:
                 session.close()
-                logger.info(f"Closed database session: {session_id} (hash: {session_info['session_hash']})")
+                logger.info(
+                    f"Closed database session: {session_id} (hash: {session_info['session_hash']})"
+                )
             except Exception as close_error:
                 logger.error(f"Error closing session {session_id}: {close_error}")
             finally:
@@ -146,14 +156,22 @@ class SessionManager:
                     current_session = _request_session.get()
                     if current_session and current_session == session:
                         _request_session.reset(session_token)
-                        logger.debug(f"Reset context variable for session: {session_id}")
+                        logger.debug(
+                            f"Reset context variable for session: {session_id}"
+                        )
                     else:
-                        logger.debug(f"Skipped context reset - session mismatch for session: {session_id}")
+                        logger.debug(
+                            f"Skipped context reset - session mismatch for session: {session_id}"
+                        )
                 except LookupError:
                     # Context variable already reset or not set
-                    logger.debug(f"Context variable already reset for session: {session_id}")
+                    logger.debug(
+                        f"Context variable already reset for session: {session_id}"
+                    )
                 except Exception as context_error:
-                    logger.warning(f"Error resetting context variable for session {session_id}: {context_error}")
+                    logger.warning(
+                        f"Error resetting context variable for session {session_id}: {context_error}"
+                    )
 
     def get_service_provider(self, session: Session) -> ServiceProvider:
         """
@@ -171,7 +189,9 @@ class SessionManager:
         # Check if we already have a service provider in this context
         existing_provider = _request_service_provider.get()
         if existing_provider and existing_provider.db is session:
-            logger.debug(f"Reusing existing ServiceProvider (hash: {hex(id(existing_provider))})")
+            logger.debug(
+                f"Reusing existing ServiceProvider (hash: {hex(id(existing_provider))})"
+            )
             return existing_provider
 
         # Create new service provider for this request
@@ -179,11 +199,13 @@ class SessionManager:
         _request_service_provider.set(provider)
 
         provider_info = {
-            'provider_hash': hex(id(provider)),
-            'session_hash': hex(id(session)),
-            'redis_available': self.redis_client is not None
+            "provider_hash": hex(id(provider)),
+            "session_hash": hex(id(session)),
+            "redis_available": self.redis_client is not None,
         }
-        logger.info(f"Created new ServiceProvider for request context: {provider_info['provider_hash']}")
+        logger.info(
+            f"Created new ServiceProvider for request context: {provider_info['provider_hash']}"
+        )
         logger.debug(f"ServiceProvider details: {provider_info}")
         return provider
 
@@ -252,6 +274,7 @@ class RequestScopeFactory:
         Returns:
             Callable: FastAPI dependency function
         """
+
         def get_db_session() -> Generator[Session, None, None]:
             """FastAPI dependency for getting database session."""
             with self.session_manager.get_session() as session:
@@ -266,6 +289,7 @@ class RequestScopeFactory:
         Returns:
             Callable: FastAPI dependency function
         """
+
         def get_service_provider_instance() -> Generator[ServiceProvider, None, None]:
             """FastAPI dependency for getting ServiceProvider."""
             with self.session_manager.get_session() as session:
@@ -280,7 +304,9 @@ _global_session_manager: Optional[SessionManager] = None
 _global_request_factory: Optional[RequestScopeFactory] = None
 
 
-def initialize_session_manager(redis_client: Optional[redis.Redis] = None) -> SessionManager:
+def initialize_session_manager(
+    redis_client: Optional[redis.Redis] = None,
+) -> SessionManager:
     """
     Initialize the global session manager.
 
@@ -312,8 +338,12 @@ def get_session_manager() -> SessionManager:
         RuntimeError: If session manager has not been initialized
     """
     if _global_session_manager is None:
-        logger.error("Session manager not initialized - this will cause service provider failures")
-        logger.error("Ensure initialize_session_manager() is called during application startup")
+        logger.error(
+            "Session manager not initialized - this will cause service provider failures"
+        )
+        logger.error(
+            "Ensure initialize_session_manager() is called during application startup"
+        )
         raise RuntimeError(
             "Session manager not initialized. Call initialize_session_manager() first. "
             "This usually indicates the application lifespan management is not working correctly."
@@ -332,13 +362,21 @@ def get_request_factory() -> RequestScopeFactory:
         RuntimeError: If request factory has not been initialized
     """
     if _global_request_factory is None:
-        logger.error("Request factory not initialized - this will cause dependency injection failures")
-        logger.error("Ensure initialize_session_manager() is called during application startup")
+        logger.error(
+            "Request factory not initialized - this will cause dependency injection failures"
+        )
+        logger.error(
+            "Ensure initialize_session_manager() is called during application startup"
+        )
         # Try to provide more context about what might have gone wrong
         if _global_session_manager is None:
-            logger.error("Both session manager and request factory are None - startup may have failed")
+            logger.error(
+                "Both session manager and request factory are None - startup may have failed"
+            )
         else:
-            logger.error("Session manager exists but request factory is None - partial initialization")
+            logger.error(
+                "Session manager exists but request factory is None - partial initialization"
+            )
 
         raise RuntimeError(
             "Request factory not initialized. Call initialize_session_manager() first. "

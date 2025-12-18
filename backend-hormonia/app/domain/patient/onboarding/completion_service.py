@@ -13,6 +13,7 @@ ISSUE-005 Phase 4:
 - Follows Single Responsibility Principle (SRP)
 - 100% dependency injection for testability
 """
+
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, TYPE_CHECKING
@@ -72,7 +73,7 @@ class CompletionService:
         self,
         existing_patient: Patient,
         patient_data: PatientCreate,
-        current_user: Optional["User"] = None
+        current_user: Optional["User"] = None,
     ) -> Patient:
         """
         Complete onboarding for a partially created patient.
@@ -104,13 +105,15 @@ class CompletionService:
                 f"Completing partial onboarding for patient: {existing_patient.id}",
                 extra={
                     "patient_id": str(existing_patient.id),
-                    "current_flow_state": existing_patient.flow_state.value if hasattr(existing_patient.flow_state, 'value') else str(existing_patient.flow_state),
-                    "doctor_id": str(existing_patient.doctor_id)
-                }
+                    "current_flow_state": existing_patient.flow_state.value
+                    if hasattr(existing_patient.flow_state, "value")
+                    else str(existing_patient.flow_state),
+                    "doctor_id": str(existing_patient.doctor_id),
+                },
             )
 
             # 1. Update patient data with any new information (preserve existing)
-            updated = await self._update_patient_data(existing_patient, patient_data)
+            await self._update_patient_data(existing_patient, patient_data)
 
             # 2. Invalidate caches
             await self._invalidate_cache(existing_patient.doctor_id)
@@ -120,7 +123,7 @@ class CompletionService:
                 await self.notification_service.publish_patient_created_event(
                     patient=existing_patient,
                     doctor_id=existing_patient.doctor_id,
-                    action="onboarding_completed"
+                    action="onboarding_completed",
                 )
             except Exception as e:
                 logger.warning(f"Failed to publish WebSocket event: {e}")
@@ -131,9 +134,13 @@ class CompletionService:
                     existing_patient, current_user
                 )
                 if success:
-                    logger.info(f"Welcome message sent to existing patient: {existing_patient.id}")
+                    logger.info(
+                        f"Welcome message sent to existing patient: {existing_patient.id}"
+                    )
                 else:
-                    logger.info(f"Welcome message already sent to patient: {existing_patient.id}")
+                    logger.info(
+                        f"Welcome message already sent to patient: {existing_patient.id}"
+                    )
             except Exception as e:
                 logger.error(
                     f"Failed to send welcome message to patient {existing_patient.id}: {e}"
@@ -147,8 +154,10 @@ class CompletionService:
                 f"Successfully completed partial onboarding for patient: {existing_patient.id}",
                 extra={
                     "patient_id": str(existing_patient.id),
-                    "final_flow_state": existing_patient.flow_state.value if hasattr(existing_patient.flow_state, 'value') else str(existing_patient.flow_state)
-                }
+                    "final_flow_state": existing_patient.flow_state.value
+                    if hasattr(existing_patient.flow_state, "value")
+                    else str(existing_patient.flow_state),
+                },
             )
 
             return existing_patient
@@ -156,16 +165,14 @@ class CompletionService:
         except Exception as e:
             logger.error(
                 f"Error completing partial onboarding for patient {existing_patient.id}: {e}",
-                exc_info=True
+                exc_info=True,
             )
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(self._executor, self.db.rollback)
             raise
 
     async def _update_patient_data(
-        self,
-        existing_patient: Patient,
-        patient_data: PatientCreate
+        self, existing_patient: Patient, patient_data: PatientCreate
     ) -> bool:
         """
         Update patient data with new information (preserve existing).
@@ -197,7 +204,7 @@ class CompletionService:
             updated = True
 
         # Update metadata if provided
-        if hasattr(patient_data, 'metadata') and patient_data.metadata:
+        if hasattr(patient_data, "metadata") and patient_data.metadata:
             if not existing_patient.patient_data:
                 existing_patient.patient_data = {}
             existing_patient.patient_data.update(patient_data.metadata)
@@ -208,21 +215,20 @@ class CompletionService:
             loop = asyncio.get_event_loop()
             try:
                 await loop.run_in_executor(self._executor, self.db.commit)
-                await loop.run_in_executor(self._executor, lambda: self.db.refresh(existing_patient))
+                await loop.run_in_executor(
+                    self._executor, lambda: self.db.refresh(existing_patient)
+                )
                 logger.info(f"Updated patient data: {existing_patient.id}")
             except Exception as e:
                 logger.error(
-                    f"Failed to commit patient updates in executor: {e}",
-                    exc_info=True
+                    f"Failed to commit patient updates in executor: {e}", exc_info=True
                 )
                 raise
 
         return updated
 
     async def _initialize_flow_if_needed(
-        self,
-        patient: Patient,
-        current_user: Optional["User"] = None
+        self, patient: Patient, current_user: Optional["User"] = None
     ) -> bool:
         """
         Initialize patient flow if not already initialized.
@@ -244,7 +250,7 @@ class CompletionService:
                 self.db.query(PatientFlowState)
                 .filter(PatientFlowState.patient_id == patient.id)
                 .first()
-            )
+            ),
         )
 
         if not existing_flow:
@@ -256,9 +262,7 @@ class CompletionService:
                 logger.info(f"Initialized flow for existing patient: {patient.id}")
                 return True
             except Exception as e:
-                logger.error(
-                    f"Failed to initialize flow for patient {patient.id}: {e}"
-                )
+                logger.error(f"Failed to initialize flow for patient {patient.id}: {e}")
                 # Don't fail completion if flow initialization fails
                 return False
         else:

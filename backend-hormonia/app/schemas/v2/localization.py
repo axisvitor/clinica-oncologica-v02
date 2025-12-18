@@ -22,17 +22,25 @@ from datetime import datetime
 from uuid import UUID
 from enum import Enum
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict, constr, conint, confloat
-
-from .common import CursorPaginatedResponse
+from pydantic import (
+    BaseModel,
+    Field,
+    field_validator,
+    ConfigDict,
+    constr,
+    conint,
+    confloat,
+)
 
 
 # ============================================================================
 # Enums and Constants
 # ============================================================================
 
+
 class LanguageCode(str, Enum):
     """Supported language codes."""
+
     PT_BR = "pt-BR"  # Portuguese (Brazil)
     PT_PT = "pt-PT"  # Portuguese (Portugal)
     EN_US = "en-US"  # English (United States)
@@ -41,6 +49,7 @@ class LanguageCode(str, Enum):
 
 class TranslationNamespace(str, Enum):
     """Translation namespaces for organization."""
+
     FLOWS = "flows"
     MESSAGES = "messages"
     AUTH = "auth"
@@ -51,6 +60,7 @@ class TranslationNamespace(str, Enum):
 
 class TranslationContext(str, Enum):
     """Context for context-aware translations."""
+
     FORMAL = "formal"
     INFORMAL = "informal"
     DEFAULT = "default"
@@ -58,6 +68,7 @@ class TranslationContext(str, Enum):
 
 class TextDirection(str, Enum):
     """Text direction for language rendering."""
+
     LTR = "ltr"  # Left-to-right
     RTL = "rtl"  # Right-to-left
 
@@ -66,12 +77,11 @@ class TextDirection(str, Enum):
 # Language Schemas
 # ============================================================================
 
+
 class LanguageV2Response(BaseModel):
     """Language information response."""
 
-    code: LanguageCode = Field(
-        description="ISO language code (e.g., pt-BR, en-US)"
-    )
+    code: LanguageCode = Field(description="ISO language code (e.g., pt-BR, en-US)")
     name: constr(min_length=1, max_length=100) = Field(
         description="Language name in English"
     )
@@ -79,26 +89,20 @@ class LanguageV2Response(BaseModel):
         description="Language name in its native form"
     )
     direction: TextDirection = Field(
-        default=TextDirection.LTR,
-        description="Text direction (ltr or rtl)"
+        default=TextDirection.LTR, description="Text direction (ltr or rtl)"
     )
     fallback: Optional[LanguageCode] = Field(
-        None,
-        description="Fallback language code if translation not found"
+        None, description="Fallback language code if translation not found"
     )
     enabled: bool = Field(
-        default=True,
-        description="Whether this language is currently enabled"
+        default=True, description="Whether this language is currently enabled"
     )
     is_default: bool = Field(
-        default=False,
-        description="Whether this is the default system language"
+        default=False, description="Whether this is the default system language"
     )
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "code": "pt-BR",
                 "name": "Portuguese (Brazil)",
@@ -106,7 +110,7 @@ class LanguageV2Response(BaseModel):
                 "direction": "ltr",
                 "fallback": "pt-PT",
                 "enabled": True,
-                "is_default": False
+                "is_default": False,
             }
         }
     )
@@ -115,20 +119,12 @@ class LanguageV2Response(BaseModel):
 class LanguageV2List(BaseModel):
     """List of available languages."""
 
-    data: List[LanguageV2Response] = Field(
-        description="List of supported languages"
-    )
-    total: conint(ge=0) = Field(
-        description="Total number of languages"
-    )
-    default_language: LanguageCode = Field(
-        description="Default system language"
-    )
+    data: List[LanguageV2Response] = Field(description="List of supported languages")
+    total: conint(ge=0) = Field(description="Total number of languages")
+    default_language: LanguageCode = Field(description="Default system language")
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "data": [
                     {
@@ -138,7 +134,7 @@ class LanguageV2List(BaseModel):
                         "direction": "ltr",
                         "fallback": "pt-PT",
                         "enabled": True,
-                        "is_default": False
+                        "is_default": False,
                     },
                     {
                         "code": "en-US",
@@ -147,11 +143,11 @@ class LanguageV2List(BaseModel):
                         "direction": "ltr",
                         "fallback": None,
                         "enabled": True,
-                        "is_default": True
-                    }
+                        "is_default": True,
+                    },
                 ],
                 "total": 2,
-                "default_language": "en-US"
+                "default_language": "en-US",
             }
         }
     )
@@ -161,18 +157,15 @@ class LanguageV2List(BaseModel):
 # Translation Schemas
 # ============================================================================
 
+
 class TranslationV2Response(BaseModel):
     """Single translation key-value pair."""
 
     key: constr(min_length=1, max_length=500) = Field(
         description="Translation key (dot-separated, e.g., auth.login.title)"
     )
-    value: str = Field(
-        description="Translated text"
-    )
-    namespace: TranslationNamespace = Field(
-        description="Translation namespace"
-    )
+    value: str = Field(description="Translated text")
+    namespace: TranslationNamespace = Field(description="Translation namespace")
 
     @field_validator("key")
     @classmethod
@@ -182,18 +175,19 @@ class TranslationV2Response(BaseModel):
             raise ValueError("Key cannot be empty")
         # Allow letters, numbers, dots, underscores, hyphens
         import re
-        if not re.match(r'^[a-zA-Z0-9._-]+$', v):
-            raise ValueError("Key can only contain letters, numbers, dots, underscores, and hyphens")
+
+        if not re.match(r"^[a-zA-Z0-9._-]+$", v):
+            raise ValueError(
+                "Key can only contain letters, numbers, dots, underscores, and hyphens"
+            )
         return v
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "key": "auth.login.title",
                 "value": "Login to Your Account",
-                "namespace": "auth"
+                "namespace": "auth",
             }
         }
     )
@@ -205,37 +199,30 @@ class TranslationV2List(BaseModel):
     data: List[Dict[str, Any]] = Field(
         description="List of translation key-value pairs"
     )
-    language: LanguageCode = Field(
-        description="Language code for these translations"
-    )
-    total: conint(ge=0) = Field(
-        description="Total number of translations"
-    )
+    language: LanguageCode = Field(description="Language code for these translations")
+    total: conint(ge=0) = Field(description="Total number of translations")
     namespaces: List[str] = Field(
-        default_factory=list,
-        description="Namespaces included in this response"
+        default_factory=list, description="Namespaces included in this response"
     )
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "data": [
                     {
                         "key": "auth.login.title",
                         "value": "Login to Your Account",
-                        "namespace": "auth"
+                        "namespace": "auth",
                     },
                     {
                         "key": "auth.login.button",
                         "value": "Sign In",
-                        "namespace": "auth"
-                    }
+                        "namespace": "auth",
+                    },
                 ],
                 "language": "en-US",
                 "total": 2,
-                "namespaces": ["auth"]
+                "namespaces": ["auth"],
             }
         }
     )
@@ -244,41 +231,26 @@ class TranslationV2List(BaseModel):
 class TranslationKeyV2Response(BaseModel):
     """Detailed response for a single translation key."""
 
-    key: constr(min_length=1, max_length=500) = Field(
-        description="Translation key"
-    )
-    value: str = Field(
-        description="Translated text (with variables substituted)"
-    )
-    language: LanguageCode = Field(
-        description="Requested language"
-    )
+    key: constr(min_length=1, max_length=500) = Field(description="Translation key")
+    value: str = Field(description="Translated text (with variables substituted)")
+    language: LanguageCode = Field(description="Requested language")
     used_language: LanguageCode = Field(
         description="Actual language used (may differ if fallback was used)"
     )
-    fallback_used: bool = Field(
-        description="Whether fallback language was used"
-    )
-    namespace: TranslationNamespace = Field(
-        description="Translation namespace"
-    )
+    fallback_used: bool = Field(description="Whether fallback language was used")
+    namespace: TranslationNamespace = Field(description="Translation namespace")
     context: Optional[TranslationContext] = Field(
-        None,
-        description="Context used for translation (formal/informal)"
+        None, description="Context used for translation (formal/informal)"
     )
     has_pluralization: bool = Field(
-        default=False,
-        description="Whether pluralization was applied"
+        default=False, description="Whether pluralization was applied"
     )
     has_variables: bool = Field(
-        default=False,
-        description="Whether variables were substituted"
+        default=False, description="Whether variables were substituted"
     )
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "key": "messages.sent",
                 "value": "You have 5 messages",
@@ -288,7 +260,7 @@ class TranslationKeyV2Response(BaseModel):
                 "namespace": "messages",
                 "context": None,
                 "has_pluralization": True,
-                "has_variables": True
+                "has_variables": True,
             }
         }
     )
@@ -310,13 +282,7 @@ class TranslationV2Update(BaseModel):
         return v.strip()
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
-            "example": {
-                "value": "Login to Your Account"
-            }
-        }
+        json_schema_extra={"example": {"value": "Login to Your Account"}}
     )
 
 
@@ -324,31 +290,22 @@ class TranslationV2Update(BaseModel):
 # User Language Preference Schemas
 # ============================================================================
 
+
 class UserLanguagePreferenceV2(BaseModel):
     """User's language preference."""
 
-    user_id: UUID = Field(
-        description="User UUID"
-    )
-    language: LanguageCode = Field(
-        description="Preferred language code"
-    )
-    is_default: bool = Field(
-        description="Whether this is the system default language"
-    )
-    updated_at: datetime = Field(
-        description="When preference was last updated"
-    )
+    user_id: UUID = Field(description="User UUID")
+    language: LanguageCode = Field(description="Preferred language code")
+    is_default: bool = Field(description="Whether this is the system default language")
+    updated_at: datetime = Field(description="When preference was last updated")
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "user_id": "123e4567-e89b-12d3-a456-426614174000",
                 "language": "pt-BR",
                 "is_default": False,
-                "updated_at": "2025-01-17T15:00:00Z"
+                "updated_at": "2025-01-17T15:00:00Z",
             }
         }
     )
@@ -357,53 +314,35 @@ class UserLanguagePreferenceV2(BaseModel):
 class UserLanguagePreferenceV2Update(BaseModel):
     """Schema for updating user language preference."""
 
-    language: LanguageCode = Field(
-        description="Language code to set as preference"
-    )
+    language: LanguageCode = Field(description="Language code to set as preference")
 
-    model_config = ConfigDict(
-
-
-        json_schema_extra = {
-            "example": {
-                "language": "pt-BR"
-            }
-        }
-    )
+    model_config = ConfigDict(json_schema_extra={"example": {"language": "pt-BR"}})
 
 
 # ============================================================================
 # Import/Export Schemas
 # ============================================================================
 
+
 class TranslationExportV2(BaseModel):
     """Schema for exporting translations to JSON."""
 
-    language: LanguageCode = Field(
-        description="Language code to export"
-    )
+    language: LanguageCode = Field(description="Language code to export")
     namespace: Optional[TranslationNamespace] = Field(
-        None,
-        description="Specific namespace to export (None = all)"
+        None, description="Specific namespace to export (None = all)"
     )
-    format: str = Field(
-        default="json",
-        description="Export format (json, csv, xliff)"
-    )
+    format: str = Field(default="json", description="Export format (json, csv, xliff)")
     include_metadata: bool = Field(
-        default=True,
-        description="Include metadata in export"
+        default=True, description="Include metadata in export"
     )
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "language": "pt-BR",
                 "namespace": "auth",
                 "format": "json",
-                "include_metadata": True
+                "include_metadata": True,
             }
         }
     )
@@ -412,9 +351,7 @@ class TranslationExportV2(BaseModel):
 class TranslationImportV2(BaseModel):
     """Schema for importing translations from JSON."""
 
-    language: LanguageCode = Field(
-        description="Language code for import"
-    )
+    language: LanguageCode = Field(description="Language code for import")
     namespace: TranslationNamespace = Field(
         description="Namespace for these translations"
     )
@@ -422,8 +359,7 @@ class TranslationImportV2(BaseModel):
         description="Translation dictionary (nested or flat)"
     )
     overwrite_existing: bool = Field(
-        default=False,
-        description="Whether to overwrite existing translations"
+        default=False, description="Whether to overwrite existing translations"
     )
 
     @field_validator("translations")
@@ -435,19 +371,14 @@ class TranslationImportV2(BaseModel):
         return v
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "language": "pt-BR",
                 "namespace": "auth",
                 "translations": {
-                    "login": {
-                        "title": "Entrar na Sua Conta",
-                        "button": "Entrar"
-                    }
+                    "login": {"title": "Entrar na Sua Conta", "button": "Entrar"}
                 },
-                "overwrite_existing": False
+                "overwrite_existing": False,
             }
         }
     )
@@ -457,15 +388,14 @@ class TranslationImportV2(BaseModel):
 # Statistics and Search Schemas
 # ============================================================================
 
+
 class TranslationStatsV2(BaseModel):
     """Translation system statistics."""
 
     total_languages: conint(ge=0) = Field(
         description="Total number of supported languages"
     )
-    enabled_languages: conint(ge=0) = Field(
-        description="Number of enabled languages"
-    )
+    enabled_languages: conint(ge=0) = Field(description="Number of enabled languages")
     total_keys: conint(ge=0) = Field(
         description="Total translation keys across all languages"
     )
@@ -478,14 +408,10 @@ class TranslationStatsV2(BaseModel):
     completion_percentage: Dict[str, float] = Field(
         description="Translation completion percentage per language"
     )
-    last_updated: datetime = Field(
-        description="When stats were last calculated"
-    )
+    last_updated: datetime = Field(description="When stats were last calculated")
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "total_languages": 4,
                 "enabled_languages": 4,
@@ -494,21 +420,21 @@ class TranslationStatsV2(BaseModel):
                     "pt-BR": 1200,
                     "en-US": 1250,
                     "es-ES": 1100,
-                    "pt-PT": 1150
+                    "pt-PT": 1150,
                 },
                 "translations_by_namespace": {
                     "auth": 45,
                     "messages": 230,
                     "flows": 560,
-                    "common": 415
+                    "common": 415,
                 },
                 "completion_percentage": {
                     "pt-BR": 96.0,
                     "en-US": 100.0,
                     "es-ES": 88.0,
-                    "pt-PT": 92.0
+                    "pt-PT": 92.0,
                 },
-                "last_updated": "2025-01-17T15:00:00Z"
+                "last_updated": "2025-01-17T15:00:00Z",
             }
         }
     )
@@ -517,15 +443,11 @@ class TranslationStatsV2(BaseModel):
 class MissingTranslationsV2(BaseModel):
     """Missing translations report."""
 
-    language: LanguageCode = Field(
-        description="Language being checked"
-    )
+    language: LanguageCode = Field(description="Language being checked")
     reference_language: LanguageCode = Field(
         description="Reference language (usually default language)"
     )
-    missing_keys: List[str] = Field(
-        description="List of missing translation keys"
-    )
+    missing_keys: List[str] = Field(description="List of missing translation keys")
     total_missing: conint(ge=0) = Field(
         description="Total number of missing translations"
     )
@@ -537,22 +459,17 @@ class MissingTranslationsV2(BaseModel):
     )
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "language": "es-ES",
                 "reference_language": "en-US",
                 "missing_keys": [
                     "auth.login.forgot_password",
-                    "messages.notification_sent"
+                    "messages.notification_sent",
                 ],
                 "total_missing": 2,
                 "completion_percentage": 98.4,
-                "by_namespace": {
-                    "auth": 1,
-                    "messages": 1
-                }
+                "by_namespace": {"auth": 1, "messages": 1},
             }
         }
     )
@@ -565,20 +482,16 @@ class TranslationSearchV2(BaseModel):
         description="Search query (searches both keys and values)"
     )
     languages: Optional[List[LanguageCode]] = Field(
-        None,
-        description="Limit search to specific languages (None = all)"
+        None, description="Limit search to specific languages (None = all)"
     )
     namespaces: Optional[List[TranslationNamespace]] = Field(
-        None,
-        description="Limit search to specific namespaces (None = all)"
+        None, description="Limit search to specific namespaces (None = all)"
     )
     case_sensitive: bool = Field(
-        default=False,
-        description="Whether search should be case-sensitive"
+        default=False, description="Whether search should be case-sensitive"
     )
     exact_match: bool = Field(
-        default=False,
-        description="Whether to match exactly (vs contains)"
+        default=False, description="Whether to match exactly (vs contains)"
     )
 
     @field_validator("query")
@@ -592,15 +505,13 @@ class TranslationSearchV2(BaseModel):
         return v.strip()
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "query": "login",
                 "languages": ["pt-BR", "en-US"],
                 "namespaces": ["auth"],
                 "case_sensitive": False,
-                "exact_match": False
+                "exact_match": False,
             }
         }
     )
@@ -610,24 +521,16 @@ class TranslationSearchV2(BaseModel):
 # Fallback Chain Schema
 # ============================================================================
 
+
 class FallbackChainV2(BaseModel):
     """Fallback chain for a language."""
 
-    language: LanguageCode = Field(
-        description="Source language"
-    )
-    chain: List[LanguageCode] = Field(
-        description="Fallback chain in order of priority"
-    )
+    language: LanguageCode = Field(description="Source language")
+    chain: List[LanguageCode] = Field(description="Fallback chain in order of priority")
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
-            "example": {
-                "language": "pt-BR",
-                "chain": ["pt-BR", "pt-PT", "en-US"]
-            }
+        json_schema_extra={
+            "example": {"language": "pt-BR", "chain": ["pt-BR", "pt-PT", "en-US"]}
         }
     )
 
@@ -636,33 +539,22 @@ class FallbackChainV2(BaseModel):
 # Context-Aware Translation Schema
 # ============================================================================
 
+
 class ContextualTranslationV2(BaseModel):
     """Context-aware translation with multiple variants."""
 
-    key: constr(min_length=1, max_length=500) = Field(
-        description="Translation key"
-    )
-    default: str = Field(
-        description="Default translation"
-    )
-    formal: Optional[str] = Field(
-        None,
-        description="Formal variant"
-    )
-    informal: Optional[str] = Field(
-        None,
-        description="Informal variant"
-    )
+    key: constr(min_length=1, max_length=500) = Field(description="Translation key")
+    default: str = Field(description="Default translation")
+    formal: Optional[str] = Field(None, description="Formal variant")
+    informal: Optional[str] = Field(None, description="Informal variant")
 
     model_config = ConfigDict(
-
-
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "key": "greeting.hello",
                 "default": "Hello",
                 "formal": "Good day",
-                "informal": "Hey"
+                "informal": "Hey",
             }
         }
     )

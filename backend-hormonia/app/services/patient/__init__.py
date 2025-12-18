@@ -1,4 +1,3 @@
-from typing import Any
 """
 Patient Services Package
 
@@ -20,7 +19,6 @@ from app.services.patient.integrity_service import PatientIntegrityService
 
 __all__ = [
     "PatientCRUDService",
-
     "PatientFlowService",
     "PatientIntegrityService",
 ]

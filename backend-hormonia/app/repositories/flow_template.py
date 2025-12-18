@@ -1,5 +1,4 @@
 from typing import List, Optional
-from uuid import UUID
 from sqlalchemy.orm import Session, joinedload
 from app.models.flow import FlowTemplateVersion
 from app.repositories.base import BaseRepository
@@ -11,7 +10,9 @@ class FlowTemplateRepository(BaseRepository[FlowTemplateVersion]):
     def __init__(self, db: Session):
         super().__init__(db, FlowTemplateVersion)
 
-    def get_by_version(self, version: str, eager_load: bool = False) -> Optional[FlowTemplateVersion]:
+    def get_by_version(
+        self, version: str, eager_load: bool = False
+    ) -> Optional[FlowTemplateVersion]:
         """
         Get template by version with optional eager loading.
 
@@ -22,7 +23,9 @@ class FlowTemplateRepository(BaseRepository[FlowTemplateVersion]):
         Returns:
             FlowTemplateVersion or None if not found
         """
-        query = self.db.query(FlowTemplateVersion).filter(FlowTemplateVersion.version == version)
+        query = self.db.query(FlowTemplateVersion).filter(
+            FlowTemplateVersion.version == version
+        )
 
         if eager_load:
             # Load kind relationship if needed
@@ -30,7 +33,9 @@ class FlowTemplateRepository(BaseRepository[FlowTemplateVersion]):
 
         return query.first()
 
-    def get_active_version(self, eager_load: bool = False) -> Optional[FlowTemplateVersion]:
+    def get_active_version(
+        self, eager_load: bool = False
+    ) -> Optional[FlowTemplateVersion]:
         """
         Get the current published template version with optional eager loading.
 
@@ -40,12 +45,8 @@ class FlowTemplateRepository(BaseRepository[FlowTemplateVersion]):
         Returns:
             Current published FlowTemplateVersion or None
         """
-        query = (
-            self.db.query(FlowTemplateVersion)
-            .filter(
-                FlowTemplateVersion.is_current == True,
-                FlowTemplateVersion.status == 'published'
-            )
+        query = self.db.query(FlowTemplateVersion).filter(
+            FlowTemplateVersion.is_current, FlowTemplateVersion.status == "published"
         )
 
         if eager_load:
@@ -53,7 +54,9 @@ class FlowTemplateRepository(BaseRepository[FlowTemplateVersion]):
 
         return query.order_by(FlowTemplateVersion.created_at.desc()).first()
 
-    def get_all_versions(self, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[FlowTemplateVersion]:
+    def get_all_versions(
+        self, skip: int = 0, limit: int = 100, eager_load: bool = True
+    ) -> List[FlowTemplateVersion]:
         """
         Get all template versions with eager loading.
 
@@ -75,4 +78,9 @@ class FlowTemplateRepository(BaseRepository[FlowTemplateVersion]):
         if eager_load:
             query = query.options(joinedload(FlowTemplateVersion.kind))
 
-        return query.order_by(FlowTemplateVersion.created_at.desc()).offset(skip).limit(limit).all()
+        return (
+            query.order_by(FlowTemplateVersion.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )

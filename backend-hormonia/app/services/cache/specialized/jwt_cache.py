@@ -41,7 +41,11 @@ class JWTCache:
         user_key = str(user_id) if user_id is not None else None
 
         async with self._lock:
-            self._tokens[token_id] = {"value": data, "expires_at": expires_at, "user_id": user_key}
+            self._tokens[token_id] = {
+                "value": data,
+                "expires_at": expires_at,
+                "user_id": user_key,
+            }
             if user_key:
                 self._user_index.setdefault(user_key, set()).add(token_id)
         return True

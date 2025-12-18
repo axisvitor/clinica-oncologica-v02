@@ -11,7 +11,7 @@ import json
 
 def get_pagination_params(
     cursor: Optional[str] = Query(None, description="Cursor for pagination"),
-    limit: int = Query(20, ge=1, le=1000, description="Items per page (max 1000)")
+    limit: int = Query(20, ge=1, le=1000, description="Items per page (max 1000)"),
 ):
     """
     Extract and validate cursor-based pagination parameters.
@@ -35,7 +35,7 @@ def get_pagination_params(
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid cursor format: {str(e)}"
+                detail=f"Invalid cursor format: {str(e)}",
             )
 
     # QW-001: Hard limit enforcement to prevent excessive queries
@@ -43,84 +43,85 @@ def get_pagination_params(
     MAX_PAGE_SIZE = 1000
     safe_limit = min(limit, MAX_PAGE_SIZE)
 
-    return {
-        "cursor_data": cursor_data,
-        "limit": safe_limit
-    }
+    return {"cursor_data": cursor_data, "limit": safe_limit}
 
 
 def get_field_selection(
-    fields: Optional[str] = Query(None, description="Comma-separated fields to include")
+    fields: Optional[str] = Query(
+        None, description="Comma-separated fields to include"
+    ),
 ):
     """
     Extract and validate field selection parameters.
-    
+
     Args:
         fields: Comma-separated list of field names
-    
+
     Returns:
         Optional[List[str]]: List of fields or None for all fields
-    
+
     Raises:
         HTTPException: If fields parameter is invalid
     """
     if not fields:
         return None
-    
+
     field_list = [f.strip() for f in fields.split(",") if f.strip()]
-    
+
     if not field_list:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="fields parameter cannot be empty"
+            detail="fields parameter cannot be empty",
         )
-    
+
     return field_list
 
 
 def get_eager_load_params(
-    include: Optional[str] = Query(None, description="Comma-separated relations to include")
+    include: Optional[str] = Query(
+        None, description="Comma-separated relations to include"
+    ),
 ):
     """
     Extract and validate eager loading parameters.
-    
+
     Args:
         include: Comma-separated list of relation names
-    
+
     Returns:
         Optional[List[str]]: List of relations or None
-    
+
     Raises:
         HTTPException: If include parameter contains invalid relations
     """
     if not include:
         return None
-    
+
     relation_list = [r.strip() for r in include.split(",") if r.strip()]
-    
+
     if not relation_list:
         return None
-    
+
     # Validate allowed relations (can be customized per endpoint)
     allowed_relations = {"doctor", "quizzes", "templates", "analytics", "patient"}
     invalid_relations = set(relation_list) - allowed_relations
-    
+
     if invalid_relations:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid relations: {', '.join(invalid_relations)}"
+            detail=f"Invalid relations: {', '.join(invalid_relations)}",
         )
-    
+
     return relation_list
 
 
 def create_cursor(last_id: int) -> str:
     """
     Create a base64-encoded cursor from the last item ID.
-    
+
     Args:
         last_id: ID of the last item in the current page
-    
+
     Returns:
         str: Base64-encoded cursor
     """
@@ -132,15 +133,15 @@ def create_cursor(last_id: int) -> str:
 def apply_field_selection(data: dict, fields: Optional[List[str]]) -> dict:
     """
     Apply field selection to response data.
-    
+
     Args:
         data: Full response data
         fields: List of fields to include (None = all fields)
-    
+
     Returns:
         dict: Filtered data with only selected fields
     """
     if not fields:
         return data
-    
+
     return {k: v for k, v in data.items() if k in fields}

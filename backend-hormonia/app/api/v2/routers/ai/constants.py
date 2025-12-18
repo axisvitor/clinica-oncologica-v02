@@ -1,6 +1,7 @@
 """
 AI Services Constants - Cache TTLs, rate limits, and cost estimates.
 """
+
 from app.schemas.v2.ai import AIModelType
 
 

@@ -17,28 +17,31 @@ logger = logging.getLogger(__name__)
 
 class CircuitBreakerStates(Enum):
     """Circuit breaker states"""
-    CLOSED = "closed"      # Normal operation
-    OPEN = "open"         # Failing, reject requests
+
+    CLOSED = "closed"  # Normal operation
+    OPEN = "open"  # Failing, reject requests
     HALF_OPEN = "half_open"  # Testing if service recovered
 
 
 @dataclass
 class CircuitBreakerConfig:
     """Circuit breaker configuration"""
-    failure_threshold: int = 5              # Failures to trip breaker
-    recovery_timeout: float = 60.0          # Seconds before retry
-    success_threshold: int = 3              # Successes to close breaker
-    timeout: float = 30.0                   # Request timeout
-    expected_exception: tuple = (Exception,) # Exceptions that count as failures
+
+    failure_threshold: int = 5  # Failures to trip breaker
+    recovery_timeout: float = 60.0  # Seconds before retry
+    success_threshold: int = 3  # Successes to close breaker
+    timeout: float = 30.0  # Request timeout
+    expected_exception: tuple = (Exception,)  # Exceptions that count as failures
 
     # Monitoring
-    monitor_window: int = 60                # Monitoring window in seconds
-    min_requests: int = 10                  # Min requests before evaluation
+    monitor_window: int = 60  # Monitoring window in seconds
+    min_requests: int = 10  # Min requests before evaluation
 
 
 @dataclass
 class CircuitBreakerMetrics:
     """Circuit breaker metrics"""
+
     total_requests: int = 0
     successful_requests: int = 0
     failed_requests: int = 0
@@ -55,11 +58,13 @@ class CircuitBreakerMetrics:
 
 class CircuitBreakerError(Exception):
     """Circuit breaker specific exception"""
+
     pass
 
 
 class CircuitBreakerOpenError(CircuitBreakerError):
     """Raised when circuit breaker is open"""
+
     pass
 
 
@@ -101,14 +106,18 @@ class CircuitBreaker:
 
     def _sync_wrapper(self, func: Callable) -> Callable:
         """Synchronous wrapper"""
+
         def wrapper(*args, **kwargs):
             return self.call(func, *args, **kwargs)
+
         return wrapper
 
     def _async_wrapper(self, func: Callable) -> Callable:
         """Asynchronous wrapper"""
+
         async def wrapper(*args, **kwargs):
             return await self.acall(func, *args, **kwargs)
+
         return wrapper
 
     def call(self, func: Callable, *args, **kwargs) -> Any:
@@ -156,8 +165,7 @@ class CircuitBreaker:
         start_time = time.time()
         try:
             result = await asyncio.wait_for(
-                func(*args, **kwargs),
-                timeout=self.config.timeout
+                func(*args, **kwargs), timeout=self.config.timeout
             )
             execution_time = time.time() - start_time
             self._record_success(execution_time)
@@ -179,11 +187,9 @@ class CircuitBreaker:
         self._request_times.append(current_time)
 
         # Record in history
-        self.metrics.request_history.append({
-            'timestamp': current_time,
-            'state': self.state.value,
-            'type': 'request'
-        })
+        self.metrics.request_history.append(
+            {"timestamp": current_time, "state": self.state.value, "type": "request"}
+        )
 
     def _record_success(self, execution_time: float):
         """Record a successful execution"""
@@ -274,14 +280,16 @@ class CircuitBreaker:
 
     def _record_state_change(self, new_state: str, reason: str):
         """Record state change for monitoring"""
-        self.metrics.state_changes.append({
-            'timestamp': time.time(),
-            'from_state': self.state.value,
-            'to_state': new_state,
-            'reason': reason,
-            'failure_count': self._failure_count,
-            'success_count': self._success_count
-        })
+        self.metrics.state_changes.append(
+            {
+                "timestamp": time.time(),
+                "from_state": self.state.value,
+                "to_state": new_state,
+                "reason": reason,
+                "failure_count": self._failure_count,
+                "success_count": self._success_count,
+            }
+        )
 
     def _update_failure_rate(self):
         """Update failure rate metric"""
@@ -293,28 +301,31 @@ class CircuitBreaker:
     def get_metrics(self) -> Dict:
         """Get comprehensive metrics"""
         current_time = time.time()
-        recent_requests = len([
-            t for t in self._request_times
-            if t > current_time - self.config.monitor_window
-        ])
+        recent_requests = len(
+            [
+                t
+                for t in self._request_times
+                if t > current_time - self.config.monitor_window
+            ]
+        )
 
         return {
-            'name': self.name,
-            'state': self.state.value,
-            'total_requests': self.metrics.total_requests,
-            'successful_requests': self.metrics.successful_requests,
-            'failed_requests': self.metrics.failed_requests,
-            'failure_rate': self.metrics.failure_rate,
-            'circuit_breaker_trips': self.metrics.circuit_breaker_trips,
-            'recent_requests': recent_requests,
-            'last_failure_time': self.metrics.last_failure_time,
-            'last_success_time': self.metrics.last_success_time,
-            'config': {
-                'failure_threshold': self.config.failure_threshold,
-                'recovery_timeout': self.config.recovery_timeout,
-                'success_threshold': self.config.success_threshold,
-                'timeout': self.config.timeout
-            }
+            "name": self.name,
+            "state": self.state.value,
+            "total_requests": self.metrics.total_requests,
+            "successful_requests": self.metrics.successful_requests,
+            "failed_requests": self.metrics.failed_requests,
+            "failure_rate": self.metrics.failure_rate,
+            "circuit_breaker_trips": self.metrics.circuit_breaker_trips,
+            "recent_requests": recent_requests,
+            "last_failure_time": self.metrics.last_failure_time,
+            "last_success_time": self.metrics.last_success_time,
+            "config": {
+                "failure_threshold": self.config.failure_threshold,
+                "recovery_timeout": self.config.recovery_timeout,
+                "success_threshold": self.config.success_threshold,
+                "timeout": self.config.timeout,
+            },
         }
 
     def force_open(self):

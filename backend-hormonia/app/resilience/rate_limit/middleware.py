@@ -5,11 +5,16 @@ Flask middleware for automatic rate limiting.
 """
 
 import time
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 from flask import Flask, request, jsonify, g
 import logging
 
-from .rate_limiter import RateLimiter, RateLimitConfig, RateLimitStrategy, MultiTierRateLimiter
+from .rate_limiter import (
+    RateLimiter,
+    RateLimitConfig,
+    RateLimitStrategy,
+    MultiTierRateLimiter,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,15 +31,15 @@ class RateLimitMiddleware:
     - Comprehensive logging
     """
 
-    def __init__(self,
-                 app: Optional[Flask] = None,
-                 default_config: Optional[RateLimitConfig] = None,
-                 enabled: bool = True):
+    def __init__(
+        self,
+        app: Optional[Flask] = None,
+        default_config: Optional[RateLimitConfig] = None,
+        enabled: bool = True,
+    ):
         self.enabled = enabled
         self.default_config = default_config or RateLimitConfig(
-            requests_per_second=10.0,
-            burst_size=50,
-            strategy=RateLimitStrategy.PER_IP
+            requests_per_second=10.0, burst_size=50, strategy=RateLimitStrategy.PER_IP
         )
 
         # Route-specific configurations
@@ -48,9 +53,9 @@ class RateLimitMiddleware:
             RateLimitConfig(
                 requests_per_second=1000.0,
                 burst_size=2000,
-                strategy=RateLimitStrategy.GLOBAL
+                strategy=RateLimitStrategy.GLOBAL,
             ),
-            name="global_middleware"
+            name="global_middleware",
         )
 
         # Metrics
@@ -97,7 +102,9 @@ class RateLimitMiddleware:
                     f"Global rate limit exceeded: {request.remote_addr} "
                     f"-> {request.endpoint}"
                 )
-                return self._create_rate_limit_response(global_result, "Global rate limit exceeded")
+                return self._create_rate_limit_response(
+                    global_result, "Global rate limit exceeded"
+                )
 
             # Get route-specific configuration
             route_config = self._get_route_config()
@@ -137,14 +144,9 @@ class RateLimitMiddleware:
     def _should_bypass_route(self) -> bool:
         """Check if current route should bypass rate limiting"""
         # Bypass health checks and static files
-        bypass_patterns = [
-            '/health',
-            '/static',
-            '/favicon.ico',
-            '/_debug'
-        ]
+        bypass_patterns = ["/health", "/static", "/favicon.ico", "/_debug"]
 
-        request_path = getattr(request, 'path', '')
+        request_path = getattr(request, "path", "")
 
         for pattern in bypass_patterns:
             if request_path.startswith(pattern):
@@ -154,7 +156,7 @@ class RateLimitMiddleware:
 
     def _get_route_config(self) -> RateLimitConfig:
         """Get configuration for current route"""
-        endpoint = getattr(request, 'endpoint', '')
+        endpoint = getattr(request, "endpoint", "")
 
         # Check for route-specific config
         if endpoint in self._route_configs:
@@ -163,21 +165,19 @@ class RateLimitMiddleware:
         # Use default config
         return self.default_config
 
-    def _create_rate_limit_response(self,
-                                   result,
-                                   custom_message: Optional[str] = None):
+    def _create_rate_limit_response(self, result, custom_message: Optional[str] = None):
         """Create rate limit response"""
         message = custom_message or "Rate limit exceeded"
 
         response_data = {
-            'error': message,
-            'rate_limit': {
-                'limit': result.limit,
-                'remaining': result.remaining,
-                'reset_time': result.reset_time,
-                'retry_after': result.retry_after,
-                'strategy': result.strategy
-            }
+            "error": message,
+            "rate_limit": {
+                "limit": result.limit,
+                "remaining": result.remaining,
+                "reset_time": result.reset_time,
+                "retry_after": result.retry_after,
+                "strategy": result.strategy,
+            },
         }
 
         response = jsonify(response_data)
@@ -192,7 +192,9 @@ class RateLimitMiddleware:
     def configure_route(self, endpoint: str, config: RateLimitConfig):
         """Configure rate limiting for specific route"""
         self._route_configs[endpoint] = config
-        logger.info(f"Configured rate limit for route '{endpoint}': {config.requests_per_second}/s")
+        logger.info(
+            f"Configured rate limit for route '{endpoint}': {config.requests_per_second}/s"
+        )
 
     def configure_user_tier(self, user_id: str, tier: str):
         """Configure user tier for multi-tier rate limiting"""
@@ -206,24 +208,20 @@ class RateLimitMiddleware:
 
     def get_metrics(self) -> Dict[str, Any]:
         """Get middleware metrics"""
-        rate_limited_rate = (
-            self._rate_limited_requests / max(1, self._total_requests)
-        )
+        rate_limited_rate = self._rate_limited_requests / max(1, self._total_requests)
 
-        bypass_rate = (
-            self._bypassed_requests / max(1, self._total_requests)
-        )
+        bypass_rate = self._bypassed_requests / max(1, self._total_requests)
 
         return {
-            'enabled': self.enabled,
-            'total_requests': self._total_requests,
-            'rate_limited_requests': self._rate_limited_requests,
-            'bypassed_requests': self._bypassed_requests,
-            'rate_limited_rate': rate_limited_rate,
-            'bypass_rate': bypass_rate,
-            'route_configs': len(self._route_configs),
-            'global_limiter': self.global_limiter.get_metrics(),
-            'multi_tier_limiter': self.multi_tier_limiter.get_all_metrics()
+            "enabled": self.enabled,
+            "total_requests": self._total_requests,
+            "rate_limited_requests": self._rate_limited_requests,
+            "bypassed_requests": self._bypassed_requests,
+            "rate_limited_rate": rate_limited_rate,
+            "bypass_rate": bypass_rate,
+            "route_configs": len(self._route_configs),
+            "global_limiter": self.global_limiter.get_metrics(),
+            "multi_tier_limiter": self.multi_tier_limiter.get_all_metrics(),
         }
 
     def reset_metrics(self):
@@ -247,10 +245,12 @@ class RateLimitMiddleware:
         logger.info("Rate limiting disabled")
 
 
-def create_rate_limit_middleware(app: Flask,
-                                default_requests_per_second: float = 10.0,
-                                default_burst_size: int = 50,
-                                enabled: bool = True) -> RateLimitMiddleware:
+def create_rate_limit_middleware(
+    app: Flask,
+    default_requests_per_second: float = 10.0,
+    default_burst_size: int = 50,
+    enabled: bool = True,
+) -> RateLimitMiddleware:
     """
     Create and configure rate limit middleware
 
@@ -266,33 +266,38 @@ def create_rate_limit_middleware(app: Flask,
     default_config = RateLimitConfig(
         requests_per_second=default_requests_per_second,
         burst_size=default_burst_size,
-        strategy=RateLimitStrategy.PER_IP
+        strategy=RateLimitStrategy.PER_IP,
     )
 
     middleware = RateLimitMiddleware(
-        app=app,
-        default_config=default_config,
-        enabled=enabled
+        app=app, default_config=default_config, enabled=enabled
     )
 
     # Configure common API tiers
-    middleware.add_tier('basic', RateLimitConfig(
-        requests_per_second=5.0,
-        burst_size=20,
-        strategy=RateLimitStrategy.PER_USER
-    ))
+    middleware.add_tier(
+        "basic",
+        RateLimitConfig(
+            requests_per_second=5.0, burst_size=20, strategy=RateLimitStrategy.PER_USER
+        ),
+    )
 
-    middleware.add_tier('premium', RateLimitConfig(
-        requests_per_second=20.0,
-        burst_size=100,
-        strategy=RateLimitStrategy.PER_USER
-    ))
+    middleware.add_tier(
+        "premium",
+        RateLimitConfig(
+            requests_per_second=20.0,
+            burst_size=100,
+            strategy=RateLimitStrategy.PER_USER,
+        ),
+    )
 
-    middleware.add_tier('enterprise', RateLimitConfig(
-        requests_per_second=100.0,
-        burst_size=500,
-        strategy=RateLimitStrategy.PER_USER
-    ))
+    middleware.add_tier(
+        "enterprise",
+        RateLimitConfig(
+            requests_per_second=100.0,
+            burst_size=500,
+            strategy=RateLimitStrategy.PER_USER,
+        ),
+    )
 
     logger.info("Rate limit middleware created and configured")
     return middleware

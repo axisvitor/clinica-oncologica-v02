@@ -20,14 +20,13 @@ Usage:
     app = FastAPI()
     app.add_middleware(HIPAAAuditMiddleware)
 """
+
 import time
 import hashlib
-import json
-from typing import Optional, Dict, Any
-from datetime import datetime
+from typing import Optional
 import re
 
-from fastapi import Request, Response
+from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -137,21 +136,26 @@ class HIPAAAuditMiddleware(BaseHTTPMiddleware):
                 await audit_service.log_event(
                     event_type=event_type,
                     event_category=event_category,
-                    context=context
+                    context=context,
                 )
         except Exception as e:
             # Don't fail the request if audit logging fails
             # Log error for monitoring
             import logging
+
             logger = logging.getLogger(__name__)
             logger.error(
                 "HIPAA audit logging failed",
                 extra={
                     "error": str(e),
-                    "endpoint": context.endpoint if hasattr(context, 'endpoint') else None,
-                    "http_method": context.http_method if hasattr(context, 'http_method') else None,
-                    "user_id": context.user_id if hasattr(context, 'user_id') else None
-                }
+                    "endpoint": context.endpoint
+                    if hasattr(context, "endpoint")
+                    else None,
+                    "http_method": context.http_method
+                    if hasattr(context, "http_method")
+                    else None,
+                    "user_id": context.user_id if hasattr(context, "user_id") else None,
+                },
             )
 
         return response
@@ -190,7 +194,9 @@ class HIPAAAuditMiddleware(BaseHTTPMiddleware):
             session_token_hash = AuditService.hash_session_token(token)
 
         # Extract session ID from custom header or cookie
-        session_id = request.headers.get("X-Session-ID") or request.cookies.get("session_id")
+        session_id = request.headers.get("X-Session-ID") or request.cookies.get(
+            "session_id"
+        )
 
         # Device fingerprint (can be enhanced with client-side fingerprinting)
         device_fingerprint = self._calculate_device_fingerprint(request)
@@ -316,7 +322,9 @@ class HIPAAAuditMiddleware(BaseHTTPMiddleware):
             return "ERROR"
         return "SUCCESS"
 
-    def _detect_event_type(self, request: Request, context: AuditEventContext) -> tuple[AuditEventType, str]:
+    def _detect_event_type(
+        self, request: Request, context: AuditEventContext
+    ) -> tuple[AuditEventType, str]:
         """
         Detect the appropriate event type and category.
 
@@ -328,14 +336,17 @@ class HIPAAAuditMiddleware(BaseHTTPMiddleware):
             Tuple of (event_type, event_category)
         """
         endpoint = context.endpoint
-        method = context.http_method
         operation = context.operation
 
         # Check for authentication endpoints
         for pattern in self.AUTH_PATTERNS:
             if re.match(pattern, endpoint):
                 if "login" in endpoint:
-                    event_type = AuditEventType.LOGIN_SUCCESS if context.status == "SUCCESS" else AuditEventType.LOGIN_FAILURE
+                    event_type = (
+                        AuditEventType.LOGIN_SUCCESS
+                        if context.status == "SUCCESS"
+                        else AuditEventType.LOGIN_FAILURE
+                    )
                 elif "logout" in endpoint:
                     event_type = AuditEventType.LOGOUT
                 elif "refresh" in endpoint:
@@ -348,7 +359,11 @@ class HIPAAAuditMiddleware(BaseHTTPMiddleware):
         if context.resource_type:
             if operation == "READ":
                 # For now, use generic event types (will add specific PHI events in Sprint 2)
-                event_type = AuditEventType.ACCESS_DENIED if context.status == "BLOCKED" else AuditEventType.SUSPICIOUS_ACTIVITY
+                event_type = (
+                    AuditEventType.ACCESS_DENIED
+                    if context.status == "BLOCKED"
+                    else AuditEventType.SUSPICIOUS_ACTIVITY
+                )
                 return event_type, "PHI_ACCESS"
             elif operation in ["CREATE", "UPDATE", "DELETE"]:
                 # Data modification (will add specific events in Sprint 2)

@@ -1,13 +1,13 @@
 """
 Retry logic and Dead Letter Queue (DLQ) handling for failed message deliveries.
 """
+
 import logging
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
-from uuid import UUID
 from sqlalchemy.orm import Session
 
-from app.models.message import Message, MessageStatus, DeliveryStatus
+from app.models.message import Message
 from app.models.failed_message import FailureReason
 from app.repositories.patient import PatientRepository
 from app.utils.db_retry import with_db_retry
@@ -36,7 +36,7 @@ class RetryHandler:
         """
         # Exponential backoff: initial_delay * (base ^ retry_count)
         delay_minutes = self.config.RETRY_INITIAL_DELAY_MINUTES * (
-            self.config.RETRY_BACKOFF_BASE ** retry_count
+            self.config.RETRY_BACKOFF_BASE**retry_count
         )
 
         # Cap maximum delay at 2 hours
@@ -63,18 +63,20 @@ class RetryHandler:
                 "type": message.type.value,
                 "metadata": message.message_metadata,
                 "is_retry": True,
-                "retry_count": message.retry_count
+                "retry_count": message.retry_count,
             }
 
             # Schedule retry task with ETA
             task_result = send_flow_message.apply_async(
                 args=[str(message.patient_id), message_data, str(message.id)],
-                eta=retry_time
+                eta=retry_time,
             )
 
             # Update message metadata with retry task ID
             message.message_metadata["retry_task_id"] = task_result.id
-            message.message_metadata["retry_scheduled_at"] = datetime.utcnow().isoformat()
+            message.message_metadata["retry_scheduled_at"] = (
+                datetime.utcnow().isoformat()
+            )
 
             logger.info(
                 f"Scheduled retry task {task_result.id} for message {message.id} "
@@ -89,7 +91,7 @@ class RetryHandler:
         self,
         message: Message,
         failure_reason: str,
-        whatsapp_error: Optional[Dict[str, Any]] = None
+        whatsapp_error: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Route message to Dead Letter Queue when max retries exceeded.
@@ -107,15 +109,19 @@ class RetryHandler:
             whatsapp_phone = patient.phone if patient else "unknown"
 
             # Categorize failure reason
-            categorized_reason = self.categorize_failure_reason(whatsapp_error or {"error": failure_reason})
+            categorized_reason = self.categorize_failure_reason(
+                whatsapp_error or {"error": failure_reason}
+            )
 
             # Prepare failure details
             failure_details = {
                 "original_failure_reason": failure_reason,
                 "whatsapp_error": whatsapp_error,
                 "max_retries": message.retry_count,
-                "last_retry_at": message.last_retry_at.isoformat() if message.last_retry_at else None,
-                "routed_at": datetime.utcnow().isoformat()
+                "last_retry_at": message.last_retry_at.isoformat()
+                if message.last_retry_at
+                else None,
+                "routed_at": datetime.utcnow().isoformat(),
             }
 
             # Route to DLQ
@@ -128,7 +134,7 @@ class RetryHandler:
                 failure_reason=categorized_reason,
                 failure_details=failure_details,
                 retry_count=message.retry_count,
-                metadata=message.message_metadata
+                metadata=message.message_metadata,
             )
 
             logger.info(
@@ -137,12 +143,13 @@ class RetryHandler:
 
         except Exception as e:
             logger.error(
-                f"Failed to route message {message.id} to DLQ: {e}",
-                exc_info=True
+                f"Failed to route message {message.id} to DLQ: {e}", exc_info=True
             )
             # Don't raise - DLQ routing failure shouldn't break delivery failure handling
 
-    def categorize_failure_reason(self, delivery_info: Dict[str, Any] = None) -> FailureReason:
+    def categorize_failure_reason(
+        self, delivery_info: Dict[str, Any] = None
+    ) -> FailureReason:
         """
         Categorize failure reason from delivery info.
 
@@ -155,29 +162,29 @@ class RetryHandler:
         if not delivery_info:
             return FailureReason.UNKNOWN
 
-        error_message = str(delivery_info.get('error', '')).lower()
-        error_code = delivery_info.get('error_code', '')
+        error_message = str(delivery_info.get("error", "")).lower()
+        error_code = delivery_info.get("error_code", "")
 
         # Network errors
-        if 'timeout' in error_message or 'timed out' in error_message:
+        if "timeout" in error_message or "timed out" in error_message:
             return FailureReason.TIMEOUT
-        if 'network' in error_message or 'connection' in error_message:
+        if "network" in error_message or "connection" in error_message:
             return FailureReason.NETWORK_ERROR
 
         # Phone number issues
-        if 'invalid' in error_message and 'phone' in error_message:
+        if "invalid" in error_message and "phone" in error_message:
             return FailureReason.INVALID_PHONE
-        if 'blocked' in error_message or 'banned' in error_message:
+        if "blocked" in error_message or "banned" in error_message:
             return FailureReason.BLOCKED_NUMBER
 
         # API errors
-        if 'rate limit' in error_message or error_code in [429, '429']:
+        if "rate limit" in error_message or error_code in [429, "429"]:
             return FailureReason.RATE_LIMIT
         if error_code in [400, 401, 403, 404, 500, 502, 503, 504]:
             return FailureReason.API_ERROR
 
         # Max retries (explicit)
-        if 'max retries' in error_message or 'retry limit' in error_message:
+        if "max retries" in error_message or "retry limit" in error_message:
             return FailureReason.MAX_RETRIES_EXCEEDED
 
         return FailureReason.UNKNOWN
@@ -219,14 +226,18 @@ class RetryHandler:
 
             # Update flow state to handle delivery failure
             flow_state_data = active_flow.state_data or {}
-            flow_state_data["delivery_failures"] = flow_state_data.get("delivery_failures", [])
-            flow_state_data["delivery_failures"].append({
-                "message_id": str(message.id),
-                "failure_timestamp": datetime.utcnow().isoformat(),
-                "failure_reason": message.failure_reason,
-                "retry_count": message.retry_count,
-                "step": active_flow.current_step
-            })
+            flow_state_data["delivery_failures"] = flow_state_data.get(
+                "delivery_failures", []
+            )
+            flow_state_data["delivery_failures"].append(
+                {
+                    "message_id": str(message.id),
+                    "failure_timestamp": datetime.utcnow().isoformat(),
+                    "failure_reason": message.failure_reason,
+                    "retry_count": message.retry_count,
+                    "step": active_flow.current_step,
+                }
+            )
 
             # Mark that flow should not wait for this message
             flow_state_data["skip_waiting_for_message"] = str(message.id)

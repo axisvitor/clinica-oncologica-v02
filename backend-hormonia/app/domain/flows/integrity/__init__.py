@@ -9,6 +9,7 @@ This module has been refactored into a modular structure:
 
 The original data_integrity.py is kept for backward compatibility.
 """
+
 from .orchestrator import FlowDataIntegrityChecker, get_flow_data_integrity_checker
 from .types import (
     CorruptionIssue,

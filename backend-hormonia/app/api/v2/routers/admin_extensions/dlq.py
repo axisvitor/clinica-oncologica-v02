@@ -27,7 +27,6 @@ from app.schemas.v2.admin_extensions import (
     DLQBulkRetryRequest,
     DLQBulkRetryResponse,
     DLQStatsResponse,
-    DLQPurgeRequest,
     DLQPurgeResponse,
 )
 from app.api.v2.dependencies import (
@@ -48,7 +47,7 @@ logger = logging.getLogger(__name__)
     "/",
     response_model=DLQItemListResponse,
     summary="List DLQ Items",
-    description="Retrieve paginated list of Dead Letter Queue items with cursor-based pagination and filters."
+    description="Retrieve paginated list of Dead Letter Queue items with cursor-based pagination and filters.",
 )
 @limiter.limit("60/minute")
 @cache_response(ttl=CACHE_TTL_DLQ_ITEMS, key_prefix="admin_ext:dlq:list")
@@ -56,14 +55,16 @@ async def list_dlq_items(
     request: Request,
     cursor: Optional[str] = Query(None, description="Pagination cursor"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
-    fields: Optional[str] = Query(None, description="Comma-separated fields to include"),
+    fields: Optional[str] = Query(
+        None, description="Comma-separated fields to include"
+    ),
     status: Optional[str] = Query(None, description="Filter by status"),
     error_code: Optional[str] = Query(None, description="Filter by error code"),
     patient_id: Optional[UUID] = Query(None, description="Filter by patient"),
     search: Optional[str] = Query(None, description="Search in error messages"),
     db: Session = Depends(get_db),
     admin_user: User = Depends(get_admin_user),
-    context: RequestContext = Depends(get_request_context)
+    context: RequestContext = Depends(get_request_context),
 ):
     """
     List DLQ items with cursor pagination and comprehensive filters.
@@ -87,8 +88,7 @@ async def list_dlq_items(
 
         # Build base query with eager loading
         query = db.query(FailedMessage).options(
-            joinedload(FailedMessage.patient),
-            joinedload(FailedMessage.reviewer)
+            joinedload(FailedMessage.patient), joinedload(FailedMessage.reviewer)
         )
 
         # Apply cursor pagination
@@ -110,7 +110,7 @@ async def list_dlq_items(
             query = query.filter(
                 or_(
                     FailedMessage.error_message.ilike(search_pattern),
-                    FailedMessage.message_type.ilike(search_pattern)
+                    FailedMessage.message_type.ilike(search_pattern),
                 )
             )
 
@@ -136,22 +136,31 @@ async def list_dlq_items(
         # Log action
         audit_service = AuditService(db)
         await log_admin_extension_action(
-            audit_service, "dlq_list", admin_user, context,
-            additional_data={"count": len(items), "filters": {"status": status, "patient_id": str(patient_id) if patient_id else None}}
+            audit_service,
+            "dlq_list",
+            admin_user,
+            context,
+            additional_data={
+                "count": len(items),
+                "filters": {
+                    "status": status,
+                    "patient_id": str(patient_id) if patient_id else None,
+                },
+            },
         )
 
         return {
             "data": serialized_items,
             "next_cursor": next_cursor,
             "has_more": has_more,
-            "total": None  # Cursor pagination doesn't include total for performance
+            "total": None,  # Cursor pagination doesn't include total for performance
         }
 
     except Exception as e:
         logger.error(f"Error listing DLQ items: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error retrieving DLQ items"
+            detail="Error retrieving DLQ items",
         )
 
 
@@ -159,15 +168,17 @@ async def list_dlq_items(
     "/{dlq_id}",
     response_model=DLQItemResponse,
     summary="Get DLQ Item",
-    description="Retrieve detailed information about a specific DLQ item. Cached for 2 minutes."
+    description="Retrieve detailed information about a specific DLQ item. Cached for 2 minutes.",
 )
 @cache_response(ttl=CACHE_TTL_DLQ_ITEMS, key_prefix="admin_ext:dlq:item")
 async def get_dlq_item(
     dlq_id: UUID,
-    fields: Optional[str] = Query(None, description="Comma-separated fields to include"),
+    fields: Optional[str] = Query(
+        None, description="Comma-separated fields to include"
+    ),
     db: Session = Depends(get_db),
     admin_user: User = Depends(get_admin_user),
-    context: RequestContext = Depends(get_request_context)
+    context: RequestContext = Depends(get_request_context),
 ):
     """
     Get detailed information about a specific DLQ item.
@@ -187,16 +198,20 @@ async def get_dlq_item(
     """
     try:
         # Query with eager loading
-        item = db.query(FailedMessage).options(
-            joinedload(FailedMessage.patient),
-            joinedload(FailedMessage.reviewer),
-            joinedload(FailedMessage.original_message)
-        ).filter(FailedMessage.id == dlq_id).first()
+        item = (
+            db.query(FailedMessage)
+            .options(
+                joinedload(FailedMessage.patient),
+                joinedload(FailedMessage.reviewer),
+                joinedload(FailedMessage.original_message),
+            )
+            .filter(FailedMessage.id == dlq_id)
+            .first()
+        )
 
         if not item:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="DLQ item not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="DLQ item not found"
             )
 
         # Parse field selection
@@ -205,8 +220,11 @@ async def get_dlq_item(
         # Log action
         audit_service = AuditService(db)
         await log_admin_extension_action(
-            audit_service, "dlq_view", admin_user, context,
-            additional_data={"dlq_id": str(dlq_id)}
+            audit_service,
+            "dlq_view",
+            admin_user,
+            context,
+            additional_data={"dlq_id": str(dlq_id)},
         )
 
         return serialize_dlq_item(item, field_list)
@@ -217,7 +235,7 @@ async def get_dlq_item(
         logger.error(f"Error retrieving DLQ item {dlq_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error retrieving DLQ item"
+            detail="Error retrieving DLQ item",
         )
 
 
@@ -225,7 +243,7 @@ async def get_dlq_item(
     "/{dlq_id}/retry",
     response_model=DLQRetryResponse,
     summary="Retry DLQ Item",
-    description="Manually retry a failed operation from the DLQ."
+    description="Manually retry a failed operation from the DLQ.",
 )
 @limiter.limit("30/minute")
 async def retry_dlq_item(
@@ -233,7 +251,7 @@ async def retry_dlq_item(
     dlq_id: UUID,
     db: Session = Depends(get_db),
     admin_user: User = Depends(get_admin_user),
-    context: RequestContext = Depends(get_request_context)
+    context: RequestContext = Depends(get_request_context),
 ):
     """
     Manually retry a DLQ item (reprocess failed message/task).
@@ -261,28 +279,35 @@ async def retry_dlq_item(
         # Log action
         audit_service = AuditService(db)
         await log_admin_extension_action(
-            audit_service, "dlq_retry", admin_user, context,
+            audit_service,
+            "dlq_retry",
+            admin_user,
+            context,
             additional_data={
                 "dlq_id": str(dlq_id),
                 "success": success,
-                "error": error_message
-            }
+                "error": error_message,
+            },
         )
 
-        logger.info(f"Admin {admin_user.email} retried DLQ item {dlq_id}: {'success' if success else 'failed'}")
+        logger.info(
+            f"Admin {admin_user.email} retried DLQ item {dlq_id}: {'success' if success else 'failed'}"
+        )
 
         return {
             "success": success,
-            "message": "Message reprocessed successfully" if success else "Failed to reprocess message",
+            "message": "Message reprocessed successfully"
+            if success
+            else "Failed to reprocess message",
             "dlq_id": dlq_id,
-            "error": error_message
+            "error": error_message,
         }
 
     except Exception as e:
         logger.error(f"Error retrying DLQ item {dlq_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error retrying DLQ item"
+            detail="Error retrying DLQ item",
         )
 
 
@@ -290,7 +315,7 @@ async def retry_dlq_item(
     "/retry-bulk",
     response_model=DLQBulkRetryResponse,
     summary="Bulk Retry DLQ Items",
-    description="Retry multiple DLQ items at once (max 50)."
+    description="Retry multiple DLQ items at once (max 50).",
 )
 @limiter.limit("10/minute")
 async def bulk_retry_dlq_items(
@@ -298,7 +323,7 @@ async def bulk_retry_dlq_items(
     bulk_data: DLQBulkRetryRequest,
     db: Session = Depends(get_db),
     admin_user: User = Depends(get_admin_user),
-    context: RequestContext = Depends(get_request_context)
+    context: RequestContext = Depends(get_request_context),
 ):
     """
     Retry multiple DLQ items in bulk (max 50 items).
@@ -315,7 +340,7 @@ async def bulk_retry_dlq_items(
         if len(bulk_data.dlq_ids) > 50:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Maximum 50 DLQ items per bulk retry"
+                detail="Maximum 50 DLQ items per bulk retry",
             )
 
         dlq_service = DLQService(db)
@@ -345,15 +370,20 @@ async def bulk_retry_dlq_items(
         # Log action
         audit_service = AuditService(db)
         await log_admin_extension_action(
-            audit_service, "dlq_bulk_retry", admin_user, context,
+            audit_service,
+            "dlq_bulk_retry",
+            admin_user,
+            context,
             additional_data={
                 "total": len(bulk_data.dlq_ids),
                 "successful": successful,
-                "failed": failed
-            }
+                "failed": failed,
+            },
         )
 
-        logger.info(f"Admin {admin_user.email} bulk retried {len(bulk_data.dlq_ids)} DLQ items: {successful} success, {failed} failed")
+        logger.info(
+            f"Admin {admin_user.email} bulk retried {len(bulk_data.dlq_ids)} DLQ items: {successful} success, {failed} failed"
+        )
 
         return {
             "success": failed == 0,
@@ -361,7 +391,7 @@ async def bulk_retry_dlq_items(
             "successful": successful,
             "failed": failed,
             "errors": errors,
-            "message": f"Bulk retry completed: {successful} successful, {failed} failed"
+            "message": f"Bulk retry completed: {successful} successful, {failed} failed",
         }
 
     except HTTPException:
@@ -370,7 +400,7 @@ async def bulk_retry_dlq_items(
         logger.error(f"Error in bulk retry: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error in bulk retry: {str(e)}"
+            detail=f"Error in bulk retry: {str(e)}",
         )
 
 
@@ -378,7 +408,7 @@ async def bulk_retry_dlq_items(
     "/{dlq_id}",
     response_model=DLQRetryResponse,
     summary="Delete DLQ Item",
-    description="Mark DLQ item as resolved/discarded (soft delete)."
+    description="Mark DLQ item as resolved/discarded (soft delete).",
 )
 @limiter.limit("30/minute")
 async def delete_dlq_item(
@@ -387,7 +417,7 @@ async def delete_dlq_item(
     reason: str = Query(..., description="Reason for deletion"),
     db: Session = Depends(get_db),
     admin_user: User = Depends(get_admin_user),
-    context: RequestContext = Depends(get_request_context)
+    context: RequestContext = Depends(get_request_context),
 ):
     """
     Delete (discard) a DLQ item.
@@ -410,8 +440,7 @@ async def delete_dlq_item(
 
         if not success:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="DLQ item not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="DLQ item not found"
             )
 
         # Invalidate caches
@@ -422,8 +451,11 @@ async def delete_dlq_item(
         # Log action
         audit_service = AuditService(db)
         await log_admin_extension_action(
-            audit_service, "dlq_delete", admin_user, context,
-            additional_data={"dlq_id": str(dlq_id), "reason": reason}
+            audit_service,
+            "dlq_delete",
+            admin_user,
+            context,
+            additional_data={"dlq_id": str(dlq_id), "reason": reason},
         )
 
         logger.info(f"Admin {admin_user.email} deleted DLQ item {dlq_id}: {reason}")
@@ -432,7 +464,7 @@ async def delete_dlq_item(
             "success": True,
             "message": "DLQ item deleted successfully",
             "dlq_id": dlq_id,
-            "error": None
+            "error": None,
         }
 
     except HTTPException:
@@ -441,7 +473,7 @@ async def delete_dlq_item(
         logger.error(f"Error deleting DLQ item {dlq_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error deleting DLQ item"
+            detail="Error deleting DLQ item",
         )
 
 
@@ -449,13 +481,13 @@ async def delete_dlq_item(
     "/stats/",
     response_model=DLQStatsResponse,
     summary="Get DLQ Statistics",
-    description="Get comprehensive DLQ statistics. Cached for 10 minutes."
+    description="Get comprehensive DLQ statistics. Cached for 10 minutes.",
 )
 @cache_response(ttl=CACHE_TTL_DLQ_STATS, key_prefix="admin_ext:dlq:stats")
 async def get_dlq_statistics(
     db: Session = Depends(get_db),
     admin_user: User = Depends(get_admin_user),
-    context: RequestContext = Depends(get_request_context)
+    context: RequestContext = Depends(get_request_context),
 ):
     """
     Get comprehensive DLQ statistics.
@@ -486,7 +518,7 @@ async def get_dlq_statistics(
         logger.error(f"Error retrieving DLQ statistics: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error retrieving DLQ statistics"
+            detail="Error retrieving DLQ statistics",
         )
 
 
@@ -494,16 +526,18 @@ async def get_dlq_statistics(
     "/purge/",
     response_model=DLQPurgeResponse,
     summary="Purge Old DLQ Items",
-    description="Purge DLQ items older than specified days (default: 90 days)."
+    description="Purge DLQ items older than specified days (default: 90 days).",
 )
 @limiter.limit("5/hour")
 async def purge_old_dlq_items(
     request: Request,
-    days: int = Query(90, ge=30, le=365, description="Delete items older than this many days"),
+    days: int = Query(
+        90, ge=30, le=365, description="Delete items older than this many days"
+    ),
     dry_run: bool = Query(False, description="Preview without deleting"),
     db: Session = Depends(get_db),
     admin_user: User = Depends(get_admin_user),
-    context: RequestContext = Depends(get_request_context)
+    context: RequestContext = Depends(get_request_context),
 ):
     """
     Purge old DLQ items (>90 days by default).
@@ -523,10 +557,10 @@ async def purge_old_dlq_items(
         cutoff_date = datetime.utcnow() - timedelta(days=days)
 
         # Query old items (only safe statuses)
-        safe_statuses = ['resolved', 'discarded', 'max_retries_exceeded']
+        safe_statuses = ["resolved", "discarded", "max_retries_exceeded"]
         query = db.query(FailedMessage).filter(
             FailedMessage.created_at < cutoff_date,
-            FailedMessage.status.in_(safe_statuses)
+            FailedMessage.status.in_(safe_statuses),
         )
 
         count = query.count()
@@ -543,16 +577,21 @@ async def purge_old_dlq_items(
         # Log action
         audit_service = AuditService(db)
         await log_admin_extension_action(
-            audit_service, "dlq_purge", admin_user, context,
+            audit_service,
+            "dlq_purge",
+            admin_user,
+            context,
             additional_data={
                 "days": days,
                 "count": count,
                 "dry_run": dry_run,
-                "cutoff_date": cutoff_date.isoformat()
-            }
+                "cutoff_date": cutoff_date.isoformat(),
+            },
         )
 
-        logger.warning(f"Admin {admin_user.email} {'previewed' if dry_run else 'purged'} {count} DLQ items older than {days} days")
+        logger.warning(
+            f"Admin {admin_user.email} {'previewed' if dry_run else 'purged'} {count} DLQ items older than {days} days"
+        )
 
         return {
             "success": True,
@@ -560,7 +599,7 @@ async def purge_old_dlq_items(
             "count": count,
             "days": days,
             "cutoff_date": cutoff_date,
-            "dry_run": dry_run
+            "dry_run": dry_run,
         }
 
     except Exception as e:
@@ -568,5 +607,5 @@ async def purge_old_dlq_items(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error purging DLQ items"
+            detail="Error purging DLQ items",
         )

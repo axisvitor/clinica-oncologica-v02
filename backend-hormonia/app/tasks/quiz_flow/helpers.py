@@ -35,7 +35,9 @@ def _trigger_whatsapp_fallback(patient_id: UUID, quiz_session_id: UUID):
                 return  # Already completed or not found
 
             # Use QuizTriggerService to trigger a new quiz
-            from app.domain.quizzes.integration.flow_integration import QuizTriggerService
+            from app.domain.quizzes.integration.flow_integration import (
+                QuizTriggerService,
+            )
             from app.models.flow import PatientFlowState
 
             trigger_service = QuizTriggerService(db)
@@ -98,9 +100,8 @@ def _notify_providers_of_quiz_completion(
     """
     try:
         from app.config.settings import Settings
-        from datetime import datetime, timezone
 
-        settings = Settings()
+        Settings()
 
         with next(get_db()) as db:
             # Use consolidated alert system
@@ -114,7 +115,7 @@ def _notify_providers_of_quiz_completion(
                 "alert_type": "quiz_completed",
                 "priority": "medium",
                 "title": "Monthly Quiz Completed",
-                "message": f"Patient has completed their monthly health assessment. Report available.",
+                "message": "Patient has completed their monthly health assessment. Report available.",
                 "metadata": {
                     "quiz_session_id": quiz_session_id,
                     "report_id": report_id,

@@ -15,7 +15,6 @@ import time
 from datetime import date, datetime
 from typing import Dict, List, Any, Optional
 from uuid import UUID, uuid4
-import hashlib
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
@@ -35,7 +34,10 @@ from app.schemas.v2.patient_summary import (
     SeverityLevel,
 )
 from .summary_data_aggregator import SummaryDataAggregator, AggregatedPatientData
-from .prompts.patient_summary import PATIENT_SUMMARY_PROMPT, PATIENT_SUMMARY_SYSTEM_PROMPT
+from .prompts.patient_summary import (
+    PATIENT_SUMMARY_PROMPT,
+    PATIENT_SUMMARY_SYSTEM_PROMPT,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -77,12 +79,12 @@ class PatientSummaryService:
             max_output_tokens=2000,  # Enough for full summary
         )
 
-        logger.info(f"PatientSummaryService initialized with model: {settings.AI_GEMINI_MODEL}")
+        logger.info(
+            f"PatientSummaryService initialized with model: {settings.AI_GEMINI_MODEL}"
+        )
 
     async def generate_summary(
-        self,
-        request: GenerateSummaryRequest,
-        generated_by: Optional[UUID] = None
+        self, request: GenerateSummaryRequest, generated_by: Optional[UUID] = None
     ) -> PatientSummaryResponse:
         """
         Generate an AI-powered patient summary.
@@ -105,19 +107,17 @@ class PatientSummaryService:
         # Check cache if not force refresh
         if not request.force_refresh:
             cached = await self._get_cached_summary(
-                request.patient_id,
-                request.start_date,
-                request.end_date
+                request.patient_id, request.start_date, request.end_date
             )
             if cached:
-                logger.info(f"Returning cached summary for patient {request.patient_id}")
+                logger.info(
+                    f"Returning cached summary for patient {request.patient_id}"
+                )
                 return cached
 
         # Aggregate patient data
         aggregated_data = await self.aggregator.aggregate_patient_data(
-            request.patient_id,
-            request.start_date,
-            request.end_date
+            request.patient_id, request.start_date, request.end_date
         )
 
         # Generate summary with AI
@@ -154,8 +154,7 @@ class PatientSummaryService:
         return response
 
     async def _generate_ai_summary(
-        self,
-        data: AggregatedPatientData
+        self, data: AggregatedPatientData
     ) -> tuple[SummaryContent, int]:
         """
         Generate summary content using Gemini AI.
@@ -173,7 +172,7 @@ class PatientSummaryService:
         # Create messages
         messages = [
             SystemMessage(content=PATIENT_SUMMARY_SYSTEM_PROMPT),
-            HumanMessage(content=formatted_prompt)
+            HumanMessage(content=formatted_prompt),
         ]
 
         try:
@@ -185,9 +184,9 @@ class PatientSummaryService:
 
             # Extract token usage from response metadata if available
             token_usage = 0
-            if hasattr(response, 'response_metadata'):
-                usage = response.response_metadata.get('usage_metadata', {})
-                token_usage = usage.get('total_token_count', 0)
+            if hasattr(response, "response_metadata"):
+                usage = response.response_metadata.get("usage_metadata", {})
+                token_usage = usage.get("total_token_count", 0)
 
             # Parse JSON from response
             summary_data = self._parse_summary_response(content_text)
@@ -225,7 +224,7 @@ class PatientSummaryService:
                 "health_concerns": [],
                 "engagement_metrics": {},
                 "treatment_compliance": {},
-                "recommendations": []
+                "recommendations": [],
             }
 
     def _build_summary_content(self, data: Dict[str, Any]) -> SummaryContent:
@@ -237,7 +236,7 @@ class PatientSummaryService:
             total_questions_answered=qf_data.get("total_questions_answered", 0),
             key_findings=qf_data.get("key_findings", []),
             symptom_trends=qf_data.get("symptom_trends", {}),
-            concerning_responses=qf_data.get("concerning_responses", [])
+            concerning_responses=qf_data.get("concerning_responses", []),
         )
 
         # Parse health concerns
@@ -248,21 +247,25 @@ class PatientSummaryService:
             except ValueError:
                 severity = SeverityLevel.LOW
 
-            health_concerns.append(HealthConcern(
-                concern=hc.get("concern", ""),
-                severity=severity,
-                detected_date=self._parse_date(hc.get("detected_date")),
-                source=hc.get("source")
-            ))
+            health_concerns.append(
+                HealthConcern(
+                    concern=hc.get("concern", ""),
+                    severity=severity,
+                    detected_date=self._parse_date(hc.get("detected_date")),
+                    source=hc.get("source"),
+                )
+            )
 
         # Parse engagement metrics
         em_data = data.get("engagement_metrics", {})
         engagement_metrics = EngagementMetrics(
             response_rate=min(float(em_data.get("response_rate", 0)), 1.0),
-            avg_response_time_minutes=float(em_data.get("avg_response_time_minutes", 0)),
+            avg_response_time_minutes=float(
+                em_data.get("avg_response_time_minutes", 0)
+            ),
             total_messages_sent=int(em_data.get("total_messages_sent", 0)),
             total_messages_received=int(em_data.get("total_messages_received", 0)),
-            engagement_score=min(float(em_data.get("engagement_score", 0)), 100)
+            engagement_score=min(float(em_data.get("engagement_score", 0)), 100),
         )
 
         # Parse treatment compliance
@@ -270,7 +273,7 @@ class PatientSummaryService:
         treatment_compliance = TreatmentCompliance(
             adherence_score=min(float(tc_data.get("adherence_score", 0)), 1.0),
             missed_interactions=int(tc_data.get("missed_interactions", 0)),
-            notes=tc_data.get("notes")
+            notes=tc_data.get("notes"),
         )
 
         return SummaryContent(
@@ -279,7 +282,7 @@ class PatientSummaryService:
             health_concerns=health_concerns,
             engagement_metrics=engagement_metrics,
             treatment_compliance=treatment_compliance,
-            recommendations=data.get("recommendations", [])
+            recommendations=data.get("recommendations", []),
         )
 
     def _build_fallback_summary(self, data: AggregatedPatientData) -> SummaryContent:
@@ -292,10 +295,12 @@ class PatientSummaryService:
                 response_rate=data.response_rate,
                 avg_response_time_minutes=data.avg_response_time_minutes,
                 total_messages_sent=data.total_messages_sent,
-                total_messages_received=data.total_messages_received
+                total_messages_received=data.total_messages_received,
             ),
             treatment_compliance=TreatmentCompliance(),
-            recommendations=["Análise manual recomendada devido a falha na geração automática."]
+            recommendations=[
+                "Análise manual recomendada devido a falha na geração automática."
+            ],
         )
 
     def _parse_date(self, date_str: Optional[str]) -> Optional[date]:
@@ -311,10 +316,7 @@ class PatientSummaryService:
                 return None
 
     async def _get_cached_summary(
-        self,
-        patient_id: UUID,
-        start_date: date,
-        end_date: date
+        self, patient_id: UUID, start_date: date, end_date: date
     ) -> Optional[PatientSummaryResponse]:
         """Check for cached/saved summary within the last hour."""
         from datetime import timedelta
@@ -328,7 +330,7 @@ class PatientSummaryService:
                     PatientSummary.patient_id == patient_id,
                     PatientSummary.start_date == start_date,
                     PatientSummary.end_date == end_date,
-                    PatientSummary.created_at >= cache_threshold
+                    PatientSummary.created_at >= cache_threshold,
                 )
             )
             .order_by(PatientSummary.created_at.desc())
@@ -362,10 +364,7 @@ class PatientSummaryService:
         logger.info(f"Saved summary {response.summary_id} to database")
 
     async def get_saved_summaries(
-        self,
-        patient_id: UUID,
-        limit: int = 10,
-        offset: int = 0
+        self, patient_id: UUID, limit: int = 10, offset: int = 0
     ) -> tuple[List[PatientSummaryResponse], int]:
         """
         Get saved summaries for a patient.
@@ -380,9 +379,11 @@ class PatientSummaryService:
         """
         # Get total count
         from sqlalchemy import func
+
         count_result = await self.db.execute(
-            select(func.count(PatientSummary.id))
-            .where(PatientSummary.patient_id == patient_id)
+            select(func.count(PatientSummary.id)).where(
+                PatientSummary.patient_id == patient_id
+            )
         )
         total = count_result.scalar() or 0
 
@@ -396,17 +397,12 @@ class PatientSummaryService:
         )
         summaries = result.scalars().all()
 
-        responses = [
-            self._summary_to_response(s, from_cache=True)
-            for s in summaries
-        ]
+        responses = [self._summary_to_response(s, from_cache=True) for s in summaries]
 
         return responses, total
 
     def _summary_to_response(
-        self,
-        summary: PatientSummary,
-        from_cache: bool = False
+        self, summary: PatientSummary, from_cache: bool = False
     ) -> PatientSummaryResponse:
         """Convert database model to response."""
         # Get patient name from relationship or set placeholder
@@ -420,7 +416,9 @@ class PatientSummaryService:
             patient_name=patient_name,
             start_date=summary.start_date,
             end_date=summary.end_date,
-            content=SummaryContent(**summary.content) if summary.content else SummaryContent(overview=""),
+            content=SummaryContent(**summary.content)
+            if summary.content
+            else SummaryContent(overview=""),
             generated_at=summary.created_at,
             generated_by=summary.generated_by,
             token_usage=summary.token_usage,
@@ -476,20 +474,20 @@ Gerado em: {summary.created_at}
 
 VISÃO GERAL
 -----------
-{content.get('overview', 'N/A')}
+{content.get("overview", "N/A")}
 
 ACHADOS DOS QUESTIONÁRIOS
 -------------------------
-Questionários completados: {content.get('quiz_findings', {}).get('total_completed', 0)}
+Questionários completados: {content.get("quiz_findings", {}).get("total_completed", 0)}
 
 RECOMENDAÇÕES
 -------------
-{chr(10).join('- ' + r for r in content.get('recommendations', []))}
+{chr(10).join("- " + r for r in content.get("recommendations", []))}
 
 ---
 Gerado automaticamente por IA ({summary.model_used})
 """
-        return text.encode('utf-8')
+        return text.encode("utf-8")
 
 
 # Factory function for dependency injection

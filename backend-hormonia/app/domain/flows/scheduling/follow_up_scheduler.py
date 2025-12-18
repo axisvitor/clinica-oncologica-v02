@@ -6,7 +6,7 @@ Handles follow-up message scheduling logic.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
+from typing import Optional
 
 from app.utils.date_helpers import get_next_scheduled_time, is_business_day
 
@@ -30,10 +30,7 @@ class FollowUpScheduler:
         logger.info("FollowUpScheduler initialized")
 
     def calculate_next_follow_up(
-        self,
-        base_time: datetime,
-        frequency: str,
-        timezone: str = 'America/Sao_Paulo'
+        self, base_time: datetime, frequency: str, timezone: str = "America/Sao_Paulo"
     ) -> datetime:
         """
         Calculate next follow-up time.
@@ -62,9 +59,7 @@ class FollowUpScheduler:
             return datetime.utcnow() + timedelta(days=1)
 
     def should_send_follow_up(
-        self,
-        last_message_time: Optional[datetime],
-        follow_up_interval_hours: int = 24
+        self, last_message_time: Optional[datetime], follow_up_interval_hours: int = 24
     ) -> bool:
         """
         Determine if follow-up should be sent.
@@ -95,7 +90,7 @@ class FollowUpScheduler:
         self,
         base_time: datetime,
         reminder_intervals: list[int],
-        timezone: str = 'America/Sao_Paulo'
+        timezone: str = "America/Sao_Paulo",
     ) -> list[datetime]:
         """
         Schedule a sequence of reminder messages.
@@ -119,5 +114,7 @@ class FollowUpScheduler:
 
             scheduled_times.append(reminder_time)
 
-        logger.info(f"Scheduled {len(scheduled_times)} reminders starting from {base_time}")
+        logger.info(
+            f"Scheduled {len(scheduled_times)} reminders starting from {base_time}"
+        )
         return scheduled_times

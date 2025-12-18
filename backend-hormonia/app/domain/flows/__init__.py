@@ -33,7 +33,7 @@ from .orchestrator import (
     FlowExecutionState,
     FlowOperationType,
     create_flow_orchestrator,
-    get_flow_orchestrator
+    get_flow_orchestrator,
 )
 
 # State management
@@ -65,7 +65,7 @@ from .error_handling import (
     ErrorRecoveryManager,
     RecoveryStrategy,
     RetryRecoveryStrategy,
-    FallbackRecoveryStrategy
+    FallbackRecoveryStrategy,
 )
 
 # Data Integrity (Phase 3 - NEW)
@@ -77,59 +77,49 @@ from .events import FlowEventBroadcaster
 
 __all__ = [
     # Main orchestrator
-    'FlowOrchestrator',
-    'FlowExecutionContext',
-    'FlowExecutionResult',
-    'FlowExecutionState',
-    'FlowOperationType',
-    'create_flow_orchestrator',
-    'get_flow_orchestrator',
-
+    "FlowOrchestrator",
+    "FlowExecutionContext",
+    "FlowExecutionResult",
+    "FlowExecutionState",
+    "FlowOperationType",
+    "create_flow_orchestrator",
+    "get_flow_orchestrator",
     # State management
-    'FlowStateManager',
-    'FlowStateValidator',
-
+    "FlowStateManager",
+    "FlowStateValidator",
     # Messaging
-    'MessageComposer',
-    'MessageSender',
-
+    "MessageComposer",
+    "MessageSender",
     # Scheduling
-    'QuizScheduler',
-    'FollowUpScheduler',
-
+    "QuizScheduler",
+    "FollowUpScheduler",
     # Templates
-    'TemplateRenderer',
-    'TemplateContextBuilder',
-
+    "TemplateRenderer",
+    "TemplateContextBuilder",
     # Rules
-    'FlowRulesEngine',
-    'RuleConditionEvaluator',
-
+    "FlowRulesEngine",
+    "RuleConditionEvaluator",
     # A/B Testing
-    'ABTestManager',
-    'VariantSelector',
-
+    "ABTestManager",
+    "VariantSelector",
     # Analytics
-    'AnalyticsCollector',
-    'FlowMetricsCalculator',
-
+    "AnalyticsCollector",
+    "FlowMetricsCalculator",
     # Error Handling
-    'FlowErrorHandler',
-    'FlowError',
-    'ErrorSeverity',
-    'ErrorRecoveryManager',
-    'RecoveryStrategy',
-    'RetryRecoveryStrategy',
-    'FallbackRecoveryStrategy',
-
+    "FlowErrorHandler",
+    "FlowError",
+    "ErrorSeverity",
+    "ErrorRecoveryManager",
+    "RecoveryStrategy",
+    "RetryRecoveryStrategy",
+    "FallbackRecoveryStrategy",
     # Data Integrity (Phase 3)
-    'FlowDataIntegrityChecker',
-    'get_flow_data_integrity_checker',
-
+    "FlowDataIntegrityChecker",
+    "get_flow_data_integrity_checker",
     # Event Broadcasting (Phase 3)
-    'FlowEventBroadcaster',
+    "FlowEventBroadcaster",
 ]
 
 
-__version__ = '2.0.0'
-__author__ = 'Clínica Oncológica Development Team'
+__version__ = "2.0.0"
+__author__ = "Clínica Oncológica Development Team"

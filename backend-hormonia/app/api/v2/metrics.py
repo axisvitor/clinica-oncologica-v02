@@ -18,7 +18,4 @@ async def metrics():
     This endpoint is scraped by Prometheus to collect application metrics.
     Returns metrics in Prometheus text format.
     """
-    return Response(
-        content=generate_latest(),
-        media_type=CONTENT_TYPE_LATEST
-    )
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)

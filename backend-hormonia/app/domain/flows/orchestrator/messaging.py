@@ -18,9 +18,7 @@ class FlowMessagingOrchestrator:
     """Orchestrates message composition and sending for flow execution."""
 
     def __init__(
-        self,
-        message_composer: MessageComposer,
-        message_sender: MessageSender
+        self, message_composer: MessageComposer, message_sender: MessageSender
     ):
         """
         Initialize FlowMessagingOrchestrator.
@@ -40,7 +38,7 @@ class FlowMessagingOrchestrator:
         current_day: int,
         operation: str,
         message_template: Any,
-        logger_instance: Optional[logging.Logger] = None
+        logger_instance: Optional[logging.Logger] = None,
     ) -> Dict[str, Any]:
         """
         Generate and send a personalized flow message.
@@ -61,8 +59,10 @@ class FlowMessagingOrchestrator:
 
         try:
             # Generate personalized message using AI
-            personalized_message = await self.message_composer.generate_personalized_message(
-                patient, message_template, current_day, flow_type
+            personalized_message = (
+                await self.message_composer.generate_personalized_message(
+                    patient, message_template, current_day, flow_type
+                )
             )
 
             # Schedule message delivery
@@ -75,26 +75,29 @@ class FlowMessagingOrchestrator:
                 operation=operation,
                 message_template_intent=message_template.intent,
                 message_template_day=message_template.day,
-                personalized_content=personalized_message
+                personalized_content=personalized_message,
             )
 
             return {
-                'success': message_result.get('success', False),
-                'message': 'Flow message sent',
-                'message_scheduled': message_result.get('message_id') is not None,
-                'message_id': message_result.get('message_id'),
-                'template_intent': message_template.intent,
-                'personalized': True
+                "success": message_result.get("success", False),
+                "message": "Flow message sent",
+                "message_scheduled": message_result.get("message_id") is not None,
+                "message_id": message_result.get("message_id"),
+                "template_intent": message_template.intent,
+                "personalized": True,
             }
 
         except Exception as e:
-            log.error(f"Error sending flow message: {e}", extra={
-                "patient_id": str(patient.id),
-                "flow_type": flow_type,
-                "day": current_day
-            })
+            log.error(
+                f"Error sending flow message: {e}",
+                extra={
+                    "patient_id": str(patient.id),
+                    "flow_type": flow_type,
+                    "day": current_day,
+                },
+            )
             return {
-                'success': False,
-                'message': f'Message sending failed: {str(e)}',
-                'error': str(e)
+                "success": False,
+                "message": f"Message sending failed: {str(e)}",
+                "error": str(e),
             }

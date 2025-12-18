@@ -10,14 +10,14 @@ from typing import Optional
 from flask import Flask
 
 # Import all resilience components
-from .retry import RetryManager, database_retry, api_retry
+from .retry import database_retry, api_retry
 from .health import (
     health_checker,
     DatabaseHealthCheck,
     DiskSpaceHealthCheck,
     MemoryHealthCheck,
     CPUHealthCheck,
-    create_health_blueprint
+    create_health_blueprint,
 )
 from .rate_limit import create_rate_limit_middleware
 from .metrics import metrics_collector, create_metrics_blueprint
@@ -56,7 +56,7 @@ class ResilienceManager:
         self.app = app
 
         # Load configuration
-        environment = app.config.get('ENVIRONMENT', 'development')
+        environment = app.config.get("ENVIRONMENT", "development")
         self.config = config_manager.load_config(environment)
 
         logger.info(f"Initializing resilience patterns for {environment} environment")
@@ -80,33 +80,26 @@ class ResilienceManager:
             return
 
         # Database health check
-        database_url = os.getenv('DATABASE_URL')
+        database_url = os.getenv("DATABASE_URL")
         if database_url:
             db_check = DatabaseHealthCheck(
-                database_url=database_url,
-                timeout=10.0,
-                slow_query_threshold=1.0
+                database_url=database_url, timeout=10.0, slow_query_threshold=1.0
             )
             health_checker.add_check(db_check)
 
         # System health checks
         disk_check = DiskSpaceHealthCheck(
-            path="/",
-            warning_threshold=80.0,
-            critical_threshold=90.0
+            path="/", warning_threshold=80.0, critical_threshold=90.0
         )
         health_checker.add_check(disk_check)
 
         memory_check = MemoryHealthCheck(
-            warning_threshold=80.0,
-            critical_threshold=90.0
+            warning_threshold=80.0, critical_threshold=90.0
         )
         health_checker.add_check(memory_check)
 
         cpu_check = CPUHealthCheck(
-            warning_threshold=80.0,
-            critical_threshold=95.0,
-            interval=1.0
+            warning_threshold=80.0, critical_threshold=95.0, interval=1.0
         )
         health_checker.add_check(cpu_check)
 
@@ -114,7 +107,7 @@ class ResilienceManager:
         health_checker.cache_ttl = self.config.health_check_cache_ttl
 
         # Register with metrics collector
-        metrics_collector.register_health_checker('main', health_checker)
+        metrics_collector.register_health_checker("main", health_checker)
 
         logger.info("Health checks initialized")
 
@@ -128,11 +121,13 @@ class ResilienceManager:
             app=self.app,
             default_requests_per_second=self.config.rate_limit.requests_per_second,
             default_burst_size=self.config.rate_limit.burst_size,
-            enabled=True
+            enabled=True,
         )
 
         # Register with metrics collector
-        metrics_collector.register_rate_limiter('main', self.rate_limit_middleware.global_limiter)
+        metrics_collector.register_rate_limiter(
+            "main", self.rate_limit_middleware.global_limiter
+        )
 
         logger.info("Rate limiting initialized")
 
@@ -184,14 +179,15 @@ class ResilienceManager:
         try:
             # Run a quick health check
             import asyncio
+
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
             try:
                 result = loop.run_until_complete(health_checker.check_health())
-                summary = result.get('summary', {})
-                status = summary.get('status', 'unknown')
-                return status in ['healthy', 'degraded']
+                summary = result.get("summary", {})
+                status = summary.get("status", "unknown")
+                return status in ["healthy", "degraded"]
             finally:
                 loop.close()
 
@@ -202,25 +198,25 @@ class ResilienceManager:
     def get_status(self) -> dict:
         """Get comprehensive status"""
         status = {
-            'initialized': self._initialized,
-            'environment': self.config.environment if self.config else 'unknown',
-            'components': {}
+            "initialized": self._initialized,
+            "environment": self.config.environment if self.config else "unknown",
+            "components": {},
         }
 
         if self._initialized:
-            status['components'] = {
-                'health_checks': self.config and self.config.health_check_enabled,
-                'rate_limiting': self.rate_limit_middleware is not None,
-                'metrics': self.config and self.config.metrics_enabled
+            status["components"] = {
+                "health_checks": self.config and self.config.health_check_enabled,
+                "rate_limiting": self.rate_limit_middleware is not None,
+                "metrics": self.config and self.config.metrics_enabled,
             }
 
             # Get metrics if available
             if self.config and self.config.metrics_enabled:
                 try:
                     current_metrics = metrics_collector.get_current_metrics()
-                    status['metrics'] = current_metrics.to_dict()
+                    status["metrics"] = current_metrics.to_dict()
                 except Exception as e:
-                    status['metrics_error'] = str(e)
+                    status["metrics_error"] = str(e)
 
         return status
 
@@ -259,8 +255,8 @@ def setup_resilience_decorators():
     - @api_retry: For external API calls
     """
     return {
-        'database_retry': database_retry,
-        'api_retry': api_retry,
+        "database_retry": database_retry,
+        "api_retry": api_retry,
     }
 
 

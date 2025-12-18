@@ -4,10 +4,11 @@ Database performance monitoring service.
 Collects and exposes database metrics for monitoring systems
 like Prometheus, Grafana, and custom dashboards.
 """
+
 import logging
 from typing import Dict, Any
 from datetime import datetime, timezone
-from app.core.database import get_pool_status, is_pool_healthy, test_connection, connection_manager
+from app.core.database import get_pool_status, test_connection
 import time
 
 logger = logging.getLogger(__name__)
@@ -31,7 +32,7 @@ class DatabasePerformanceMonitor:
             "total_queries": 0,
             "slow_queries": 0,
             "failed_queries": 0,
-            "total_duration": 0.0
+            "total_duration": 0.0,
         }
         logger.info("Database performance monitor initialized")
 
@@ -62,26 +63,26 @@ class DatabasePerformanceMonitor:
                         **main_pool,
                         **main_metrics,
                         "health_status": main_health.get("status"),
-                        "healthy": main_health.get("status") == "healthy"
+                        "healthy": main_health.get("status") == "healthy",
                     },
                     "rls": {
                         **rls_pool,
                         **rls_metrics,
                         "health_status": rls_health.get("status"),
-                        "healthy": rls_health.get("status") == "healthy"
-                    }
+                        "healthy": rls_health.get("status") == "healthy",
+                    },
                 },
                 "health": {
                     "main": main_health,
                     "rls": rls_health,
                     "overall_healthy": (
-                        main_health.get("status") == "healthy" and
-                        rls_health.get("status") == "healthy"
-                    )
+                        main_health.get("status") == "healthy"
+                        and rls_health.get("status") == "healthy"
+                    ),
                 },
                 "query_stats": self.query_stats,
                 "uptime_seconds": time.time() - self.start_time,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             return metrics
@@ -91,10 +92,12 @@ class DatabasePerformanceMonitor:
             return {
                 "error": str(e),
                 "error_type": type(e).__name__,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
-    def _calculate_pool_metrics(self, pool_status: Dict[str, Any], pool_name: str) -> Dict[str, Any]:
+    def _calculate_pool_metrics(
+        self, pool_status: Dict[str, Any], pool_name: str
+    ) -> Dict[str, Any]:
         """
         Calculate additional pool metrics.
 
@@ -112,7 +115,9 @@ class DatabasePerformanceMonitor:
             checked_in = pool_status.get("checked_in", 0)
 
             total_capacity = pool_size + overflow
-            utilization = (checked_out / total_capacity * 100) if total_capacity > 0 else 0
+            utilization = (
+                (checked_out / total_capacity * 100) if total_capacity > 0 else 0
+            )
             available = checked_in
 
             return {
@@ -122,13 +127,11 @@ class DatabasePerformanceMonitor:
                 "utilization_status": self._get_utilization_status(utilization),
                 "is_exhausted": checked_out >= total_capacity,
                 "connections_in_use": checked_out,
-                "connections_available": available
+                "connections_available": available,
             }
         except Exception as e:
             logger.error(f"Error calculating pool metrics for {pool_name}: {e}")
-            return {
-                "error": str(e)
-            }
+            return {"error": str(e)}
 
     def _get_utilization_status(self, utilization: float) -> str:
         """
@@ -147,7 +150,9 @@ class DatabasePerformanceMonitor:
         else:
             return "critical"
 
-    def record_query(self, duration: float, success: bool = True, slow_threshold: float = 1.0) -> None:
+    def record_query(
+        self, duration: float, success: bool = True, slow_threshold: float = 1.0
+    ) -> None:
         """
         Record query execution for statistics.
 
@@ -175,7 +180,8 @@ class DatabasePerformanceMonitor:
         total_queries = self.query_stats["total_queries"]
         avg_duration = (
             self.query_stats["total_duration"] / total_queries
-            if total_queries > 0 else 0
+            if total_queries > 0
+            else 0
         )
 
         return {
@@ -183,12 +189,14 @@ class DatabasePerformanceMonitor:
             "average_duration": round(avg_duration, 3),
             "slow_query_rate": (
                 self.query_stats["slow_queries"] / total_queries
-                if total_queries > 0 else 0
+                if total_queries > 0
+                else 0
             ),
             "failure_rate": (
                 self.query_stats["failed_queries"] / total_queries
-                if total_queries > 0 else 0
-            )
+                if total_queries > 0
+                else 0
+            ),
         }
 
     def reset_statistics(self) -> None:
@@ -197,7 +205,7 @@ class DatabasePerformanceMonitor:
             "total_queries": 0,
             "slow_queries": 0,
             "failed_queries": 0,
-            "total_duration": 0.0
+            "total_duration": 0.0,
         }
         logger.info("Query statistics reset")
 

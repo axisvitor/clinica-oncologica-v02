@@ -1,6 +1,7 @@
 """
 Cursor pagination for patient listing with Redis caching.
 """
+
 import base64
 import hashlib
 import json
@@ -63,7 +64,7 @@ class PatientPaginationMixin:
         limit: int = 20,
         sort_by: str = "created_at",
         sort_order: str = "desc",
-        eager_load: List[str] = None
+        eager_load: List[str] = None,
     ) -> Tuple[List[Patient], bool, Optional[str], Optional[int]]:
         """
         Advanced list method with cursor pagination, filtering and eager loading.
@@ -94,7 +95,7 @@ class PatientPaginationMixin:
 
         # Search (Name, Email hash, or Phone hash) - LGPD compliant
         if filters.get("search"):
-            search_criteria = build_search_criteria(filters['search'])
+            search_criteria = build_search_criteria(filters["search"])
             if search_criteria:
                 criteria.append(or_(*search_criteria))
 
@@ -113,11 +114,17 @@ class PatientPaginationMixin:
             if filters["has_active_flow"]:
                 criteria.append(Patient.flow_state == FlowState.ACTIVE)
             else:
-                criteria.append(Patient.flow_state.in_([FlowState.PAUSED, FlowState.CANCELLED, FlowState.COMPLETED]))
+                criteria.append(
+                    Patient.flow_state.in_(
+                        [FlowState.PAUSED, FlowState.CANCELLED, FlowState.COMPLETED]
+                    )
+                )
 
         # Treatment Filters
         if filters.get("treatment_type"):
-            criteria.append(Patient.treatment_type.ilike(f"%{filters['treatment_type']}%"))
+            criteria.append(
+                Patient.treatment_type.ilike(f"%{filters['treatment_type']}%")
+            )
         if filters.get("treatment_phase"):
             criteria.append(Patient.treatment_phase == filters["treatment_phase"])
         if filters.get("start_date_from"):
@@ -133,13 +140,23 @@ class PatientPaginationMixin:
 
         # 3. Cursor Pagination Logic
         if cursor_data and "id" in cursor_data:
-            cursor_id = UUID(cursor_data["id"]) if isinstance(cursor_data["id"], str) else cursor_data["id"]
+            cursor_id = (
+                UUID(cursor_data["id"])
+                if isinstance(cursor_data["id"], str)
+                else cursor_data["id"]
+            )
             cursor_val = cursor_data.get(sort_by)
 
             # Convert isoformat string back to datetime if needed
-            if isinstance(cursor_val, str) and sort_by in ["created_at", "updated_at", "treatment_start_date"]:
+            if isinstance(cursor_val, str) and sort_by in [
+                "created_at",
+                "updated_at",
+                "treatment_start_date",
+            ]:
                 try:
-                    cursor_val = datetime.fromisoformat(cursor_val.replace("Z", "+00:00"))
+                    cursor_val = datetime.fromisoformat(
+                        cursor_val.replace("Z", "+00:00")
+                    )
                 except ValueError:
                     pass  # Handle date vs datetime if needed
 
@@ -150,7 +167,7 @@ class PatientPaginationMixin:
                 criteria.append(
                     or_(
                         sort_col < cursor_val,
-                        and_(sort_col == cursor_val, Patient.id > cursor_id)
+                        and_(sort_col == cursor_val, Patient.id > cursor_id),
                     )
                 )
             else:
@@ -158,7 +175,7 @@ class PatientPaginationMixin:
                 criteria.append(
                     or_(
                         sort_col > cursor_val,
-                        and_(sort_col == cursor_val, Patient.id > cursor_id)
+                        and_(sort_col == cursor_val, Patient.id > cursor_id),
                     )
                 )
 
@@ -207,11 +224,10 @@ class PatientPaginationMixin:
             if isinstance(last_val, (datetime, date)):
                 last_val = last_val.isoformat()
 
-            next_cursor_data = {
-                "id": str(last_item.id),
-                sort_by: last_val
-            }
-            next_cursor = base64.b64encode(json.dumps(next_cursor_data).encode()).decode()
+            next_cursor_data = {"id": str(last_item.id), sort_by: last_val}
+            next_cursor = base64.b64encode(
+                json.dumps(next_cursor_data).encode()
+            ).decode()
 
         return results, has_more, next_cursor, total
 
@@ -224,7 +240,7 @@ class PatientPaginationMixin:
             count_criteria.append(Patient.doctor_id == filters["doctor_id"])
 
         if filters.get("search"):
-            search_criteria = build_search_criteria(filters['search'])
+            search_criteria = build_search_criteria(filters["search"])
             if search_criteria:
                 count_criteria.append(or_(*search_criteria))
 
@@ -242,11 +258,9 @@ class PatientPaginationMixin:
                 count_criteria.append(Patient.flow_state == FlowState.ACTIVE)
             else:
                 count_criteria.append(
-                    Patient.flow_state.in_([
-                        FlowState.PAUSED,
-                        FlowState.CANCELLED,
-                        FlowState.COMPLETED
-                    ])
+                    Patient.flow_state.in_(
+                        [FlowState.PAUSED, FlowState.CANCELLED, FlowState.COMPLETED]
+                    )
                 )
 
         if filters.get("treatment_type"):
@@ -255,9 +269,7 @@ class PatientPaginationMixin:
             )
 
         if filters.get("treatment_phase"):
-            count_criteria.append(
-                Patient.treatment_phase == filters["treatment_phase"]
-            )
+            count_criteria.append(Patient.treatment_phase == filters["treatment_phase"])
 
         if filters.get("start_date_from"):
             count_criteria.append(
@@ -284,7 +296,7 @@ class PatientPaginationMixin:
         cursor_data: Optional[Dict[str, Any]] = None,
         limit: int = 20,
         sort_by: str = "created_at",
-        sort_order: str = "desc"
+        sort_order: str = "desc",
     ) -> Tuple[List[Patient], bool, Optional[str], Optional[int]]:
         """
         OPTIMIZED patient listing with comprehensive N+1 prevention.
@@ -340,7 +352,7 @@ class PatientPaginationMixin:
             # Appointments
             selectinload(Patient.appointments),
             # Medications
-            selectinload(Patient.medications)
+            selectinload(Patient.medications),
         )
 
         # Build filter criteria
@@ -349,7 +361,7 @@ class PatientPaginationMixin:
 
         # Search filter - LGPD compliant with hash lookups
         if filters.get("search"):
-            search_criteria = build_search_criteria(filters['search'])
+            search_criteria = build_search_criteria(filters["search"])
             if search_criteria:
                 criteria.append(or_(*search_criteria))
 
@@ -381,14 +393,22 @@ class PatientPaginationMixin:
 
         # Cursor pagination
         if cursor_data and "id" in cursor_data:
-            cursor_id = UUID(cursor_data["id"]) if isinstance(cursor_data["id"], str) else cursor_data["id"]
+            cursor_id = (
+                UUID(cursor_data["id"])
+                if isinstance(cursor_data["id"], str)
+                else cursor_data["id"]
+            )
             cursor_val = cursor_data.get(sort_by)
 
             if isinstance(cursor_val, str) and sort_by in ["created_at", "updated_at"]:
                 try:
-                    cursor_val = datetime.fromisoformat(cursor_val.replace("Z", "+00:00"))
+                    cursor_val = datetime.fromisoformat(
+                        cursor_val.replace("Z", "+00:00")
+                    )
                 except ValueError as e:
-                    logger.warning(f"Failed to parse cursor datetime: {cursor_val}, error: {e}")
+                    logger.warning(
+                        f"Failed to parse cursor datetime: {cursor_val}, error: {e}"
+                    )
 
             sort_col = getattr(Patient, sort_by)
 
@@ -396,14 +416,14 @@ class PatientPaginationMixin:
                 criteria.append(
                     or_(
                         sort_col < cursor_val,
-                        and_(sort_col == cursor_val, Patient.id > cursor_id)
+                        and_(sort_col == cursor_val, Patient.id > cursor_id),
                     )
                 )
             else:
                 criteria.append(
                     or_(
                         sort_col > cursor_val,
-                        and_(sort_col == cursor_val, Patient.id > cursor_id)
+                        and_(sort_col == cursor_val, Patient.id > cursor_id),
                     )
                 )
 
@@ -441,10 +461,7 @@ class PatientPaginationMixin:
             if isinstance(last_val, (datetime, date)):
                 last_val = last_val.isoformat()
 
-            next_cursor_data = {
-                "id": str(last_item.id),
-                sort_by: last_val
-            }
+            next_cursor_data = {"id": str(last_item.id), sort_by: last_val}
             next_cursor = base64.b64encode(
                 json.dumps(next_cursor_data).encode()
             ).decode()

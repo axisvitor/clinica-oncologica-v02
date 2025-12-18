@@ -53,7 +53,7 @@ class WebhookSettings(BaseSettings):
         case_sensitive=True,
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="ignore"  # CRITICAL: Ignore extra environment variables not defined in model
+        extra="ignore",  # CRITICAL: Ignore extra environment variables not defined in model
     )
 
 

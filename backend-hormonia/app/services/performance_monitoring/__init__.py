@@ -7,7 +7,7 @@ from app.services.performance_monitoring.models import (
     MetricType,
     BottleneckType,
     PerformanceMetric,
-    PerformanceBottleneck
+    PerformanceBottleneck,
 )
 from app.services.performance_monitoring.service import PerformanceMonitoringService
 
@@ -16,5 +16,5 @@ __all__ = [
     "BottleneckType",
     "PerformanceMetric",
     "PerformanceBottleneck",
-    "PerformanceMonitoringService"
+    "PerformanceMonitoringService",
 ]

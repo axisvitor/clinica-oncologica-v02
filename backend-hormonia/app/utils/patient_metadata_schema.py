@@ -36,7 +36,13 @@ Usage:
 """
 
 from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field, field_validator, ConfigDict, ValidationError as PydanticValidationError
+from pydantic import (
+    BaseModel,
+    Field,
+    field_validator,
+    ConfigDict,
+    ValidationError as PydanticValidationError,
+)
 from app.core.exceptions import ValidationError
 
 
@@ -47,50 +53,58 @@ from app.core.exceptions import ValidationError
 
 class BloodTypeValidator(BaseModel):
     """Blood type validation."""
+
     blood_type: str = Field(
         ...,
         pattern="^(A|B|AB|O)[+-]$",
-        description="Blood type in standard format (A+, B-, AB+, O-, etc.)"
+        description="Blood type in standard format (A+, B-, AB+, O-, etc.)",
     )
 
 
 class EmergencyContactSchema(BaseModel):
     """Emergency contact information schema."""
-    name: str = Field(..., min_length=1, max_length=200, description="Emergency contact name")
+
+    name: str = Field(
+        ..., min_length=1, max_length=200, description="Emergency contact name"
+    )
     phone: str = Field(..., description="Emergency contact phone in E.164 format")
-    relationship: Optional[str] = Field(None, max_length=100, description="Relationship to patient")
+    relationship: Optional[str] = Field(
+        None, max_length=100, description="Relationship to patient"
+    )
     email: Optional[str] = Field(None, description="Emergency contact email")
 
-    @field_validator('phone')
+    @field_validator("phone")
     @classmethod
     def validate_phone(cls, v: str) -> str:
         """Validate phone number in E.164 format."""
-        if not v.startswith('+'):
-            raise ValueError('Phone must start with country code (+)')
+        if not v.startswith("+"):
+            raise ValueError("Phone must start with country code (+)")
         # E.164 format: +[1-9]\d{1,14}
         if not v[1:].isdigit() or len(v) < 8 or len(v) > 16:
-            raise ValueError('Phone must be in E.164 format: +[country][number]')
+            raise ValueError("Phone must be in E.164 format: +[country][number]")
         return v
 
 
 class MedicalHistorySchema(BaseModel):
     """Medical history schema - extends base jsonb_validator structure."""
+
     allergies: Optional[List[str]] = Field(
-        None,
-        description="Known allergies (medications, foods, environmental)"
+        None, description="Known allergies (medications, foods, environmental)"
     )
     medications: Optional[List[str]] = Field(
-        None,
-        description="Current medications with dosage"
+        None, description="Current medications with dosage"
     )
     conditions: Optional[List[str]] = Field(
-        None,
-        description="Pre-existing medical conditions (comorbidities)"
+        None, description="Pre-existing medical conditions (comorbidities)"
     )
-    family_history: Optional[List[str]] = Field(None, description="Family medical history")
-    surgeries: Optional[List[Dict[str, Any]]] = Field(None, description="Past surgical procedures")
+    family_history: Optional[List[str]] = Field(
+        None, description="Family medical history"
+    )
+    surgeries: Optional[List[Dict[str, Any]]] = Field(
+        None, description="Past surgical procedures"
+    )
 
-    @field_validator('allergies', 'medications', 'conditions', 'family_history')
+    @field_validator("allergies", "medications", "conditions", "family_history")
     @classmethod
     def validate_unique_items(cls, v: Optional[List[str]]) -> Optional[List[str]]:
         """Ensure list items are unique."""
@@ -114,18 +128,15 @@ class ClinicalMetadataSchema(BaseModel):
     (metadata JSONB column). It's designed to be backward compatible with
     existing data while enforcing validation for new clinical fields.
     """
+
     medical_history: Optional[MedicalHistorySchema] = Field(
-        None,
-        description="Medical history including allergies, medications, conditions"
+        None, description="Medical history including allergies, medications, conditions"
     )
     blood_type: Optional[str] = Field(
-        None,
-        pattern="^(A|B|AB|O)[+-]$",
-        description="Blood type"
+        None, pattern="^(A|B|AB|O)[+-]$", description="Blood type"
     )
     emergency_contact: Optional[EmergencyContactSchema] = Field(
-        None,
-        description="Emergency contact information"
+        None, description="Emergency contact information"
     )
 
     # Allow other fields (backward compatibility)
@@ -138,8 +149,7 @@ class ClinicalMetadataSchema(BaseModel):
 
 
 def validate_clinical_metadata(
-    metadata: Dict[str, Any],
-    strict: bool = True
+    metadata: Dict[str, Any], strict: bool = True
 ) -> Dict[str, Any]:
     """
     Validate clinical fields in patient metadata.
@@ -180,7 +190,7 @@ def validate_clinical_metadata(
 
     try:
         # Validate using Pydantic schema
-        validated_schema = ClinicalMetadataSchema(**metadata)
+        ClinicalMetadataSchema(**metadata)
 
         # Return the original metadata (Pydantic validated the structure)
         # We don't use validated_schema.dict() because we want to preserve
@@ -194,7 +204,7 @@ def validate_clinical_metadata(
                 {
                     "field": ".".join(str(loc) for loc in err["loc"]),
                     "message": err["msg"],
-                    "type": err["type"]
+                    "type": err["type"],
                 }
                 for err in e.errors()
             ]
@@ -277,23 +287,17 @@ def get_clinical_fields(metadata: Dict[str, Any]) -> Dict[str, Any]:
     if not metadata:
         return {}
 
-    clinical_field_names = {
-        'medical_history',
-        'blood_type',
-        'emergency_contact'
-    }
+    clinical_field_names = {"medical_history", "blood_type", "emergency_contact"}
 
     return {
-        key: value
-        for key, value in metadata.items()
-        if key in clinical_field_names
+        key: value for key, value in metadata.items() if key in clinical_field_names
     }
 
 
 def merge_clinical_metadata(
     existing: Optional[Dict[str, Any]],
     updates: Dict[str, Any],
-    validate_result: bool = True
+    validate_result: bool = True,
 ) -> Dict[str, Any]:
     """
     Safely merge clinical metadata updates into existing metadata.
@@ -331,18 +335,18 @@ def merge_clinical_metadata(
     result = existing.copy()
 
     # Handle nested medical_history specially
-    if 'medical_history' in updates:
-        if 'medical_history' in result:
+    if "medical_history" in updates:
+        if "medical_history" in result:
             # Deep merge medical_history
-            result['medical_history'] = {
-                **result['medical_history'],
-                **updates['medical_history']
+            result["medical_history"] = {
+                **result["medical_history"],
+                **updates["medical_history"],
             }
         else:
-            result['medical_history'] = updates['medical_history']
+            result["medical_history"] = updates["medical_history"]
 
         # Remove from updates to avoid double-processing
-        remaining_updates = {k: v for k, v in updates.items() if k != 'medical_history'}
+        remaining_updates = {k: v for k, v in updates.items() if k != "medical_history"}
     else:
         remaining_updates = updates
 
@@ -401,26 +405,26 @@ def extract_clinical_summary(metadata: Dict[str, Any]) -> Dict[str, Any]:
     summary = {}
 
     # Extract from medical_history
-    medical_history = metadata.get('medical_history', {})
+    medical_history = metadata.get("medical_history", {})
     if medical_history:
-        if 'allergies' in medical_history:
-            summary['allergies'] = medical_history['allergies']
-        if 'medications' in medical_history:
-            summary['current_medications'] = medical_history['medications']
-        if 'conditions' in medical_history:
-            summary['comorbidities'] = medical_history['conditions']
+        if "allergies" in medical_history:
+            summary["allergies"] = medical_history["allergies"]
+        if "medications" in medical_history:
+            summary["current_medications"] = medical_history["medications"]
+        if "conditions" in medical_history:
+            summary["comorbidities"] = medical_history["conditions"]
 
     # Extract direct fields
-    if 'blood_type' in metadata:
-        summary['blood_type'] = metadata['blood_type']
+    if "blood_type" in metadata:
+        summary["blood_type"] = metadata["blood_type"]
 
     # Extract emergency contact
-    emergency_contact = metadata.get('emergency_contact', {})
+    emergency_contact = metadata.get("emergency_contact", {})
     if emergency_contact:
-        if 'name' in emergency_contact:
-            summary['emergency_contact_name'] = emergency_contact['name']
-        if 'phone' in emergency_contact:
-            summary['emergency_contact_phone'] = emergency_contact['phone']
+        if "name" in emergency_contact:
+            summary["emergency_contact_name"] = emergency_contact["name"]
+        if "phone" in emergency_contact:
+            summary["emergency_contact_phone"] = emergency_contact["phone"]
 
     return summary
 

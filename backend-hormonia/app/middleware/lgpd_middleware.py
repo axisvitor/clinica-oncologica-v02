@@ -17,6 +17,7 @@ Integration:
 Add to main.py middleware stack:
     app.add_middleware(LGPDMiddleware)
 """
+
 from typing import Callable
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -27,10 +28,10 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 # Fields that require LGPD protection (Brazilian data protection law)
-LGPD_SENSITIVE_FIELDS = ['cpf', 'email', 'phone', 'rg', 'cns', 'birth_date']
+LGPD_SENSITIVE_FIELDS = ["cpf", "email", "phone", "rg", "cns", "birth_date"]
 
 # Patient data endpoints that require logging
-PATIENT_ENDPOINTS = ['/patients', '/api/v1/patients', '/api/v2/patients']
+PATIENT_ENDPOINTS = ["/patients", "/api/v1/patients", "/api/v2/patients"]
 
 
 class LGPDMiddleware(BaseHTTPMiddleware):
@@ -90,8 +91,7 @@ class LGPDMiddleware(BaseHTTPMiddleware):
 
         # Check if this is a patient data endpoint
         is_patient_endpoint = any(
-            endpoint in request.url.path
-            for endpoint in PATIENT_ENDPOINTS
+            endpoint in request.url.path for endpoint in PATIENT_ENDPOINTS
         )
 
         if is_patient_endpoint:
@@ -99,7 +99,7 @@ class LGPDMiddleware(BaseHTTPMiddleware):
             self._log_patient_data_access(request)
 
             # Validate request for sensitive data handling
-            if request.method in ['POST', 'PUT', 'PATCH']:
+            if request.method in ["POST", "PUT", "PATCH"]:
                 await self._validate_sensitive_data_handling(request)
 
         # Process request
@@ -113,8 +113,8 @@ class LGPDMiddleware(BaseHTTPMiddleware):
                 extra={
                     "path": request.url.path,
                     "method": request.method,
-                    "duration_ms": duration * 1000
-                }
+                    "duration_ms": duration * 1000,
+                },
             )
 
         return response
@@ -129,8 +129,8 @@ class LGPDMiddleware(BaseHTTPMiddleware):
             request: HTTP request object
         """
         # Extract user information from request state (set by auth middleware)
-        user_id = getattr(request.state, 'user_id', None)
-        user_role = getattr(request.state, 'user_role', None)
+        user_id = getattr(request.state, "user_id", None)
+        user_role = getattr(request.state, "user_role", None)
 
         # Extract IP address
         ip_address = None
@@ -138,7 +138,7 @@ class LGPDMiddleware(BaseHTTPMiddleware):
             ip_address = request.client.host
 
         # Extract user agent
-        user_agent = request.headers.get('user-agent', 'unknown')
+        user_agent = request.headers.get("user-agent", "unknown")
 
         # Build audit log entry
         audit_data = {
@@ -147,7 +147,9 @@ class LGPDMiddleware(BaseHTTPMiddleware):
             "user_role": user_role,
             "method": request.method,
             "path": request.url.path,
-            "query_params": dict(request.query_params) if request.query_params else None,
+            "query_params": dict(request.query_params)
+            if request.query_params
+            else None,
             "timestamp": datetime.utcnow().isoformat(),
             "user_agent": user_agent[:200],  # Truncate long user agents
         }
@@ -157,10 +159,7 @@ class LGPDMiddleware(BaseHTTPMiddleware):
             audit_data["ip_address"] = ip_address
 
         # Log with INFO level for compliance audit trail
-        logger.info(
-            "LGPD: Patient data access",
-            extra=audit_data
-        )
+        logger.info("LGPD: Patient data access", extra=audit_data)
 
     async def _validate_sensitive_data_handling(self, request: Request) -> None:
         """
@@ -182,9 +181,9 @@ class LGPDMiddleware(BaseHTTPMiddleware):
         """
         try:
             # Check if request has JSON body
-            content_type = request.headers.get('content-type', '')
+            content_type = request.headers.get("content-type", "")
 
-            if 'application/json' not in content_type:
+            if "application/json" not in content_type:
                 return
 
             # Note: We don't consume the request body here to avoid interfering
@@ -196,8 +195,8 @@ class LGPDMiddleware(BaseHTTPMiddleware):
                 extra={
                     "method": request.method,
                     "path": request.url.path,
-                    "content_type": content_type
-                }
+                    "content_type": content_type,
+                },
             )
 
         except Exception as e:
@@ -207,8 +206,8 @@ class LGPDMiddleware(BaseHTTPMiddleware):
                 extra={
                     "path": request.url.path,
                     "method": request.method,
-                    "error": str(e)
-                }
+                    "error": str(e),
+                },
             )
 
     @staticmethod

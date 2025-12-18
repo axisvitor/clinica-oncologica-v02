@@ -9,14 +9,13 @@ Created: 2025-01-16
 """
 
 from celery import shared_task
-from typing import List, Dict
+from typing import List
 from datetime import datetime, timezone
 import logging
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.monitoring.deprecation_tracking import get_deprecation_tracker
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -25,12 +24,14 @@ logger = logging.getLogger(__name__)
 # Database Models (Stub - implement based on your schema)
 # ============================================================================
 
+
 class APIClient:
     """
     Model representing an API client.
 
     This should match your actual database schema.
     """
+
     id: str
     name: str
     email: str
@@ -171,11 +172,8 @@ URGENT_DEPRECATION_EMAIL_TEMPLATE = """
 # Email Sending (Stub - integrate with your email service)
 # ============================================================================
 
-async def send_email(
-    to: str,
-    subject: str,
-    html_content: str
-) -> bool:
+
+async def send_email(to: str, subject: str, html_content: str) -> bool:
     """
     Send email via email service.
 
@@ -224,6 +222,7 @@ async def send_email(
 # Client Lookup
 # ============================================================================
 
+
 def get_api_clients(db: Session) -> List[APIClient]:
     """
     Get all registered API clients.
@@ -264,6 +263,7 @@ def get_client_by_id(db: Session, client_id: str) -> APIClient:
 # Celery Tasks
 # ============================================================================
 
+
 @shared_task(name="send_deprecation_notifications")
 def send_deprecation_notifications():
     """
@@ -295,12 +295,12 @@ def send_deprecation_notifications():
         emails_failed = 0
 
         # Get all clients at risk
-        clients_at_risk = report['clients_at_risk']
+        clients_at_risk = report["clients_at_risk"]
 
         logger.info(f"Found {len(clients_at_risk)} clients using deprecated APIs")
 
         for client_info in clients_at_risk:
-            client_id = client_info['client_id']
+            client_id = client_info["client_id"]
 
             # Get client details from database
             client = get_client_by_id(db, client_id)
@@ -313,15 +313,15 @@ def send_deprecation_notifications():
             endpoint_rows = ""
             total_calls = 0
 
-            for endpoint in client_info['endpoints']:
+            for endpoint in client_info["endpoints"]:
                 endpoint_rows += f"""
                 <tr>
-                    <td>{endpoint['version']}{endpoint['endpoint']}</td>
-                    <td>{endpoint['call_count']}</td>
+                    <td>{endpoint["version"]}{endpoint["endpoint"]}</td>
+                    <td>{endpoint["call_count"]}</td>
                     <td>Current (v2)</td>
                 </tr>
                 """
-                total_calls += endpoint['call_count']
+                total_calls += endpoint["call_count"]
 
             # Calculate days remaining
             # Assuming sunset date is 2025-07-01
@@ -338,7 +338,7 @@ def send_deprecation_notifications():
                     sunset_date=sunset_date.strftime("%Y-%m-%d"),
                     call_count=total_calls,
                     client_id=client_id,
-                    migration_guide_url="https://api.clinica.com/docs/v2"
+                    migration_guide_url="https://api.clinica.com/docs/v2",
                 )
             else:
                 # Regular deprecation notice
@@ -352,14 +352,12 @@ def send_deprecation_notifications():
                     migration_guide_url="https://api.clinica.com/docs/v2",
                     dashboard_url=f"https://grafana.clinica.com/d/api-versioning?var-client_id={client_id}",
                     docs_url="https://api.clinica.com/docs/v2",
-                    status_url="https://status.clinica.com"
+                    status_url="https://status.clinica.com",
                 )
 
             # Send email
             success = send_email(
-                to=client.email,
-                subject=subject,
-                html_content=html_content
+                to=client.email, subject=subject, html_content=html_content
             )
 
             if success:
@@ -378,15 +376,12 @@ def send_deprecation_notifications():
             "success": True,
             "emails_sent": emails_sent,
             "emails_failed": emails_failed,
-            "clients_at_risk": len(clients_at_risk)
+            "clients_at_risk": len(clients_at_risk),
         }
 
     except Exception as e:
         logger.error(f"Error in deprecation notification task: {e}", exc_info=True)
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        return {"success": False, "error": str(e)}
     finally:
         db.close()
 

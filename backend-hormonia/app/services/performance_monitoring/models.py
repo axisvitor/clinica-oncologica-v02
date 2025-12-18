@@ -2,6 +2,7 @@
 Data models for performance monitoring.
 Defines enums and dataclasses for metrics and bottlenecks.
 """
+
 from typing import Any, List
 from datetime import datetime
 from enum import Enum
@@ -31,6 +32,7 @@ class BottleneckType(Enum):
 @dataclass
 class PerformanceMetric:
     """Performance metric data point."""
+
     metric_type: MetricType
     value: float
     component: str
@@ -41,6 +43,7 @@ class PerformanceMetric:
 @dataclass
 class PerformanceBottleneck:
     """Detected performance bottleneck."""
+
     bottleneck_type: BottleneckType
     severity: str  # low, medium, high, critical
     description: str

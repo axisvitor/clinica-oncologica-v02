@@ -2,6 +2,7 @@
 Flow Service Orchestrator.
 Main service that coordinates all flow operations using specialized modules.
 """
+
 import logging
 from typing import Optional, Any, Tuple
 from datetime import datetime
@@ -39,14 +40,16 @@ class FlowService:
     - AnalyticsTracker: Metrics and response processing
     """
 
-    def __init__(self,
-                 db: Session,
-                 enhanced_flow_engine: Optional[EnhancedFlowEngine] = None,
-                 message_scheduler: Optional[MessageScheduler] = None,
-                 message_sender: Optional[MessageSender] = None,
-                 template_loader: Optional[EnhancedTemplateLoader] = None,
-                 analytics_service: Optional[FlowAnalyticsService] = None,
-                 use_unified_service: bool = True):
+    def __init__(
+        self,
+        db: Session,
+        enhanced_flow_engine: Optional[EnhancedFlowEngine] = None,
+        message_scheduler: Optional[MessageScheduler] = None,
+        message_sender: Optional[MessageSender] = None,
+        template_loader: Optional[EnhancedTemplateLoader] = None,
+        analytics_service: Optional[FlowAnalyticsService] = None,
+        use_unified_service: bool = True,
+    ):
         """
         Initialize flow service with all dependencies.
 
@@ -71,14 +74,14 @@ class FlowService:
             message_scheduler=message_scheduler,
             message_sender=message_sender,
             analytics_service=analytics_service,
-            use_unified_service=use_unified_service
+            use_unified_service=use_unified_service,
         )
         self.scheduler = FlowScheduler(db)
         self.template_manager = MessageTemplateLoader(db, template_loader)
         self.analytics_tracker = AnalyticsTracker(
             db=db,
             enhanced_flow_engine=self.enhanced_flow_engine,
-            analytics_service=analytics_service
+            analytics_service=analytics_service,
         )
 
         # Keep references to repositories
@@ -104,41 +107,51 @@ class FlowService:
             active_flows = await self.scheduler.get_active_flows(limit=limit)
 
             results = {
-                'processed_patients': 0,
-                'messages_scheduled': 0,
-                'errors': 0,
-                'skipped': 0,
-                'processing_time': 0,
-                'details': []
+                "processed_patients": 0,
+                "messages_scheduled": 0,
+                "errors": 0,
+                "skipped": 0,
+                "processing_time": 0,
+                "details": [],
             }
 
             for flow_state in active_flows:
                 try:
                     patient_result = await self._process_patient_daily_flow(flow_state)
-                    results['details'].append(patient_result)
+                    results["details"].append(patient_result)
 
-                    if patient_result['status'] == 'success':
-                        results['processed_patients'] += 1
-                        results['messages_scheduled'] += patient_result.get('messages_scheduled', 0)
-                    elif patient_result['status'] == 'error':
-                        results['errors'] += 1
+                    if patient_result["status"] == "success":
+                        results["processed_patients"] += 1
+                        results["messages_scheduled"] += patient_result.get(
+                            "messages_scheduled", 0
+                        )
+                    elif patient_result["status"] == "error":
+                        results["errors"] += 1
                     else:
-                        results['skipped'] += 1
+                        results["skipped"] += 1
 
                 except Exception as e:
-                    logger.error(f"Error processing patient {flow_state.patient_id}: {e}")
-                    results['errors'] += 1
-                    results['details'].append({
-                        'patient_id': str(flow_state.patient_id),
-                        'status': 'error',
-                        'error': str(e)
-                    })
+                    logger.error(
+                        f"Error processing patient {flow_state.patient_id}: {e}"
+                    )
+                    results["errors"] += 1
+                    results["details"].append(
+                        {
+                            "patient_id": str(flow_state.patient_id),
+                            "status": "error",
+                            "error": str(e),
+                        }
+                    )
 
-            results['processing_time'] = (datetime.utcnow() - start_time).total_seconds()
+            results["processing_time"] = (
+                datetime.utcnow() - start_time
+            ).total_seconds()
 
-            logger.info(f"Daily flow processing completed: {results['processed_patients']} patients, "
-                       f"{results['messages_scheduled']} messages scheduled, "
-                       f"{results['errors']} errors in {results['processing_time']:.2f}s")
+            logger.info(
+                f"Daily flow processing completed: {results['processed_patients']} patients, "
+                f"{results['messages_scheduled']} messages scheduled, "
+                f"{results['errors']} errors in {results['processing_time']:.2f}s"
+            )
 
             return results
 
@@ -152,81 +165,103 @@ class FlowService:
             patient_id = flow_state.patient_id
 
             # Check if we should skip this patient
-            should_skip, skip_reason = await self.scheduler.should_skip_patient_flow(flow_state)
+            should_skip, skip_reason = await self.scheduler.should_skip_patient_flow(
+                flow_state
+            )
             if should_skip:
                 return {
-                    'patient_id': str(patient_id),
-                    'status': 'skipped',
-                    'reason': skip_reason
+                    "patient_id": str(patient_id),
+                    "status": "skipped",
+                    "reason": skip_reason,
                 }
 
             # Calculate current day
-            current_day = await self.enhanced_flow_engine.calculate_patient_day(patient_id)
+            current_day = await self.enhanced_flow_engine.calculate_patient_day(
+                patient_id
+            )
 
             # Check for quiz trigger before processing regular flow
             quiz_trigger_result = await self.scheduler.check_quiz_trigger(
                 patient_id, current_day, flow_state.flow_type
             )
-            if quiz_trigger_result.get('triggered'):
+            if quiz_trigger_result.get("triggered"):
                 return {
-                    'patient_id': str(patient_id),
-                    'status': 'quiz_triggered',
-                    'current_day': current_day,
-                    'flow_type': flow_state.flow_type,
-                    'quiz_session_id': quiz_trigger_result.get('quiz_session_id'),
-                    'messages_scheduled': 1 if quiz_trigger_result.get('message_sent') else 0
+                    "patient_id": str(patient_id),
+                    "status": "quiz_triggered",
+                    "current_day": current_day,
+                    "flow_type": flow_state.flow_type,
+                    "quiz_session_id": quiz_trigger_result.get("quiz_session_id"),
+                    "messages_scheduled": 1
+                    if quiz_trigger_result.get("message_sent")
+                    else 0,
                 }
 
             # Advance patient flow if needed
-            advancement_result = await self.enhanced_flow_engine.advance_patient_flow(patient_id)
+            advancement_result = await self.enhanced_flow_engine.advance_patient_flow(
+                patient_id
+            )
 
             # Get appropriate message template for today
             flow_type = FlowType(flow_state.flow_type)
-            message_template = await self.template_manager.get_message_template_for_day(flow_type, current_day)
+            message_template = await self.template_manager.get_message_template_for_day(
+                flow_type, current_day
+            )
 
             if not message_template:
                 return {
-                    'patient_id': str(patient_id),
-                    'status': 'skipped',
-                    'reason': f'No message template for day {current_day}'
+                    "patient_id": str(patient_id),
+                    "status": "skipped",
+                    "reason": f"No message template for day {current_day}",
                 }
 
             # Generate personalized message using AI
-            personalized_content = await self.enhanced_flow_engine.generate_flow_message(
-                patient_id, message_template
+            personalized_content = (
+                await self.enhanced_flow_engine.generate_flow_message(
+                    patient_id, message_template
+                )
             )
 
             # Calculate optimal send time
             patient = self.patient_repo.get(patient_id)
-            send_time = await self.scheduler.calculate_optimal_send_time(patient, current_day)
+            send_time = await self.scheduler.calculate_optimal_send_time(
+                patient, current_day
+            )
 
             # Create and schedule message
-            message_result = await self.message_handler.create_and_schedule_flow_message(
-                patient_id, flow_state, message_template, personalized_content, current_day, send_time
+            message_result = (
+                await self.message_handler.create_and_schedule_flow_message(
+                    patient_id,
+                    flow_state,
+                    message_template,
+                    personalized_content,
+                    current_day,
+                    send_time,
+                )
             )
 
             return {
-                'patient_id': str(patient_id),
-                'status': 'success',
-                'current_day': current_day,
-                'flow_type': flow_state.flow_type,
-                'messages_scheduled': 1 if message_result else 0,
-                'advancement_result': advancement_result,
-                'message_template': message_template.intent if message_template else None
+                "patient_id": str(patient_id),
+                "status": "success",
+                "current_day": current_day,
+                "flow_type": flow_state.flow_type,
+                "messages_scheduled": 1 if message_result else 0,
+                "advancement_result": advancement_result,
+                "message_template": message_template.intent
+                if message_template
+                else None,
             }
 
         except Exception as e:
             logger.error(f"Error processing patient daily flow: {e}")
             return {
-                'patient_id': str(flow_state.patient_id),
-                'status': 'error',
-                'error': str(e)
+                "patient_id": str(flow_state.patient_id),
+                "status": "error",
+                "error": str(e),
             }
 
-    async def generate_personalized_message_preview(self,
-                                                   patient_id: UUID,
-                                                   flow_type: str,
-                                                   day: int) -> dict[str, Any]:
+    async def generate_personalized_message_preview(
+        self, patient_id: UUID, flow_type: str, day: int
+    ) -> dict[str, Any]:
         """
         Generate a preview of personalized message for healthcare providers.
 
@@ -242,10 +277,9 @@ class FlowService:
             patient_id, flow_type, day, self.template_manager
         )
 
-    async def process_patient_response_with_flow_context(self,
-                                                       patient_id: UUID,
-                                                       response_text: str,
-                                                       message_id: Optional[UUID] = None) -> dict[str, Any]:
+    async def process_patient_response_with_flow_context(
+        self, patient_id: UUID, response_text: str, message_id: Optional[UUID] = None
+    ) -> dict[str, Any]:
         """
         Process patient response with full flow context and AI analysis.
 
@@ -261,8 +295,9 @@ class FlowService:
             patient_id, response_text, message_id, self.message_handler
         )
 
-    async def get_flow_processing_metrics(self,
-                                        date_range: Optional[Tuple[datetime, datetime]] = None) -> dict[str, Any]:
+    async def get_flow_processing_metrics(
+        self, date_range: Optional[Tuple[datetime, datetime]] = None
+    ) -> dict[str, Any]:
         """
         Get comprehensive flow processing metrics.
 
@@ -287,15 +322,15 @@ class FlowService:
         try:
             flow_state = self.flow_state_repo.get_active_flow(patient_id)
             if not flow_state:
-                return {'valid': False, 'error': 'No active flow state found'}
+                return {"valid": False, "error": "No active flow state found"}
 
             await self.state_machine.validate_flow_consistency(flow_state)
 
-            return {'valid': True, 'message': 'Flow consistency validated successfully'}
+            return {"valid": True, "message": "Flow consistency validated successfully"}
 
         except Exception as e:
             logger.error(f"Flow consistency validation failed: {e}")
-            return {'valid': False, 'error': str(e)}
+            return {"valid": False, "error": str(e)}
 
     async def health_check(self) -> dict[str, Any]:
         """
@@ -315,85 +350,118 @@ class FlowService:
         """
         try:
             results = {
-                'service': 'FlowService',
-                'timestamp': datetime.utcnow().isoformat(),
-                'components': {},
-                'overall_healthy': True,
-                'error_count': 0
+                "service": "FlowService",
+                "timestamp": datetime.utcnow().isoformat(),
+                "components": {},
+                "overall_healthy": True,
+                "error_count": 0,
             }
 
             # Check enhanced flow engine
             try:
                 engine_health = await self.enhanced_flow_engine.health_check()
-                results['components']['enhanced_flow_engine'] = engine_health
-                if not engine_health.get('overall_healthy', False):
-                    results['overall_healthy'] = False
-                    results['error_count'] += 1
+                results["components"]["enhanced_flow_engine"] = engine_health
+                if not engine_health.get("overall_healthy", False):
+                    results["overall_healthy"] = False
+                    results["error_count"] += 1
             except Exception as e:
-                logger.error(f"Enhanced flow engine health check failed: {e}", exc_info=True)
-                results['components']['enhanced_flow_engine'] = {'healthy': False, 'error': str(e)}
-                results['overall_healthy'] = False
-                results['error_count'] += 1
+                logger.error(
+                    f"Enhanced flow engine health check failed: {e}", exc_info=True
+                )
+                results["components"]["enhanced_flow_engine"] = {
+                    "healthy": False,
+                    "error": str(e),
+                }
+                results["overall_healthy"] = False
+                results["error_count"] += 1
 
             # Check message scheduler
             try:
-                scheduler_health = await self.message_handler.message_scheduler.health_check()
-                results['components']['message_scheduler'] = scheduler_health
-                if not scheduler_health.get('healthy', False):
-                    results['overall_healthy'] = False
-                    results['error_count'] += 1
+                scheduler_health = (
+                    await self.message_handler.message_scheduler.health_check()
+                )
+                results["components"]["message_scheduler"] = scheduler_health
+                if not scheduler_health.get("healthy", False):
+                    results["overall_healthy"] = False
+                    results["error_count"] += 1
             except Exception as e:
-                logger.error(f"Message scheduler health check failed: {e}", exc_info=True)
-                results['components']['message_scheduler'] = {'healthy': False, 'error': str(e)}
-                results['overall_healthy'] = False
-                results['error_count'] += 1
+                logger.error(
+                    f"Message scheduler health check failed: {e}", exc_info=True
+                )
+                results["components"]["message_scheduler"] = {
+                    "healthy": False,
+                    "error": str(e),
+                }
+                results["overall_healthy"] = False
+                results["error_count"] += 1
 
             # Check database connectivity
             try:
                 self.db.execute("SELECT 1")
-                results['components']['database'] = {'healthy': True, 'connected': True}
+                results["components"]["database"] = {"healthy": True, "connected": True}
             except Exception as e:
                 logger.error(f"Database health check failed: {e}", exc_info=True)
-                results['components']['database'] = {'healthy': False, 'connected': False, 'error': str(e)}
-                results['overall_healthy'] = False
-                results['error_count'] += 1
+                results["components"]["database"] = {
+                    "healthy": False,
+                    "connected": False,
+                    "error": str(e),
+                }
+                results["overall_healthy"] = False
+                results["error_count"] += 1
 
             # Check template loader
             try:
-                template = self.template_manager.template_loader.load_flow_template('initial_15_days')
-                results['components']['template_loader'] = {
-                    'healthy': True,
-                    'templates_loaded': bool(template),
-                    'fallback_available': True
+                template = self.template_manager.template_loader.load_flow_template(
+                    "initial_15_days"
+                )
+                results["components"]["template_loader"] = {
+                    "healthy": True,
+                    "templates_loaded": bool(template),
+                    "fallback_available": True,
                 }
             except Exception as e:
                 logger.error(f"Template loader health check failed: {e}", exc_info=True)
-                results['components']['template_loader'] = {
-                    'healthy': False,
-                    'error': str(e),
-                    'fallback_available': True
+                results["components"]["template_loader"] = {
+                    "healthy": False,
+                    "error": str(e),
+                    "fallback_available": True,
                 }
                 logger.warning("Template loader unhealthy but fallbacks available")
 
             # Check flow integrity service
             try:
-                if hasattr(self, 'state_machine') and self.state_machine:
-                    results['components']['flow_integrity_service'] = {'healthy': True, 'initialized': True}
+                if hasattr(self, "state_machine") and self.state_machine:
+                    results["components"]["flow_integrity_service"] = {
+                        "healthy": True,
+                        "initialized": True,
+                    }
                 else:
-                    results['components']['flow_integrity_service'] = {'healthy': False, 'initialized': False}
+                    results["components"]["flow_integrity_service"] = {
+                        "healthy": False,
+                        "initialized": False,
+                    }
                     logger.warning("Flow integrity service not initialized")
             except Exception as e:
-                logger.error(f"Flow integrity service health check failed: {e}", exc_info=True)
-                results['components']['flow_integrity_service'] = {'healthy': False, 'error': str(e)}
+                logger.error(
+                    f"Flow integrity service health check failed: {e}", exc_info=True
+                )
+                results["components"]["flow_integrity_service"] = {
+                    "healthy": False,
+                    "error": str(e),
+                }
 
             # Add summary
-            total_components = len(results['components'])
-            healthy_components = sum(1 for c in results['components'].values() if c.get('healthy', False))
-            results['health_summary'] = {
-                'total_components': total_components,
-                'healthy_components': healthy_components,
-                'unhealthy_components': total_components - healthy_components,
-                'health_percentage': (healthy_components / total_components * 100) if total_components > 0 else 0
+            total_components = len(results["components"])
+            healthy_components = sum(
+                1 for c in results["components"].values() if c.get("healthy", False)
+            )
+            results["health_summary"] = {
+                "total_components": total_components,
+                "healthy_components": healthy_components,
+                "unhealthy_components": total_components - healthy_components,
+                "health_percentage": (healthy_components / total_components * 100)
+                if total_components > 0
+                else 0,
             }
 
             logger.info(
@@ -406,11 +474,11 @@ class FlowService:
         except Exception as e:
             logger.error(f"Critical health check failure: {e}", exc_info=True)
             return {
-                'service': 'FlowService',
-                'timestamp': datetime.utcnow().isoformat(),
-                'overall_healthy': False,
-                'error': str(e),
-                'critical_failure': True
+                "service": "FlowService",
+                "timestamp": datetime.utcnow().isoformat(),
+                "overall_healthy": False,
+                "error": str(e),
+                "critical_failure": True,
             }
 
 

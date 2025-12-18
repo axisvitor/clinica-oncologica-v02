@@ -5,7 +5,7 @@ Retry helpers used by FlowManager and FlowEngine.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Awaitable, Type, Tuple
+from typing import Callable, Awaitable, Type, Tuple
 import asyncio
 import logging
 
@@ -28,7 +28,9 @@ class RetryPolicy:
                 return await fn()
             except self.retry_exceptions as exc:  # type: ignore
                 last_error = exc
-                logger.warning("Retryable error on attempt %s/%s: %s", attempt, self.attempts, exc)
+                logger.warning(
+                    "Retryable error on attempt %s/%s: %s", attempt, self.attempts, exc
+                )
                 await asyncio.sleep(delay)
                 delay *= self.multiplier
 

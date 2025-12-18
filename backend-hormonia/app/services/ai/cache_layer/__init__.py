@@ -14,7 +14,11 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, Iterable, Optional, Set
 
-from app.infrastructure.cache import CacheConfig, UnifiedCacheManager, get_unified_cache_manager
+from app.infrastructure.cache import (
+    CacheConfig,
+    UnifiedCacheManager,
+    get_unified_cache_manager,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -172,7 +176,9 @@ class CacheLayer:
             self._initialized = False
         logger.debug("CacheLayer closed")
 
-    async def get(self, key: str, operation: CacheOperation, default: Any = None) -> Any:
+    async def get(
+        self, key: str, operation: CacheOperation, default: Any = None
+    ) -> Any:
         await self._ensure_initialized()
         cache_key = self._build_cache_key(operation, key)
 

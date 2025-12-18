@@ -1,9 +1,8 @@
 """
 Session model for user authentication sessions.
 """
-from datetime import datetime
-from typing import TYPE_CHECKING, Optional
-from uuid import UUID
+
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB
@@ -12,7 +11,7 @@ from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
 
 if TYPE_CHECKING:
-    from app.models.user import User
+    pass
 
 
 class Session(BaseModel):
@@ -22,10 +21,16 @@ class Session(BaseModel):
     Relationships (configured for eager loading):
     - user: Many-to-one with User (joinedload)
     """
+
     __tablename__ = "sessions"
 
     # Foreign Keys
-    user_id = Column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
 
     # Session Details
     session_token = Column(String(500), nullable=False, unique=True, index=True)

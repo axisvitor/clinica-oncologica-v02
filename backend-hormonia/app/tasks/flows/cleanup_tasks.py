@@ -4,6 +4,7 @@ Cleanup and maintenance tasks.
 This module contains Celery tasks for cleaning up old flow data,
 archiving completed flows, and maintaining the database.
 """
+
 import json
 import logging
 from typing import Any
@@ -48,21 +49,25 @@ def cleanup_old_flow_data(self, days_old: int = 90) -> dict[str, Any]:
             cutoff_date = datetime.utcnow() - timedelta(days=days_old)
 
             # Initialize repositories
-            flow_repo = FlowStateRepository(db)
+            FlowStateRepository(db)
 
             results = {
                 "completed_flows_cleaned": 0,
                 "old_messages_cleaned": 0,
                 "analytics_cleaned": 0,
                 "cutoff_date": cutoff_date.isoformat(),
-                "start_time": datetime.utcnow().isoformat()
+                "start_time": datetime.utcnow().isoformat(),
             }
 
             # Clean up completed flows older than threshold
-            completed_flows = db.query(PatientFlowState).filter(
-                PatientFlowState.completed_at < cutoff_date,
-                PatientFlowState.completed_at.isnot(None)
-            ).all()
+            completed_flows = (
+                db.query(PatientFlowState)
+                .filter(
+                    PatientFlowState.completed_at < cutoff_date,
+                    PatientFlowState.completed_at.isnot(None),
+                )
+                .all()
+            )
 
             for flow in completed_flows:
                 # Archive important data before deletion
@@ -70,7 +75,7 @@ def cleanup_old_flow_data(self, days_old: int = 90) -> dict[str, Any]:
                     "patient_id": str(flow.patient_id),
                     "flow_type": flow.flow_type,
                     "completed_at": flow.completed_at.isoformat(),
-                    "final_state": flow.state_data
+                    "final_state": flow.state_data,
                 }
 
                 # Store in Redis for historical reference using synchronous client
@@ -82,29 +87,42 @@ def cleanup_old_flow_data(self, days_old: int = 90) -> dict[str, Any]:
                         settings.REDIS_URL,
                         decode_responses=True,
                         socket_connect_timeout=5,
-                        socket_timeout=5
+                        socket_timeout=5,
                     )
 
                     from app.config.settings.tasks import ARCHIVE_RETENTION_DAYS
+
                     redis_client.setex(
                         f"archived_flow:{flow.id}",
                         86400 * ARCHIVE_RETENTION_DAYS,
-                        json.dumps(archive_data)
+                        json.dumps(archive_data),
                     )
 
                     redis_client.close()
 
                 except Exception as redis_error:
-                    logger.warning(f"Failed to archive flow data to Redis: {redis_error}")
+                    logger.warning(
+                        f"Failed to archive flow data to Redis: {redis_error}"
+                    )
 
                 db.delete(flow)
                 results["completed_flows_cleaned"] += 1
 
             # Clean up old flow messages
-            old_messages = db.query(Message).filter(
-                Message.created_at < cutoff_date,
-                Message.status.in_([MessageStatus.DELIVERED, MessageStatus.READ, MessageStatus.FAILED])
-            ).all()
+            old_messages = (
+                db.query(Message)
+                .filter(
+                    Message.created_at < cutoff_date,
+                    Message.status.in_(
+                        [
+                            MessageStatus.DELIVERED,
+                            MessageStatus.READ,
+                            MessageStatus.FAILED,
+                        ]
+                    ),
+                )
+                .all()
+            )
 
             for message in old_messages:
                 db.delete(message)

@@ -8,7 +8,8 @@ Provides comprehensive statistics for doctor's dashboard including:
 - Message engagement metrics
 - Alert counts by severity
 """
-from sqlalchemy import func, and_, case
+
+from sqlalchemy import func, case
 from datetime import datetime, timedelta, date, time
 from typing import Dict, Any, Optional
 import logging
@@ -16,7 +17,6 @@ import logging
 from app.models.patient import Patient
 from app.models.message import Message, MessageDirection, MessageStatus
 from app.models.alert import Alert, AlertSeverity, AlertStatus
-from app.schemas.medico import MedicoDashboardStats, EngagementMetrics, AlertMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +43,15 @@ class MedicoStatsService:
             Number of active patients
         """
         try:
-            count = self.db.query(Patient).filter(
-                Patient.doctor_id == self.medico_id,
-                # Active patients are those not in inactive or completed state
-                Patient.flow_state.notin_(['inactive', 'completed'])
-            ).count()
+            count = (
+                self.db.query(Patient)
+                .filter(
+                    Patient.doctor_id == self.medico_id,
+                    # Active patients are those not in inactive or completed state
+                    Patient.flow_state.notin_(["inactive", "completed"]),
+                )
+                .count()
+            )
 
             logger.debug(f"Medico {self.medico_id}: {count} active patients")
             return count
@@ -70,14 +74,17 @@ class MedicoStatsService:
             today_end = datetime.combine(date.today(), time.max)
 
             # Count outbound messages sent today as proxy for consultations
-            count = self.db.query(Message).join(
-                Patient, Message.patient_id == Patient.id
-            ).filter(
-                Patient.doctor_id == self.medico_id,
-                Message.direction == MessageDirection.OUTBOUND,
-                Message.created_at >= today_start,
-                Message.created_at <= today_end
-            ).count()
+            count = (
+                self.db.query(Message)
+                .join(Patient, Message.patient_id == Patient.id)
+                .filter(
+                    Patient.doctor_id == self.medico_id,
+                    Message.direction == MessageDirection.OUTBOUND,
+                    Message.created_at >= today_start,
+                    Message.created_at <= today_end,
+                )
+                .count()
+            )
 
             logger.debug(f"Medico {self.medico_id}: {count} consultations today")
             return count
@@ -99,16 +106,21 @@ class MedicoStatsService:
 
             # Count unread inbound messages from last 48h
             # Join with patients to ensure they belong to this medico
-            pending_messages = self.db.query(Message).join(
-                Patient, Message.patient_id == Patient.id
-            ).filter(
-                Patient.doctor_id == self.medico_id,
-                Message.direction == MessageDirection.INBOUND,
-                Message.status.notin_([MessageStatus.READ]),
-                Message.created_at >= two_days_ago
-            ).count()
+            pending_messages = (
+                self.db.query(Message)
+                .join(Patient, Message.patient_id == Patient.id)
+                .filter(
+                    Patient.doctor_id == self.medico_id,
+                    Message.direction == MessageDirection.INBOUND,
+                    Message.status.notin_([MessageStatus.READ]),
+                    Message.created_at >= two_days_ago,
+                )
+                .count()
+            )
 
-            logger.debug(f"Medico {self.medico_id}: {pending_messages} pending messages")
+            logger.debug(
+                f"Medico {self.medico_id}: {pending_messages} pending messages"
+            )
             return pending_messages
         except Exception as e:
             logger.error(f"Error counting pending tasks: {e}")
@@ -145,43 +157,55 @@ class MedicoStatsService:
             week_ago = datetime.utcnow() - timedelta(days=7)
 
             # Messages sent today by medico
-            messages_today = self.db.query(Message).join(
-                Patient, Message.patient_id == Patient.id
-            ).filter(
-                Patient.doctor_id == self.medico_id,
-                Message.direction == MessageDirection.OUTBOUND,
-                Message.created_at >= today_start,
-                Message.created_at <= today_end
-            ).count()
+            messages_today = (
+                self.db.query(Message)
+                .join(Patient, Message.patient_id == Patient.id)
+                .filter(
+                    Patient.doctor_id == self.medico_id,
+                    Message.direction == MessageDirection.OUTBOUND,
+                    Message.created_at >= today_start,
+                    Message.created_at <= today_end,
+                )
+                .count()
+            )
 
             # Unread inbound messages
-            messages_unread = self.db.query(Message).join(
-                Patient, Message.patient_id == Patient.id
-            ).filter(
-                Patient.doctor_id == self.medico_id,
-                Message.direction == MessageDirection.INBOUND,
-                Message.status.notin_([MessageStatus.READ])
-            ).count()
+            messages_unread = (
+                self.db.query(Message)
+                .join(Patient, Message.patient_id == Patient.id)
+                .filter(
+                    Patient.doctor_id == self.medico_id,
+                    Message.direction == MessageDirection.INBOUND,
+                    Message.status.notin_([MessageStatus.READ]),
+                )
+                .count()
+            )
 
             # Response rate calculation (last 7 days)
             # Count inbound messages
-            inbound_count = self.db.query(Message).join(
-                Patient, Message.patient_id == Patient.id
-            ).filter(
-                Patient.doctor_id == self.medico_id,
-                Message.direction == MessageDirection.INBOUND,
-                Message.created_at >= week_ago
-            ).count()
+            inbound_count = (
+                self.db.query(Message)
+                .join(Patient, Message.patient_id == Patient.id)
+                .filter(
+                    Patient.doctor_id == self.medico_id,
+                    Message.direction == MessageDirection.INBOUND,
+                    Message.created_at >= week_ago,
+                )
+                .count()
+            )
 
             # Count read inbound messages (proxy for responded)
-            read_count = self.db.query(Message).join(
-                Patient, Message.patient_id == Patient.id
-            ).filter(
-                Patient.doctor_id == self.medico_id,
-                Message.direction == MessageDirection.INBOUND,
-                Message.status == MessageStatus.READ,
-                Message.created_at >= week_ago
-            ).count()
+            read_count = (
+                self.db.query(Message)
+                .join(Patient, Message.patient_id == Patient.id)
+                .filter(
+                    Patient.doctor_id == self.medico_id,
+                    Message.direction == MessageDirection.INBOUND,
+                    Message.status == MessageStatus.READ,
+                    Message.created_at >= week_ago,
+                )
+                .count()
+            )
 
             response_rate = (read_count / inbound_count) if inbound_count > 0 else 0.0
 
@@ -193,7 +217,7 @@ class MedicoStatsService:
                 "messages_today": messages_today,
                 "messages_unread": messages_unread,
                 "response_rate": round(response_rate, 2),
-                "avg_response_time_minutes": avg_response_time
+                "avg_response_time_minutes": avg_response_time,
             }
 
             logger.debug(f"Medico {self.medico_id} engagement metrics: {metrics}")
@@ -205,7 +229,7 @@ class MedicoStatsService:
                 "messages_today": 0,
                 "messages_unread": 0,
                 "response_rate": 0.0,
-                "avg_response_time_minutes": None
+                "avg_response_time_minutes": None,
             }
 
     def _calculate_avg_response_time(self) -> Optional[int]:
@@ -219,7 +243,7 @@ class MedicoStatsService:
             Average response time in minutes, or None if not calculable
         """
         try:
-            week_ago = datetime.utcnow() - timedelta(days=7)
+            datetime.utcnow() - timedelta(days=7)
 
             # Get pairs of inbound and next outbound messages
             # This is a simplified approach - production would need proper threading
@@ -252,32 +276,38 @@ class MedicoStatsService:
 
             # Count active alerts by severity
             # Use case statement for conditional counting
-            alert_counts = self.db.query(
-                func.count(Alert.id).label('total'),
-                func.sum(case((Alert.severity == AlertSeverity.CRITICAL, 1), else_=0)).label('critical'),
-                func.sum(case((Alert.severity == AlertSeverity.HIGH, 1), else_=0)).label('high'),
-                func.sum(case((Alert.severity == AlertSeverity.MEDIUM, 1), else_=0)).label('medium'),
-                func.sum(case((Alert.severity == AlertSeverity.LOW, 1), else_=0)).label('low')
-            ).filter(
-                Alert.patient_id.in_(patient_ids_query),
-                Alert.status.in_([AlertStatus.PENDING, AlertStatus.ACTIVE])
-            ).first()
+            alert_counts = (
+                self.db.query(
+                    func.count(Alert.id).label("total"),
+                    func.sum(
+                        case((Alert.severity == AlertSeverity.CRITICAL, 1), else_=0)
+                    ).label("critical"),
+                    func.sum(
+                        case((Alert.severity == AlertSeverity.HIGH, 1), else_=0)
+                    ).label("high"),
+                    func.sum(
+                        case((Alert.severity == AlertSeverity.MEDIUM, 1), else_=0)
+                    ).label("medium"),
+                    func.sum(
+                        case((Alert.severity == AlertSeverity.LOW, 1), else_=0)
+                    ).label("low"),
+                )
+                .filter(
+                    Alert.patient_id.in_(patient_ids_query),
+                    Alert.status.in_([AlertStatus.PENDING, AlertStatus.ACTIVE]),
+                )
+                .first()
+            )
 
             if not alert_counts:
-                return {
-                    "total": 0,
-                    "critical": 0,
-                    "high": 0,
-                    "medium": 0,
-                    "low": 0
-                }
+                return {"total": 0, "critical": 0, "high": 0, "medium": 0, "low": 0}
 
             metrics = {
                 "total": alert_counts.total or 0,
                 "critical": alert_counts.critical or 0,
                 "high": alert_counts.high or 0,
                 "medium": alert_counts.medium or 0,
-                "low": alert_counts.low or 0
+                "low": alert_counts.low or 0,
             }
 
             logger.debug(f"Medico {self.medico_id} alert metrics: {metrics}")
@@ -285,13 +315,7 @@ class MedicoStatsService:
 
         except Exception as e:
             logger.error(f"Error calculating alert metrics: {e}")
-            return {
-                "total": 0,
-                "critical": 0,
-                "high": 0,
-                "medium": 0,
-                "low": 0
-            }
+            return {"total": 0, "critical": 0, "high": 0, "medium": 0, "low": 0}
 
     def get_all_stats(self) -> Dict[str, Any]:
         """
@@ -312,14 +336,18 @@ class MedicoStatsService:
                 "exames_aguardando": self.get_exames_aguardando(),
                 "engagement": self.get_engagement_metrics(),
                 "alerts": self.get_alert_metrics(),
-                "timestamp": datetime.utcnow().isoformat() + 'Z'
+                "timestamp": datetime.utcnow().isoformat() + "Z",
             }
 
-            logger.info(f"Dashboard stats calculated for medico {self.medico_id}: {stats}")
+            logger.info(
+                f"Dashboard stats calculated for medico {self.medico_id}: {stats}"
+            )
             return stats
 
         except Exception as e:
-            logger.error(f"Error calculating all stats for medico {self.medico_id}: {e}")
+            logger.error(
+                f"Error calculating all stats for medico {self.medico_id}: {e}"
+            )
             # Return zero stats on error
             return {
                 "pacientes_ativos": 0,
@@ -330,14 +358,8 @@ class MedicoStatsService:
                     "messages_today": 0,
                     "messages_unread": 0,
                     "response_rate": 0.0,
-                    "avg_response_time_minutes": None
+                    "avg_response_time_minutes": None,
                 },
-                "alerts": {
-                    "total": 0,
-                    "critical": 0,
-                    "high": 0,
-                    "medium": 0,
-                    "low": 0
-                },
-                "timestamp": datetime.utcnow().isoformat() + 'Z'
+                "alerts": {"total": 0, "critical": 0, "high": 0, "medium": 0, "low": 0},
+                "timestamp": datetime.utcnow().isoformat() + "Z",
             }

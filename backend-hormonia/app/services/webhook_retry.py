@@ -23,8 +23,7 @@ Retry Schedule:
 import logging
 import asyncio
 from typing import Any, Dict, Optional, Callable
-from datetime import datetime, timedelta
-from uuid import UUID
+from datetime import datetime
 
 from tenacity import (
     retry,
@@ -33,7 +32,6 @@ from tenacity import (
     retry_if_exception_type,
     before_sleep_log,
     after_log,
-    RetryError
 )
 import aiohttp
 
@@ -42,7 +40,7 @@ from app.monitoring.metrics import (
     webhook_retry_attempts,
     webhook_retry_success,
     webhook_retry_failures,
-    webhook_dlq_enqueued
+    webhook_dlq_enqueued,
 )
 
 logger = logging.getLogger(__name__)
@@ -68,7 +66,7 @@ class WebhookRetryService:
         max_retries: int = None,
         min_wait: int = None,
         max_wait: int = None,
-        multiplier: int = None
+        multiplier: int = None,
     ):
         """
         Initialize webhook retry service.
@@ -98,24 +96,15 @@ class WebhookRetryService:
 
     @retry(
         stop=stop_after_attempt(5),  # Will be overridden by instance config
-        wait=wait_exponential(
-            multiplier=1,
-            min=2,
-            max=60
+        wait=wait_exponential(multiplier=1, min=2, max=60),
+        retry=retry_if_exception_type(
+            (TimeoutError, ConnectionError, aiohttp.ClientError, asyncio.TimeoutError)
         ),
-        retry=retry_if_exception_type((
-            TimeoutError,
-            ConnectionError,
-            aiohttp.ClientError,
-            asyncio.TimeoutError
-        )),
         before_sleep=before_sleep_log(logger, logging.WARNING),
-        after=after_log(logger, logging.INFO)
+        after=after_log(logger, logging.INFO),
     )
     async def process_webhook_with_retry(
-        self,
-        webhook_data: Dict[str, Any],
-        processor_func: Optional[Callable] = None
+        self, webhook_data: Dict[str, Any], processor_func: Optional[Callable] = None
     ) -> Dict[str, Any]:
         """
         Process webhook with automatic retry and exponential backoff.
@@ -143,11 +132,9 @@ class WebhookRetryService:
         attempt_number = self._current_attempt
 
         # Record retry attempt metric
-        webhook_retry_attempts.labels(
-            attempt_number=attempt_number
-        ).inc()
+        webhook_retry_attempts.labels(attempt_number=attempt_number).inc()
 
-        webhook_id = webhook_data.get('id', 'unknown')
+        webhook_id = webhook_data.get("id", "unknown")
 
         try:
             # Process webhook
@@ -157,17 +144,15 @@ class WebhookRetryService:
                 result = await self._process_webhook_internal(webhook_data)
 
             # Record success
-            webhook_retry_success.labels(
-                attempt_number=attempt_number
-            ).inc()
+            webhook_retry_success.labels(attempt_number=attempt_number).inc()
 
             logger.info(
                 f"Webhook {webhook_id} processed successfully on attempt {attempt_number}",
                 extra={
-                    'webhook_id': webhook_id,
-                    'attempt': attempt_number,
-                    'total_attempts': self.max_retries
-                }
+                    "webhook_id": webhook_id,
+                    "attempt": attempt_number,
+                    "total_attempts": self.max_retries,
+                },
             )
 
             # Reset attempt counter on success
@@ -178,28 +163,24 @@ class WebhookRetryService:
         except Exception as e:
             # Record failure
             webhook_retry_failures.labels(
-                attempt_number=attempt_number,
-                error_type=type(e).__name__
+                attempt_number=attempt_number, error_type=type(e).__name__
             ).inc()
 
             logger.warning(
                 f"Webhook {webhook_id} processing failed on attempt {attempt_number}: {e}",
                 extra={
-                    'webhook_id': webhook_id,
-                    'attempt': attempt_number,
-                    'error': str(e),
-                    'error_type': type(e).__name__
-                }
+                    "webhook_id": webhook_id,
+                    "attempt": attempt_number,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                },
             )
 
             # Check if we've exhausted retries
             if attempt_number >= self.max_retries:
                 logger.error(
                     f"Webhook {webhook_id} failed after {attempt_number} attempts",
-                    extra={
-                        'webhook_id': webhook_id,
-                        'final_error': str(e)
-                    }
+                    extra={"webhook_id": webhook_id, "final_error": str(e)},
                 )
 
                 # Send to DLQ
@@ -213,7 +194,9 @@ class WebhookRetryService:
             # Re-raise for tenacity to retry
             raise
 
-    async def _process_webhook_internal(self, webhook_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _process_webhook_internal(
+        self, webhook_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Internal webhook processing logic (placeholder).
 
@@ -228,9 +211,9 @@ class WebhookRetryService:
         # Placeholder - actual processing logic should be injected
         # via processor_func parameter
         return {
-            'status': 'success',
-            'webhook_id': webhook_data.get('id'),
-            'processed_at': datetime.utcnow().isoformat()
+            "status": "success",
+            "webhook_id": webhook_data.get("id"),
+            "processed_at": datetime.utcnow().isoformat(),
         }
 
     async def _send_to_dlq(self, webhook_data: Dict[str, Any], error: str) -> None:
@@ -244,25 +227,23 @@ class WebhookRetryService:
         if not self.dlq_service:
             logger.warning(
                 "No DLQ service configured, webhook will be lost",
-                extra={'webhook_id': webhook_data.get('id')}
+                extra={"webhook_id": webhook_data.get("id")},
             )
             return
 
         dlq_payload = {
-            'webhook_data': webhook_data,
-            'error': error,
-            'retry_count': self.max_retries,
-            'failed_at': datetime.utcnow().isoformat(),
-            'error_type': 'max_retries_exhausted'
+            "webhook_data": webhook_data,
+            "error": error,
+            "retry_count": self.max_retries,
+            "failed_at": datetime.utcnow().isoformat(),
+            "error_type": "max_retries_exhausted",
         }
 
         try:
             await self.dlq_service.enqueue(dlq_payload)
 
             # Record DLQ metric
-            webhook_dlq_enqueued.labels(
-                error_type='max_retries_exhausted'
-            ).inc()
+            webhook_dlq_enqueued.labels(error_type="max_retries_exhausted").inc()
 
             logger.info(
                 f"Webhook {webhook_data.get('id')} sent to DLQ after {self.max_retries} failed attempts"
@@ -272,9 +253,9 @@ class WebhookRetryService:
             logger.error(
                 f"Failed to send webhook to DLQ: {dlq_error}",
                 extra={
-                    'webhook_id': webhook_data.get('id'),
-                    'dlq_error': str(dlq_error)
-                }
+                    "webhook_id": webhook_data.get("id"),
+                    "dlq_error": str(dlq_error),
+                },
             )
 
     def get_retry_statistics(self) -> Dict[str, Any]:
@@ -285,22 +266,24 @@ class WebhookRetryService:
             Dictionary with retry settings
         """
         return {
-            'max_retries': self.max_retries,
-            'min_wait_seconds': self.min_wait,
-            'max_wait_seconds': self.max_wait,
-            'multiplier': self.multiplier,
-            'current_attempt': self._current_attempt,
-            'retry_schedule': [
+            "max_retries": self.max_retries,
+            "min_wait_seconds": self.min_wait,
+            "max_wait_seconds": self.max_wait,
+            "multiplier": self.multiplier,
+            "current_attempt": self._current_attempt,
+            "retry_schedule": [
                 {
-                    'attempt': i + 1,
-                    'wait_time': min(self.min_wait * (self.multiplier ** i), self.max_wait),
-                    'cumulative_wait': sum(
-                        min(self.min_wait * (self.multiplier ** j), self.max_wait)
+                    "attempt": i + 1,
+                    "wait_time": min(
+                        self.min_wait * (self.multiplier**i), self.max_wait
+                    ),
+                    "cumulative_wait": sum(
+                        min(self.min_wait * (self.multiplier**j), self.max_wait)
                         for j in range(i)
-                    )
+                    ),
                 }
                 for i in range(self.max_retries)
-            ]
+            ],
         }
 
 
@@ -327,9 +310,7 @@ class CircuitBreakerAwareWebhookRetry(WebhookRetryService):
         self.circuit_breaker = circuit_breaker
 
     async def process_webhook_with_retry(
-        self,
-        webhook_data: Dict[str, Any],
-        processor_func: Optional[Callable] = None
+        self, webhook_data: Dict[str, Any], processor_func: Optional[Callable] = None
     ) -> Dict[str, Any]:
         """
         Process webhook with circuit breaker and retry.
@@ -348,16 +329,12 @@ class CircuitBreakerAwareWebhookRetry(WebhookRetryService):
         if self.circuit_breaker.is_open():
             logger.warning(
                 f"Circuit breaker OPEN, failing fast for webhook {webhook_data.get('id')}",
-                extra={
-                    'webhook_id': webhook_data.get('id'),
-                    'circuit_state': 'OPEN'
-                }
+                extra={"webhook_id": webhook_data.get("id"), "circuit_state": "OPEN"},
             )
 
             # Send directly to DLQ (no retry when circuit is open)
             await self._send_to_dlq(
-                webhook_data,
-                error="Circuit breaker OPEN - service unavailable"
+                webhook_data, error="Circuit breaker OPEN - service unavailable"
             )
 
             raise Exception("Circuit breaker OPEN - webhook processing unavailable")
@@ -367,9 +344,11 @@ class CircuitBreakerAwareWebhookRetry(WebhookRetryService):
             # Wrap retry logic with circuit breaker
             async def circuit_breaker_processor(data):
                 return await self.circuit_breaker.call(
-                    super(CircuitBreakerAwareWebhookRetry, self).process_webhook_with_retry,
+                    super(
+                        CircuitBreakerAwareWebhookRetry, self
+                    ).process_webhook_with_retry,
                     data,
-                    processor_func
+                    processor_func,
                 )
 
             return await circuit_breaker_processor(webhook_data)
@@ -378,9 +357,9 @@ class CircuitBreakerAwareWebhookRetry(WebhookRetryService):
             logger.error(
                 f"Circuit breaker-aware webhook processing failed: {e}",
                 extra={
-                    'webhook_id': webhook_data.get('id'),
-                    'circuit_state': self.circuit_breaker.state
-                }
+                    "webhook_id": webhook_data.get("id"),
+                    "circuit_state": self.circuit_breaker.state,
+                },
             )
             raise
 
@@ -390,8 +369,7 @@ _webhook_retry_service: Optional[WebhookRetryService] = None
 
 
 def get_webhook_retry_service(
-    dlq_service: Optional[Any] = None,
-    circuit_breaker: Optional[Any] = None
+    dlq_service: Optional[Any] = None, circuit_breaker: Optional[Any] = None
 ) -> WebhookRetryService:
     """
     Get webhook retry service instance.
@@ -408,8 +386,7 @@ def get_webhook_retry_service(
     if _webhook_retry_service is None:
         if circuit_breaker:
             _webhook_retry_service = CircuitBreakerAwareWebhookRetry(
-                circuit_breaker=circuit_breaker,
-                dlq_service=dlq_service
+                circuit_breaker=circuit_breaker, dlq_service=dlq_service
             )
         else:
             _webhook_retry_service = WebhookRetryService(dlq_service=dlq_service)

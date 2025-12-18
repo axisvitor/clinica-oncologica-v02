@@ -16,7 +16,7 @@ import logging
 import asyncio
 import hashlib
 import json
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, Dict
 from datetime import datetime, timedelta
 
 from app.config import settings
@@ -51,15 +51,16 @@ class FirebaseRedisCache(SessionCacheMixin):
         if redis_client is None:
             # Import here to avoid circular dependency
             from .utils import get_redis_manager
+
             redis_manager = get_redis_manager()
-            redis_client = redis_manager.get_compatible_client('sync')
+            redis_client = redis_manager.get_compatible_client("sync")
 
         self.redis = redis_client
 
         # Cache TTL configuration (from settings or defaults)
-        self.token_ttl = getattr(settings, 'FIREBASE_TOKEN_CACHE_TTL', 3600)  # 1 hour
-        self.user_ttl = getattr(settings, 'FIREBASE_USER_CACHE_TTL', 7200)   # 2 hours
-        self.session_ttl = getattr(settings, 'FIREBASE_SESSION_TTL', 86400)  # 24 hours
+        self.token_ttl = getattr(settings, "FIREBASE_TOKEN_CACHE_TTL", 3600)  # 1 hour
+        self.user_ttl = getattr(settings, "FIREBASE_USER_CACHE_TTL", 7200)  # 2 hours
+        self.session_ttl = getattr(settings, "FIREBASE_SESSION_TTL", 86400)  # 24 hours
 
     # === LAYER 1: TOKEN VALIDATION CACHE ===
 
@@ -67,7 +68,7 @@ class FirebaseRedisCache(SessionCacheMixin):
         self,
         id_token: str,
         user_data: Dict[str, Any],
-        ttl_seconds: Optional[int] = None
+        ttl_seconds: Optional[int] = None,
     ) -> None:
         """
         Cache Firebase validated token (Layer 1).
@@ -88,7 +89,7 @@ class FirebaseRedisCache(SessionCacheMixin):
             "email": user_data.get("email"),
             "role": user_data.get("role"),
             "validated_at": datetime.utcnow().isoformat(),
-            "expires_at": (datetime.utcnow() + timedelta(seconds=ttl)).isoformat()
+            "expires_at": (datetime.utcnow() + timedelta(seconds=ttl)).isoformat(),
         }
 
         self.redis.setex(key, ttl, json.dumps(cache_data))
@@ -128,7 +129,7 @@ class FirebaseRedisCache(SessionCacheMixin):
         self,
         firebase_uid: str,
         user_dict: Dict[str, Any],
-        ttl_seconds: Optional[int] = None
+        ttl_seconds: Optional[int] = None,
     ) -> None:
         """
         Cache User object (Layer 2).
@@ -143,10 +144,7 @@ class FirebaseRedisCache(SessionCacheMixin):
         ttl = ttl_seconds or self.user_ttl
         key = f"user:firebase_uid:{firebase_uid}"
 
-        cache_data = {
-            **user_dict,
-            "cached_at": datetime.utcnow().isoformat()
-        }
+        cache_data = {**user_dict, "cached_at": datetime.utcnow().isoformat()}
 
         self.redis.setex(key, ttl, json.dumps(cache_data))
         logger.debug(f"💾 User cached: {firebase_uid} (TTL: {ttl}s)")
@@ -195,7 +193,7 @@ class FirebaseRedisCache(SessionCacheMixin):
             "token_cache_ttl": self.token_ttl,
             "user_cache_ttl": self.user_ttl,
             "session_ttl": self.session_ttl,
-            "redis_connection": "healthy" if self.redis.ping() else "unhealthy"
+            "redis_connection": "healthy" if self.redis.ping() else "unhealthy",
         }
 
         # Count active sessions
@@ -230,10 +228,7 @@ class FirebaseRedisCache(SessionCacheMixin):
         return None
 
     async def cache_user_data(
-        self,
-        firebase_uid: str,
-        user_data: Dict[str, Any],
-        ttl: int = 900
+        self, firebase_uid: str, user_data: Dict[str, Any], ttl: int = 900
     ) -> None:
         """
         Cache user data by Firebase UID (async version).
@@ -245,17 +240,9 @@ class FirebaseRedisCache(SessionCacheMixin):
         """
         key = f"user:firebase_uid:{firebase_uid}"
 
-        cache_data = {
-            **user_data,
-            "cached_at": datetime.utcnow().isoformat()
-        }
+        cache_data = {**user_data, "cached_at": datetime.utcnow().isoformat()}
 
-        await asyncio.to_thread(
-            self.redis.setex,
-            key,
-            ttl,
-            json.dumps(cache_data)
-        )
+        await asyncio.to_thread(self.redis.setex, key, ttl, json.dumps(cache_data))
         logger.debug(f"💾 User data cached: {firebase_uid} (TTL: {ttl}s)")
 
     async def get_or_create_user(
@@ -264,7 +251,7 @@ class FirebaseRedisCache(SessionCacheMixin):
         firebase_uid: str,
         email: Optional[str] = None,
         display_name: Optional[str] = None,
-        photo_url: Optional[str] = None
+        photo_url: Optional[str] = None,
     ) -> Optional[User]:
         """
         Get user from cache/database or create new user.
@@ -291,7 +278,7 @@ class FirebaseRedisCache(SessionCacheMixin):
                 email=cached_user["email"],
                 full_name=cached_user.get("full_name"),
                 role=UserRole[cached_user.get("role", "DOCTOR").upper()],
-                is_active=cached_user.get("is_active", True)
+                is_active=cached_user.get("is_active", True),
             )
             return user
 
@@ -307,15 +294,19 @@ class FirebaseRedisCache(SessionCacheMixin):
                 "firebase_uid": user.firebase_uid,
                 "email": user.email,
                 "full_name": user.full_name,
-                "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
-                "is_active": user.is_active
+                "role": user.role.value
+                if hasattr(user.role, "value")
+                else str(user.role),
+                "is_active": user.is_active,
             }
             await self.cache_user_data(firebase_uid, user_dict, ttl=self.user_ttl)
             return user
 
         # Create new user if email provided
         if not email:
-            logger.error(f"Cannot create user without email for firebase_uid: {firebase_uid}")
+            logger.error(
+                f"Cannot create user without email for firebase_uid: {firebase_uid}"
+            )
             return None
 
         try:
@@ -324,7 +315,7 @@ class FirebaseRedisCache(SessionCacheMixin):
                 email=email,
                 full_name=display_name or email.split("@")[0],
                 role=UserRole.DOCTOR,  # Default role
-                is_active=True
+                is_active=True,
             )
             db.add(new_user)
             await db.commit()
@@ -336,8 +327,10 @@ class FirebaseRedisCache(SessionCacheMixin):
                 "firebase_uid": new_user.firebase_uid,
                 "email": new_user.email,
                 "full_name": new_user.full_name,
-                "role": new_user.role.value if hasattr(new_user.role, 'value') else str(new_user.role),
-                "is_active": new_user.is_active
+                "role": new_user.role.value
+                if hasattr(new_user.role, "value")
+                else str(new_user.role),
+                "is_active": new_user.is_active,
             }
             await self.cache_user_data(firebase_uid, user_dict, ttl=self.user_ttl)
 

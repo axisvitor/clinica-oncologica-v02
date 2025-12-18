@@ -11,6 +11,7 @@ Usage:
     enable_query_logging(level="INFO")  # Basic query logging
     enable_query_logging(level="DEBUG") # Detailed with parameters
 """
+
 import hashlib
 import logging
 import os
@@ -64,7 +65,7 @@ class QueryLogger:
         # Warn on slow queries
         if duration > self.slow_query_threshold:
             logger.warning(
-                f"Slow query detected ({duration*1000:.2f}ms):\n{statement}"
+                f"Slow query detected ({duration * 1000:.2f}ms):\n{statement}"
             )
 
     def get_stats(self) -> dict:
@@ -72,9 +73,15 @@ class QueryLogger:
         return {
             "total_queries": self.query_count,
             "total_time_seconds": self.total_time,
-            "average_time_ms": (self.total_time / self.query_count * 1000) if self.query_count > 0 else 0,
-            "duplicate_queries": {k: v for k, v in self.duplicate_queries.items() if v > 1},
-            "slow_queries": [(q, d*1000) for q, d in self.queries if d > self.slow_query_threshold]
+            "average_time_ms": (self.total_time / self.query_count * 1000)
+            if self.query_count > 0
+            else 0,
+            "duplicate_queries": {
+                k: v for k, v in self.duplicate_queries.items() if v > 1
+            },
+            "slow_queries": [
+                (q, d * 1000) for q, d in self.queries if d > self.slow_query_threshold
+            ],
         }
 
     def reset(self):
@@ -92,36 +99,38 @@ class QueryLogger:
         logger.info(
             "Query statistics summary",
             extra={
-                "total_queries": stats['total_queries'],
-                "total_time_seconds": stats['total_time_seconds'],
-                "average_time_ms": stats['average_time_ms'],
-                "duplicate_queries_count": len(stats['duplicate_queries']),
-                "slow_queries_count": len(stats['slow_queries'])
-            }
+                "total_queries": stats["total_queries"],
+                "total_time_seconds": stats["total_time_seconds"],
+                "average_time_ms": stats["average_time_ms"],
+                "duplicate_queries_count": len(stats["duplicate_queries"]),
+                "slow_queries_count": len(stats["slow_queries"]),
+            },
         )
 
         # Log duplicate queries as warnings (potential N+1 problems)
-        if stats['duplicate_queries']:
-            for query, count in sorted(stats['duplicate_queries'].items(), key=lambda x: x[1], reverse=True)[:5]:
+        if stats["duplicate_queries"]:
+            for query, count in sorted(
+                stats["duplicate_queries"].items(), key=lambda x: x[1], reverse=True
+            )[:5]:
                 logger.warning(
                     "Duplicate query detected (potential N+1 problem)",
                     extra={
                         "count": count,
                         "query_preview": query[:100],
-                        "query_hash": hashlib.md5(query.encode()).hexdigest()
-                    }
+                        "query_hash": hashlib.md5(query.encode()).hexdigest(),
+                    },
                 )
 
         # Log slow queries as warnings
-        if stats['slow_queries']:
-            for query, duration_ms in stats['slow_queries'][:5]:
+        if stats["slow_queries"]:
+            for query, duration_ms in stats["slow_queries"][:5]:
                 logger.warning(
-                    f"Slow query detected (>{self.slow_query_threshold*1000:.0f}ms)",
+                    f"Slow query detected (>{self.slow_query_threshold * 1000:.0f}ms)",
                     extra={
                         "duration_ms": duration_ms,
                         "query_preview": query[:100],
-                        "query_hash": hashlib.md5(query.encode()).hexdigest()
-                    }
+                        "query_hash": hashlib.md5(query.encode()).hexdigest(),
+                    },
                 )
 
 
@@ -130,9 +139,7 @@ _query_logger: Optional[QueryLogger] = None
 
 
 def enable_query_logging(
-    level: str = "INFO",
-    slow_query_threshold_ms: float = 100,
-    detect_n1: bool = True
+    level: str = "INFO", slow_query_threshold_ms: float = 100, detect_n1: bool = True
 ) -> QueryLogger:
     """
     Enable SQLAlchemy query logging for N+1 detection.
@@ -160,7 +167,7 @@ def enable_query_logging(
 
     # Configure SQLAlchemy logging
     logging.basicConfig()
-    sqlalchemy_logger = logging.getLogger('sqlalchemy.engine')
+    sqlalchemy_logger = logging.getLogger("sqlalchemy.engine")
     sqlalchemy_logger.setLevel(getattr(logging, level.upper()))
 
     # Initialize query logger
@@ -168,12 +175,16 @@ def enable_query_logging(
         _query_logger = QueryLogger(slow_query_threshold_ms=slow_query_threshold_ms)
 
         @event.listens_for(Engine, "before_cursor_execute")
-        def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
-            conn.info.setdefault('query_start_time', []).append(time())
+        def before_cursor_execute(
+            conn, cursor, statement, parameters, context, executemany
+        ):
+            conn.info.setdefault("query_start_time", []).append(time())
 
         @event.listens_for(Engine, "after_cursor_execute")
-        def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
-            total_time = time() - conn.info['query_start_time'].pop(-1)
+        def after_cursor_execute(
+            conn, cursor, statement, parameters, context, executemany
+        ):
+            total_time = time() - conn.info["query_start_time"].pop(-1)
             _query_logger.log_query(statement, total_time)
 
         logger.info(
@@ -190,7 +201,7 @@ def disable_query_logging():
     """Disable query logging."""
     global _query_logger
 
-    logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
     _query_logger = None
     logger.info("Query logging disabled")
 
@@ -210,7 +221,9 @@ def query_logging_context(level: str = "INFO", slow_query_threshold_ms: float = 
         ...     patients = repo.get_all_active(limit=100)
         ...     logger.print_summary()
     """
-    query_logger = enable_query_logging(level=level, slow_query_threshold_ms=slow_query_threshold_ms)
+    query_logger = enable_query_logging(
+        level=level, slow_query_threshold_ms=slow_query_threshold_ms
+    )
     try:
         yield query_logger
     finally:
@@ -244,7 +257,7 @@ def monitor_n1_queries(threshold: int = 10):
         query_logger.print_summary()
         disable_query_logging()
 
-        if stats['total_queries'] > threshold:
+        if stats["total_queries"] > threshold:
             raise AssertionError(
                 f"N+1 query pattern detected: {stats['total_queries']} queries executed "
                 f"(threshold: {threshold})"
@@ -254,6 +267,7 @@ def monitor_n1_queries(threshold: int = 10):
 # ============================================================================
 # Development Helpers
 # ============================================================================
+
 
 def print_query_plan(db_session, query):
     """
@@ -270,23 +284,34 @@ def print_query_plan(db_session, query):
     from sqlalchemy import text
 
     # Get query string
-    query_str = str(query.statement.compile(
-        dialect=db_session.bind.dialect,
-        compile_kwargs={"literal_binds": True}
-    ))
+    query_str = str(
+        query.statement.compile(
+            dialect=db_session.bind.dialect, compile_kwargs={"literal_binds": True}
+        )
+    )
 
     # Run EXPLAIN ANALYZE
     result = db_session.execute(text(f"EXPLAIN ANALYZE {query_str}"))
 
     import logging
+
     logger = logging.getLogger(__name__)
 
-    plan_lines = ["\n" + "="*80, "QUERY EXECUTION PLAN", "="*80, query_str, "\n" + "-"*80]
+    plan_lines = [
+        "\n" + "=" * 80,
+        "QUERY EXECUTION PLAN",
+        "=" * 80,
+        query_str,
+        "\n" + "-" * 80,
+    ]
     for row in result:
         plan_lines.append(row[0])
-    plan_lines.append("="*80 + "\n")
+    plan_lines.append("=" * 80 + "\n")
 
-    logger.info("\n".join(plan_lines), extra={"query": query_str, "analysis_type": "execution_plan"})
+    logger.info(
+        "\n".join(plan_lines),
+        extra={"query": query_str, "analysis_type": "execution_plan"},
+    )
 
 
 def analyze_repository_queries(repo_class, method_name: str, *args, **kwargs):
@@ -307,6 +332,7 @@ def analyze_repository_queries(repo_class, method_name: str, *args, **kwargs):
         result = method(*args, **kwargs)
 
         import logging
+
         log = logging.getLogger(__name__)
         log.info(
             "Repository query analysis",
@@ -315,8 +341,8 @@ def analyze_repository_queries(repo_class, method_name: str, *args, **kwargs):
                 "method": method_name,
                 "args": str(args),
                 "kwargs": str(kwargs),
-                "result_count": len(result) if hasattr(result, '__len__') else 'N/A'
-            }
+                "result_count": len(result) if hasattr(result, "__len__") else "N/A",
+            },
         )
         logger.print_summary()
 
@@ -324,6 +350,7 @@ def analyze_repository_queries(repo_class, method_name: str, *args, **kwargs):
 if __name__ == "__main__":
     # Example usage
     import logging
+
     logger = logging.getLogger(__name__)
 
     logger.info("Query Logging Utilities")

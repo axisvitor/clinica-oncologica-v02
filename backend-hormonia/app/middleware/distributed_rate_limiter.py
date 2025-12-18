@@ -31,14 +31,14 @@ Usage:
 
 import time
 import logging
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from enum import Enum
 
 from redis import Redis
 from redis.exceptions import RedisError
-from fastapi import Request, HTTPException
+from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response, JSONResponse
 
@@ -48,11 +48,11 @@ logger = logging.getLogger(__name__)
 class RateLimitTier(str, Enum):
     """Rate limit tiers - aligned with actual system roles."""
 
-    PUBLIC = "public"         # Unauthenticated requests (quiz público, health checks)
+    PUBLIC = "public"  # Unauthenticated requests (quiz público, health checks)
     AUTHENTICATED = "authenticated"  # Generic authenticated users
-    DOCTOR = "doctor"         # Médicos autenticados
-    PREMIUM = "premium"       # Premium tier users
-    ADMIN = "admin"           # Administradores do sistema
+    DOCTOR = "doctor"  # Médicos autenticados
+    PREMIUM = "premium"  # Premium tier users
+    ADMIN = "admin"  # Administradores do sistema
 
 
 @dataclass
@@ -416,13 +416,19 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Default tier configurations
         self.tier_configs = tier_configs or {
             RateLimitTier.PUBLIC: RateLimitConfig(
-                requests=200, window=60, tier=RateLimitTier.PUBLIC  # Quiz público, health checks
+                requests=200,
+                window=60,
+                tier=RateLimitTier.PUBLIC,  # Quiz público, health checks
             ),
             RateLimitTier.DOCTOR: RateLimitConfig(
-                requests=1000, window=60, tier=RateLimitTier.DOCTOR  # Médicos - operações clínicas
+                requests=1000,
+                window=60,
+                tier=RateLimitTier.DOCTOR,  # Médicos - operações clínicas
             ),
             RateLimitTier.ADMIN: RateLimitConfig(
-                requests=10000, window=60, tier=RateLimitTier.ADMIN  # Administradores - sem limitação prática
+                requests=10000,
+                window=60,
+                tier=RateLimitTier.ADMIN,  # Administradores - sem limitação prática
             ),
         }
 
@@ -433,10 +439,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             "/openapi.json",
             "/ws/connect",  # WebSocket connections
         ]
-        self.whitelist_ips = set(whitelist_ips or [
-            "127.0.0.1",
-            "::1",
-        ])
+        self.whitelist_ips = set(
+            whitelist_ips
+            or [
+                "127.0.0.1",
+                "::1",
+            ]
+        )
 
     def _get_client_identifier(self, request: Request) -> str:
         """
@@ -482,7 +491,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 return RateLimitTier.PREMIUM
             else:
                 return RateLimitTier.AUTHENTICATED
-        
+
         # Fallback: Try to extract role from Authorization header
         auth_header = request.headers.get("authorization", "")
         if auth_header.startswith("Bearer "):
@@ -490,28 +499,29 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             try:
                 # Try to decode JWT token to get role
                 import jwt
-                import json
-                
+
                 # Decode without verification (just to extract claims)
                 # This is safe for rate limiting purposes only
                 decoded = jwt.decode(token, options={"verify_signature": False})
-                
+
                 # Check for admin role in various possible fields
                 role = (
-                    decoded.get("role") or 
-                    decoded.get("custom_claims", {}).get("role") or
-                    decoded.get("roles", [None])[0] if isinstance(decoded.get("roles"), list) else None
+                    decoded.get("role")
+                    or decoded.get("custom_claims", {}).get("role")
+                    or decoded.get("roles", [None])[0]
+                    if isinstance(decoded.get("roles"), list)
+                    else None
                 )
-                
+
                 if role and str(role).lower() == "admin":
-                    logger.info(f"Admin user detected via JWT token for rate limiting")
+                    logger.info("Admin user detected via JWT token for rate limiting")
                     return RateLimitTier.ADMIN
                 elif role:
                     return RateLimitTier.AUTHENTICATED
-                    
+
             except Exception as e:
                 logger.debug(f"Could not decode JWT for rate limiting: {e}")
-        
+
         return RateLimitTier.PUBLIC
 
     async def dispatch(self, request: Request, call_next) -> Response:
@@ -533,10 +543,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         client_ip = request.client.host if request.client else None
         if client_ip in self.whitelist_ips:
             return await call_next(request)
-        
+
         # TEMPORARY: Check for admin bypass in headers
         auth_header = request.headers.get("authorization", "")
-        if auth_header and ("admin" in auth_header.lower() or "super_admin" in auth_header.lower()):
+        if auth_header and (
+            "admin" in auth_header.lower() or "super_admin" in auth_header.lower()
+        ):
             logger.info(f"Admin bypass activated for {client_ip} on {request.url.path}")
             return await call_next(request)
 
@@ -544,12 +556,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         identifier = self._get_client_identifier(request)
         tier = self._get_rate_limit_tier(request)
         config = self.tier_configs.get(tier)
-        
+
         # Debug logging for admin detection
         if tier == RateLimitTier.ADMIN:
             logger.info(f"Admin tier detected for {identifier} on {request.url.path}")
         elif "admin" in request.headers.get("authorization", "").lower():
-            logger.warning(f"Potential admin user not detected properly for {identifier}")
+            logger.warning(
+                f"Potential admin user not detected properly for {identifier}"
+            )
             # Force admin tier if we see admin in token
             tier = RateLimitTier.ADMIN
             config = self.tier_configs.get(tier)

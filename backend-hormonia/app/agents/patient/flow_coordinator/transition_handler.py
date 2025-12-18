@@ -25,14 +25,16 @@ class TransitionHandler:
         if context.flow_state:
             # Update flow state to monthly recurring
             context.flow_state.state_data = context.flow_state.state_data or {}
-            context.flow_state.state_data.update({
-                "phase_transition": {
-                    "from": "daily_intensive",
-                    "to": "monthly_recurring",
-                    "transitioned_at": datetime.utcnow().isoformat(),
-                    "transitioned_by": self.agent_id
+            context.flow_state.state_data.update(
+                {
+                    "phase_transition": {
+                        "from": "daily_intensive",
+                        "to": "monthly_recurring",
+                        "transitioned_at": datetime.utcnow().isoformat(),
+                        "transitioned_by": self.agent_id,
+                    }
                 }
-            })
+            )
 
             # Change flow type
             context.flow_state.flow_type = FlowType.MONTHLY_RECURRING.value
@@ -46,17 +48,19 @@ class TransitionHandler:
         optimized_timing = {
             "morning": 9,  # 9 AM instead of 8 AM
             "afternoon": 15,  # 3 PM instead of 2 PM
-            "evening": 19  # 7 PM instead of 8 PM
+            "evening": 19,  # 7 PM instead of 8 PM
         }
 
         # Update flow state with new timing
         if context.flow_state:
             context.flow_state.state_data = context.flow_state.state_data or {}
-            context.flow_state.state_data.update({
-                "optimized_timing": optimized_timing,
-                "timing_optimized_by": self.agent_id,
-                "timing_optimized_at": datetime.utcnow().isoformat()
-            })
+            context.flow_state.state_data.update(
+                {
+                    "optimized_timing": optimized_timing,
+                    "timing_optimized_by": self.agent_id,
+                    "timing_optimized_at": datetime.utcnow().isoformat(),
+                }
+            )
 
             self.db_session.commit()
 
@@ -66,17 +70,21 @@ class TransitionHandler:
         """Personalize content based on patient patterns."""
         if context.flow_state:
             personalization_settings = {
-                "tone": "supportive" if any("mood" in rf for rf in context.risk_factors) else "encouraging",
-                "frequency": "reduced" if context.adherence_metrics.get("message_response_rate", 1.0) < 0.5 else "normal",
+                "tone": "supportive"
+                if any("mood" in rf for rf in context.risk_factors)
+                else "encouraging",
+                "frequency": "reduced"
+                if context.adherence_metrics.get("message_response_rate", 1.0) < 0.5
+                else "normal",
                 "content_focus": await self._determine_content_focus(context),
                 "personalized_by": self.agent_id,
-                "personalized_at": datetime.utcnow().isoformat()
+                "personalized_at": datetime.utcnow().isoformat(),
             }
 
             context.flow_state.state_data = context.flow_state.state_data or {}
-            context.flow_state.state_data.update({
-                "personalization": personalization_settings
-            })
+            context.flow_state.state_data.update(
+                {"personalization": personalization_settings}
+            )
 
             self.db_session.commit()
 
@@ -103,12 +111,14 @@ class TransitionHandler:
         """Pause flow temporarily."""
         if context.flow_state:
             context.flow_state.state_data = context.flow_state.state_data or {}
-            context.flow_state.state_data.update({
-                "flow_paused": True,
-                "paused_at": datetime.utcnow().isoformat(),
-                "paused_by": self.agent_id,
-                "pause_reason": "patient_request_or_medical_indication"
-            })
+            context.flow_state.state_data.update(
+                {
+                    "flow_paused": True,
+                    "paused_at": datetime.utcnow().isoformat(),
+                    "paused_by": self.agent_id,
+                    "pause_reason": "patient_request_or_medical_indication",
+                }
+            )
 
             self.db_session.commit()
 
@@ -116,10 +126,12 @@ class TransitionHandler:
         """Resume paused flow."""
         if context.flow_state:
             context.flow_state.state_data = context.flow_state.state_data or {}
-            context.flow_state.state_data.update({
-                "flow_paused": False,
-                "resumed_at": datetime.utcnow().isoformat(),
-                "resumed_by": self.agent_id
-            })
+            context.flow_state.state_data.update(
+                {
+                    "flow_paused": False,
+                    "resumed_at": datetime.utcnow().isoformat(),
+                    "resumed_by": self.agent_id,
+                }
+            )
 
             self.db_session.commit()

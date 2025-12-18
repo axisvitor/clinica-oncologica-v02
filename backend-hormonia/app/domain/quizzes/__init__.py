@@ -22,7 +22,11 @@ Consolidated Services (from /app/services migration):
 from app.services.quiz.quiz_service import MonthlyQuizService
 
 # Template management
-from .templates import QuizTemplateService, QuizTemplateLoadError, get_quiz_template_service
+from .templates import (
+    QuizTemplateService,
+    QuizTemplateLoadError,
+    get_quiz_template_service,
+)
 
 # Response evaluation
 from .evaluation import QuizResponseEvaluator
@@ -32,7 +36,7 @@ from .resilience import (
     QuizLinkResilienceService,
     FailureReason,
     CircuitBreakerState,
-    ResilienceMetrics
+    ResilienceMetrics,
 )
 
 # Utilities
@@ -41,13 +45,13 @@ from .utils import (
     serialize_response_value,
     deserialize_response_value,
     validate_multi_select_response,
-    extract_other_text_requirement
+    extract_other_text_requirement,
 )
 
 # Security (token rotation)
 from .security import (
     _validate_token_with_grace_period,
-    submit_quiz_response_with_rotation
+    submit_quiz_response_with_rotation,
 )
 
 # Session management (renamed to avoid collision with core.session_manager)
@@ -61,32 +65,26 @@ from .report_generator import ReportGenerator as QuizReportGenerator
 __all__ = [
     # Main service
     "MonthlyQuizService",
-
     # Template management
     "QuizTemplateService",
     "QuizTemplateLoadError",
     "get_quiz_template_service",
-
     # Evaluation
     "QuizResponseEvaluator",
-
     # Resilience
     "QuizLinkResilienceService",
     "FailureReason",
     "CircuitBreakerState",
     "ResilienceMetrics",
-
     # Utilities
     "normalize_other_value",
     "serialize_response_value",
     "deserialize_response_value",
     "validate_multi_select_response",
     "extract_other_text_requirement",
-
     # Security
     "_validate_token_with_grace_period",
     "submit_quiz_response_with_rotation",
-
     # Session components
     "QuizSessionManager",
     "QuizQuestionRenderer",

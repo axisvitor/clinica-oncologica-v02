@@ -84,7 +84,11 @@ class TemplateCache:
             if self.cache_layer and isinstance(self.cache_layer.strategy, CacheStrategy)
             else "memory"
         )
-        return {"strategy": strategy, "total_templates": total, "categories": categories}
+        return {
+            "strategy": strategy,
+            "total_templates": total,
+            "categories": categories,
+        }
 
 
 def get_template_cache() -> TemplateCache:

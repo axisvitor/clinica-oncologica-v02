@@ -3,17 +3,16 @@ Core CRUD operations for user administration.
 
 Handles basic user creation, updates, activation, and deactivation.
 """
+
 import logging
-from typing import Optional, Any
+from typing import Optional
 from uuid import UUID
 from sqlalchemy import and_
 from fastapi import HTTPException, status
 
 from app.models.user import User, UserRole
 from app.utils.security import get_password_hash
-from .schemas import (
-    UserCreateRequest, UserUpdateRequest, EmailValidationRequest
-)
+from .schemas import UserCreateRequest, UserUpdateRequest, EmailValidationRequest
 from .validators import validate_email_advanced
 
 logger = logging.getLogger(__name__)
@@ -26,7 +25,7 @@ class UserCRUDMixin:
         self,
         user_data: UserCreateRequest,
         admin_user: User,
-        request_info: Optional[dict] = None
+        request_info: Optional[dict] = None,
     ) -> User:
         """
         Create a new user with enhanced validation and audit logging.
@@ -56,32 +55,34 @@ class UserCRUDMixin:
                 action_data={
                     "reason": "invalid_email",
                     "email": user_data.email,
-                    "email_issues": email_validation.issues
+                    "email_issues": email_validation.issues,
                 },
-                result="failure"
+                result="failure",
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid email: {'; '.join(email_validation.issues)}"
+                detail=f"Invalid email: {'; '.join(email_validation.issues)}",
             )
 
         # Check if email already exists
-        existing_user = self.db.query(User).filter(
-            User.email == email_validation.normalized_email
-        ).first()
+        existing_user = (
+            self.db.query(User)
+            .filter(User.email == email_validation.normalized_email)
+            .first()
+        )
         if existing_user:
             await self.log_admin_action(
                 action_type="user_creation_failed",
                 admin_user=admin_user,
                 action_data={
                     "reason": "email_already_exists",
-                    "email": email_validation.normalized_email
+                    "email": email_validation.normalized_email,
                 },
-                result="failure"
+                result="failure",
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"User with email {email_validation.normalized_email} already exists"
+                detail=f"User with email {email_validation.normalized_email} already exists",
             )
 
         # Hash password
@@ -93,7 +94,7 @@ class UserCRUDMixin:
             hashed_password=hashed_password,
             full_name=user_data.full_name,
             role=user_data.role,
-            is_active=user_data.is_active
+            is_active=user_data.is_active,
         )
 
         try:
@@ -110,11 +111,14 @@ class UserCRUDMixin:
                     "user_email": new_user.email,
                     "user_role": new_user.role.value,
                     "is_active": new_user.is_active,
-                    "email_normalized": email_validation.normalized_email != user_data.email
-                }
+                    "email_normalized": email_validation.normalized_email
+                    != user_data.email,
+                },
             )
 
-            logger.info(f"User created successfully: {new_user.email} by admin {admin_user.email}")
+            logger.info(
+                f"User created successfully: {new_user.email} by admin {admin_user.email}"
+            )
             return new_user
 
         except Exception as e:
@@ -125,14 +129,16 @@ class UserCRUDMixin:
                 action_data={
                     "reason": "database_error",
                     "error": str(e),
-                    "email": email_validation.normalized_email
+                    "email": email_validation.normalized_email,
                 },
-                result="failure"
+                result="failure",
             )
-            logger.error(f"Failed to create user {email_validation.normalized_email}: {e}")
+            logger.error(
+                f"Failed to create user {email_validation.normalized_email}: {e}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create user"
+                detail="Failed to create user",
             )
 
     async def update_user(
@@ -140,7 +146,7 @@ class UserCRUDMixin:
         user_id: UUID,
         user_data: UserUpdateRequest,
         admin_user: User,
-        request_info: Optional[dict] = None
+        request_info: Optional[dict] = None,
     ) -> User:
         """Update user information with enhanced validation."""
         # Check admin permissions
@@ -150,7 +156,7 @@ class UserCRUDMixin:
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User with ID {user_id} not found"
+                detail=f"User with ID {user_id} not found",
             )
 
         # Check if new email already exists (if email is being updated)
@@ -162,12 +168,19 @@ class UserCRUDMixin:
             if not email_validation.is_valid:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid email: {'; '.join(email_validation.issues)}"
+                    detail=f"Invalid email: {'; '.join(email_validation.issues)}",
                 )
 
-            existing_user = self.db.query(User).filter(
-                and_(User.email == email_validation.normalized_email, User.id != user_id)
-            ).first()
+            existing_user = (
+                self.db.query(User)
+                .filter(
+                    and_(
+                        User.email == email_validation.normalized_email,
+                        User.id != user_id,
+                    )
+                )
+                .first()
+            )
             if existing_user:
                 await self.log_admin_action(
                     action_type="user_update_failed",
@@ -175,13 +188,13 @@ class UserCRUDMixin:
                     target_user_id=user_id,
                     action_data={
                         "reason": "email_already_exists",
-                        "new_email": email_validation.normalized_email
+                        "new_email": email_validation.normalized_email,
                     },
-                    result="failure"
+                    result="failure",
                 )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Email {email_validation.normalized_email} is already in use"
+                    detail=f"Email {email_validation.normalized_email} is already in use",
                 )
 
         # Store original values for audit
@@ -189,7 +202,7 @@ class UserCRUDMixin:
             "email": user.email,
             "full_name": user.full_name,
             "role": user.role.value,
-            "is_active": user.is_active
+            "is_active": user.is_active,
         }
 
         # Update fields
@@ -220,12 +233,14 @@ class UserCRUDMixin:
                         "email": user.email,
                         "full_name": user.full_name,
                         "role": user.role.value,
-                        "is_active": user.is_active
-                    }
-                }
+                        "is_active": user.is_active,
+                    },
+                },
             )
 
-            logger.info(f"User {user.email} updated successfully by admin {admin_user.email}")
+            logger.info(
+                f"User {user.email} updated successfully by admin {admin_user.email}"
+            )
             return user
 
         except Exception as e:
@@ -234,23 +249,17 @@ class UserCRUDMixin:
                 action_type="user_update_failed",
                 admin_user=admin_user,
                 target_user_id=user_id,
-                action_data={
-                    "reason": "database_error",
-                    "error": str(e)
-                },
-                result="failure"
+                action_data={"reason": "database_error", "error": str(e)},
+                result="failure",
             )
             logger.error(f"Failed to update user {user_id}: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to update user"
+                detail="Failed to update user",
             )
 
     async def activate_user(
-        self,
-        user_id: UUID,
-        admin_user: User,
-        request_info: Optional[dict] = None
+        self, user_id: UUID, admin_user: User, request_info: Optional[dict] = None
     ) -> User:
         """Activate a user with permission checks."""
         # Check admin permissions
@@ -260,7 +269,7 @@ class UserCRUDMixin:
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User with ID {user_id} not found"
+                detail=f"User with ID {user_id} not found",
             )
 
         try:
@@ -273,10 +282,7 @@ class UserCRUDMixin:
                 action_type="user_activated",
                 admin_user=admin_user,
                 target_user_id=user.id,
-                action_data={
-                    "user_email": user.email,
-                    "user_role": user.role.value
-                }
+                action_data={"user_email": user.email, "user_role": user.role.value},
             )
 
             logger.info(f"User {user.email} activated by admin {admin_user.email}")
@@ -288,23 +294,17 @@ class UserCRUDMixin:
                 action_type="user_activation_failed",
                 admin_user=admin_user,
                 target_user_id=user_id,
-                action_data={
-                    "reason": "database_error",
-                    "error": str(e)
-                },
-                result="failure"
+                action_data={"reason": "database_error", "error": str(e)},
+                result="failure",
             )
             logger.error(f"Failed to activate user {user_id}: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to activate user"
+                detail="Failed to activate user",
             )
 
     async def deactivate_user(
-        self,
-        user_id: UUID,
-        admin_user: User,
-        request_info: Optional[dict] = None
+        self, user_id: UUID, admin_user: User, request_info: Optional[dict] = None
     ) -> User:
         """Deactivate a user with permission checks."""
         # Check admin permissions
@@ -314,18 +314,24 @@ class UserCRUDMixin:
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User with ID {user_id} not found"
+                detail=f"User with ID {user_id} not found",
             )
 
         # Prevent deactivation of the last admin
         if user.role == UserRole.ADMIN:
-            admin_count = self.db.query(User).filter(
-                and_(User.role == UserRole.ADMIN, User.is_active == True, User.id != user_id)
-            ).count()
+            admin_count = (
+                self.db.query(User)
+                .filter(
+                    and_(
+                        User.role == UserRole.ADMIN, User.is_active, User.id != user_id
+                    )
+                )
+                .count()
+            )
             if admin_count == 0:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot deactivate the last active admin user"
+                    detail="Cannot deactivate the last active admin user",
                 )
 
         try:
@@ -338,10 +344,7 @@ class UserCRUDMixin:
                 action_type="user_deactivated",
                 admin_user=admin_user,
                 target_user_id=user.id,
-                action_data={
-                    "user_email": user.email,
-                    "user_role": user.role.value
-                }
+                action_data={"user_email": user.email, "user_role": user.role.value},
             )
 
             logger.info(f"User {user.email} deactivated by admin {admin_user.email}")
@@ -353,16 +356,13 @@ class UserCRUDMixin:
                 action_type="user_deactivation_failed",
                 admin_user=admin_user,
                 target_user_id=user_id,
-                action_data={
-                    "reason": "database_error",
-                    "error": str(e)
-                },
-                result="failure"
+                action_data={"reason": "database_error", "error": str(e)},
+                result="failure",
             )
             logger.error(f"Failed to deactivate user {user_id}: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to deactivate user"
+                detail="Failed to deactivate user",
             )
 
     async def get_user_by_id(self, user_id: UUID) -> Optional[User]:

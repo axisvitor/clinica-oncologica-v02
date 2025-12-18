@@ -11,11 +11,12 @@ Features:
 - Query capabilities for security analysis
 - Integration with existing authentication flows
 """
+
 import logging
 from typing import Optional, Dict, Any, List, Union
 from datetime import datetime, timedelta
 from uuid import UUID
-from sqlalchemy import desc, func, and_, or_
+from sqlalchemy import desc, func
 from fastapi import Request
 
 from app.models.audit_log import AuditLog, AuditEventType
@@ -51,27 +52,24 @@ class AuditLogService:
 
         # Extract IP address (handle proxy headers)
         ip_address = None
-        if hasattr(request, 'client') and request.client:
+        if hasattr(request, "client") and request.client:
             ip_address = request.client.host
 
         # Check for forwarded IP (behind proxy)
-        forwarded_for = request.headers.get('X-Forwarded-For')
+        forwarded_for = request.headers.get("X-Forwarded-For")
         if forwarded_for:
             # Take first IP in the chain
-            ip_address = forwarded_for.split(',')[0].strip()
+            ip_address = forwarded_for.split(",")[0].strip()
 
         # Real IP header (some proxies use this)
-        real_ip = request.headers.get('X-Real-IP')
+        real_ip = request.headers.get("X-Real-IP")
         if real_ip:
             ip_address = real_ip.strip()
 
         # Extract user agent
-        user_agent = request.headers.get('User-Agent', 'Unknown')
+        user_agent = request.headers.get("User-Agent", "Unknown")
 
-        return {
-            "ip_address": ip_address,
-            "user_agent": user_agent
-        }
+        return {"ip_address": ip_address, "user_agent": user_agent}
 
     def log_event(
         self,
@@ -87,7 +85,7 @@ class AuditLogService:
         message: Optional[str] = None,
         error_details: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
-        request: Optional[Request] = None
+        request: Optional[Request] = None,
     ) -> AuditLog:
         """
         Log a security event to audit log.
@@ -132,7 +130,7 @@ class AuditLogService:
                 action=action,
                 message=message,
                 error_details=error_details,
-                metadata=metadata or {}
+                metadata=metadata or {},
             )
 
             self.db.add(audit_entry)
@@ -158,7 +156,7 @@ class AuditLogService:
         self,
         user: User,
         request: Optional[Request] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> AuditLog:
         """Log successful login event."""
         return self.log_event(
@@ -171,7 +169,7 @@ class AuditLogService:
             action="login",
             message=f"User {user.email} logged in successfully",
             metadata=metadata,
-            request=request
+            request=request,
         )
 
     def log_login_failure(
@@ -179,7 +177,7 @@ class AuditLogService:
         email: str,
         reason: str,
         request: Optional[Request] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> AuditLog:
         """Log failed login attempt."""
         return self.log_event(
@@ -191,14 +189,14 @@ class AuditLogService:
             message=f"Failed login attempt for {email}",
             error_details=reason,
             metadata=metadata,
-            request=request
+            request=request,
         )
 
     def log_logout(
         self,
         user: User,
         request: Optional[Request] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> AuditLog:
         """Log logout event."""
         return self.log_event(
@@ -211,7 +209,7 @@ class AuditLogService:
             action="logout",
             message=f"User {user.email} logged out",
             metadata=metadata,
-            request=request
+            request=request,
         )
 
     def log_session_created(
@@ -219,7 +217,7 @@ class AuditLogService:
         user: User,
         session_id: str,
         request: Optional[Request] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> AuditLog:
         """Log session creation event."""
         session_metadata = metadata or {}
@@ -235,7 +233,7 @@ class AuditLogService:
             action="session_create",
             message=f"Session created for user {user.email}",
             metadata=session_metadata,
-            request=request
+            request=request,
         )
 
     def log_session_invalidated(
@@ -243,7 +241,7 @@ class AuditLogService:
         user_id: Union[str, UUID],
         session_id: str,
         reason: str = "logout",
-        request: Optional[Request] = None
+        request: Optional[Request] = None,
     ) -> AuditLog:
         """Log session invalidation event."""
         return self.log_event(
@@ -254,14 +252,14 @@ class AuditLogService:
             action="session_invalidate",
             message=f"Session invalidated: {reason}",
             metadata={"session_id": session_id, "reason": reason},
-            request=request
+            request=request,
         )
 
     def log_password_changed(
         self,
         user: User,
         request: Optional[Request] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> AuditLog:
         """Log password change event."""
         return self.log_event(
@@ -274,7 +272,7 @@ class AuditLogService:
             action="password_change",
             message=f"Password changed for user {user.email}",
             metadata=metadata,
-            request=request
+            request=request,
         )
 
     def log_access_denied(
@@ -282,7 +280,7 @@ class AuditLogService:
         user_id: Optional[Union[str, UUID]],
         resource: str,
         reason: str,
-        request: Optional[Request] = None
+        request: Optional[Request] = None,
     ) -> AuditLog:
         """Log access denied event."""
         return self.log_event(
@@ -293,14 +291,14 @@ class AuditLogService:
             action="access",
             message=f"Access denied to {resource}",
             error_details=reason,
-            request=request
+            request=request,
         )
 
     def log_rate_limit_exceeded(
         self,
         user_email: Optional[str],
         resource: str,
-        request: Optional[Request] = None
+        request: Optional[Request] = None,
     ) -> AuditLog:
         """Log rate limit exceeded event."""
         return self.log_event(
@@ -310,7 +308,7 @@ class AuditLogService:
             resource=resource,
             action="rate_limit",
             message=f"Rate limit exceeded for {resource}",
-            request=request
+            request=request,
         )
 
     # Query methods
@@ -322,7 +320,7 @@ class AuditLogService:
         offset: int = 0,
         event_types: Optional[List[AuditEventType]] = None,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
     ) -> List[AuditLog]:
         """
         Get audit logs for a specific user.
@@ -349,14 +347,16 @@ class AuditLogService:
         if end_date:
             query = query.filter(AuditLog.created_at <= end_date)
 
-        return query.order_by(desc(AuditLog.created_at)).limit(limit).offset(offset).all()
+        return (
+            query.order_by(desc(AuditLog.created_at)).limit(limit).offset(offset).all()
+        )
 
     def get_security_events(
         self,
         limit: int = 100,
         offset: int = 0,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
     ) -> List[AuditLog]:
         """
         Get security-related events (failures, suspicious activity).
@@ -379,9 +379,7 @@ class AuditLogService:
             AuditEventType.CSRF_VIOLATION,
         ]
 
-        query = self.db.query(AuditLog).filter(
-            AuditLog.event_type.in_(security_events)
-        )
+        query = self.db.query(AuditLog).filter(AuditLog.event_type.in_(security_events))
 
         if start_date:
             query = query.filter(AuditLog.created_at >= start_date)
@@ -389,13 +387,15 @@ class AuditLogService:
         if end_date:
             query = query.filter(AuditLog.created_at <= end_date)
 
-        return query.order_by(desc(AuditLog.created_at)).limit(limit).offset(offset).all()
+        return (
+            query.order_by(desc(AuditLog.created_at)).limit(limit).offset(offset).all()
+        )
 
     def get_failed_login_attempts(
         self,
         email: Optional[str] = None,
         ip_address: Optional[str] = None,
-        hours: int = 24
+        hours: int = 24,
     ) -> List[AuditLog]:
         """
         Get failed login attempts within time window.
@@ -412,7 +412,7 @@ class AuditLogService:
 
         query = self.db.query(AuditLog).filter(
             AuditLog.event_type == AuditEventType.LOGIN_FAILURE,
-            AuditLog.created_at >= start_date
+            AuditLog.created_at >= start_date,
         )
 
         if email:
@@ -424,9 +424,7 @@ class AuditLogService:
         return query.order_by(desc(AuditLog.created_at)).all()
 
     def get_audit_statistics(
-        self,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
     ) -> Dict[str, Any]:
         """
         Get audit log statistics.
@@ -449,15 +447,14 @@ class AuditLogService:
         # Count by event type
         event_counts = (
             query.with_entities(
-                AuditLog.event_type,
-                func.count(AuditLog.id).label('count')
+                AuditLog.event_type, func.count(AuditLog.id).label("count")
             )
             .group_by(AuditLog.event_type)
             .all()
         )
 
         # Count failures
-        failure_count = query.filter(AuditLog.event_status == 'failure').count()
+        failure_count = query.filter(AuditLog.event_status == "failure").count()
 
         # Count unique users
         unique_users = (
@@ -472,7 +469,6 @@ class AuditLogService:
             "failure_count": failure_count,
             "unique_users": unique_users,
             "events_by_type": {
-                event_type.value: count
-                for event_type, count in event_counts
-            }
+                event_type.value: count for event_type, count in event_counts
+            },
         }

@@ -16,8 +16,9 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TokenBucketConfig:
     """Token bucket configuration"""
-    capacity: int = 100               # Maximum tokens in bucket
-    refill_rate: float = 10.0         # Tokens per second refill rate
+
+    capacity: int = 100  # Maximum tokens in bucket
+    refill_rate: float = 10.0  # Tokens per second refill rate
     initial_tokens: Optional[int] = None  # Initial tokens (defaults to capacity)
 
     def __post_init__(self):
@@ -147,21 +148,19 @@ class TokenBucket:
         with self._lock:
             self._refill_tokens()
 
-            success_rate = (
-                self._allowed_requests / max(1, self._total_requests)
-            )
+            success_rate = self._allowed_requests / max(1, self._total_requests)
 
             return {
-                'name': self.name,
-                'current_tokens': self._tokens,
-                'capacity': self.config.capacity,
-                'refill_rate': self.config.refill_rate,
-                'total_requests': self._total_requests,
-                'allowed_requests': self._allowed_requests,
-                'denied_requests': self._denied_requests,
-                'success_rate': success_rate,
-                'tokens_consumed': self._tokens_consumed,
-                'utilization': 1.0 - (self._tokens / self.config.capacity)
+                "name": self.name,
+                "current_tokens": self._tokens,
+                "capacity": self.config.capacity,
+                "refill_rate": self.config.refill_rate,
+                "total_requests": self._total_requests,
+                "allowed_requests": self._allowed_requests,
+                "denied_requests": self._denied_requests,
+                "success_rate": success_rate,
+                "tokens_consumed": self._tokens_consumed,
+                "utilization": 1.0 - (self._tokens / self.config.capacity),
             }
 
     def get_status(self) -> Dict[str, Any]:
@@ -170,11 +169,12 @@ class TokenBucket:
             self._refill_tokens()
 
             return {
-                'tokens': self._tokens,
-                'capacity': self.config.capacity,
-                'utilization_percent': (1.0 - (self._tokens / self.config.capacity)) * 100,
-                'is_full': self._tokens >= self.config.capacity,
-                'is_empty': self._tokens == 0
+                "tokens": self._tokens,
+                "capacity": self.config.capacity,
+                "utilization_percent": (1.0 - (self._tokens / self.config.capacity))
+                * 100,
+                "is_full": self._tokens >= self.config.capacity,
+                "is_empty": self._tokens == 0,
             }
 
 
@@ -201,9 +201,9 @@ class TokenBucketManager:
 
         logger.info("Token bucket manager initialized")
 
-    def get_bucket(self,
-                   bucket_id: str,
-                   config: Optional[TokenBucketConfig] = None) -> TokenBucket:
+    def get_bucket(
+        self, bucket_id: str, config: Optional[TokenBucketConfig] = None
+    ) -> TokenBucket:
         """
         Get or create token bucket
 
@@ -230,10 +230,12 @@ class TokenBucketManager:
             logger.info(f"Created new token bucket: {bucket_id}")
             return bucket
 
-    def consume(self,
-                bucket_id: str,
-                tokens: int = 1,
-                config: Optional[TokenBucketConfig] = None) -> bool:
+    def consume(
+        self,
+        bucket_id: str,
+        tokens: int = 1,
+        config: Optional[TokenBucketConfig] = None,
+    ) -> bool:
         """
         Consume tokens from specified bucket
 
@@ -248,9 +250,7 @@ class TokenBucketManager:
         bucket = self.get_bucket(bucket_id, config)
         return bucket.consume(tokens)
 
-    def peek(self,
-             bucket_id: str,
-             config: Optional[TokenBucketConfig] = None) -> float:
+    def peek(self, bucket_id: str, config: Optional[TokenBucketConfig] = None) -> float:
         """
         Get current token count for bucket
 
@@ -264,10 +264,12 @@ class TokenBucketManager:
         bucket = self.get_bucket(bucket_id, config)
         return bucket.peek()
 
-    def time_until_tokens(self,
-                         bucket_id: str,
-                         tokens: int = 1,
-                         config: Optional[TokenBucketConfig] = None) -> float:
+    def time_until_tokens(
+        self,
+        bucket_id: str,
+        tokens: int = 1,
+        config: Optional[TokenBucketConfig] = None,
+    ) -> float:
         """
         Calculate time until tokens are available in bucket
 
@@ -342,21 +344,19 @@ class TokenBucketManager:
                 metrics = bucket.get_metrics()
                 bucket_metrics[bucket_id] = metrics
 
-                total_requests += metrics['total_requests']
-                total_allowed += metrics['allowed_requests']
-                total_denied += metrics['denied_requests']
+                total_requests += metrics["total_requests"]
+                total_allowed += metrics["allowed_requests"]
+                total_denied += metrics["denied_requests"]
 
-            overall_success_rate = (
-                total_allowed / max(1, total_requests)
-            )
+            overall_success_rate = total_allowed / max(1, total_requests)
 
             return {
-                'total_buckets': len(self._buckets),
-                'total_requests': total_requests,
-                'total_allowed': total_allowed,
-                'total_denied': total_denied,
-                'overall_success_rate': overall_success_rate,
-                'buckets': bucket_metrics
+                "total_buckets": len(self._buckets),
+                "total_requests": total_requests,
+                "total_allowed": total_allowed,
+                "total_denied": total_denied,
+                "overall_success_rate": overall_success_rate,
+                "buckets": bucket_metrics,
             }
 
     def get_bucket_names(self) -> list:

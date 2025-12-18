@@ -25,7 +25,7 @@ class TokenManager:
         patient_id: UUID,
         quiz_template_id: UUID,
         expires_at: datetime,
-        rotation_count: int = 0
+        rotation_count: int = 0,
     ) -> str:
         """Generate a JWT token for quiz session access.
 
@@ -44,13 +44,11 @@ class TokenManager:
             "exp": int(expires_at.timestamp()),
             "iat": int(datetime.utcnow().timestamp()),
             "rotation": rotation_count,
-            "jti": secrets.token_urlsafe(16)  # Unique token ID
+            "jti": secrets.token_urlsafe(16),  # Unique token ID
         }
 
         token = jwt.encode(
-            payload,
-            self.config.MONTHLY_QUIZ_TOKEN_SECRET,
-            algorithm="HS256"
+            payload, self.config.MONTHLY_QUIZ_TOKEN_SECRET, algorithm="HS256"
         )
 
         return token
@@ -70,9 +68,7 @@ class TokenManager:
         """
         try:
             payload = jwt.decode(
-                token,
-                self.config.MONTHLY_QUIZ_TOKEN_SECRET,
-                algorithms=["HS256"]
+                token, self.config.MONTHLY_QUIZ_TOKEN_SECRET, algorithms=["HS256"]
             )
             return payload
         except jwt.ExpiredSignatureError:

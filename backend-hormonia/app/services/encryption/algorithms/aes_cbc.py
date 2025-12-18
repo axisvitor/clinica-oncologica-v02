@@ -47,9 +47,7 @@ class AESCBCAlgorithm(BaseAlgorithm):
 
         # Create cipher
         cipher = Cipher(
-            algorithms.AES(self.keys['phi']),
-            modes.CBC(iv),
-            backend=self.backend
+            algorithms.AES(self.keys["phi"]), modes.CBC(iv), backend=self.backend
         )
         encryptor = cipher.encryptor()
 
@@ -62,7 +60,7 @@ class AESCBCAlgorithm(BaseAlgorithm):
 
         # Combine IV and ciphertext, then base64 encode
         combined = iv + ciphertext
-        encrypted = base64.b64encode(combined).decode('utf-8')
+        encrypted = base64.b64encode(combined).decode("utf-8")
 
         return f"{self.get_prefix()}{encrypted}"
 
@@ -77,7 +75,7 @@ class AESCBCAlgorithm(BaseAlgorithm):
             Decrypted plaintext
         """
         # Remove prefix and decode
-        encrypted_data = encrypted.replace(self.get_prefix(), '')
+        encrypted_data = encrypted.replace(self.get_prefix(), "")
         combined = base64.b64decode(encrypted_data)
 
         # Extract IV and ciphertext
@@ -86,9 +84,7 @@ class AESCBCAlgorithm(BaseAlgorithm):
 
         # Create cipher
         cipher = Cipher(
-            algorithms.AES(self.keys['phi']),
-            modes.CBC(iv),
-            backend=self.backend
+            algorithms.AES(self.keys["phi"]), modes.CBC(iv), backend=self.backend
         )
         decryptor = cipher.decryptor()
 
@@ -99,7 +95,7 @@ class AESCBCAlgorithm(BaseAlgorithm):
         unpadder = padding.PKCS7(128).unpadder()
         plaintext = unpadder.update(padded_plaintext) + unpadder.finalize()
 
-        return plaintext.decode('utf-8')
+        return plaintext.decode("utf-8")
 
     def get_prefix(self) -> str:
         """Get AES-CBC prefix."""

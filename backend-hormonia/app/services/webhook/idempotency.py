@@ -8,8 +8,7 @@ to prevent race conditions where multiple workers process the same event.
 import logging
 import hashlib
 from typing import Optional, Tuple, Dict, Any
-from datetime import datetime, timedelta
-from uuid import UUID
+from datetime import datetime
 
 from redis.asyncio import Redis
 from sqlalchemy.orm import Session
@@ -34,8 +33,8 @@ class AtomicWebhookIdempotency:
 
     # Default TTLs for different event types
     DEFAULT_TTL_SECONDS = 7200  # 2 hours
-    STATUS_UPDATE_TTL = 3600    # 1 hour for status updates
-    MESSAGE_TTL = 86400         # 24 hours for messages
+    STATUS_UPDATE_TTL = 3600  # 1 hour for status updates
+    MESSAGE_TTL = 86400  # 24 hours for messages
 
     # Lua script for atomic acquire + get previous state
     # Returns: 1 if acquired (new event), 0 if already exists
@@ -81,7 +80,7 @@ class AtomicWebhookIdempotency:
         self,
         redis_client: Redis,
         db: Optional[Session] = None,
-        default_ttl: int = DEFAULT_TTL_SECONDS
+        default_ttl: int = DEFAULT_TTL_SECONDS,
     ):
         """
         Initialize atomic idempotency service.
@@ -100,9 +99,7 @@ class AtomicWebhookIdempotency:
     async def _ensure_scripts_loaded(self) -> None:
         """Load Lua scripts if not already loaded."""
         if self._acquire_sha is None:
-            self._acquire_sha = await self.redis.script_load(
-                self.ACQUIRE_SCRIPT
-            )
+            self._acquire_sha = await self.redis.script_load(self.ACQUIRE_SCRIPT)
         if self._conditional_sha is None:
             self._conditional_sha = await self.redis.script_load(
                 self.CONDITIONAL_ACQUIRE_SCRIPT
@@ -142,7 +139,7 @@ class AtomicWebhookIdempotency:
         event_type: str,
         event_id: str,
         worker_id: Optional[str] = None,
-        ttl: Optional[int] = None
+        ttl: Optional[int] = None,
     ) -> Tuple[bool, str]:
         """
         Atomically try to acquire processing rights for an event.
@@ -172,19 +169,19 @@ class AtomicWebhookIdempotency:
                 key,
                 value,
                 nx=True,  # Only set if Not eXists
-                ex=effective_ttl
+                ex=effective_ttl,
             )
 
             if acquired:
                 logger.debug(
                     f"Acquired idempotency lock for {event_type}:{event_id}",
-                    extra={"key": key, "worker": worker_id}
+                    extra={"key": key, "worker": worker_id},
                 )
                 return True, "acquired"
             else:
                 logger.info(
                     f"Duplicate webhook event detected: {event_type}:{event_id}",
-                    extra={"key": key, "idempotency": "protected"}
+                    extra={"key": key, "idempotency": "protected"},
                 )
                 return False, "duplicate"
 
@@ -203,7 +200,7 @@ class AtomicWebhookIdempotency:
         event_id: str,
         worker_id: Optional[str] = None,
         allow_reprocess_failed: bool = False,
-        ttl: Optional[int] = None
+        ttl: Optional[int] = None,
     ) -> Tuple[int, str]:
         """
         Acquire using Lua script for advanced scenarios.
@@ -227,14 +224,10 @@ class AtomicWebhookIdempotency:
                 key,
                 value,
                 str(effective_ttl),
-                "true" if allow_reprocess_failed else "false"
+                "true" if allow_reprocess_failed else "false",
             )
 
-            status_map = {
-                1: "acquired",
-                2: "reprocessing",
-                0: "duplicate"
-            }
+            status_map = {1: "acquired", 2: "reprocessing", 0: "duplicate"}
 
             return result, status_map.get(result, "unknown")
 
@@ -246,11 +239,7 @@ class AtomicWebhookIdempotency:
             )
             return 1 if acquired else 0, reason
 
-    async def mark_completed(
-        self,
-        event_type: str,
-        event_id: str
-    ) -> None:
+    async def mark_completed(self, event_type: str, event_id: str) -> None:
         """
         Mark event as successfully completed.
 
@@ -267,18 +256,13 @@ class AtomicWebhookIdempotency:
             ttl = await self.redis.ttl(key)
             if ttl > 0:
                 await self.redis.set(
-                    key,
-                    f"completed:{datetime.utcnow().isoformat()}",
-                    ex=ttl
+                    key, f"completed:{datetime.utcnow().isoformat()}", ex=ttl
                 )
         except Exception as e:
             logger.debug(f"Could not mark event as completed in Redis: {e}")
 
     async def mark_failed(
-        self,
-        event_type: str,
-        event_id: str,
-        error: Optional[str] = None
+        self, event_type: str, event_id: str, error: Optional[str] = None
     ) -> None:
         """
         Mark event as failed (allows reprocessing if configured).
@@ -295,16 +279,12 @@ class AtomicWebhookIdempotency:
             await self.redis.set(
                 key,
                 f"failed:{error or 'unknown'}:{datetime.utcnow().isoformat()}",
-                ex=300  # 5 minute retry window
+                ex=300,  # 5 minute retry window
             )
         except Exception as e:
             logger.debug(f"Could not mark event as failed in Redis: {e}")
 
-    async def release(
-        self,
-        event_type: str,
-        event_id: str
-    ) -> None:
+    async def release(self, event_type: str, event_id: str) -> None:
         """
         Release idempotency key (for error recovery).
 
@@ -323,11 +303,7 @@ class AtomicWebhookIdempotency:
         except Exception as e:
             logger.error(f"Could not release idempotency key: {e}")
 
-    async def is_processed(
-        self,
-        event_type: str,
-        event_id: str
-    ) -> bool:
+    async def is_processed(self, event_type: str, event_id: str) -> bool:
         """
         Check if event was already processed (without acquiring).
 
@@ -348,9 +324,7 @@ class AtomicWebhookIdempotency:
             return False
 
     async def _try_acquire_db_fallback(
-        self,
-        event_type: str,
-        event_id: str
+        self, event_type: str, event_id: str
     ) -> Tuple[bool, str]:
         """
         Database fallback for idempotency when Redis fails.
@@ -380,10 +354,9 @@ class AtomicWebhookIdempotency:
                 RETURNING id
             """)
 
-            result = self.db.execute(stmt, {
-                "event_id": event_id,
-                "event_type": event_type
-            })
+            result = self.db.execute(
+                stmt, {"event_id": event_id, "event_type": event_type}
+            )
 
             row = result.fetchone()
             self.db.commit()
@@ -419,7 +392,7 @@ class AtomicWebhookIdempotency:
                 value = await self.redis.get(key)
                 if value:
                     if isinstance(value, bytes):
-                        value = value.decode('utf-8')
+                        value = value.decode("utf-8")
                     if value.startswith("processing:"):
                         processing_count += 1
                     elif value.startswith("completed:"):
@@ -431,7 +404,7 @@ class AtomicWebhookIdempotency:
                 "processing": processing_count,
                 "completed": completed_count,
                 "failed": failed_count,
-                "total": processing_count + completed_count + failed_count
+                "total": processing_count + completed_count + failed_count,
             }
 
         except Exception as e:

@@ -2,6 +2,7 @@
 Format Validators
 Validates email, phone, and other formatted fields.
 """
+
 import re
 import logging
 from typing import Any, List
@@ -20,7 +21,7 @@ class FormatValidator:
         """Analyze email field for corruption patterns"""
         try:
             # Basic email format validation
-            email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+            email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
             if not re.match(email_pattern, email):
                 self._add_pattern(
                     type=CorruptionType.FORMAT_CORRUPTION,
@@ -30,11 +31,11 @@ class FormatValidator:
                     description=f"Invalid email format in {field_name}",
                     detection_method="regex_validation",
                     examples=[f"Entity {entity_id}: {email}"],
-                    confidence=0.8
+                    confidence=0.8,
                 )
 
             # Check for suspicious patterns
-            if email.count('@') != 1:
+            if email.count("@") != 1:
                 self._add_pattern(
                     type=CorruptionType.FORMAT_CORRUPTION,
                     field=field_name,
@@ -43,7 +44,7 @@ class FormatValidator:
                     description="Multiple @ symbols in email",
                     detection_method="character_count",
                     examples=[f"Entity {entity_id}: {email}"],
-                    confidence=0.9
+                    confidence=0.9,
                 )
 
         except Exception as e:
@@ -53,10 +54,10 @@ class FormatValidator:
         """Analyze phone field for corruption patterns"""
         try:
             # Remove common formatting characters
-            clean_phone = re.sub(r'[\s\-\(\)\+]', '', phone)
+            clean_phone = re.sub(r"[\s\-\(\)\+]", "", phone)
 
             # Check for non-digit characters (excluding + for international)
-            if not re.match(r'^[\+]?[\d]+$', clean_phone):
+            if not re.match(r"^[\+]?[\d]+$", clean_phone):
                 self._add_pattern(
                     type=CorruptionType.FORMAT_CORRUPTION,
                     field=field_name,
@@ -65,7 +66,7 @@ class FormatValidator:
                     description="Invalid characters in phone number",
                     detection_method="character_validation",
                     examples=[f"Entity {entity_id}: {phone}"],
-                    confidence=0.7
+                    confidence=0.7,
                 )
 
             # Check phone length (Brazilian phones should be 10-11 digits + country code)
@@ -77,8 +78,10 @@ class FormatValidator:
                     severity="medium",
                     description="Invalid phone number length",
                     detection_method="length_validation",
-                    examples=[f"Entity {entity_id}: {phone} (length: {len(clean_phone)})"],
-                    confidence=0.8
+                    examples=[
+                        f"Entity {entity_id}: {phone} (length: {len(clean_phone)})"
+                    ],
+                    confidence=0.8,
                 )
 
         except Exception as e:

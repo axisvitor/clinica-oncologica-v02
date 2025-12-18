@@ -1,12 +1,17 @@
 """
 Celery task scheduling for message delivery.
 """
+
 import logging
 from typing import Dict, Any
 from datetime import datetime
 
 from app.models.message import Message
-from app.utils.distributed_lock import async_message_delivery_lock, LockAcquisitionError, LockTimeoutError
+from app.utils.distributed_lock import (
+    async_message_delivery_lock,
+    LockAcquisitionError,
+    LockTimeoutError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +19,9 @@ logger = logging.getLogger(__name__)
 class TaskScheduler:
     """Handles Celery task scheduling for message delivery."""
 
-    async def schedule_celery_task(self, message: Message, delivery_time: datetime) -> Dict[str, Any]:
+    async def schedule_celery_task(
+        self, message: Message, delivery_time: datetime
+    ) -> Dict[str, Any]:
         """
         Schedule Celery task for message delivery with distributed locking.
 
@@ -30,8 +37,12 @@ class TaskScheduler:
         """
         try:
             # Acquire lock for message delivery ordering
-            async with async_message_delivery_lock(message.patient_id, timeout=10) as lock:
-                logger.debug(f"Acquired message delivery lock for patient {message.patient_id}")
+            async with async_message_delivery_lock(
+                message.patient_id, timeout=10
+            ) as lock:
+                logger.debug(
+                    f"Acquired message delivery lock for patient {message.patient_id}"
+                )
 
                 # Import here to avoid circular imports
                 from app.tasks.flows import send_flow_message
@@ -41,13 +52,13 @@ class TaskScheduler:
                     "content": message.content,
                     "type": message.type.value,
                     "metadata": message.message_metadata,
-                    "flow_context": message.message_metadata.get("flow_context", {})
+                    "flow_context": message.message_metadata.get("flow_context", {}),
                 }
 
                 # Schedule task with ETA, passing message_id to UPDATE existing message
                 task_result = send_flow_message.apply_async(
                     args=[str(message.patient_id), message_data, str(message.id)],
-                    eta=delivery_time
+                    eta=delivery_time,
                 )
 
                 logger.info(
@@ -69,7 +80,7 @@ class TaskScheduler:
                     "eta": delivery_time.isoformat(),
                     "status": "scheduled",
                     "message_id": str(message.id),
-                    "lock_metrics": lock_metrics
+                    "lock_metrics": lock_metrics,
                 }
 
         except (LockTimeoutError, LockAcquisitionError) as e:
@@ -79,15 +90,13 @@ class TaskScheduler:
             return {
                 "task_id": None,
                 "error": f"Lock error: {str(e)}",
-                "status": "failed"
+                "status": "failed",
             }
         except Exception as e:
-            logger.error(f"Failed to schedule Celery task for message {message.id}: {e}")
-            return {
-                "task_id": None,
-                "error": str(e),
-                "status": "failed"
-            }
+            logger.error(
+                f"Failed to schedule Celery task for message {message.id}: {e}"
+            )
+            return {"task_id": None, "error": str(e), "status": "failed"}
 
     async def get_task_status(self, task_id: str) -> Dict[str, Any]:
         """
@@ -109,16 +118,12 @@ class TaskScheduler:
                 "status": result.status,
                 "result": result.result if result.ready() else None,
                 "traceback": result.traceback if result.failed() else None,
-                "date_done": result.date_done
+                "date_done": result.date_done,
             }
 
         except Exception as e:
             logger.error(f"Failed to get task status for {task_id}: {e}")
-            return {
-                "task_id": task_id,
-                "status": "UNKNOWN",
-                "error": str(e)
-            }
+            return {"task_id": task_id, "status": "UNKNOWN", "error": str(e)}
 
     def cancel_celery_task(self, task_id: str) -> bool:
         """
@@ -132,6 +137,7 @@ class TaskScheduler:
         """
         try:
             from app.celery_app import celery_app
+
             celery_app.control.revoke(task_id, terminate=True)
             logger.info(f"Cancelled Celery task {task_id}")
             return True

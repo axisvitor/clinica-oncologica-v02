@@ -1,9 +1,10 @@
 """
 OpenAPI configuration and setup.
 """
+
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
-from app.config import settings
+
 
 def get_api_description(deployment_mode: str = "production") -> str:
     """Get comprehensive API description with deployment-specific information."""
@@ -56,8 +57,14 @@ This API follows a clean architecture pattern with:
 def get_openapi_tags() -> list:
     """Get OpenAPI tags for API documentation."""
     return [
-        {"name": "Authentication", "description": "User authentication and authorization"},
-        {"name": "Admin Users", "description": "Administrative user management operations"},
+        {
+            "name": "Authentication",
+            "description": "User authentication and authorization",
+        },
+        {
+            "name": "Admin Users",
+            "description": "Administrative user management operations",
+        },
         {"name": "Patients", "description": "Patient management operations"},
         {"name": "Messages", "description": "WhatsApp message handling"},
         {"name": "Flows", "description": "Conversation flow management"},
@@ -74,7 +81,10 @@ def get_openapi_tags() -> list:
         {"name": "Enhanced Monitoring", "description": "Advanced monitoring features"},
         {"name": "Monitoring", "description": "System monitoring and health checks"},
         {"name": "Health", "description": "System health monitoring"},
-        {"name": "Performance", "description": "Performance monitoring and optimization"},
+        {
+            "name": "Performance",
+            "description": "Performance monitoring and optimization",
+        },
         {"name": "Alerts", "description": "Alert management system"},
         {"name": "Webhooks", "description": "Webhook endpoints for integrations"},
         {"name": "Tasks", "description": "Background task management"},
@@ -84,7 +94,10 @@ def get_openapi_tags() -> list:
         {"name": "Platform Sync", "description": "External platform synchronization"},
         {"name": "WhatsApp", "description": "WhatsApp integration endpoints"},
         {"name": "Hive-Mind", "description": "AI coordination system"},
-        {"name": "Debug", "description": "Debug and diagnostics endpoints (debug mode only)"}
+        {
+            "name": "Debug",
+            "description": "Debug and diagnostics endpoints (debug mode only)",
+        },
     ]
 
 
@@ -109,54 +122,58 @@ def setup_enhanced_openapi(app: FastAPI) -> None:
         openapi_schema["components"].setdefault("examples", {})
 
         # Add security schemes
-        openapi_schema["components"]["securitySchemes"].update({
-            "BearerAuth": {
-                "type": "http",
-                "scheme": "bearer",
-                "bearerFormat": "JWT",
-                "description": "JWT token obtained from /api/v2/auth/login endpoint"
-            },
-            "ApiKeyAuth": {
-                "type": "apiKey",
-                "in": "header",
-                "name": "X-API-Key",
-                "description": "API key for service-to-service authentication"
+        openapi_schema["components"]["securitySchemes"].update(
+            {
+                "BearerAuth": {
+                    "type": "http",
+                    "scheme": "bearer",
+                    "bearerFormat": "JWT",
+                    "description": "JWT token obtained from /api/v2/auth/login endpoint",
+                },
+                "ApiKeyAuth": {
+                    "type": "apiKey",
+                    "in": "header",
+                    "name": "X-API-Key",
+                    "description": "API key for service-to-service authentication",
+                },
             }
-        })
+        )
 
         # Add common error response examples (already initialized above)
-        openapi_schema["components"]["examples"].update({
-            "ValidationError": {
-                "summary": "Validation Error",
-                "value": {
-                    "error": "validation_error",
-                    "message": "Invalid input data provided",
-                    "details": {"field": "email", "issue": "Invalid email format"},
-                    "timestamp": "2024-01-01T00:00:00Z",
-                    "request_id": "req_123456789"
-                }
-            },
-            "UnauthorizedError": {
-                "summary": "Unauthorized",
-                "value": {
-                    "error": "unauthorized",
-                    "message": "Authentication credentials required",
-                    "details": {},
-                    "timestamp": "2024-01-01T00:00:00Z",
-                    "request_id": "req_123456789"
-                }
-            },
-            "InternalServerError": {
-                "summary": "Internal Server Error",
-                "value": {
-                    "error": "internal_server_error",
-                    "message": "An unexpected error occurred",
-                    "details": {},
-                    "timestamp": "2024-01-01T00:00:00Z",
-                    "request_id": "req_123456789"
-                }
+        openapi_schema["components"]["examples"].update(
+            {
+                "ValidationError": {
+                    "summary": "Validation Error",
+                    "value": {
+                        "error": "validation_error",
+                        "message": "Invalid input data provided",
+                        "details": {"field": "email", "issue": "Invalid email format"},
+                        "timestamp": "2024-01-01T00:00:00Z",
+                        "request_id": "req_123456789",
+                    },
+                },
+                "UnauthorizedError": {
+                    "summary": "Unauthorized",
+                    "value": {
+                        "error": "unauthorized",
+                        "message": "Authentication credentials required",
+                        "details": {},
+                        "timestamp": "2024-01-01T00:00:00Z",
+                        "request_id": "req_123456789",
+                    },
+                },
+                "InternalServerError": {
+                    "summary": "Internal Server Error",
+                    "value": {
+                        "error": "internal_server_error",
+                        "message": "An unexpected error occurred",
+                        "details": {},
+                        "timestamp": "2024-01-01T00:00:00Z",
+                        "request_id": "req_123456789",
+                    },
+                },
             }
-        })
+        )
 
         app.openapi_schema = openapi_schema
         return app.openapi_schema

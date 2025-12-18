@@ -20,17 +20,13 @@ Migration Note:
     - enhanced_flow_engine.py (enhanced features)
 """
 
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
-from dataclasses import asdict, is_dataclass
-import asyncio
 import logging
 import re
 
 
-from app.integrations.gemini_client import get_gemini_client
-from app.core.redis_unified import redis_health
 from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
 
@@ -210,9 +206,7 @@ class FlowManager:
             )
         )
 
-        await self.integration_manager.notify(
-            "on_flow_start", context, template_dict
-        )
+        await self.integration_manager.notify("on_flow_start", context, template_dict)
 
         logger.info(f"Flow started: {flow_instance_id}")
         return flow_instance_id
@@ -565,7 +559,9 @@ class FlowManager:
         else:
             logger.debug(f"Event: {event.event_type} for flow {event.flow_instance_id}")
 
-    def register_integration(self, name_or_plugin: Any, integration: Any = None) -> None:
+    def register_integration(
+        self, name_or_plugin: Any, integration: Any = None
+    ) -> None:
         """
         Register a new integration plugin or wrap a legacy integration.
         """

@@ -1,4 +1,5 @@
 """Celery tasks for report generation."""
+
 import asyncio
 import logging
 from datetime import date, timedelta
@@ -18,17 +19,17 @@ logger = logging.getLogger(__name__)
 def generate_patient_report(self, patient_id: str, report_type: str):
     """
     Generate report for specific patient.
-    
+
     Args:
         patient_id (str): Patient UUID as string
         report_type (str): Type of report to generate (e.g., 'medical', 'summary')
-    
+
     Returns:
         dict[str, Any]: Dictionary containing:
             - status: Completion status ('completed')
             - report_id: Generated report UUID as string
             - output_path: Path to generated PDF file
-    
+
     Raises:
         Exception: If report generation fails after all retries
     """
@@ -40,7 +41,11 @@ def generate_patient_report(self, patient_id: str, report_type: str):
             period_start=date.today() - timedelta(days=30),
             period_end=date.today(),
         )
-        report = asyncio.run(service.generate_report(request, UUID("00000000-0000-0000-0000-000000000000")))
+        report = asyncio.run(
+            service.generate_report(
+                request, UUID("00000000-0000-0000-0000-000000000000")
+            )
+        )
         pdf_content = service.generate_pdf_report(report.id)
         reports_dir = Path(settings.UPLOAD_DIRECTORY) / "reports"
         reports_dir.mkdir(parents=True, exist_ok=True)
@@ -48,9 +53,15 @@ def generate_patient_report(self, patient_id: str, report_type: str):
         with open(output_path, "wb") as f:
             f.write(pdf_content)
         logger.info(f"Generated report {report.id} for patient {patient_id}")
-        return {"status": "completed", "report_id": str(report.id), "output_path": str(output_path)}
+        return {
+            "status": "completed",
+            "report_id": str(report.id),
+            "output_path": str(output_path),
+        }
     except Exception as exc:  # pragma: no cover - defensive logging
-        logger.error(f"Error generating report for patient {patient_id}: {exc}", exc_info=True)
+        logger.error(
+            f"Error generating report for patient {patient_id}: {exc}", exc_info=True
+        )
         raise self.retry(exc=exc, countdown=300)
     finally:
         db.close()
@@ -60,13 +71,13 @@ def generate_patient_report(self, patient_id: str, report_type: str):
 def generate_scheduled_reports(self):
     """
     Generate all scheduled reports.
-    
+
     Returns:
         dict[str, Any]: Dictionary containing:
             - status: Scheduling status ('scheduled')
             - tasks: List of task IDs for queued reports
             - count: Number of reports scheduled
-    
+
     Raises:
         Exception: If scheduling fails after all retries
     """

@@ -44,7 +44,9 @@ class FlowScheduler:
             "default_timeout_minutes",
             self.execution_config.default_flow_timeout_minutes,
         )
-        timeout_minutes = min(timeout_minutes, self.execution_config.max_flow_timeout_hours * 60)
+        timeout_minutes = min(
+            timeout_minutes, self.execution_config.max_flow_timeout_hours * 60
+        )
         return datetime.utcnow() + timedelta(minutes=timeout_minutes)
 
 

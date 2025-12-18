@@ -2,6 +2,7 @@
 Base Analyzer
 Abstract base class for all analyzers following Strategy Pattern.
 """
+
 from abc import ABC, abstractmethod
 from typing import List, Any
 from ..types import CorruptionPattern

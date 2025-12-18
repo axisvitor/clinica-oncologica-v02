@@ -8,6 +8,7 @@ File: backend-hormonia/app/services/patient/flow_service.py
 LOC: ~150
 Responsibility: Patient flow management
 """
+
 from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import UUID
@@ -16,7 +17,10 @@ from uuid import UUID
 from app.models.patient import Patient
 from app.models.flow import PatientFlowState
 from app.models.patient import FlowState
-from app.services.enhanced_flow_engine import EnhancedFlowEngine, get_enhanced_flow_engine
+from app.services.enhanced_flow_engine import (
+    EnhancedFlowEngine,
+    get_enhanced_flow_engine,
+)
 from app.services.flow_core import FlowType
 from app.services.websocket_events import websocket_events
 from app.schemas.websocket import WebSocketEventType
@@ -65,9 +69,7 @@ class PatientFlowService:
             Created PatientFlowState or None if auto-enrollment disabled
         """
         if not settings.ENABLE_AUTO_FLOW_ENROLLMENT:
-            logger.info(
-                f"Auto-enrollment disabled for patient {patient.id}"
-            )
+            logger.info(f"Auto-enrollment disabled for patient {patient.id}")
             return None
 
         try:
@@ -82,23 +84,24 @@ class PatientFlowService:
 
             # Get flow configuration to find the correct Enum value
             from app.config.template_loader import get_template_loader
-            
+
             loader = get_template_loader()
             flow_config = loader.get_flow_type_config(template_name)
-            
+
             # Default to INITIAL_15_DAYS if mapping fails or template unknown
             flow_type = FlowType.INITIAL_15_DAYS
-            
+
             if flow_config and flow_config.enum_value:
                 try:
                     flow_type = FlowType(flow_config.enum_value)
                 except ValueError:
-                    logger.warning(f"Invalid enum value {flow_config.enum_value} for template {template_name}")
+                    logger.warning(
+                        f"Invalid enum value {flow_config.enum_value} for template {template_name}"
+                    )
 
             # Enroll patient using the new engine
             flow_state = await self.flow_engine.enroll_patient(
-                patient_id=patient.id,
-                flow_type=flow_type
+                patient_id=patient.id, flow_type=flow_type
             )
 
             logger.info(
@@ -109,31 +112,35 @@ class PatientFlowService:
             if not patient.patient_data:
                 patient.patient_data = {}
 
-            patient.patient_data.update({
-                "auto_flow_started": True,
-                "requested_template": template_name,
-                "actual_flow_type": flow_type.value,
-                "flow_start_time": flow_state.started_at.isoformat(),
-                "initialized_by": str(current_user_id) if current_user_id else "system"
-            })
+            patient.patient_data.update(
+                {
+                    "auto_flow_started": True,
+                    "requested_template": template_name,
+                    "actual_flow_type": flow_type.value,
+                    "flow_start_time": flow_state.started_at.isoformat(),
+                    "initialized_by": str(current_user_id)
+                    if current_user_id
+                    else "system",
+                }
+            )
             self.db.commit()
 
             return flow_state
 
         except Exception as e:
-            logger.error(
-                f"Failed to start flow for patient {patient.id}: {e}"
-            )
+            logger.error(f"Failed to start flow for patient {patient.id}: {e}")
             # Store error in metadata but don't fail the request
             if not patient.patient_data:
                 patient.patient_data = {}
 
-            patient.patient_data.update({
-                "auto_flow_error": str(e),
-                "flow_start_attempted": True,
-                "flow_start_failed": True,
-                "error_timestamp": datetime.now(timezone.utc).isoformat(),
-            })
+            patient.patient_data.update(
+                {
+                    "auto_flow_error": str(e),
+                    "flow_start_attempted": True,
+                    "flow_start_failed": True,
+                    "error_timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            )
 
             try:
                 self.db.commit()
@@ -233,15 +240,19 @@ class PatientFlowService:
         try:
             # Find active flow state
             # We delete any flow state associated with the patient to be safe during compensation
-            flow_states = self.db.query(PatientFlowState).filter(
-                PatientFlowState.patient_id == patient_id
-            ).all()
-            
+            flow_states = (
+                self.db.query(PatientFlowState)
+                .filter(PatientFlowState.patient_id == patient_id)
+                .all()
+            )
+
             if flow_states:
                 for state in flow_states:
                     self.db.delete(state)
                 self.db.commit()
-                logger.info(f"Deleted {len(flow_states)} flow states for patient {patient_id}")
+                logger.info(
+                    f"Deleted {len(flow_states)} flow states for patient {patient_id}"
+                )
                 return True
             return False
         except Exception as e:

@@ -30,7 +30,7 @@ from ..config import get_flow_config
 
 from .metrics_collector import FlowMetricsCollector
 from .event_broadcaster import FlowEventBroadcaster
-from .monitor import FlowMonitor, FlowHealthMetrics, HealthStatus
+from .monitor import FlowMonitor, FlowHealthMetrics
 
 
 logger = logging.getLogger(__name__)

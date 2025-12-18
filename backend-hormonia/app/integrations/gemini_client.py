@@ -4,11 +4,11 @@ Provides AI-powered message humanization, personalization, and conversation mana
 
 REFACTORED TO USE LANGCHAIN-GOOGLE-GENAI (Option A - LangChain-only)
 """
+
 import asyncio
 import json
 import logging
 from typing import Dict, List, Optional, Any
-from datetime import datetime, timedelta
 import hashlib
 
 # LangChain Google Gemini integration (replaces google.generativeai)
@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 class GeminiAPIError(Exception):
     """Custom exception for Gemini API errors."""
+
     pass
 
 
@@ -33,7 +34,7 @@ class GeminiClient:
 
     REFACTORED: Now uses ChatGoogleGenerativeAI from langchain-google-genai
     instead of google.generativeai SDK to avoid dependency conflicts.
-    
+
     ADDED: Semantic Caching with Redis.
     """
 
@@ -50,7 +51,9 @@ class GeminiClient:
         self.redis_client = get_sync_redis()
 
         if not self.api_key:
-            logger.warning("Gemini API key not provided. Client will not be functional.")
+            logger.warning(
+                "Gemini API key not provided. Client will not be functional."
+            )
             self.model = None
             return
 
@@ -64,7 +67,9 @@ class GeminiClient:
                 top_p=settings.AI_GEMINI_TOP_P,
                 top_k=settings.AI_GEMINI_TOP_K,
             )
-            logger.info(f"Gemini client initialized with LangChain model: {self.model_name}")
+            logger.info(
+                f"Gemini client initialized with LangChain model: {self.model_name}"
+            )
         except Exception as e:
             logger.error(f"Failed to initialize ChatGoogleGenerativeAI: {e}")
             self.model = None
@@ -72,7 +77,7 @@ class GeminiClient:
 
     def _generate_cache_key(self, prompt: str) -> str:
         """Generate a deterministic cache key for the prompt."""
-        prompt_hash = hashlib.sha256(prompt.encode('utf-8')).hexdigest()
+        prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
         return f"gemini_cache:{prompt_hash}"
 
     async def _get_cached_response(self, cache_key: str) -> Optional[str]:
@@ -81,12 +86,14 @@ class GeminiClient:
             cached_value = self.redis_client.get(cache_key)
             if cached_value:
                 logger.debug(f"Gemini cache hit for key: {cache_key}")
-                return cached_value.decode('utf-8')
+                return cached_value.decode("utf-8")
         except Exception as e:
             logger.warning(f"Failed to retrieve from cache: {e}")
         return None
 
-    async def _cache_response(self, cache_key: str, response: str, ttl: int = 3600) -> None:
+    async def _cache_response(
+        self, cache_key: str, response: str, ttl: int = 3600
+    ) -> None:
         """Cache the response in Redis."""
         try:
             self.redis_client.setex(cache_key, ttl, response)
@@ -109,7 +116,9 @@ class GeminiClient:
             GeminiAPIError: If generation fails after retries
         """
         if not self.api_key or not self.model:
-            raise GeminiAPIError("Gemini client not properly initialized - missing API key")
+            raise GeminiAPIError(
+                "Gemini client not properly initialized - missing API key"
+            )
 
         # Check Cache
         cache_key = self._generate_cache_key(prompt)
@@ -117,8 +126,8 @@ class GeminiClient:
         if cached_response:
             return cached_response
 
-        max_retries = kwargs.get('max_retries', settings.AI_GEMINI_MAX_RETRIES)
-        retry_delay = kwargs.get('retry_delay', 1)
+        max_retries = kwargs.get("max_retries", settings.AI_GEMINI_MAX_RETRIES)
+        retry_delay = kwargs.get("retry_delay", 1)
 
         for attempt in range(max_retries):
             try:
@@ -128,41 +137,48 @@ class GeminiClient:
                 # Run with timeout
                 response = await asyncio.wait_for(
                     self.model.ainvoke(messages),
-                    timeout=settings.AI_GEMINI_TIMEOUT_SECONDS
+                    timeout=settings.AI_GEMINI_TIMEOUT_SECONDS,
                 )
 
                 # Extract text from LangChain response
-                response_text = response.content.strip() if hasattr(response, 'content') else str(response).strip()
+                response_text = (
+                    response.content.strip()
+                    if hasattr(response, "content")
+                    else str(response).strip()
+                )
 
                 if not response_text:
-                    raise GeminiAPIError(f"Empty response from Gemini API via LangChain")
+                    raise GeminiAPIError("Empty response from Gemini API via LangChain")
 
                 logger.debug(f"Gemini generation successful on attempt {attempt + 1}")
-                
+
                 # Cache successful response
                 await self._cache_response(cache_key, response_text)
-                
+
                 return response_text
 
             except Exception as e:
                 logger.warning(f"Gemini API attempt {attempt + 1} failed: {e}")
 
                 if attempt == max_retries - 1:
-                    raise GeminiAPIError(f"Failed to generate content after {max_retries} attempts: {e}")
+                    raise GeminiAPIError(
+                        f"Failed to generate content after {max_retries} attempts: {e}"
+                    )
 
                 # Exponential backoff
-                await asyncio.sleep(retry_delay * (2 ** attempt))
+                await asyncio.sleep(retry_delay * (2**attempt))
 
         raise GeminiAPIError("Unexpected error in content generation")
 
     async def humanize_flow_message(
-                                   self,
-                                   template: str,
-                                   patient_name: str,
-                                   patient_context: Dict[str, Any],
-                                   conversation_history: List[str],
-                                   personalization_hints: List[str],
-                                   few_shot_examples: Optional[List[Dict[str, str]]] = None) -> str:
+        self,
+        template: str,
+        patient_name: str,
+        patient_context: Dict[str, Any],
+        conversation_history: List[str],
+        personalization_hints: List[str],
+        few_shot_examples: Optional[List[Dict[str, str]]] = None,
+    ) -> str:
         """
         Transform template message into natural, human-like conversation.
 
@@ -178,8 +194,12 @@ class GeminiClient:
             Humanized message text
         """
         prompt = self._build_humanization_prompt(
-            template, patient_name, patient_context,
-            conversation_history, personalization_hints, few_shot_examples
+            template,
+            patient_name,
+            patient_context,
+            conversation_history,
+            personalization_hints,
+            few_shot_examples,
         )
 
         try:
@@ -189,14 +209,17 @@ class GeminiClient:
         except Exception as e:
             logger.error(f"Failed to humanize message: {e}")
             # Fallback to template with basic personalization
-            return template.replace("[nome]", patient_name).replace("[NOME]", patient_name)
+            return template.replace("[nome]", patient_name).replace(
+                "[NOME]", patient_name
+            )
 
     async def generate_varied_question(
-                                     self,
-                                     base_question: str,
-                                     previous_questions: List[str],
-                                     patient_context: Dict[str, Any],
-                                     few_shot_examples: Optional[List[Dict[str, str]]] = None) -> str:
+        self,
+        base_question: str,
+        previous_questions: List[str],
+        patient_context: Dict[str, Any],
+        few_shot_examples: Optional[List[Dict[str, str]]] = None,
+    ) -> str:
         """
         Generate question variation to avoid repetition.
 
@@ -222,9 +245,8 @@ class GeminiClient:
             return base_question
 
     async def analyze_response_sentiment(
-                                       self,
-                                       response: str,
-                                       patient_context: Dict[str, Any]) -> Dict[str, Any]:
+        self, response: str, patient_context: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Analyze patient response sentiment and extract insights.
 
@@ -250,15 +272,16 @@ class GeminiClient:
                 "confidence": 0.5,
                 "emotional_indicators": [],
                 "medical_concerns": False,
-                "requires_attention": False
+                "requires_attention": False,
             }
 
     async def create_empathetic_follow_up(
-                                        self,
-                                        patient_response: str,
-                                        conversation_history: List[str],
-                                        patient_context: Dict[str, Any],
-                                        few_shot_examples: Optional[List[Dict[str, str]]] = None) -> str:
+        self,
+        patient_response: str,
+        conversation_history: List[str],
+        patient_context: Dict[str, Any],
+        few_shot_examples: Optional[List[Dict[str, str]]] = None,
+    ) -> str:
         """
         Create empathetic follow-up message based on patient response.
 
@@ -283,24 +306,29 @@ class GeminiClient:
             logger.error(f"Failed to generate empathetic follow-up: {e}")
             return "Obrigada por compartilhar isso comigo. Como posso te ajudar melhor?"
 
-    def _format_few_shot_examples(self, examples: Optional[List[Dict[str, str]]]) -> str:
+    def _format_few_shot_examples(
+        self, examples: Optional[List[Dict[str, str]]]
+    ) -> str:
         """Format few-shot examples for inclusion in prompt."""
         if not examples:
             return ""
-        
+
         formatted = "\nEXEMPLOS DE REFERÊNCIA:\n"
         for ex in examples:
-            formatted += f"Entrada: {ex.get('input', '')}\nSaída: {ex.get('output', '')}\n---\n"
+            formatted += (
+                f"Entrada: {ex.get('input', '')}\nSaída: {ex.get('output', '')}\n---\n"
+            )
         return formatted
 
     def _build_humanization_prompt(
-                                  self,
-                                  template: str,
-                                  patient_name: str,
-                                  patient_context: Dict[str, Any],
-                                  conversation_history: List[str],
-                                  personalization_hints: List[str],
-                                  few_shot_examples: Optional[List[Dict[str, str]]] = None) -> str:
+        self,
+        template: str,
+        patient_name: str,
+        patient_context: Dict[str, Any],
+        conversation_history: List[str],
+        personalization_hints: List[str],
+        few_shot_examples: Optional[List[Dict[str, str]]] = None,
+    ) -> str:
         """Build prompt for message humanization."""
         examples_section = self._format_few_shot_examples(few_shot_examples)
         return f"""
@@ -310,7 +338,7 @@ Sua missão é transformar mensagens médicas em conversas naturais e acolhedora
 CONTEXTO DO PACIENTE:
 - Nome: {patient_name}
 - Contexto: {json.dumps(patient_context, ensure_ascii=False)}
-- Dicas de personalização: {', '.join(personalization_hints)}
+- Dicas de personalização: {", ".join(personalization_hints)}
 
 CONVERSAS RECENTES:
 {chr(10).join(conversation_history[-5:]) if conversation_history else "Nenhuma conversa anterior"}
@@ -332,11 +360,12 @@ MENSAGEM HUMANIZADA:
 """
 
     def _build_question_variation_prompt(
-                                       self,
-                                       base_question: str,
-                                       previous_questions: List[str],
-                                       patient_context: Dict[str, Any],
-                                       few_shot_examples: Optional[List[Dict[str, str]]] = None) -> str:
+        self,
+        base_question: str,
+        previous_questions: List[str],
+        patient_context: Dict[str, Any],
+        few_shot_examples: Optional[List[Dict[str, str]]] = None,
+    ) -> str:
         """Build prompt for question variation."""
         examples_section = self._format_few_shot_examples(few_shot_examples)
         return f"""
@@ -360,9 +389,8 @@ NOVA PERGUNTA:
 """
 
     def _build_sentiment_analysis_prompt(
-                                       self,
-                                       response: str,
-                                       patient_context: Dict[str, Any]) -> str:
+        self, response: str, patient_context: Dict[str, Any]
+    ) -> str:
         """Build prompt for sentiment analysis."""
         return f"""
 Analise a resposta de um paciente de terapia hormonal e forneça insights estruturados.
@@ -385,11 +413,12 @@ ANÁLISE:
 """
 
     def _build_empathetic_response_prompt(
-                                        self,
-                                        patient_response: str,
-                                        conversation_history: List[str],
-                                        patient_context: Dict[str, Any],
-                                        few_shot_examples: Optional[List[Dict[str, str]]] = None) -> str:
+        self,
+        patient_response: str,
+        conversation_history: List[str],
+        patient_context: Dict[str, Any],
+        few_shot_examples: Optional[List[Dict[str, str]]] = None,
+    ) -> str:
         """Build prompt for empathetic response."""
         examples_section = self._format_few_shot_examples(few_shot_examples)
         return f"""
@@ -418,7 +447,8 @@ RESPOSTA EMPÁTICA:
         try:
             # Try to extract JSON from the response
             import re
-            json_match = re.search(r'\{.*\}', analysis_text, re.DOTALL)
+
+            json_match = re.search(r"\{.*\}", analysis_text, re.DOTALL)
             if json_match:
                 return json.loads(json_match.group())
         except Exception as e:
@@ -426,19 +456,27 @@ RESPOSTA EMPÁTICA:
 
         # Fallback to basic analysis
         sentiment = "neutral"
-        if any(word in analysis_text.lower() for word in ["positiv", "bem", "melhor", "ótim"]):
+        if any(
+            word in analysis_text.lower()
+            for word in ["positiv", "bem", "melhor", "ótim"]
+        ):
             sentiment = "positive"
-        elif any(word in analysis_text.lower() for word in ["negativ", "preocup", "problem", "dor", "mal"]):
+        elif any(
+            word in analysis_text.lower()
+            for word in ["negativ", "preocup", "problem", "dor", "mal"]
+        ):
             sentiment = "negative"
 
         return {
             "sentiment": sentiment,
             "confidence": 0.7,
             "emotional_indicators": [],
-            "medical_concerns": "preocup" in analysis_text.lower() or "dor" in analysis_text.lower(),
-            "requires_attention": "atenção" in analysis_text.lower() or "urgente" in analysis_text.lower(),
+            "medical_concerns": "preocup" in analysis_text.lower()
+            or "dor" in analysis_text.lower(),
+            "requires_attention": "atenção" in analysis_text.lower()
+            or "urgente" in analysis_text.lower(),
             "key_themes": [],
-            "suggested_follow_up": "standard"
+            "suggested_follow_up": "standard",
         }
 
     async def health_check(self) -> bool:
@@ -490,7 +528,7 @@ async def test_gemini_integration():
             patient_name="Maria",
             patient_context={"treatment_day": 5, "mood": "positive"},
             conversation_history=["Oi Maria!", "Tudo bem por aí?"],
-            personalization_hints=["casual", "supportive"]
+            personalization_hints=["casual", "supportive"],
         )
 
         logger.info(f"Gemini test successful. Humanized message: {humanized}")

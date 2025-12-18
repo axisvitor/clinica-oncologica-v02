@@ -17,27 +17,21 @@ class SecuritySettings(BaseAppSettings):
     # ============================================================================
     SECURITY_SECRET_KEY: str = Field(
         default="dev-insecure-secret-key-must-be-changed-in-production-railway",
-        description="Secret key for JWT signing. MUST be set via environment variable in production."
+        description="Secret key for JWT signing. MUST be set via environment variable in production.",
     )
     SECURITY_ENCRYPTION_KEY: Optional[str] = Field(
-        default=None,
-        description="Encryption key for sensitive data"
+        default=None, description="Encryption key for sensitive data"
     )
-    SECURITY_ALGORITHM: str = Field(
-        default="HS256",
-        description="JWT algorithm"
-    )
+    SECURITY_ALGORITHM: str = Field(default="HS256", description="JWT algorithm")
 
     # ============================================================================
     # Authentication - Direct ENV names
     # ============================================================================
     AUTH_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
-        default=30,
-        description="JWT expiration time"
+        default=30, description="JWT expiration time"
     )
     AUTH_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(
-        default=7,
-        description="Refresh token expiration time in days"
+        default=7, description="Refresh token expiration time in days"
     )
     AUTH_BCRYPT_ROUNDS: int = Field(
         default=12,
@@ -47,11 +41,10 @@ class SecuritySettings(BaseAppSettings):
     # Token Rotation & Blacklist - Direct ENV names
     AUTH_ENABLE_TOKEN_ROTATION: bool = Field(
         default=False,
-        description="Enable automatic token rotation for enhanced security"
+        description="Enable automatic token rotation for enhanced security",
     )
     AUTH_ENABLE_TOKEN_BLACKLIST: bool = Field(
-        default=True,
-        description="Enable token blacklist for logout/revocation support"
+        default=True, description="Enable token blacklist for logout/revocation support"
     )
 
     # ============================================================================
@@ -59,47 +52,43 @@ class SecuritySettings(BaseAppSettings):
     # ============================================================================
     SESSION_ENABLE_COOKIE_SECURE: bool = Field(
         default=False,
-        description="Require HTTPS for session cookies (must be True in production)"
+        description="Require HTTPS for session cookies (must be True in production)",
     )
     SESSION_ENABLE_COOKIE_HTTPONLY: bool = Field(
         default=True,
-        description="Prevent JavaScript access to session cookies (XSS protection)"
+        description="Prevent JavaScript access to session cookies (XSS protection)",
     )
     SESSION_COOKIE_SAMESITE: str = Field(
-        default="lax", description="SameSite cookie attribute: 'strict', 'lax', or 'none' (CSRF protection)"
+        default="lax",
+        description="SameSite cookie attribute: 'strict', 'lax', or 'none' (CSRF protection)",
     )
     SESSION_COOKIE_NAME: str = Field(
         default="session_id", description="Name of the session cookie"
     )
-    SESSION_COOKIE_PATH: str = Field(
-        default="/", description="Path for session cookie"
-    )
+    SESSION_COOKIE_PATH: str = Field(default="/", description="Path for session cookie")
     SESSION_COOKIE_DOMAIN: Optional[str] = Field(
-        default=None, description="Domain for session cookie (None = current domain only)"
+        default=None,
+        description="Domain for session cookie (None = current domain only)",
     )
     SESSION_COOKIE_MAX_AGE_SECONDS: int = Field(
         default=28800,
-        description="Session cookie max age in seconds (default: 8 hours)"
+        description="Session cookie max age in seconds (default: 8 hours)",
     )
 
     # ============================================================================
     # Security Features - Direct ENV names
     # ============================================================================
     SECURITY_ENABLE_SSL_REDIRECT: bool = Field(
-        default=False,
-        description="Force HTTPS redirect"
+        default=False, description="Force HTTPS redirect"
     )
     SECURITY_ENABLE_CONTENT_TYPE_NOSNIFF: bool = Field(
-        default=True,
-        description="Enable X-Content-Type-Options: nosniff header"
+        default=True, description="Enable X-Content-Type-Options: nosniff header"
     )
     SECURITY_ENABLE_BROWSER_XSS_FILTER: bool = Field(
-        default=True,
-        description="Enable X-XSS-Protection header"
+        default=True, description="Enable X-XSS-Protection header"
     )
     SECURITY_ENABLE_FIELD_ENCRYPTION: bool = Field(
-        default=True,
-        description="Enable field-level encryption for sensitive data"
+        default=True, description="Enable field-level encryption for sensitive data"
     )
 
     # ============================================================================
@@ -173,8 +162,7 @@ class SecuritySettings(BaseAppSettings):
     # Rate Limiting Configuration - Direct ENV name
     # ============================================================================
     RATE_LIMIT_ENABLE_SERVICE: bool = Field(
-        default=True,
-        description="Enable rate limiting on authentication endpoints"
+        default=True, description="Enable rate limiting on authentication endpoints"
     )
     RATE_LIMIT_REDIS_URL: Optional[str] = Field(
         default=None,
@@ -229,7 +217,9 @@ class SecuritySettings(BaseAppSettings):
                 )
 
             # Encryption Keys (check environment directly as they're not in settings)
-            encryption_key = os.getenv("ENCRYPTION_KEY_CURRENT") or os.getenv("SECURITY_ENCRYPTION_KEY")
+            encryption_key = os.getenv("ENCRYPTION_KEY_CURRENT") or os.getenv(
+                "SECURITY_ENCRYPTION_KEY"
+            )
             if not encryption_key:
                 missing_vars.append(
                     "ENCRYPTION_KEY_CURRENT - Required for field-level encryption (PHI/PII)\n"
@@ -248,11 +238,13 @@ class SecuritySettings(BaseAppSettings):
         # Firebase Validation (All Environments if Firebase is in use)
         # ============================================================================
         # Check if Firebase is being used (any Firebase field is set)
-        firebase_in_use = any([
-            self.FIREBASE_ADMIN_PROJECT_ID,
-            self.FIREBASE_ADMIN_PRIVATE_KEY,
-            self.FIREBASE_ADMIN_CLIENT_EMAIL,
-        ])
+        firebase_in_use = any(
+            [
+                self.FIREBASE_ADMIN_PROJECT_ID,
+                self.FIREBASE_ADMIN_PRIVATE_KEY,
+                self.FIREBASE_ADMIN_CLIENT_EMAIL,
+            ]
+        )
 
         if firebase_in_use:
             # If any Firebase field is set, all must be set
@@ -359,22 +351,31 @@ class SecuritySettings(BaseAppSettings):
         # Validate security keys are not placeholders (only in production)
         # In development, default insecure keys are allowed for local testing
         import os
-        is_production = os.environ.get("APP_ENVIRONMENT", "development").lower() == "production"
+
+        is_production = (
+            os.environ.get("APP_ENVIRONMENT", "development").lower() == "production"
+        )
 
         if is_production:
-            placeholder_patterns = ["CHANGE_THIS", "YOUR_", "INSECURE", "DEV-", "MUST-BE-CHANGED"]
+            placeholder_patterns = [
+                "CHANGE_THIS",
+                "YOUR_",
+                "INSECURE",
+                "DEV-",
+                "MUST-BE-CHANGED",
+            ]
             for field in ["SECURITY_SECRET_KEY", "SECURITY_ENCRYPTION_KEY"]:
                 if field in data:
                     v = data[field]
-                    if v and any(pattern in v.upper() for pattern in placeholder_patterns):
+                    if v and any(
+                        pattern in v.upper() for pattern in placeholder_patterns
+                    ):
                         raise ValueError(
                             f"{field} must be changed from placeholder/default value in production. "
                             f"Generate a secure key with: python -c 'import secrets; print(secrets.token_urlsafe(64))'"
                         )
 
         return data
-
-
 
     def validate_csrf_config(self):
         """Validate CSRF secret key strength at application startup."""
@@ -431,7 +432,9 @@ class SecuritySettings(BaseAppSettings):
 
             # DEBUG must be False in production
             if self.APP_ENABLE_DEBUG:
-                errors.append("APP_ENABLE_DEBUG must be False in production environment")
+                errors.append(
+                    "APP_ENABLE_DEBUG must be False in production environment"
+                )
 
             # Session cookies must be secure in production
             if not self.SESSION_ENABLE_COOKIE_SECURE:
@@ -446,7 +449,7 @@ class SecuritySettings(BaseAppSettings):
                 )
 
             # SameSite should be strict or lax in production
-            if self.SESSION_COOKIE_SAMESITE.lower() not in ['strict', 'lax']:
+            if self.SESSION_COOKIE_SAMESITE.lower() not in ["strict", "lax"]:
                 errors.append(
                     f"SESSION_COOKIE_SAMESITE must be 'strict' or 'lax' in production (got: {self.SESSION_COOKIE_SAMESITE})"
                 )
@@ -467,28 +470,38 @@ class SecuritySettings(BaseAppSettings):
                 )
 
                 import logging
+
                 logger = logging.getLogger(__name__)
 
                 # Collect all security keys that need validation
                 secrets_to_validate = {}
 
                 if self.SECURITY_SECRET_KEY:
-                    secrets_to_validate["SECURITY_SECRET_KEY"] = self.SECURITY_SECRET_KEY
-
+                    secrets_to_validate["SECURITY_SECRET_KEY"] = (
+                        self.SECURITY_SECRET_KEY
+                    )
 
                 if self.SECURITY_ENCRYPTION_KEY:
-                    secrets_to_validate["SECURITY_ENCRYPTION_KEY"] = self.SECURITY_ENCRYPTION_KEY
+                    secrets_to_validate["SECURITY_ENCRYPTION_KEY"] = (
+                        self.SECURITY_ENCRYPTION_KEY
+                    )
 
                 if self.SECURITY_CSRF_SECRET_KEY:
-                    secrets_to_validate["SECURITY_CSRF_SECRET_KEY"] = self.SECURITY_CSRF_SECRET_KEY
+                    secrets_to_validate["SECURITY_CSRF_SECRET_KEY"] = (
+                        self.SECURITY_CSRF_SECRET_KEY
+                    )
 
                 # Validate all secrets
-                validation_results = validate_all_secrets(secrets_to_validate, environment="production")
+                validation_results = validate_all_secrets(
+                    secrets_to_validate, environment="production"
+                )
 
                 # Check for any invalid keys
                 for key_name, result in validation_results.items():
                     if not result.is_valid:
-                        masked_key = mask_secret_for_logging(secrets_to_validate[key_name])
+                        masked_key = mask_secret_for_logging(
+                            secrets_to_validate[key_name]
+                        )
 
                         error_msg = (
                             f"{key_name} has insufficient entropy:\n"
@@ -502,7 +515,9 @@ class SecuritySettings(BaseAppSettings):
                         logger.error(f"❌ {key_name} validation failed: {error_msg}")
                     else:
                         # Log successful validation (with masked key)
-                        masked_key = mask_secret_for_logging(secrets_to_validate[key_name])
+                        masked_key = mask_secret_for_logging(
+                            secrets_to_validate[key_name]
+                        )
                         logger.info(
                             f"✅ {key_name} validation passed: "
                             f"entropy={result.entropy_bits:.1f} bits, "
@@ -518,7 +533,7 @@ class SecuritySettings(BaseAppSettings):
 
             if errors:
                 raise ValueError(
-                    f"Production environment security validation failed:\n"
+                    "Production environment security validation failed:\n"
                     + "\n".join(f"  - {error}" for error in errors)
                 )
 

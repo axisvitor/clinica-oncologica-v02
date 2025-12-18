@@ -1,6 +1,7 @@
 """
 AI Services - Insights Generation Endpoints
 """
+
 import logging
 from datetime import datetime, timedelta
 from uuid import UUID
@@ -56,7 +57,7 @@ async def generate_patient_insights(
     request: GenerateInsightsRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(verify_physician_or_admin),
-    db = Depends(get_db),
+    db=Depends(get_db),
 ) -> InsightsResponse:
     """
     Generate comprehensive patient insights with AI.
@@ -66,9 +67,7 @@ async def generate_patient_insights(
     try:
         # Validate patient access
         patient = await validate_patient_access(
-            request.patient_id,
-            current_user,
-            get_patient_service(db)
+            request.patient_id, current_user, get_patient_service(db)
         )
 
         # Get Redis client
@@ -98,8 +97,7 @@ async def generate_patient_insights(
             completion_tokens=300,
             total_tokens=800,
             estimated_cost_usd=calculate_token_cost(
-                TokenUsage(total_tokens=800),
-                AIModelType.GEMINI_PRO
+                TokenUsage(total_tokens=800), AIModelType.GEMINI_PRO
             ),
             model=AIModelType.GEMINI_PRO,
         )
@@ -111,8 +109,8 @@ async def generate_patient_insights(
             sentiment_trends=[],
             adherence_score=0.87,
             key_insights=[
-                f"Patient engagement: high",
-                f"Treatment adherence: 87%",
+                "Patient engagement: high",
+                "Treatment adherence: 87%",
                 f"Recent activity: {request.days} days analyzed",
             ],
             alerts=[],
@@ -134,10 +132,7 @@ async def generate_patient_insights(
 
         # Cache response
         await set_cached_response(
-            redis_client,
-            cache_key,
-            response.dict(),
-            CACHE_TTL_INSIGHTS
+            redis_client, cache_key, response.dict(), CACHE_TTL_INSIGHTS
         )
 
         # Track usage
@@ -162,7 +157,7 @@ async def generate_patient_insights(
         logger.error(f"Insights generation error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate insights: {str(e)}"
+            detail=f"Failed to generate insights: {str(e)}",
         )
 
 
@@ -178,7 +173,7 @@ async def get_patient_insights(
     force_refresh: bool = Query(False, description="Force cache refresh"),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     current_user: User = Depends(verify_physician_or_admin),
-    db = Depends(get_db),
+    db=Depends(get_db),
 ) -> InsightsResponse:
     """Get cached or generate new insights for patient."""
     request = GenerateInsightsRequest(
@@ -200,7 +195,7 @@ async def generate_insights_for_patient(
     request: PatientInsightsRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(verify_physician_or_admin),
-    db = Depends(get_db),
+    db=Depends(get_db),
 ) -> InsightsResponse:
     """Generate insights for specific patient."""
     full_request = GenerateInsightsRequest(
@@ -209,8 +204,5 @@ async def generate_insights_for_patient(
         force_refresh=request.force_refresh,
     )
     return await generate_patient_insights(
-        full_request,
-        background_tasks,
-        current_user,
-        db
+        full_request, background_tasks, current_user, db
     )

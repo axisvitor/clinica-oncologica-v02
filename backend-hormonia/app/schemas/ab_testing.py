@@ -6,17 +6,16 @@ validation and safety checks.
 """
 
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Union
-from uuid import UUID
+from typing import Dict, List, Optional, Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from enum import Enum
 
-from app.models.ab_experiment import ExperimentStatus, VariantType, PatientSafetyLevel
 
 
 class ExperimentStatusEnum(str, Enum):
     """Experiment status for API."""
+
     DRAFT = "draft"
     ACTIVE = "active"
     PAUSED = "paused"
@@ -26,12 +25,14 @@ class ExperimentStatusEnum(str, Enum):
 
 class VariantTypeEnum(str, Enum):
     """Variant type for API."""
+
     CONTROL = "control"
     TREATMENT = "treatment"
 
 
 class PatientSafetyLevelEnum(str, Enum):
     """Patient safety level for API."""
+
     SAFE = "safe"
     RESTRICTED = "restricted"
     EXCLUDED = "excluded"
@@ -39,6 +40,7 @@ class PatientSafetyLevelEnum(str, Enum):
 
 class StatisticalTestTypeEnum(str, Enum):
     """Statistical test types."""
+
     T_TEST = "t_test"
     MANN_WHITNEY_U = "mann_whitney_u"
     CHI_SQUARE = "chi_square"
@@ -47,120 +49,202 @@ class StatisticalTestTypeEnum(str, Enum):
 
 # Request Schemas
 
+
 class ExperimentTargetPopulation(BaseModel):
     """Target population criteria for experiment."""
+
     min_age: Optional[int] = Field(None, ge=0, le=120, description="Minimum age")
     max_age: Optional[int] = Field(None, ge=0, le=120, description="Maximum age")
-    treatment_types: Optional[List[str]] = Field(None, description="Treatment types to include")
-    exclude_critical_patients: bool = Field(True, description="Exclude patients with critical conditions")
-    exclude_recent_surgery: bool = Field(True, description="Exclude patients with recent surgery")
+    treatment_types: Optional[List[str]] = Field(
+        None, description="Treatment types to include"
+    )
+    exclude_critical_patients: bool = Field(
+        True, description="Exclude patients with critical conditions"
+    )
+    exclude_recent_surgery: bool = Field(
+        True, description="Exclude patients with recent surgery"
+    )
     include_safety_levels: List[PatientSafetyLevelEnum] = Field(
         default=[PatientSafetyLevelEnum.SAFE, PatientSafetyLevelEnum.RESTRICTED],
-        description="Safety levels to include in experiment"
+        description="Safety levels to include in experiment",
     )
 
-    @field_validator('max_age')
+    @field_validator("max_age")
     @classmethod
     def validate_age_range(cls, v, info):
-        if v is not None and 'min_age' in info.data and info.data['min_age'] is not None:
-            if v <= info.data['min_age']:
-                raise ValueError('max_age must be greater than min_age')
+        if (
+            v is not None
+            and "min_age" in info.data
+            and info.data["min_age"] is not None
+        ):
+            if v <= info.data["min_age"]:
+                raise ValueError("max_age must be greater than min_age")
         return v
 
 
 class ExperimentStatisticalConfig(BaseModel):
     """Statistical configuration for experiment."""
+
     alpha: float = Field(0.05, gt=0, lt=1, description="Significance level")
-    min_sample_size: int = Field(100, ge=50, le=10000, description="Minimum sample size per variant")
-    min_effect_size: float = Field(0.1, gt=0, le=1, description="Minimum detectable effect size")
+    min_sample_size: int = Field(
+        100, ge=50, le=10000, description="Minimum sample size per variant"
+    )
+    min_effect_size: float = Field(
+        0.1, gt=0, le=1, description="Minimum detectable effect size"
+    )
     power: float = Field(0.8, gt=0, lt=1, description="Statistical power")
-    preferred_test: Optional[StatisticalTestTypeEnum] = Field(None, description="Preferred statistical test")
+    preferred_test: Optional[StatisticalTestTypeEnum] = Field(
+        None, description="Preferred statistical test"
+    )
 
 
 class ExperimentSafetyConfig(BaseModel):
     """Safety configuration for experiment."""
-    medical_keyword_check: bool = Field(True, description="Enable medical keyword safety check")
-    manual_review_required: bool = Field(True, description="Require manual review for critical content")
-    emergency_stop_enabled: bool = Field(True, description="Enable emergency stop mechanism")
-    performance_monitoring: bool = Field(True, description="Enable real-time performance monitoring")
-    response_rate_threshold: float = Field(0.2, gt=0, le=1, description="Response rate drop threshold for emergency stop")
-    error_rate_threshold: float = Field(0.1, gt=0, le=1, description="Error rate spike threshold for emergency stop")
+
+    medical_keyword_check: bool = Field(
+        True, description="Enable medical keyword safety check"
+    )
+    manual_review_required: bool = Field(
+        True, description="Require manual review for critical content"
+    )
+    emergency_stop_enabled: bool = Field(
+        True, description="Enable emergency stop mechanism"
+    )
+    performance_monitoring: bool = Field(
+        True, description="Enable real-time performance monitoring"
+    )
+    response_rate_threshold: float = Field(
+        0.2, gt=0, le=1, description="Response rate drop threshold for emergency stop"
+    )
+    error_rate_threshold: float = Field(
+        0.1, gt=0, le=1, description="Error rate spike threshold for emergency stop"
+    )
 
 
 class CreateExperimentRequest(BaseModel):
     """Request to create a new A/B experiment."""
-    name: str = Field(..., min_length=3, max_length=255, description="Experiment name")
-    description: str = Field(..., min_length=10, max_length=1000, description="Experiment description")
-    message_template: str = Field(..., min_length=1, max_length=100, description="Message template type to test")
-    target_population: Optional[ExperimentTargetPopulation] = Field(None, description="Target population criteria")
-    duration_days: int = Field(30, ge=1, le=90, description="Experiment duration in days")
-    traffic_split: float = Field(0.5, gt=0.1, lt=0.9, description="Traffic percentage to treatment variant")
-    primary_metric: str = Field("response_rate", description="Primary success metric")
-    secondary_metrics: List[str] = Field(default=[], description="Additional metrics to track")
-    statistical_config: Optional[ExperimentStatisticalConfig] = Field(None, description="Statistical configuration")
-    safety_config: Optional[ExperimentSafetyConfig] = Field(None, description="Safety configuration")
 
-    @field_validator('name')
+    name: str = Field(..., min_length=3, max_length=255, description="Experiment name")
+    description: str = Field(
+        ..., min_length=10, max_length=1000, description="Experiment description"
+    )
+    message_template: str = Field(
+        ..., min_length=1, max_length=100, description="Message template type to test"
+    )
+    target_population: Optional[ExperimentTargetPopulation] = Field(
+        None, description="Target population criteria"
+    )
+    duration_days: int = Field(
+        30, ge=1, le=90, description="Experiment duration in days"
+    )
+    traffic_split: float = Field(
+        0.5, gt=0.1, lt=0.9, description="Traffic percentage to treatment variant"
+    )
+    primary_metric: str = Field("response_rate", description="Primary success metric")
+    secondary_metrics: List[str] = Field(
+        default=[], description="Additional metrics to track"
+    )
+    statistical_config: Optional[ExperimentStatisticalConfig] = Field(
+        None, description="Statistical configuration"
+    )
+    safety_config: Optional[ExperimentSafetyConfig] = Field(
+        None, description="Safety configuration"
+    )
+
+    @field_validator("name")
     @classmethod
     def validate_name(cls, v):
         if not v.strip():
-            raise ValueError('Experiment name cannot be empty')
+            raise ValueError("Experiment name cannot be empty")
         # Check for potentially confusing names
-        forbidden_words = ['test', 'prod', 'production', 'live']
+        forbidden_words = ["test", "prod", "production", "live"]
         if any(word in v.lower() for word in forbidden_words):
-            raise ValueError(f'Experiment name should not contain: {", ".join(forbidden_words)}')
+            raise ValueError(
+                f"Experiment name should not contain: {', '.join(forbidden_words)}"
+            )
         return v.strip()
 
-    @field_validator('message_template')
+    @field_validator("message_template")
     @classmethod
     def validate_message_template(cls, v):
         # Validate against allowed templates
         allowed_templates = [
-            'quiz_introduction', 'quiz_question', 'quiz_completion',
-            'flow_message', 'monthly_quiz_link_invitation', 'monthly_quiz_link_reminder'
+            "quiz_introduction",
+            "quiz_question",
+            "quiz_completion",
+            "flow_message",
+            "monthly_quiz_link_invitation",
+            "monthly_quiz_link_reminder",
         ]
         if v not in allowed_templates:
-            raise ValueError(f'Message template must be one of: {", ".join(allowed_templates)}')
+            raise ValueError(
+                f"Message template must be one of: {', '.join(allowed_templates)}"
+            )
         return v
 
-    @field_validator('secondary_metrics')
+    @field_validator("secondary_metrics")
     @classmethod
     def validate_secondary_metrics(cls, v):
         allowed_metrics = [
-            'response_rate', 'delivery_rate', 'engagement_score',
-            'response_time', 'error_rate', 'completion_rate'
+            "response_rate",
+            "delivery_rate",
+            "engagement_score",
+            "response_time",
+            "error_rate",
+            "completion_rate",
         ]
         for metric in v:
             if metric not in allowed_metrics:
-                raise ValueError(f'Secondary metric "{metric}" not allowed. Choose from: {", ".join(allowed_metrics)}')
+                raise ValueError(
+                    f'Secondary metric "{metric}" not allowed. Choose from: {", ".join(allowed_metrics)}'
+                )
         return v
 
 
 class StartExperimentRequest(BaseModel):
     """Request to start an experiment."""
-    confirm_safety_review: bool = Field(..., description="Confirm safety review completed")
-    confirm_hipaa_compliance: bool = Field(..., description="Confirm HIPAA compliance review")
-    confirm_patient_population: bool = Field(..., description="Confirm target patient population is appropriate")
+
+    confirm_safety_review: bool = Field(
+        ..., description="Confirm safety review completed"
+    )
+    confirm_hipaa_compliance: bool = Field(
+        ..., description="Confirm HIPAA compliance review"
+    )
+    confirm_patient_population: bool = Field(
+        ..., description="Confirm target patient population is appropriate"
+    )
     override_warnings: bool = Field(False, description="Override non-critical warnings")
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_confirmations(self):
-        required_confirmations = ['confirm_safety_review', 'confirm_hipaa_compliance', 'confirm_patient_population']
+        required_confirmations = [
+            "confirm_safety_review",
+            "confirm_hipaa_compliance",
+            "confirm_patient_population",
+        ]
         for confirmation in required_confirmations:
             if not getattr(self, confirmation, False):
-                raise ValueError(f'{confirmation} must be confirmed to start experiment')
+                raise ValueError(
+                    f"{confirmation} must be confirmed to start experiment"
+                )
         return self
 
 
 class EmergencyStopRequest(BaseModel):
     """Request to emergency stop an experiment."""
-    reason: str = Field(..., min_length=10, max_length=500, description="Reason for emergency stop")
+
+    reason: str = Field(
+        ..., min_length=10, max_length=500, description="Reason for emergency stop"
+    )
     safety_concern: bool = Field(False, description="Is this due to a safety concern?")
-    immediate_action_required: bool = Field(False, description="Does this require immediate stakeholder notification?")
+    immediate_action_required: bool = Field(
+        False, description="Does this require immediate stakeholder notification?"
+    )
 
 
 class UpdateExperimentRequest(BaseModel):
     """Request to update experiment configuration (only for draft experiments)."""
+
     name: Optional[str] = Field(None, min_length=3, max_length=255)
     description: Optional[str] = Field(None, min_length=10, max_length=1000)
     duration_days: Optional[int] = Field(None, ge=1, le=90)
@@ -171,8 +255,10 @@ class UpdateExperimentRequest(BaseModel):
 
 # Response Schemas
 
+
 class ExperimentVariant(BaseModel):
     """Experiment variant information."""
+
     type: VariantTypeEnum
     description: str
     traffic_percentage: float
@@ -180,6 +266,7 @@ class ExperimentVariant(BaseModel):
 
 class ExperimentInfo(BaseModel):
     """Basic experiment information."""
+
     id: str
     name: str
     description: str
@@ -203,6 +290,7 @@ class ExperimentInfo(BaseModel):
 
 class ExperimentStatistics(BaseModel):
     """Experiment statistical information."""
+
     sample_size: int
     response_rate: float
     delivery_rate: float
@@ -215,6 +303,7 @@ class ExperimentStatistics(BaseModel):
 
 class StatisticalTestResult(BaseModel):
     """Statistical test results."""
+
     is_significant: bool
     p_value: Optional[float] = None
     test_type: Optional[str] = None
@@ -226,6 +315,7 @@ class StatisticalTestResult(BaseModel):
 
 class EffectSizes(BaseModel):
     """Effect size calculations."""
+
     cohens_d: float
     absolute_difference: float
     relative_change: float
@@ -234,6 +324,7 @@ class EffectSizes(BaseModel):
 
 class ExperimentResults(BaseModel):
     """Comprehensive experiment results."""
+
     experiment_id: str
     experiment_name: str
     status: ExperimentStatusEnum
@@ -258,8 +349,9 @@ class ExperimentResults(BaseModel):
     quality_warnings: List[str] = []
 
 
-class ExperimentStatus(BaseModel):
+class ExperimentStatusResponse(BaseModel):
     """Current experiment status."""
+
     experiment_id: str
     name: str
     status: ExperimentStatusEnum
@@ -278,6 +370,7 @@ class ExperimentStatus(BaseModel):
 
 class VariantAssignment(BaseModel):
     """Patient variant assignment information."""
+
     experiment_id: str
     variant: VariantTypeEnum
     safety_level: PatientSafetyLevelEnum
@@ -287,6 +380,7 @@ class VariantAssignment(BaseModel):
 
 class ExperimentMetric(BaseModel):
     """Single experiment metric entry."""
+
     experiment_id: str
     message_id: Optional[int] = None
     variant: VariantTypeEnum
@@ -299,6 +393,7 @@ class ExperimentMetric(BaseModel):
 
 class ExperimentMonitoring(BaseModel):
     """Real-time experiment monitoring data."""
+
     experiment_id: str
     monitoring_period_start: datetime
     monitoring_period_end: datetime
@@ -326,6 +421,7 @@ class ExperimentMonitoring(BaseModel):
 
 class ExperimentAuditEntry(BaseModel):
     """Experiment audit log entry."""
+
     experiment_id: str
     action: str
     actor: str
@@ -338,6 +434,7 @@ class ExperimentAuditEntry(BaseModel):
 
 class ExperimentList(BaseModel):
     """List of experiments with pagination."""
+
     experiments: List[ExperimentInfo]
     total: int
     page: int
@@ -348,8 +445,10 @@ class ExperimentList(BaseModel):
 
 # API Response Models
 
+
 class CreateExperimentResponse(BaseModel):
     """Response for experiment creation."""
+
     experiment_id: str
     message: str
     experiment: ExperimentInfo
@@ -357,6 +456,7 @@ class CreateExperimentResponse(BaseModel):
 
 class StartExperimentResponse(BaseModel):
     """Response for starting experiment."""
+
     experiment_id: str
     message: str
     started_at: datetime
@@ -366,6 +466,7 @@ class StartExperimentResponse(BaseModel):
 
 class EmergencyStopResponse(BaseModel):
     """Response for emergency stop."""
+
     experiment_id: str
     message: str
     stopped_at: datetime
@@ -375,6 +476,7 @@ class EmergencyStopResponse(BaseModel):
 
 class ExperimentAnalysisResponse(BaseModel):
     """Response for experiment analysis."""
+
     results: ExperimentResults
     recommendations: List[str]
     next_steps: List[str]
@@ -383,8 +485,10 @@ class ExperimentAnalysisResponse(BaseModel):
 
 # Error Responses
 
+
 class ExperimentError(BaseModel):
     """Experiment-related error response."""
+
     error: str
     error_code: str
     experiment_id: Optional[str] = None
@@ -394,8 +498,10 @@ class ExperimentError(BaseModel):
 
 # Dashboard and Reporting Schemas
 
+
 class ExperimentDashboard(BaseModel):
     """Experiment dashboard summary."""
+
     total_experiments: int
     active_experiments: int
     completed_experiments: int
@@ -414,6 +520,7 @@ class ExperimentDashboard(BaseModel):
 
 class ExperimentReport(BaseModel):
     """Comprehensive experiment report."""
+
     experiment: ExperimentInfo
     results: ExperimentResults
     monitoring_data: List[ExperimentMonitoring]
@@ -431,13 +538,14 @@ class ExperimentReport(BaseModel):
 
 # Validation Functions
 
+
 def validate_experiment_name(name: str) -> bool:
     """Validate experiment name for healthcare compliance."""
     if len(name.strip()) < 3:
         return False
 
     # Check for patient information
-    forbidden_patterns = ['patient', 'id', 'name', 'phone', 'email', 'address']
+    forbidden_patterns = ["patient", "id", "name", "phone", "email", "address"]
     name_lower = name.lower()
 
     for pattern in forbidden_patterns:
@@ -450,23 +558,46 @@ def validate_experiment_name(name: str) -> bool:
 def validate_medical_content_safety(content: str) -> Dict[str, Any]:
     """Validate content for medical safety."""
     medical_keywords = [
-        'medicação', 'remédio', 'dosagem', 'mg', 'ml', 'emergência', 'urgente',
-        'hospital', 'médico', 'consulta', 'exame', 'resultado', 'tratamento',
-        'quimioterapia', 'radioterapia', 'cirurgia', 'dose', 'prescrição'
+        "medicação",
+        "remédio",
+        "dosagem",
+        "mg",
+        "ml",
+        "emergência",
+        "urgente",
+        "hospital",
+        "médico",
+        "consulta",
+        "exame",
+        "resultado",
+        "tratamento",
+        "quimioterapia",
+        "radioterapia",
+        "cirurgia",
+        "dose",
+        "prescrição",
     ]
 
     content_lower = content.lower()
-    found_keywords = [keyword for keyword in medical_keywords if keyword in content_lower]
+    found_keywords = [
+        keyword for keyword in medical_keywords if keyword in content_lower
+    ]
 
     return {
-        'is_safe': len(found_keywords) == 0,
-        'found_keywords': found_keywords,
-        'risk_level': 'high' if len(found_keywords) > 2 else 'medium' if found_keywords else 'low',
-        'recommendation': 'manual_review' if found_keywords else 'safe_for_ab_testing'
+        "is_safe": len(found_keywords) == 0,
+        "found_keywords": found_keywords,
+        "risk_level": "high"
+        if len(found_keywords) > 2
+        else "medium"
+        if found_keywords
+        else "low",
+        "recommendation": "manual_review" if found_keywords else "safe_for_ab_testing",
     }
 
 
-def calculate_minimum_sample_size(effect_size: float, alpha: float, power: float) -> int:
+def calculate_minimum_sample_size(
+    effect_size: float, alpha: float, power: float
+) -> int:
     """Calculate minimum sample size for statistical significance."""
     # Simplified calculation - in production, use proper statistical libraries
     base_size = 100

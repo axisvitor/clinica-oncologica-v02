@@ -24,28 +24,26 @@ async def _get_current_user_simple(
     session_cookie_id: str = Cookie(None, alias="session_id"),
     x_session_id: str = Header(None, alias="X-Session-ID"),
     db: Session = Depends(get_db),
-    redis_cache = Depends(get_redis_cache)
+    redis_cache=Depends(get_redis_cache),
 ):
     """Simplified session validation."""
     final_session_id = session_cookie_id or x_session_id
     if not final_session_id:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session ID not provided"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Session ID not provided"
         )
 
     session_data = await redis_cache.get_session(final_session_id)
     if not session_data:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session"
+            detail="Invalid or expired session",
         )
 
     firebase_uid = session_data.get("firebase_uid")
     if not firebase_uid:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid session data"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session data"
         )
 
     user_data = await redis_cache.get_user_by_uid(firebase_uid)
@@ -53,23 +51,21 @@ async def _get_current_user_simple(
         user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found"
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
             )
         user_data = {
             "id": str(user.id),
             "firebase_uid": user.firebase_uid,
             "email": user.email,
             "full_name": user.full_name,
-            "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
-            "is_active": user.is_active
+            "role": user.role.value if hasattr(user.role, "value") else str(user.role),
+            "is_active": user.is_active,
         }
         await redis_cache.cache_user_data(firebase_uid, user_data, ttl=900)
 
     if not user_data.get("is_active", False):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is inactive"
+            status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive"
         )
 
     return user_data
@@ -118,13 +114,23 @@ def _serialize_message(message: Message, include_patient: bool = False) -> dict:
         "id": str(message.id),
         "patient_id": str(message.patient_id),
         "content": message.content,
-        "type": message.type.value if hasattr(message.type, 'value') else str(message.type),
-        "direction": message.direction.value if hasattr(message.direction, 'value') else str(message.direction),
-        "status": message.status.value if hasattr(message.status, 'value') else str(message.status),
+        "type": message.type.value
+        if hasattr(message.type, "value")
+        else str(message.type),
+        "direction": message.direction.value
+        if hasattr(message.direction, "value")
+        else str(message.direction),
+        "status": message.status.value
+        if hasattr(message.status, "value")
+        else str(message.status),
         "message_metadata": message.message_metadata or {},
-        "scheduled_for": message.scheduled_for.isoformat() if message.scheduled_for else None,
+        "scheduled_for": message.scheduled_for.isoformat()
+        if message.scheduled_for
+        else None,
         "sent_at": message.sent_at.isoformat() if message.sent_at else None,
-        "delivered_at": message.delivered_at.isoformat() if message.delivered_at else None,
+        "delivered_at": message.delivered_at.isoformat()
+        if message.delivered_at
+        else None,
         "read_at": message.read_at.isoformat() if message.read_at else None,
         "failed_at": getattr(message, "failed_at", None),
         "whatsapp_id": message.whatsapp_id,
@@ -136,13 +142,17 @@ def _serialize_message(message: Message, include_patient: bool = False) -> dict:
 
     # Add computed fields
     if message.sent_at and message.delivered_at:
-        data["delivery_time_seconds"] = (message.delivered_at - message.sent_at).total_seconds()
+        data["delivery_time_seconds"] = (
+            message.delivered_at - message.sent_at
+        ).total_seconds()
 
     if message.delivered_at and message.read_at:
-        data["read_time_seconds"] = (message.read_at - message.delivered_at).total_seconds()
+        data["read_time_seconds"] = (
+            message.read_at - message.delivered_at
+        ).total_seconds()
 
     # Add eager-loaded patient
-    if include_patient and hasattr(message, 'patient') and message.patient:
+    if include_patient and hasattr(message, "patient") and message.patient:
         data["patient"] = {
             "id": str(message.patient.id),
             "name": message.patient.name,
@@ -172,10 +182,7 @@ def _create_cursor(last_item: Any, cursor_fields: Optional[List[str]] = None) ->
 
 
 async def _get_cached_or_compute(
-    redis_cache,
-    cache_key: str,
-    compute_fn,
-    ttl: int = 300
+    redis_cache, cache_key: str, compute_fn, ttl: int = 300
 ):
     """Get from cache or compute and cache."""
     try:

@@ -9,7 +9,7 @@
  * - Expected improvement: 30-50% reduction in re-renders
  */
 
-import React, { useMemo, useCallback, memo } from 'react';
+import React, { useMemo, useCallback, memo, Suspense } from 'react';
 import {
   LineChart,
   Line,
@@ -23,7 +23,8 @@ import {
   ResponsiveContainer,
   ReferenceDot,
   ReferenceArea,
-} from 'recharts';
+  ChartSkeleton,
+} from '@/components/ui/charts/LazyRechartsComponents';
 import { TrendData, Anomaly } from '../../types/enhanced-analytics';
 
 export interface TrendAnalysisChartProps {

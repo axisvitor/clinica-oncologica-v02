@@ -10,10 +10,7 @@ from app.models.audit_log import AuditLog
 from app.api.v2.dependencies import apply_field_selection
 
 
-def serialize_dlq_item(
-    item: FailedMessage,
-    fields: Optional[List[str]] = None
-) -> dict:
+def serialize_dlq_item(item: FailedMessage, fields: Optional[List[str]] = None) -> dict:
     """
     Serialize DLQ item to dict with optional field selection.
 
@@ -52,9 +49,7 @@ def serialize_dlq_item(
 
 
 def serialize_audit_log(
-    log: AuditLog,
-    fields: Optional[List[str]] = None,
-    redact_sensitive: bool = True
+    log: AuditLog, fields: Optional[List[str]] = None, redact_sensitive: bool = True
 ) -> dict:
     """
     Serialize audit log to dict with optional field selection and redaction.
@@ -79,7 +74,9 @@ def serialize_audit_log(
 
     data = {
         "id": log.id,
-        "event_type": log.event_type.value if hasattr(log.event_type, 'value') else str(log.event_type),
+        "event_type": log.event_type.value
+        if hasattr(log.event_type, "value")
+        else str(log.event_type),
         "event_status": log.event_status,
         "user_id": log.user_id,
         "user_email": log.user_email,

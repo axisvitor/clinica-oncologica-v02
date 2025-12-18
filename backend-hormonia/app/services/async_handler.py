@@ -2,17 +2,18 @@
 Proper async/sync bridge for FlowEngine operations.
 Solves the event loop management issues in the original FlowEngine.
 """
+
 import asyncio
 import logging
 import threading
-from typing import Any, Callable, Coroutine, Optional, TypeVar, Union
+from typing import Any, Callable, Coroutine, Optional, TypeVar
 from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
 import weakref
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class AsyncHandler:
@@ -26,10 +27,10 @@ class AsyncHandler:
     4. Resource leak prevention
     """
 
-    _instance: Optional['AsyncHandler'] = None
+    _instance: Optional["AsyncHandler"] = None
     _lock = threading.Lock()
 
-    def __new__(cls) -> 'AsyncHandler':
+    def __new__(cls) -> "AsyncHandler":
         """Singleton pattern for global async handler."""
         if cls._instance is None:
             with cls._lock:
@@ -39,12 +40,11 @@ class AsyncHandler:
 
     def __init__(self):
         """Initialize async handler with proper resource management."""
-        if hasattr(self, '_initialized'):
+        if hasattr(self, "_initialized"):
             return
 
         self._executor = ThreadPoolExecutor(
-            max_workers=4,
-            thread_name_prefix="async_handler"
+            max_workers=4, thread_name_prefix="async_handler"
         )
         self._loop = None
         self._loop_thread = None
@@ -57,6 +57,7 @@ class AsyncHandler:
 
     def _start_background_loop(self):
         """Start dedicated event loop in background thread."""
+
         def run_loop():
             """Run event loop in dedicated thread."""
             try:
@@ -78,9 +79,7 @@ class AsyncHandler:
                     logger.error(f"Error closing background loop: {e}")
 
         self._loop_thread = threading.Thread(
-            target=run_loop,
-            name="async_handler_loop",
-            daemon=True
+            target=run_loop, name="async_handler_loop", daemon=True
         )
         self._loop_thread.start()
 
@@ -93,7 +92,9 @@ class AsyncHandler:
         if self._loop is None:
             raise RuntimeError("Failed to start background event loop")
 
-    def run_async(self, coro: Coroutine[Any, Any, T], timeout: Optional[float] = None) -> T:
+    def run_async(
+        self, coro: Coroutine[Any, Any, T], timeout: Optional[float] = None
+    ) -> T:
         """
         Run async coroutine from sync context safely.
 
@@ -126,7 +127,7 @@ class AsyncHandler:
             # Wait for result with timeout
             result = future.result(timeout=timeout)
             return result
-        except Exception as e:
+        except Exception:
             # Cancel the coroutine if still running
             if not future.done():
                 future.cancel()
@@ -136,7 +137,7 @@ class AsyncHandler:
         self,
         coro: Coroutine[Any, Any, T],
         timeout: Optional[float] = 30.0,
-        fallback_value: Optional[T] = None
+        fallback_value: Optional[T] = None,
     ) -> Optional[T]:
         """
         Run async coroutine with error handling and fallback.
@@ -205,7 +206,7 @@ class AsyncHandler:
 
     def __del__(self):
         """Cleanup resources on deletion."""
-        if hasattr(self, '_shutdown') and not self._shutdown:
+        if hasattr(self, "_shutdown") and not self._shutdown:
             self.shutdown(timeout=5.0)
 
 
@@ -237,13 +238,20 @@ def run_async_safe(timeout: Optional[float] = 30.0, fallback=None):
         # Can be called from sync context
         result = my_async_operation()
     """
-    def decorator(async_func: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., T]:
+
+    def decorator(
+        async_func: Callable[..., Coroutine[Any, Any, T]],
+    ) -> Callable[..., T]:
         @wraps(async_func)
         def wrapper(*args, **kwargs) -> T:
             handler = get_async_handler()
             coro = async_func(*args, **kwargs)
-            return handler.run_async_safe(coro, timeout=timeout, fallback_value=fallback)
+            return handler.run_async_safe(
+                coro, timeout=timeout, fallback_value=fallback
+            )
+
         return wrapper
+
     return decorator
 
 
@@ -265,7 +273,7 @@ class AsyncContext:
         self.timeout = timeout
         self.handler = None
 
-    def __enter__(self) -> 'AsyncContextRunner':
+    def __enter__(self) -> "AsyncContextRunner":
         """Enter context and return runner."""
         self.handler = get_async_handler()
         return AsyncContextRunner(self.handler, self.timeout)
@@ -289,7 +297,9 @@ class AsyncContextRunner:
 
     def run_safe(self, coro: Coroutine[Any, Any, T], fallback=None) -> Optional[T]:
         """Run coroutine safely with fallback."""
-        return self.handler.run_async_safe(coro, timeout=self.timeout, fallback_value=fallback)
+        return self.handler.run_async_safe(
+            coro, timeout=self.timeout, fallback_value=fallback
+        )
 
     def schedule(self, coro: Coroutine[Any, Any, T]) -> asyncio.Future[T]:
         """Schedule coroutine without waiting."""

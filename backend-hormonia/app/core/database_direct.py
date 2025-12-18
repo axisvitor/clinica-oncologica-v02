@@ -38,13 +38,10 @@ def create_direct_engine():
             pool_pre_ping=True,
             pool_recycle=1800,  # 30 minutes
             # Simple connection args
-            connect_args={
-                'connect_timeout': 10,
-                'application_name': 'hormonia_direct'
-            },
+            connect_args={"connect_timeout": 10, "application_name": "hormonia_direct"},
             # Reduced logging for production
             echo=False,
-            echo_pool=False
+            echo_pool=False,
         )
 
         logger.info("Direct database engine created successfully")
@@ -75,9 +72,7 @@ def initialize_direct_database():
     try:
         _direct_engine = create_direct_engine()
         _direct_session_factory = sessionmaker(
-            autocommit=False,
-            autoflush=False,
-            bind=_direct_engine
+            autocommit=False, autoflush=False, bind=_direct_engine
         )
 
         # Test connection
@@ -143,29 +138,31 @@ def test_direct_connection() -> dict:
         if _direct_engine is None:
             return {
                 "status": "not_initialized",
-                "error": "Direct engine not initialized"
+                "error": "Direct engine not initialized",
             }
 
         with get_direct_session() as session:
-            result = session.execute(text("SELECT 1 as test, current_timestamp as ts")).fetchone()
+            result = session.execute(
+                text("SELECT 1 as test, current_timestamp as ts")
+            ).fetchone()
 
             return {
                 "status": "healthy",
                 "test_result": result[0] if result else None,
                 "timestamp": str(result[1]) if result and len(result) > 1 else None,
                 "engine_info": {
-                    "pool_size": _direct_engine.pool.size() if hasattr(_direct_engine, 'pool') else None,
-                    "checked_out": _direct_engine.pool.checkedout() if hasattr(_direct_engine, 'pool') else None,
-                }
+                    "pool_size": _direct_engine.pool.size()
+                    if hasattr(_direct_engine, "pool")
+                    else None,
+                    "checked_out": _direct_engine.pool.checkedout()
+                    if hasattr(_direct_engine, "pool")
+                    else None,
+                },
             }
 
     except Exception as e:
         logger.error(f"Direct connection test failed: {e}")
-        return {
-            "status": "unhealthy",
-            "error": str(e),
-            "error_type": type(e).__name__
-        }
+        return {"status": "unhealthy", "error": str(e), "error_type": type(e).__name__}
 
 
 def get_direct_engine_status() -> dict:
@@ -176,30 +173,34 @@ def get_direct_engine_status() -> dict:
         dict: Engine status information
     """
     if _direct_engine is None:
-        return {
-            "initialized": False,
-            "error": "Direct engine not initialized"
-        }
+        return {"initialized": False, "error": "Direct engine not initialized"}
 
     try:
         return {
             "initialized": True,
             "url_masked": str(_direct_engine.url).replace(
-                _direct_engine.url.password or '', '***'
-            ) if _direct_engine.url.password else str(_direct_engine.url),
-            "driver": getattr(_direct_engine, 'driver', 'unknown'),
+                _direct_engine.url.password or "", "***"
+            )
+            if _direct_engine.url.password
+            else str(_direct_engine.url),
+            "driver": getattr(_direct_engine, "driver", "unknown"),
             "pool_info": {
-                "size": _direct_engine.pool.size() if hasattr(_direct_engine, 'pool') else None,
-                "checked_out": _direct_engine.pool.checkedout() if hasattr(_direct_engine, 'pool') else None,
-                "checked_in": _direct_engine.pool.checkedin() if hasattr(_direct_engine, 'pool') else None,
-            } if hasattr(_direct_engine, 'pool') else None
+                "size": _direct_engine.pool.size()
+                if hasattr(_direct_engine, "pool")
+                else None,
+                "checked_out": _direct_engine.pool.checkedout()
+                if hasattr(_direct_engine, "pool")
+                else None,
+                "checked_in": _direct_engine.pool.checkedin()
+                if hasattr(_direct_engine, "pool")
+                else None,
+            }
+            if hasattr(_direct_engine, "pool")
+            else None,
         }
 
     except Exception as e:
-        return {
-            "initialized": True,
-            "error": f"Failed to get engine status: {e}"
-        }
+        return {"initialized": True, "error": f"Failed to get engine status: {e}"}
 
 
 async def execute_sql(query: str, params: Optional[dict] = None) -> list:
@@ -231,7 +232,7 @@ async def execute_sql(query: str, params: Optional[dict] = None) -> list:
             try:
                 rows = result.fetchall()
                 # Convert rows to list of dicts
-                if rows and hasattr(result, 'keys'):
+                if rows and hasattr(result, "keys"):
                     keys = result.keys()
                     return [dict(zip(keys, row)) for row in rows]
                 elif rows:

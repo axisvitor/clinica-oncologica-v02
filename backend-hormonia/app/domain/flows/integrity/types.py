@@ -1,6 +1,7 @@
 """
 Data integrity types, enums, and dataclasses.
 """
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -9,6 +10,7 @@ from typing import Any, Optional
 
 class CorruptionType(Enum):
     """Types of data corruption."""
+
     INVALID_STATE = "invalid_state"
     MISSING_REFERENCES = "missing_references"
     INCONSISTENT_DATES = "inconsistent_dates"
@@ -20,6 +22,7 @@ class CorruptionType(Enum):
 
 class CorruptionSeverity(Enum):
     """Severity levels for data corruption."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -29,6 +32,7 @@ class CorruptionSeverity(Enum):
 @dataclass
 class CorruptionIssue:
     """Represents a data corruption issue."""
+
     id: str
     corruption_type: CorruptionType
     severity: CorruptionSeverity
@@ -44,6 +48,7 @@ class CorruptionIssue:
 @dataclass
 class IntegrityCheckResult:
     """Result of data integrity check."""
+
     total_records_checked: int
     issues_found: list[CorruptionIssue]
     corruption_score: float  # 0-100, higher is worse
@@ -55,6 +60,7 @@ class IntegrityCheckResult:
 @dataclass
 class CorrectionResult:
     """Result of data correction operation."""
+
     issue_id: str
     success: bool
     records_affected: int

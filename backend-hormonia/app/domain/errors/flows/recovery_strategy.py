@@ -2,18 +2,15 @@
 Recovery action implementations for different error recovery strategies.
 Each strategy handles a specific type of error recovery approach.
 """
+
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
-from sqlalchemy.orm import Session
 
 from app.models.message import Message, MessageType, MessageDirection, MessageStatus
 from app.models.patient import Patient
-from app.repositories.flow import FlowStateRepository
-from app.repositories.message import MessageRepository
-from app.repositories.patient import PatientRepository
 from app.services.websocket_events import websocket_events
 from app.schemas.websocket import WebSocketEventType
 
@@ -21,7 +18,7 @@ from .classifier import (
     ErrorCategory,
     ErrorSeverity,
     RecoveryStrategy,
-    ErrorHandlerConstants
+    ErrorHandlerConstants,
 )
 from .retry_manager import ErrorRecord, RecoveryResult
 
@@ -35,9 +32,9 @@ class RecoveryAction(ABC):
     """Abstract base class for recovery actions."""
 
     @abstractmethod
-    async def execute(self,
-                     error_record: ErrorRecord,
-                     context: 'FlowErrorHandler') -> RecoveryResult:
+    async def execute(
+        self, error_record: ErrorRecord, context: "FlowErrorHandler"
+    ) -> RecoveryResult:
         """Execute the recovery action."""
         pass
 
@@ -45,14 +42,16 @@ class RecoveryAction(ABC):
 class ExponentialBackoffRetry(RecoveryAction):
     """Retry with exponential backoff."""
 
-    async def execute(self, error_record: ErrorRecord, context: 'FlowErrorHandler') -> RecoveryResult:
+    async def execute(
+        self, error_record: ErrorRecord, context: "FlowErrorHandler"
+    ) -> RecoveryResult:
         if error_record.recovery_attempts >= error_record.max_recovery_attempts:
             return RecoveryResult(
                 success=False,
                 strategy_used=RecoveryStrategy.RETRY_EXPONENTIAL,
                 attempts_made=error_record.recovery_attempts,
                 error_resolved=False,
-                message="Max retry attempts exceeded"
+                message="Max retry attempts exceeded",
             )
 
         # Calculate next retry delay
@@ -73,21 +72,23 @@ class ExponentialBackoffRetry(RecoveryAction):
             attempts_made=error_record.recovery_attempts,
             error_resolved=False,
             next_retry_at=next_retry_at,
-            message=f"Scheduled retry #{error_record.recovery_attempts} in {delay_seconds} seconds"
+            message=f"Scheduled retry #{error_record.recovery_attempts} in {delay_seconds} seconds",
         )
 
 
 class LinearBackoffRetry(RecoveryAction):
     """Retry with linear backoff."""
 
-    async def execute(self, error_record: ErrorRecord, context: 'FlowErrorHandler') -> RecoveryResult:
+    async def execute(
+        self, error_record: ErrorRecord, context: "FlowErrorHandler"
+    ) -> RecoveryResult:
         if error_record.recovery_attempts >= error_record.max_recovery_attempts:
             return RecoveryResult(
                 success=False,
                 strategy_used=RecoveryStrategy.RETRY_LINEAR,
                 attempts_made=error_record.recovery_attempts,
                 error_resolved=False,
-                message="Max retry attempts exceeded"
+                message="Max retry attempts exceeded",
             )
 
         # Fixed delay for linear backoff
@@ -105,14 +106,16 @@ class LinearBackoffRetry(RecoveryAction):
             attempts_made=error_record.recovery_attempts,
             error_resolved=False,
             next_retry_at=next_retry_at,
-            message=f"Scheduled linear retry #{error_record.recovery_attempts} in {delay_seconds} seconds"
+            message=f"Scheduled linear retry #{error_record.recovery_attempts} in {delay_seconds} seconds",
         )
 
 
 class FallbackMessageAction(RecoveryAction):
     """Send fallback message when primary message fails."""
 
-    async def execute(self, error_record: ErrorRecord, context: 'FlowErrorHandler') -> RecoveryResult:
+    async def execute(
+        self, error_record: ErrorRecord, context: "FlowErrorHandler"
+    ) -> RecoveryResult:
         try:
             error_context = error_record.context
 
@@ -124,7 +127,7 @@ class FallbackMessageAction(RecoveryAction):
                     strategy_used=RecoveryStrategy.FALLBACK_MESSAGE,
                     attempts_made=1,
                     error_resolved=False,
-                    message="Patient not found for fallback message"
+                    message="Patient not found for fallback message",
                 )
 
             # Create fallback message
@@ -139,10 +142,10 @@ class FallbackMessageAction(RecoveryAction):
                 message_metadata={
                     "fallback_message": True,
                     "original_error": error_record.error_type,
-                    "error_id": error_record.id
+                    "error_id": error_record.id,
                 },
                 status=MessageStatus.PENDING,
-                scheduled_for=datetime.utcnow()
+                scheduled_for=datetime.utcnow(),
             )
 
             context.db.add(fallback_message)
@@ -150,6 +153,7 @@ class FallbackMessageAction(RecoveryAction):
 
             # Send via message sender
             from app.domain.messaging.delivery import MessageSender
+
             message_sender = MessageSender(context.db)
             success = await message_sender.send_message(fallback_message)
 
@@ -163,7 +167,7 @@ class FallbackMessageAction(RecoveryAction):
                     attempts_made=1,
                     error_resolved=True,
                     fallback_applied=True,
-                    message="Fallback message sent successfully"
+                    message="Fallback message sent successfully",
                 )
             else:
                 return RecoveryResult(
@@ -171,7 +175,7 @@ class FallbackMessageAction(RecoveryAction):
                     strategy_used=RecoveryStrategy.FALLBACK_MESSAGE,
                     attempts_made=1,
                     error_resolved=False,
-                    message="Fallback message failed to send"
+                    message="Fallback message failed to send",
                 )
 
         except Exception as e:
@@ -181,10 +185,12 @@ class FallbackMessageAction(RecoveryAction):
                 strategy_used=RecoveryStrategy.FALLBACK_MESSAGE,
                 attempts_made=1,
                 error_resolved=False,
-                message=f"Fallback message error: {str(e)}"
+                message=f"Fallback message error: {str(e)}",
             )
 
-    def _generate_fallback_content(self, error_record: ErrorRecord, patient: Patient) -> str:
+    def _generate_fallback_content(
+        self, error_record: ErrorRecord, patient: Patient
+    ) -> str:
         """Generate appropriate fallback message content."""
         patient_name = patient.name or "paciente"
 
@@ -201,7 +207,9 @@ class FallbackMessageAction(RecoveryAction):
 class SkipAndContinueAction(RecoveryAction):
     """Skip current operation and continue with flow."""
 
-    async def execute(self, error_record: ErrorRecord, context: 'FlowErrorHandler') -> RecoveryResult:
+    async def execute(
+        self, error_record: ErrorRecord, context: "FlowErrorHandler"
+    ) -> RecoveryResult:
         try:
             error_context = error_record.context
 
@@ -211,12 +219,16 @@ class SkipAndContinueAction(RecoveryAction):
                 if flow_state:
                     # Mark error as resolved and continue
                     flow_state.state_data = flow_state.state_data or {}
-                    flow_state.state_data["skipped_operations"] = flow_state.state_data.get("skipped_operations", [])
-                    flow_state.state_data["skipped_operations"].append({
-                        "operation": error_context.operation,
-                        "error_id": error_record.id,
-                        "skipped_at": datetime.utcnow().isoformat()
-                    })
+                    flow_state.state_data["skipped_operations"] = (
+                        flow_state.state_data.get("skipped_operations", [])
+                    )
+                    flow_state.state_data["skipped_operations"].append(
+                        {
+                            "operation": error_context.operation,
+                            "error_id": error_record.id,
+                            "skipped_at": datetime.utcnow().isoformat(),
+                        }
+                    )
 
                     context.db.commit()
 
@@ -228,7 +240,7 @@ class SkipAndContinueAction(RecoveryAction):
                 strategy_used=RecoveryStrategy.SKIP_AND_CONTINUE,
                 attempts_made=1,
                 error_resolved=True,
-                message="Operation skipped, flow continues"
+                message="Operation skipped, flow continues",
             )
 
         except Exception as e:
@@ -238,14 +250,16 @@ class SkipAndContinueAction(RecoveryAction):
                 strategy_used=RecoveryStrategy.SKIP_AND_CONTINUE,
                 attempts_made=1,
                 error_resolved=False,
-                message=f"Skip operation failed: {str(e)}"
+                message=f"Skip operation failed: {str(e)}",
             )
 
 
 class PauseFlowAction(RecoveryAction):
     """Pause flow temporarily for recovery."""
 
-    async def execute(self, error_record: ErrorRecord, context: 'FlowErrorHandler') -> RecoveryResult:
+    async def execute(
+        self, error_record: ErrorRecord, context: "FlowErrorHandler"
+    ) -> RecoveryResult:
         try:
             error_context = error_record.context
 
@@ -256,22 +270,28 @@ class PauseFlowAction(RecoveryAction):
                     # Pause flow
                     flow_state.state_data = flow_state.state_data or {}
                     flow_state.state_data["paused"] = True
-                    flow_state.state_data["pause_reason"] = f"Error recovery: {error_record.error_type}"
+                    flow_state.state_data["pause_reason"] = (
+                        f"Error recovery: {error_record.error_type}"
+                    )
                     flow_state.state_data["paused_at"] = datetime.utcnow().isoformat()
                     flow_state.state_data["error_id"] = error_record.id
 
                     context.db.commit()
 
                     # Schedule resume
-                    resume_at = datetime.utcnow() + timedelta(hours=ErrorHandlerConstants.FLOW_RESUME_DELAY_HOURS)
-                    await context.retry_manager.schedule_flow_resume(error_context.patient_id, resume_at)
+                    resume_at = datetime.utcnow() + timedelta(
+                        hours=ErrorHandlerConstants.FLOW_RESUME_DELAY_HOURS
+                    )
+                    await context.retry_manager.schedule_flow_resume(
+                        error_context.patient_id, resume_at
+                    )
 
             return RecoveryResult(
                 success=True,
                 strategy_used=RecoveryStrategy.PAUSE_FLOW,
                 attempts_made=1,
                 error_resolved=False,
-                message=f"Flow paused for recovery, will resume in {ErrorHandlerConstants.FLOW_RESUME_DELAY_HOURS} hour(s)"
+                message=f"Flow paused for recovery, will resume in {ErrorHandlerConstants.FLOW_RESUME_DELAY_HOURS} hour(s)",
             )
 
         except Exception as e:
@@ -281,14 +301,16 @@ class PauseFlowAction(RecoveryAction):
                 strategy_used=RecoveryStrategy.PAUSE_FLOW,
                 attempts_made=1,
                 error_resolved=False,
-                message=f"Flow pause failed: {str(e)}"
+                message=f"Flow pause failed: {str(e)}",
             )
 
 
 class ResetFlowAction(RecoveryAction):
     """Reset flow state to recover from corruption."""
 
-    async def execute(self, error_record: ErrorRecord, context: 'FlowErrorHandler') -> RecoveryResult:
+    async def execute(
+        self, error_record: ErrorRecord, context: "FlowErrorHandler"
+    ) -> RecoveryResult:
         try:
             error_context = error_record.context
 
@@ -301,15 +323,17 @@ class ResetFlowAction(RecoveryAction):
                         "original_state": flow_state.state_data,
                         "reset_reason": error_record.error_type,
                         "reset_at": datetime.utcnow().isoformat(),
-                        "error_id": error_record.id
+                        "error_id": error_record.id,
                     }
 
                     # Reset to safe state
                     flow_state.state_data = {
                         "reset": True,
                         "backup": backup_data,
-                        "current_step": max(1, flow_state.current_step - 1),  # Go back one step
-                        "reset_recovery": True
+                        "current_step": max(
+                            1, flow_state.current_step - 1
+                        ),  # Go back one step
+                        "reset_recovery": True,
                     }
 
                     context.db.commit()
@@ -322,7 +346,7 @@ class ResetFlowAction(RecoveryAction):
                 strategy_used=RecoveryStrategy.RESET_FLOW,
                 attempts_made=1,
                 error_resolved=True,
-                message="Flow state reset to safe state"
+                message="Flow state reset to safe state",
             )
 
         except Exception as e:
@@ -332,14 +356,16 @@ class ResetFlowAction(RecoveryAction):
                 strategy_used=RecoveryStrategy.RESET_FLOW,
                 attempts_made=1,
                 error_resolved=False,
-                message=f"Flow reset failed: {str(e)}"
+                message=f"Flow reset failed: {str(e)}",
             )
 
 
 class EscalateManualAction(RecoveryAction):
     """Escalate error for manual intervention."""
 
-    async def execute(self, error_record: ErrorRecord, context: 'FlowErrorHandler') -> RecoveryResult:
+    async def execute(
+        self, error_record: ErrorRecord, context: "FlowErrorHandler"
+    ) -> RecoveryResult:
         try:
             # Create escalation notification
             escalation_data = {
@@ -351,9 +377,9 @@ class EscalateManualAction(RecoveryAction):
                 "message": error_record.message,
                 "context": {
                     "operation": error_record.context.operation,
-                    "timestamp": error_record.created_at.isoformat()
+                    "timestamp": error_record.created_at.isoformat(),
                 },
-                "requires_manual_intervention": True
+                "requires_manual_intervention": True,
             }
 
             # Publish escalation event
@@ -361,9 +387,11 @@ class EscalateManualAction(RecoveryAction):
                 event_type=WebSocketEventType.ALERT_CREATED,
                 patient_id=error_record.context.patient_id,
                 alert_type="flow_error_escalation",
-                priority="high" if error_record.severity == ErrorSeverity.CRITICAL else "medium",
+                priority="high"
+                if error_record.severity == ErrorSeverity.CRITICAL
+                else "medium",
                 message=f"Flow error requires manual intervention: {error_record.error_type}",
-                metadata=escalation_data
+                metadata=escalation_data,
             )
 
             return RecoveryResult(
@@ -371,7 +399,7 @@ class EscalateManualAction(RecoveryAction):
                 strategy_used=RecoveryStrategy.ESCALATE_MANUAL,
                 attempts_made=1,
                 error_resolved=False,
-                message="Error escalated for manual intervention"
+                message="Error escalated for manual intervention",
             )
 
         except Exception as e:
@@ -381,7 +409,7 @@ class EscalateManualAction(RecoveryAction):
                 strategy_used=RecoveryStrategy.ESCALATE_MANUAL,
                 attempts_made=1,
                 error_resolved=False,
-                message=f"Escalation failed: {str(e)}"
+                message=f"Escalation failed: {str(e)}",
             )
 
 

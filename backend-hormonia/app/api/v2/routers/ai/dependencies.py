@@ -1,6 +1,7 @@
 """
 AI Services Dependencies - Shared dependencies and utility functions.
 """
+
 import logging
 import hashlib
 import json
@@ -108,8 +109,7 @@ async def set_cached_response(
 
 
 def calculate_token_cost(
-    token_usage: TokenUsage,
-    model: AIModelType = AIModelType.GEMINI_PRO
+    token_usage: TokenUsage, model: AIModelType = AIModelType.GEMINI_PRO
 ) -> float:
     """Calculate estimated cost from token usage."""
     cost_per_1k = COST_PER_1K_TOKENS.get(model, 0.0015)
@@ -117,8 +117,7 @@ def calculate_token_cost(
 
 
 def create_fallback_response(
-    message: str,
-    error_type: str = "ai_unavailable"
+    message: str, error_type: str = "ai_unavailable"
 ) -> Dict[str, Any]:
     """Create fallback response when AI service fails."""
     return {
@@ -148,9 +147,7 @@ async def track_token_usage(
         await redis_client.hincrby(usage_key, "requests", 1)
         await redis_client.hincrby(usage_key, "tokens", token_usage.total_tokens)
         await redis_client.hincrbyfloat(
-            usage_key,
-            "cost_usd",
-            token_usage.estimated_cost_usd
+            usage_key, "cost_usd", token_usage.estimated_cost_usd
         )
 
         # Set expiry to 90 days for historical data

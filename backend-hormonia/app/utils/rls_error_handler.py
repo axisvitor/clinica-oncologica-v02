@@ -4,6 +4,7 @@ Utility module for handling RLS (Row Level Security) errors across the applicati
 This module provides centralized error handling for RLS-related exceptions,
 ensuring consistent error responses and proper logging.
 """
+
 import logging
 from typing import Dict, Any, Optional
 from fastapi import HTTPException, status
@@ -27,7 +28,7 @@ class RLSErrorHandler:
     def handle_rls_access_denied(
         error: RLSAccessDeniedError,
         user_context: Optional[Dict[str, Any]] = None,
-        operation: str = "database operation"
+        operation: str = "database operation",
     ) -> HTTPException:
         """
         Handle RLS access denied errors.
@@ -40,8 +41,8 @@ class RLSErrorHandler:
         Returns:
             HTTPException with appropriate status and message
         """
-        user_id = user_context.get('user_id') if user_context else 'unknown'
-        user_role = user_context.get('role') if user_context else 'unknown'
+        user_id = user_context.get("user_id") if user_context else "unknown"
+        user_role = user_context.get("role") if user_context else "unknown"
 
         logger.warning(
             f"RLS access denied for user {user_id} (role: {user_role}) "
@@ -56,15 +57,17 @@ class RLSErrorHandler:
                 "message": "You don't have permission to access this resource",
                 "operation": operation,
                 "user_id": user_id,
-                "timestamp": str(logger.handlers[0].formatter.formatTime()) if logger.handlers else None
-            }
+                "timestamp": str(logger.handlers[0].formatter.formatTime())
+                if logger.handlers
+                else None,
+            },
         )
 
     @staticmethod
     def handle_rls_context_error(
         error: RLSContextError,
         user_context: Optional[Dict[str, Any]] = None,
-        operation: str = "database operation"
+        operation: str = "database operation",
     ) -> HTTPException:
         """
         Handle RLS context errors.
@@ -77,7 +80,7 @@ class RLSErrorHandler:
         Returns:
             HTTPException with appropriate status and message
         """
-        user_id = user_context.get('user_id') if user_context else 'unknown'
+        user_id = user_context.get("user_id") if user_context else "unknown"
 
         logger.error(
             f"RLS context error for user {user_id} during {operation}: {str(error)}"
@@ -91,15 +94,17 @@ class RLSErrorHandler:
                 "message": "Authentication context is required for this operation",
                 "operation": operation,
                 "user_id": user_id,
-                "timestamp": str(logger.handlers[0].formatter.formatTime()) if logger.handlers else None
-            }
+                "timestamp": str(logger.handlers[0].formatter.formatTime())
+                if logger.handlers
+                else None,
+            },
         )
 
     @staticmethod
     def handle_general_rls_error(
         error: RLSError,
         user_context: Optional[Dict[str, Any]] = None,
-        operation: str = "database operation"
+        operation: str = "database operation",
     ) -> HTTPException:
         """
         Handle general RLS errors.
@@ -112,7 +117,7 @@ class RLSErrorHandler:
         Returns:
             HTTPException with appropriate status and message
         """
-        user_id = user_context.get('user_id') if user_context else 'unknown'
+        user_id = user_context.get("user_id") if user_context else "unknown"
 
         logger.error(
             f"RLS error for user {user_id} during {operation}: {str(error)}\n"
@@ -127,15 +132,17 @@ class RLSErrorHandler:
                 "message": "Row Level Security operation encountered an error",
                 "operation": operation,
                 "user_id": user_id,
-                "timestamp": str(logger.handlers[0].formatter.formatTime()) if logger.handlers else None
-            }
+                "timestamp": str(logger.handlers[0].formatter.formatTime())
+                if logger.handlers
+                else None,
+            },
         )
 
     @staticmethod
     def handle_database_error(
         error: Exception,
         user_context: Optional[Dict[str, Any]] = None,
-        operation: str = "database operation"
+        operation: str = "database operation",
     ) -> HTTPException:
         """
         Handle general database errors that might be RLS-related.
@@ -148,12 +155,12 @@ class RLSErrorHandler:
         Returns:
             HTTPException with appropriate status and message
         """
-        user_id = user_context.get('user_id') if user_context else 'unknown'
+        user_id = user_context.get("user_id") if user_context else "unknown"
 
         # Check if it's a specific RLS-related error
         error_message = str(error).lower()
 
-        if 'permission denied' in error_message or 'access denied' in error_message:
+        if "permission denied" in error_message or "access denied" in error_message:
             logger.warning(
                 f"Database permission denied for user {user_id} during {operation}: {str(error)}"
             )
@@ -164,11 +171,11 @@ class RLSErrorHandler:
                     "error_type": "database_permission_error",
                     "message": "Access denied by database security policies",
                     "operation": operation,
-                    "user_id": user_id
-                }
+                    "user_id": user_id,
+                },
             )
 
-        if 'row level security' in error_message or 'rls' in error_message:
+        if "row level security" in error_message or "rls" in error_message:
             logger.error(
                 f"RLS policy violation for user {user_id} during {operation}: {str(error)}"
             )
@@ -179,8 +186,8 @@ class RLSErrorHandler:
                     "error_type": "rls_policy_error",
                     "message": "Operation blocked by Row Level Security policy",
                     "operation": operation,
-                    "user_id": user_id
-                }
+                    "user_id": user_id,
+                },
             )
 
         # General database error
@@ -196,8 +203,8 @@ class RLSErrorHandler:
                 "error_type": "database_operation_error",
                 "message": "Database operation failed",
                 "operation": operation,
-                "user_id": user_id
-            }
+                "user_id": user_id,
+            },
         )
 
     @classmethod
@@ -205,7 +212,7 @@ class RLSErrorHandler:
         cls,
         error: Exception,
         user_context: Optional[Dict[str, Any]] = None,
-        operation: str = "database operation"
+        operation: str = "database operation",
     ) -> HTTPException:
         """
         Handle any RLS-related error with appropriate routing.
@@ -249,7 +256,7 @@ class RLSAuditLogger:
         resource_id: str,
         operation: str,
         success: bool,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[Dict[str, Any]] = None,
     ):
         """
         Log an access attempt for audit purposes.
@@ -264,15 +271,17 @@ class RLSAuditLogger:
         """
         log_entry = {
             "event_type": "rls_access_attempt",
-            "user_id": user_context.get('user_id'),
-            "user_role": user_context.get('role'),
-            "user_email": user_context.get('email'),
+            "user_id": user_context.get("user_id"),
+            "user_role": user_context.get("role"),
+            "user_email": user_context.get("email"),
             "resource_type": resource_type,
             "resource_id": resource_id,
             "operation": operation,
             "success": success,
-            "timestamp": str(logger.handlers[0].formatter.formatTime()) if logger.handlers else None,
-            "details": details or {}
+            "timestamp": str(logger.handlers[0].formatter.formatTime())
+            if logger.handlers
+            else None,
+            "details": details or {},
         }
 
         if success:
@@ -285,7 +294,7 @@ class RLSAuditLogger:
         user_context: Dict[str, Any],
         policy_name: str,
         result: str,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[Dict[str, Any]] = None,
     ):
         """
         Log RLS policy evaluation for monitoring.
@@ -298,12 +307,14 @@ class RLSAuditLogger:
         """
         log_entry = {
             "event_type": "rls_policy_evaluation",
-            "user_id": user_context.get('user_id'),
-            "user_role": user_context.get('role'),
+            "user_id": user_context.get("user_id"),
+            "user_role": user_context.get("role"),
             "policy_name": policy_name,
             "result": result,
-            "timestamp": str(logger.handlers[0].formatter.formatTime()) if logger.handlers else None,
-            "details": details or {}
+            "timestamp": str(logger.handlers[0].formatter.formatTime())
+            if logger.handlers
+            else None,
+            "details": details or {},
         }
 
         self.logger.info(f"RLS Policy Evaluation: {log_entry}")
@@ -318,7 +329,7 @@ rls_audit_logger = RLSAuditLogger()
 def handle_rls_error(
     error: Exception,
     user_context: Optional[Dict[str, Any]] = None,
-    operation: str = "database operation"
+    operation: str = "database operation",
 ) -> HTTPException:
     """
     Convenience function to handle any RLS error.
@@ -340,7 +351,7 @@ def log_rls_access(
     resource_id: str,
     operation: str,
     success: bool,
-    details: Optional[Dict[str, Any]] = None
+    details: Optional[Dict[str, Any]] = None,
 ):
     """
     Convenience function to log RLS access attempts.
@@ -362,7 +373,7 @@ def log_rls_policy(
     user_context: Dict[str, Any],
     policy_name: str,
     result: str,
-    details: Optional[Dict[str, Any]] = None
+    details: Optional[Dict[str, Any]] = None,
 ):
     """
     Convenience function to log RLS policy evaluations.

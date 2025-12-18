@@ -32,7 +32,7 @@ class DatabaseOptimizationMiddleware(BaseHTTPMiddleware):
             "total_queries": 0,
             "slow_queries": 0,
             "avg_response_time": 0.0,
-            "connection_errors": 0
+            "connection_errors": 0,
         }
 
     async def dispatch(self, request: Request, call_next):
@@ -67,12 +67,16 @@ class DatabaseOptimizationMiddleware(BaseHTTPMiddleware):
             self.query_metrics["total_queries"] += 1
             if db_time > 1000:  # Slow query threshold: 1 second
                 self.query_metrics["slow_queries"] += 1
-                logger.warning(f"Slow database operation detected: {db_time:.2f}ms for {request.url.path}")
+                logger.warning(
+                    f"Slow database operation detected: {db_time:.2f}ms for {request.url.path}"
+                )
 
             # Update average response time
             total = self.query_metrics["total_queries"]
             current_avg = self.query_metrics["avg_response_time"]
-            self.query_metrics["avg_response_time"] = ((current_avg * (total - 1)) + db_time) / total
+            self.query_metrics["avg_response_time"] = (
+                (current_avg * (total - 1)) + db_time
+            ) / total
 
             # Add performance headers
             response.headers["X-DB-Response-Time"] = f"{db_time:.2f}ms"
@@ -80,8 +84,12 @@ class DatabaseOptimizationMiddleware(BaseHTTPMiddleware):
             # Monitor connection pool after request
             pool_status_after = self._get_pool_status()
             if pool_status_after:
-                response.headers["X-DB-Pool-Size"] = str(pool_status_after.get("size", "unknown"))
-                response.headers["X-DB-Pool-Checked-Out"] = str(pool_status_after.get("checked_out", "unknown"))
+                response.headers["X-DB-Pool-Size"] = str(
+                    pool_status_after.get("size", "unknown")
+                )
+                response.headers["X-DB-Pool-Checked-Out"] = str(
+                    pool_status_after.get("checked_out", "unknown")
+                )
 
             return response
 
@@ -93,14 +101,14 @@ class DatabaseOptimizationMiddleware(BaseHTTPMiddleware):
             error_response = Response(
                 content='{"detail": "Database connection error"}',
                 status_code=503,
-                headers={"Content-Type": "application/json"}
+                headers={"Content-Type": "application/json"},
             )
             return error_response
 
     def _get_pool_status(self) -> Optional[Dict[str, Any]]:
         """Get current database connection pool status."""
         try:
-            if not self.db_engine or not hasattr(self.db_engine, 'pool'):
+            if not self.db_engine or not hasattr(self.db_engine, "pool"):
                 return None
 
             pool = self.db_engine.pool
@@ -109,13 +117,13 @@ class DatabaseOptimizationMiddleware(BaseHTTPMiddleware):
                     "size": pool.size(),
                     "checked_out": pool.checkedout(),
                     "overflow": pool.overflow(),
-                    "checked_in": pool.checkedin()
+                    "checked_in": pool.checkedin(),
                 }
 
             return {
-                "size": getattr(pool, 'size', lambda: 'unknown')(),
-                "checked_out": getattr(pool, 'checkedout', lambda: 'unknown')(),
-                "type": type(pool).__name__
+                "size": getattr(pool, "size", lambda: "unknown")(),
+                "checked_out": getattr(pool, "checkedout", lambda: "unknown")(),
+                "type": type(pool).__name__,
             }
 
         except Exception as e:
@@ -129,7 +137,7 @@ class DatabaseOptimizationMiddleware(BaseHTTPMiddleware):
         return {
             "query_metrics": self.query_metrics.copy(),
             "pool_status": pool_status,
-            "recommendations": self._get_recommendations()
+            "recommendations": self._get_recommendations(),
         }
 
     def _get_recommendations(self) -> list:
@@ -174,7 +182,7 @@ class DatabaseOptimizationMiddleware(BaseHTTPMiddleware):
             "total_queries": 0,
             "slow_queries": 0,
             "avg_response_time": 0.0,
-            "connection_errors": 0
+            "connection_errors": 0,
         }
         logger.info("Database optimization metrics reset")
 
@@ -183,61 +191,63 @@ class QueryOptimizer:
     """
     Query optimization utilities for database performance enhancement.
     """
-    
+
     def __init__(self, db_engine: Optional[Engine] = None):
         self.db_engine = db_engine
         self.query_cache = {}
         self.optimization_stats = {
             "cache_hits": 0,
             "cache_misses": 0,
-            "optimized_queries": 0
+            "optimized_queries": 0,
         }
-    
+
     def optimize_query(self, query: str, params: Optional[Dict] = None) -> str:
         """
         Optimize a SQL query for better performance.
-        
+
         Args:
             query: SQL query string
             params: Query parameters
-            
+
         Returns:
             Optimized query string
         """
         # Simple query optimization - add LIMIT if not present for SELECT queries
         optimized_query = query.strip()
-        
-        if (optimized_query.upper().startswith('SELECT') and 
-            'LIMIT' not in optimized_query.upper() and
-            'COUNT(' not in optimized_query.upper()):
+
+        if (
+            optimized_query.upper().startswith("SELECT")
+            and "LIMIT" not in optimized_query.upper()
+            and "COUNT(" not in optimized_query.upper()
+        ):
             # Add reasonable limit to prevent runaway queries
-            optimized_query += ' LIMIT 1000'
+            optimized_query += " LIMIT 1000"
             self.optimization_stats["optimized_queries"] += 1
             logger.debug(f"Added LIMIT to query: {query[:50]}...")
-        
+
         return optimized_query
-    
+
     def get_cached_result(self, query_key: str) -> Optional[Any]:
         """
         Get cached query result if available.
-        
+
         Args:
             query_key: Unique key for the query
-            
+
         Returns:
             Cached result or None
         """
         if query_key in self.query_cache:
             self.optimization_stats["cache_hits"] += 1
             return self.query_cache[query_key]
-        
+
         self.optimization_stats["cache_misses"] += 1
         return None
-    
+
     def cache_result(self, query_key: str, result: Any, ttl: int = 300) -> None:
         """
         Cache query result for future use.
-        
+
         Args:
             query_key: Unique key for the query
             result: Query result to cache
@@ -247,33 +257,37 @@ class QueryOptimizer:
         self.query_cache[query_key] = {
             "result": result,
             "timestamp": time.time(),
-            "ttl": ttl
+            "ttl": ttl,
         }
-        
+
         # Clean expired entries
         self._clean_expired_cache()
-    
+
     def _clean_expired_cache(self) -> None:
         """Remove expired entries from cache."""
         current_time = time.time()
         expired_keys = []
-        
+
         for key, cached_data in self.query_cache.items():
             if current_time - cached_data["timestamp"] > cached_data["ttl"]:
                 expired_keys.append(key)
-        
+
         for key in expired_keys:
             del self.query_cache[key]
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """Get optimization statistics."""
         return {
             "optimization_stats": self.optimization_stats.copy(),
             "cache_size": len(self.query_cache),
             "cache_hit_ratio": (
-                self.optimization_stats["cache_hits"] / 
-                max(1, self.optimization_stats["cache_hits"] + self.optimization_stats["cache_misses"])
-            )
+                self.optimization_stats["cache_hits"]
+                / max(
+                    1,
+                    self.optimization_stats["cache_hits"]
+                    + self.optimization_stats["cache_misses"],
+                )
+            ),
         }
 
 
@@ -284,21 +298,24 @@ _query_optimizer: Optional[QueryOptimizer] = None
 def get_db_optimizer() -> QueryOptimizer:
     """
     Get the global database query optimizer instance.
-    
+
     Returns:
         QueryOptimizer instance
     """
     global _query_optimizer
-    
+
     if _query_optimizer is None:
         try:
             from app.database import engine
+
             _query_optimizer = QueryOptimizer(db_engine=engine)
         except ImportError:
             # Fallback if database engine is not available
             _query_optimizer = QueryOptimizer()
-            logger.warning("Database engine not available, using QueryOptimizer without engine")
-    
+            logger.warning(
+                "Database engine not available, using QueryOptimizer without engine"
+            )
+
     return _query_optimizer
 
 

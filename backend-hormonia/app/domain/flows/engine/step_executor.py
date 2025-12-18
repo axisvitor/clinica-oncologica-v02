@@ -2,10 +2,9 @@
 Step executor for flow processing.
 Handles step scheduling, execution, and action coordination.
 """
-from typing import Optional
+
 from datetime import datetime, timedelta
 import logging
-from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models.flow import PatientFlowState
@@ -41,7 +40,7 @@ class StepExecutor:
         flow_state: PatientFlowState,
         step: FlowStep,
         base_time: datetime,
-        condition_evaluator = None
+        condition_evaluator=None,
     ) -> None:
         """Schedule actions for the given step based on its type with intelligent humanization."""
         scheduled_for = base_time + timedelta(hours=step.delay_hours)
@@ -52,6 +51,7 @@ class StepExecutor:
 
             # Determine question type for selective humanization
             from app.domain.flows.engine.condition_evaluator import ConditionEvaluator
+
             if condition_evaluator is None:
                 condition_evaluator = ConditionEvaluator(self.db)
 
@@ -67,12 +67,18 @@ class StepExecutor:
                     question_humanizer = get_question_humanizer()
 
                     if step.type == "quiz":
-                        question_id = getattr(step, 'name', f"quiz_step_{flow_state.current_step}")
-                        humanized_content = await question_humanizer.humanize_quiz_question(
-                            question=original_content,
-                            question_id=question_id,
-                            patient_id=str(flow_state.patient_id),
-                            quiz_type=flow_state.state_data.get('requested_flow_type', 'monthly')
+                        question_id = getattr(
+                            step, "name", f"quiz_step_{flow_state.current_step}"
+                        )
+                        humanized_content = (
+                            await question_humanizer.humanize_quiz_question(
+                                question=original_content,
+                                question_id=question_id,
+                                patient_id=str(flow_state.patient_id),
+                                quiz_type=flow_state.state_data.get(
+                                    "requested_flow_type", "monthly"
+                                ),
+                            )
                         )
                     else:
                         humanized_content = await question_humanizer.humanize_question(
@@ -80,10 +86,10 @@ class StepExecutor:
                             question_type=question_type,
                             patient=patient,
                             context={
-                                'step_type': step.type,
-                                'step_name': getattr(step, 'name', 'unknown'),
-                                'flow_data': flow_state.state_data
-                            }
+                                "step_type": step.type,
+                                "step_name": getattr(step, "name", "unknown"),
+                                "flow_data": flow_state.state_data,
+                            },
                         )
             except Exception as e:
                 logger.error(f"Error in question humanization: {e}")
@@ -96,21 +102,23 @@ class StepExecutor:
                 scheduled_for,
                 message_type=MessageType.TEXT,
                 message_metadata={
-                    'original_content': original_content,
-                    'humanized': humanized_content != original_content,
-                    'step_type': step.type,
-                    'question_type': question_type,
-                    'flow_step_id': step.name if hasattr(step, 'name') else 'unknown',
-                    'ai_processing': 'question_humanizer'
-                }
+                    "original_content": original_content,
+                    "humanized": humanized_content != original_content,
+                    "step_type": step.type,
+                    "question_type": question_type,
+                    "flow_step_id": step.name if hasattr(step, "name") else "unknown",
+                    "ai_processing": "question_humanizer",
+                },
             )
             from app.tasks.messaging import send_scheduled_message
-            send_scheduled_message.apply_async((str(message.id),), eta=scheduled_for)
 
+            send_scheduled_message.apply_async((str(message.id),), eta=scheduled_for)
 
         if step.type == "quiz" and step.quiz_template:
             # Start quiz session so responses can be collected
-            template = self.quiz_session_service.template_repository.get_by_name(step.quiz_template)
+            template = self.quiz_session_service.template_repository.get_by_name(
+                step.quiz_template
+            )
             if template:
                 session_data = QuizSessionCreate(
                     patient_id=flow_state.patient_id,
@@ -120,7 +128,10 @@ class StepExecutor:
                 safe_create_task(
                     self.quiz_session_service.start_quiz_session(session_data),
                     name=f"quiz_session_start_{flow_state.patient_id}",
-                    context={"step_type": step.type, "patient_id": str(flow_state.patient_id)}
+                    context={
+                        "step_type": step.type,
+                        "patient_id": str(flow_state.patient_id),
+                    },
                 )
 
     @with_db_retry(max_retries=3)
@@ -129,7 +140,7 @@ class StepExecutor:
         patient: Patient,
         step_id: int,
         state_machine: StateMachine,
-        condition_evaluator = None
+        condition_evaluator=None,
     ) -> None:
         """Schedule actions for a specific flow step with AI humanization."""
         step = state_machine.get_current_step(step_id)
@@ -144,6 +155,7 @@ class StepExecutor:
         # Apply AI humanization if enabled
         try:
             from app.domain.flows.engine.condition_evaluator import ConditionEvaluator
+
             if condition_evaluator is None:
                 condition_evaluator = ConditionEvaluator(self.db)
 
@@ -151,8 +163,8 @@ class StepExecutor:
             humanized_content = await condition_evaluator.humanize_message_content(
                 content=original_content,
                 patient_id=patient.id,
-                message_type=getattr(step, 'type', 'general'),
-                context_builder=None  # Pass if available
+                message_type=getattr(step, "type", "general"),
+                context_builder=None,  # Pass if available
             )
         except Exception as e:
             logger.error(f"Error in step action humanization: {e}")
@@ -167,13 +179,15 @@ class StepExecutor:
                 **(step.metadata or {}),
                 "original_content": original_content,
                 "humanized": humanized_content != original_content,
-                "ai_processing_applied": True
+                "ai_processing_applied": True,
             },
         )
 
         # For quiz steps, start a session and log placeholder response
         if step.type == "quiz" and step.quiz_template:
-            template = self.quiz_session_service.template_repository.get_by_name(step.quiz_template)
+            template = self.quiz_session_service.template_repository.get_by_name(
+                step.quiz_template
+            )
             if template:
                 session_data = QuizSessionCreate(
                     patient_id=patient.id,
@@ -183,7 +197,10 @@ class StepExecutor:
                 safe_create_task(
                     self.quiz_session_service.start_quiz_session(session_data),
                     name=f"quiz_session_{patient.id}",
-                    context={"patient_id": str(patient.id), "template_id": str(template.id)}
+                    context={
+                        "patient_id": str(patient.id),
+                        "template_id": str(template.id),
+                    },
                 )
 
                 # Use humanized content for quiz question text
@@ -197,12 +214,12 @@ class StepExecutor:
                     response_metadata={
                         "scheduled": True,
                         "original_question": original_content,
-                        "humanized": humanized_content != original_content
+                        "humanized": humanized_content != original_content,
                     },
                     responded_at=scheduled_for,
                 )
                 safe_create_task(
                     self.quiz_response_service.create_response(placeholder),
                     name=f"quiz_response_{patient.id}",
-                    context={"patient_id": str(patient.id), "question_id": "__start__"}
+                    context={"patient_id": str(patient.id), "question_id": "__start__"},
                 )

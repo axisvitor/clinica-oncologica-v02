@@ -10,7 +10,7 @@ Usage:
 
 import json
 from typing import Any, Optional
-from sqlalchemy.types import TypeDecorator, String, Text
+from sqlalchemy.types import TypeDecorator, Text
 from datetime import date
 
 from app.core.encryption import EncryptionService

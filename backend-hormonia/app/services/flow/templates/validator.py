@@ -11,7 +11,7 @@ Migration Note:
     - Various validation scattered across flow services
 """
 
-from typing import Dict, Any, List, Optional, Set
+from typing import Dict, Any, List, Set
 from datetime import datetime
 import logging
 
@@ -142,7 +142,7 @@ class FlowTemplateValidator:
         # Validate step type
         if "type" in step:
             try:
-                step_type = FlowStepType(step["type"])
+                FlowStepType(step["type"])
             except ValueError:
                 errors.append(f"Invalid step type: {step['type']}")
 

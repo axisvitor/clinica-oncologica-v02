@@ -3,6 +3,7 @@ Password management operations for user administration.
 
 Handles password resets, updates, and temporary password generation.
 """
+
 import logging
 from typing import Optional
 from uuid import UUID
@@ -12,7 +13,9 @@ from fastapi import HTTPException, status
 from app.models.user import User
 from app.utils.security import get_password_hash
 from .schemas import (
-    PasswordResetRequest, PasswordResetResult, UserPasswordUpdateRequest
+    PasswordResetRequest,
+    PasswordResetResult,
+    UserPasswordUpdateRequest,
 )
 from .validators import generate_temporary_password
 
@@ -26,7 +29,7 @@ class PasswordManagementMixin:
         self,
         reset_request: PasswordResetRequest,
         admin_user: User,
-        request_info: Optional[dict] = None
+        request_info: Optional[dict] = None,
     ) -> PasswordResetResult:
         """
         Reset user password with temporary password generation.
@@ -49,12 +52,14 @@ class PasswordManagementMixin:
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User with ID {reset_request.user_id} not found"
+                detail=f"User with ID {reset_request.user_id} not found",
             )
 
         try:
             # Generate temporary password
-            temp_password = generate_temporary_password(reset_request.temporary_password_length)
+            temp_password = generate_temporary_password(
+                reset_request.temporary_password_length
+            )
             hashed_password = get_password_hash(temp_password)
 
             # Update user password
@@ -74,8 +79,8 @@ class PasswordManagementMixin:
                     "user_email": user.email,
                     "temp_password_length": len(temp_password),
                     "expires_at": expires_at.isoformat(),
-                    "email_notification_requested": reset_request.send_email
-                }
+                    "email_notification_requested": reset_request.send_email,
+                },
             )
 
             # TODO: Implement email sending
@@ -83,15 +88,19 @@ class PasswordManagementMixin:
             if reset_request.send_email:
                 # This would integrate with email service
                 # For now, we'll just log the intention
-                logger.info(f"Email notification requested for password reset: {user.email}")
+                logger.info(
+                    f"Email notification requested for password reset: {user.email}"
+                )
 
-            logger.info(f"Password reset for user {user.email} by admin {admin_user.email}")
+            logger.info(
+                f"Password reset for user {user.email} by admin {admin_user.email}"
+            )
 
             return PasswordResetResult(
                 user_id=user.id,
                 temporary_password=temp_password,
                 expires_at=expires_at,
-                email_sent=email_sent
+                email_sent=email_sent,
             )
 
         except Exception as e:
@@ -100,16 +109,15 @@ class PasswordManagementMixin:
                 action_type="user_password_reset_failed",
                 admin_user=admin_user,
                 target_user_id=reset_request.user_id,
-                action_data={
-                    "reason": "database_error",
-                    "error": str(e)
-                },
-                result="failure"
+                action_data={"reason": "database_error", "error": str(e)},
+                result="failure",
             )
-            logger.error(f"Failed to reset password for user {reset_request.user_id}: {e}")
+            logger.error(
+                f"Failed to reset password for user {reset_request.user_id}: {e}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to reset password"
+                detail="Failed to reset password",
             )
 
     async def update_user_password(
@@ -117,7 +125,7 @@ class PasswordManagementMixin:
         user_id: UUID,
         password_data: UserPasswordUpdateRequest,
         admin_user: User,
-        request_info: Optional[dict] = None
+        request_info: Optional[dict] = None,
     ) -> bool:
         """Update user password with enhanced validation."""
         # Check admin permissions
@@ -127,7 +135,7 @@ class PasswordManagementMixin:
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User with ID {user_id} not found"
+                detail=f"User with ID {user_id} not found",
             )
 
         # Hash new password
@@ -144,11 +152,13 @@ class PasswordManagementMixin:
                 target_user_id=user.id,
                 action_data={
                     "user_email": user.email,
-                    "password_strength_validated": True
-                }
+                    "password_strength_validated": True,
+                },
             )
 
-            logger.info(f"Password updated for user {user.email} by admin {admin_user.email}")
+            logger.info(
+                f"Password updated for user {user.email} by admin {admin_user.email}"
+            )
             return True
 
         except Exception as e:
@@ -157,14 +167,11 @@ class PasswordManagementMixin:
                 action_type="user_password_update_failed",
                 admin_user=admin_user,
                 target_user_id=user_id,
-                action_data={
-                    "reason": "database_error",
-                    "error": str(e)
-                },
-                result="failure"
+                action_data={"reason": "database_error", "error": str(e)},
+                result="failure",
             )
             logger.error(f"Failed to update password for user {user_id}: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to update password"
+                detail="Failed to update password",
             )

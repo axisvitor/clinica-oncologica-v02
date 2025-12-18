@@ -14,26 +14,20 @@ Modular architecture:
 - notifications: Provider notification delivery through multiple channels
 - service: Main orchestrator coordinating all components
 """
+
 # Import enums
-from .enums import (
-    FollowUpType,
-    EscalationLevel,
-    NotificationChannel
-)
+from .enums import FollowUpType, EscalationLevel, NotificationChannel
 
 # Import models
 from .models import (
     FollowUpAction,
     EscalationAlert,
     ConversationContext,
-    ProviderNotification
+    ProviderNotification,
 )
 
 # Import main service
-from .service import (
-    FollowUpSystemService,
-    get_follow_up_system_service
-)
+from .service import FollowUpSystemService, get_follow_up_system_service
 
 # Import legacy sub-services for backward compatibility
 from .generators import ResponseGenerator
@@ -51,22 +45,18 @@ __all__ = [
     "FollowUpType",
     "EscalationLevel",
     "NotificationChannel",
-
     # Models
     "FollowUpAction",
     "EscalationAlert",
     "ConversationContext",
     "ProviderNotification",
-
     # Main service
     "FollowUpSystemService",
     "get_follow_up_system_service",
-
     # Legacy sub-services (backward compatibility)
     "ResponseGenerator",
     "EscalationManager",
     "NotificationService",
-
     # New modular components
     "ContextManager",
     "ContextBuilder",

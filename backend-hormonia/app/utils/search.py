@@ -5,16 +5,14 @@ This module provides helper functions to use PostgreSQL GIN indexes
 for efficient text search operations.
 """
 
-from typing import Optional, List
+from typing import List
 from sqlalchemy import func
 from sqlalchemy.sql.expression import BinaryExpression, ColumnElement
 from sqlalchemy.orm import InstrumentedAttribute
 
 
 def gin_search(
-    column: InstrumentedAttribute,
-    search_term: str,
-    language: str = 'simple'
+    column: InstrumentedAttribute, search_term: str, language: str = "simple"
 ) -> BinaryExpression:
     """
     Create a GIN full-text search expression.
@@ -53,14 +51,14 @@ def gin_search(
     search_query = func.to_tsquery(language, f"{sanitized_term}:*")
 
     # Create full-text search expression
-    return func.to_tsvector(language, column).op('@@')(search_query)
+    return func.to_tsvector(language, column).op("@@")(search_query)
 
 
 def gin_multi_term_search(
     column: InstrumentedAttribute,
     search_terms: List[str],
-    operator: str = '&',
-    language: str = 'simple'
+    operator: str = "&",
+    language: str = "simple",
 ) -> BinaryExpression:
     """
     Create a GIN search expression with multiple terms.
@@ -94,7 +92,7 @@ def gin_multi_term_search(
     if not search_terms:
         raise ValueError("search_terms cannot be empty")
 
-    if operator not in ('&', '|'):
+    if operator not in ("&", "|"):
         raise ValueError("operator must be '&' (AND) or '|' (OR)")
 
     # Sanitize and format search terms
@@ -106,14 +104,14 @@ def gin_multi_term_search(
 
     # Create search expression
     search_query = func.to_tsquery(language, query_string)
-    return func.to_tsvector(language, column).op('@@')(search_query)
+    return func.to_tsvector(language, column).op("@@")(search_query)
 
 
 def hybrid_search(
     column: InstrumentedAttribute,
     search_term: str,
-    language: str = 'simple',
-    use_gin: bool = True
+    language: str = "simple",
+    use_gin: bool = True,
 ) -> BinaryExpression:
     """
     Hybrid search that can use either GIN or ILIKE.
@@ -145,9 +143,7 @@ def hybrid_search(
 
 
 def create_search_rank(
-    column: InstrumentedAttribute,
-    search_term: str,
-    language: str = 'simple'
+    column: InstrumentedAttribute, search_term: str, language: str = "simple"
 ) -> ColumnElement:
     """
     Create a search rank expression for result ordering.
@@ -180,18 +176,15 @@ def create_search_rank(
     search_query = func.to_tsquery(language, f"{sanitized_term}:*")
 
     # Create rank expression
-    return func.ts_rank(
-        func.to_tsvector(language, column),
-        search_query
-    )
+    return func.ts_rank(func.to_tsvector(language, column), search_query)
 
 
 def highlight_search_results(
     column: InstrumentedAttribute,
     search_term: str,
-    language: str = 'simple',
-    start_tag: str = '<mark>',
-    stop_tag: str = '</mark>'
+    language: str = "simple",
+    start_tag: str = "<mark>",
+    stop_tag: str = "</mark>",
 ) -> ColumnElement:
     """
     Create an expression that highlights search matches in text.
@@ -230,10 +223,7 @@ def highlight_search_results(
 
     # Create highlight expression
     return func.ts_headline(
-        language,
-        column,
-        search_query,
-        f'StartSel={start_tag}, StopSel={stop_tag}'
+        language, column, search_query, f"StartSel={start_tag}, StopSel={stop_tag}"
     )
 
 
@@ -241,20 +231,21 @@ def highlight_search_results(
 class SearchLanguage:
     """Common language configurations for GIN search."""
 
-    PORTUGUESE = 'portuguese'  # For Brazilian Portuguese text
-    SIMPLE = 'simple'          # For language-agnostic text
-    ENGLISH = 'english'        # For English text
-    SPANISH = 'spanish'        # For Spanish text
+    PORTUGUESE = "portuguese"  # For Brazilian Portuguese text
+    SIMPLE = "simple"  # For language-agnostic text
+    ENGLISH = "english"  # For English text
+    SPANISH = "spanish"  # For Spanish text
 
 
 # Example usage patterns
-if __name__ == '__main__':
+if __name__ == "__main__":
     """
     Example usage of search utilities.
 
     These examples show how to use the search utilities in your repositories.
     """
     import logging
+
     logger = logging.getLogger(__name__)
 
     # Example 1: Simple GIN search

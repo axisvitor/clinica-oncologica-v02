@@ -36,12 +36,12 @@ def _serialize_user(user: User, fields: Optional[List[str]] = None) -> dict:
         "id": user.id,
         "email": user.email,
         "full_name": user.full_name,
-        "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
+        "role": user.role.value if hasattr(user.role, "value") else str(user.role),
         "is_active": user.is_active,
         "created_at": user.created_at,
         "updated_at": user.updated_at,
-        "last_login": getattr(user, 'last_login', None),
-        "firebase_uid": getattr(user, 'firebase_uid', None),
+        "last_login": getattr(user, "last_login", None),
+        "firebase_uid": getattr(user, "firebase_uid", None),
     }
 
     if fields:
@@ -63,22 +63,22 @@ def _validate_password_strength(password: str) -> None:
     if len(password) < 8:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password must be at least 8 characters long"
+            detail="Password must be at least 8 characters long",
         )
     if not any(c.isupper() for c in password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password must contain at least one uppercase letter"
+            detail="Password must contain at least one uppercase letter",
         )
     if not any(c.islower() for c in password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password must contain at least one lowercase letter"
+            detail="Password must contain at least one lowercase letter",
         )
     if not any(c.isdigit() for c in password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password must contain at least one digit"
+            detail="Password must contain at least one digit",
         )
 
 
@@ -88,7 +88,7 @@ async def _log_admin_action(
     admin_user: User,
     context: RequestContext,
     target_user_id: Optional[UUID] = None,
-    additional_data: Optional[Dict[str, Any]] = None
+    additional_data: Optional[Dict[str, Any]] = None,
 ) -> None:
     """
     Log admin actions for audit trail.
@@ -108,7 +108,7 @@ async def _log_admin_action(
             "action": action,
             "admin_user_id": str(admin_user.id),
             "admin_user_email": admin_user.email,
-            **(additional_data or {})
+            **(additional_data or {}),
         }
 
         if target_user_id:
@@ -122,7 +122,7 @@ async def _log_admin_action(
             ip_address=context.ip_address,
             user_agent=context.user_agent,
             event_data=event_data,
-            result="success"
+            result="success",
         )
     except Exception as e:
         logger.error(f"Failed to log admin action {action}: {e}")

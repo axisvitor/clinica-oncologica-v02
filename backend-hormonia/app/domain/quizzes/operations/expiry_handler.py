@@ -22,10 +22,7 @@ class ExpiryHandler:
         self.max_regenerations = max_regenerations
 
     async def handle_expired_token(
-        self,
-        session_id: UUID,
-        regenerate_callback,
-        actor_id: Optional[UUID] = None
+        self, session_id: UUID, regenerate_callback, actor_id: Optional[UUID] = None
     ) -> Dict[str, Any]:
         """Handle expired token by checking regeneration limits.
 
@@ -64,13 +61,12 @@ class ExpiryHandler:
                 "action": "fallback_required",
                 "session_id": str(session_id),
                 "reason": "max_regenerations_exceeded",
-                "regeneration_count": regeneration_count
+                "regeneration_count": regeneration_count,
             }
 
         # Regenerate token
         new_token, new_expires_at = await regenerate_callback(
-            session_id=session_id,
-            actor_id=actor_id
+            session_id=session_id, actor_id=actor_id
         )
 
         return {
@@ -78,14 +74,14 @@ class ExpiryHandler:
             "session_id": str(session_id),
             "new_token": new_token,
             "new_expires_at": new_expires_at.isoformat(),
-            "regeneration_count": regeneration_count + 1
+            "regeneration_count": regeneration_count + 1,
         }
 
     def track_failure(
         self,
         session_id: UUID,
         failure_reason: str,
-        failure_details: Optional[Dict[str, Any]] = None
+        failure_details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Track failure for monitoring repeated failures.
 
@@ -111,7 +107,7 @@ class ExpiryHandler:
         failure_record = {
             "timestamp": datetime.utcnow().isoformat(),
             "reason": failure_reason,
-            "details": failure_details or {}
+            "details": failure_details or {},
         }
         metadata["failures"].append(failure_record)
 

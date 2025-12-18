@@ -59,7 +59,7 @@ logger = logging.getLogger(__name__)
 async def activate_patient(
     request: Request,
     patient_id: str,
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -110,7 +110,7 @@ async def activate_patient(
 async def deactivate_patient(
     request: Request,
     patient_id: str,
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -162,7 +162,7 @@ async def archive_patient(
     request: Request,
     patient_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
 ):
     """
     Archive a patient.
@@ -184,10 +184,11 @@ async def archive_patient(
         )
 
     # Get patient
-    patient = db.query(Patient).filter(
-        Patient.id == patient_uuid,
-        Patient.deleted_at.is_(None)
-    ).first()
+    patient = (
+        db.query(Patient)
+        .filter(Patient.id == patient_uuid, Patient.deleted_at.is_(None))
+        .first()
+    )
 
     if not patient:
         raise HTTPException(
@@ -225,7 +226,7 @@ async def archive_patient(
         logger.error(f"Failed to archive patient {patient_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to archive patient: {str(e)}"
+            detail=f"Failed to archive patient: {str(e)}",
         )
 
     # Invalidate cache
@@ -245,7 +246,7 @@ async def get_patient_timeline(
     request: Request,
     patient_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
 ):
     """
     Get patient timeline of events.
@@ -299,7 +300,7 @@ async def get_patient_timeline(
 async def get_patient_stats(
     request: Request,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
 ):
     """
     Get comprehensive patient statistics.
@@ -326,9 +327,13 @@ async def get_patient_stats(
 
     total_patients = base_query.count()
     active_patients = base_query.filter(Patient.flow_state == FlowState.ACTIVE).count()
-    inactive_patients = base_query.filter(Patient.flow_state == FlowState.CANCELLED).count()
+    inactive_patients = base_query.filter(
+        Patient.flow_state == FlowState.CANCELLED
+    ).count()
 
-    start_of_month = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    start_of_month = datetime.utcnow().replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0
+    )
     new_this_month = base_query.filter(Patient.created_at >= start_of_month).count()
 
     by_status: Dict[str, int] = {}

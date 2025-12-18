@@ -10,7 +10,7 @@ This module contains the fundamental execution logic for flows, including:
 These components work together to provide the core flow execution functionality.
 """
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .engine import FlowEngine

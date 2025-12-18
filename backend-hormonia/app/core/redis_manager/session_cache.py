@@ -39,7 +39,7 @@ class SessionCache:
         firebase_uid: str,
         metadata: Optional[Dict[str, Any]] = None,
         ttl_seconds: Optional[int] = None,
-        ttl: Optional[int] = None  # Alternative parameter name for compatibility
+        ttl: Optional[int] = None,  # Alternative parameter name for compatibility
     ) -> bool:
         """
         Create Redis session (Layer 3) - ASYNC VERSION.
@@ -65,15 +65,12 @@ class SessionCache:
             "firebase_uid": firebase_uid,
             "created_at": datetime.utcnow().isoformat(),
             "last_activity": datetime.utcnow().isoformat(),
-            **(metadata or {})
+            **(metadata or {}),
         }
 
         try:
             await asyncio.to_thread(
-                self.redis.setex,
-                key,
-                ttl_value,
-                json.dumps(session_data)
+                self.redis.setex, key, ttl_value, json.dumps(session_data)
             )
             logger.info(f"🔐 Session created: {session_id[:16]}... (TTL: {ttl_value}s)")
             return True
@@ -102,10 +99,7 @@ class SessionCache:
 
                 # Refresh TTL on activity
                 await asyncio.to_thread(
-                    self.redis.setex,
-                    key,
-                    self.session_ttl,
-                    json.dumps(session_data)
+                    self.redis.setex, key, self.session_ttl, json.dumps(session_data)
                 )
                 logger.debug(f"✅ Session active: {session_id[:16]}...")
                 return session_data
@@ -158,7 +152,9 @@ class SessionCache:
 
         try:
             # Scan all session keys
-            for key in await asyncio.to_thread(list, self.redis.scan_iter(match=pattern)):
+            for key in await asyncio.to_thread(
+                list, self.redis.scan_iter(match=pattern)
+            ):
                 session_data = await asyncio.to_thread(self.redis.get, key)
                 if session_data:
                     data = json.loads(session_data)
@@ -166,7 +162,9 @@ class SessionCache:
                         await asyncio.to_thread(self.redis.delete, key)
                         deleted += 1
 
-            logger.info(f"🚪 Global logout: {deleted} sessions deleted for {firebase_uid}")
+            logger.info(
+                f"🚪 Global logout: {deleted} sessions deleted for {firebase_uid}"
+            )
             return deleted
         except Exception as e:
             logger.error(f"Error invalidating user sessions: {str(e)}")
@@ -218,10 +216,7 @@ class SessionCache:
             return -1
 
     async def update_session_activity(
-        self,
-        session_id: str,
-        extend_ttl: bool = True,
-        custom_ttl: Optional[int] = None
+        self, session_id: str, extend_ttl: bool = True, custom_ttl: Optional[int] = None
     ) -> bool:
         """
         Update session activity timestamp and optionally extend TTL.
@@ -243,7 +238,9 @@ class SessionCache:
             # Get current session data
             cached = await asyncio.to_thread(self.redis.get, key)
             if not cached:
-                logger.debug(f"❌ Cannot update activity - session not found: {session_id[:16]}...")
+                logger.debug(
+                    f"❌ Cannot update activity - session not found: {session_id[:16]}..."
+                )
                 return False
 
             # Parse and update session data
@@ -255,25 +252,25 @@ class SessionCache:
                 ttl_value = custom_ttl or self.session_ttl
                 # Write back with new TTL
                 await asyncio.to_thread(
-                    self.redis.setex,
-                    key,
-                    ttl_value,
-                    json.dumps(session_data)
+                    self.redis.setex, key, ttl_value, json.dumps(session_data)
                 )
-                logger.debug(f"♻️ Session activity updated + TTL extended ({ttl_value}s): {session_id[:16]}...")
+                logger.debug(
+                    f"♻️ Session activity updated + TTL extended ({ttl_value}s): {session_id[:16]}..."
+                )
             else:
                 # Get remaining TTL to preserve it
                 remaining_ttl = await asyncio.to_thread(self.redis.ttl, key)
                 if remaining_ttl > 0:
                     await asyncio.to_thread(
-                        self.redis.setex,
-                        key,
-                        remaining_ttl,
-                        json.dumps(session_data)
+                        self.redis.setex, key, remaining_ttl, json.dumps(session_data)
                     )
-                    logger.debug(f"♻️ Session activity updated (TTL preserved): {session_id[:16]}...")
+                    logger.debug(
+                        f"♻️ Session activity updated (TTL preserved): {session_id[:16]}..."
+                    )
                 else:
-                    logger.warning(f"⚠️ Session TTL expired during update: {session_id[:16]}...")
+                    logger.warning(
+                        f"⚠️ Session TTL expired during update: {session_id[:16]}..."
+                    )
                     return False
 
             return True

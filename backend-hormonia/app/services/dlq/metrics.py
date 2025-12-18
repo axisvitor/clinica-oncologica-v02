@@ -6,12 +6,11 @@ queue size monitoring for the DLQ system.
 """
 
 import logging
-from typing import Optional
 from datetime import datetime
 
 from sqlalchemy import func
 
-from app.models.failed_message import FailedMessage, FailureReason, DLQStatus
+from app.models.failed_message import FailedMessage, FailureReason
 from app.monitoring.dlq_metrics import (
     record_dlq_message,
     record_dlq_retry,
@@ -63,10 +62,7 @@ class DLQMetricsCollector:
         initialize_dlq_metrics(metrics_config)
 
     def record_message_added(
-        self,
-        failure_reason: FailureReason,
-        error_type: str,
-        source: str = "system"
+        self, failure_reason: FailureReason, error_type: str, source: str = "system"
     ) -> None:
         """
         Record message added to DLQ.
@@ -84,10 +80,7 @@ class DLQMetricsCollector:
         )
 
     def record_retry_success(
-        self,
-        failure_reason: FailureReason,
-        duration_seconds: float,
-        retry_count: int
+        self, failure_reason: FailureReason, duration_seconds: float, retry_count: int
     ) -> None:
         """
         Record successful retry.
@@ -109,10 +102,7 @@ class DLQMetricsCollector:
         )
 
     def record_retry_failure(
-        self,
-        failure_reason: FailureReason,
-        duration_seconds: float,
-        error_type: str
+        self, failure_reason: FailureReason, duration_seconds: float, error_type: str
     ) -> None:
         """
         Record failed retry.
@@ -130,9 +120,7 @@ class DLQMetricsCollector:
         )
 
     def record_message_discarded(
-        self,
-        failure_reason: FailureReason,
-        discard_reason: str
+        self, failure_reason: FailureReason, discard_reason: str
     ) -> None:
         """
         Record message discarded.
@@ -154,7 +142,7 @@ class DLQMetricsCollector:
                 self.db.query(
                     FailedMessage.failure_reason,
                     FailedMessage.status,
-                    func.count(FailedMessage.id).label("count")
+                    func.count(FailedMessage.id).label("count"),
                 )
                 .group_by(FailedMessage.failure_reason, FailedMessage.status)
                 .all()
@@ -169,9 +157,7 @@ class DLQMetricsCollector:
 
             # Update oldest message age
             oldest = (
-                self.db.query(FailedMessage)
-                .order_by(FailedMessage.created_at)
-                .first()
+                self.db.query(FailedMessage).order_by(FailedMessage.created_at).first()
             )
 
             if oldest:

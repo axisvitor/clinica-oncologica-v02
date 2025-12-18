@@ -1,18 +1,14 @@
 """
 Flow-related helper functions for response processing.
 """
+
 import logging
 from typing import List, Optional, Any
-from uuid import UUID
 
 from app.services.ai import ConcernLevel
 from app.models.flow import PatientFlowState
 
-from .models import (
-    StructuredResponse,
-    FlowAction,
-    ResponseType
-)
+from .models import StructuredResponse, FlowAction, ResponseType
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +17,9 @@ class FlowHelpers:
     """Helper functions for flow-related operations."""
 
     @staticmethod
-    async def determine_flow_actions(structured_response: StructuredResponse,
-                                    flow_state: Optional[PatientFlowState]) -> List[FlowAction]:
+    async def determine_flow_actions(
+        structured_response: StructuredResponse, flow_state: Optional[PatientFlowState]
+    ) -> List[FlowAction]:
         """
         Determine flow actions based on response analysis.
 
@@ -38,52 +35,68 @@ class FlowHelpers:
         try:
             # Action based on concern level
             if structured_response.concern_level == ConcernLevel.CRITICAL:
-                actions.append(FlowAction(
-                    action_type="escalate_immediately",
-                    parameters={
-                        "concern_level": "critical",
-                        "medical_concerns": structured_response.medical_concerns,
-                        "patient_message": structured_response.original_message
-                    },
-                    priority="critical",
-                    delay_seconds=0
-                ))
+                actions.append(
+                    FlowAction(
+                        action_type="escalate_immediately",
+                        parameters={
+                            "concern_level": "critical",
+                            "medical_concerns": structured_response.medical_concerns,
+                            "patient_message": structured_response.original_message,
+                        },
+                        priority="critical",
+                        delay_seconds=0,
+                    )
+                )
 
             elif structured_response.concern_level == ConcernLevel.HIGH:
-                actions.append(FlowAction(
-                    action_type="schedule_provider_review",
-                    parameters={
-                        "concern_level": "high",
-                        "medical_concerns": structured_response.medical_concerns,
-                        "review_within_hours": 4
-                    },
-                    priority="high",
-                    delay_seconds=300  # 5 minutes
-                ))
+                actions.append(
+                    FlowAction(
+                        action_type="schedule_provider_review",
+                        parameters={
+                            "concern_level": "high",
+                            "medical_concerns": structured_response.medical_concerns,
+                            "review_within_hours": 4,
+                        },
+                        priority="high",
+                        delay_seconds=300,  # 5 minutes
+                    )
+                )
 
             # Action based on response type
             if structured_response.response_type == ResponseType.BUTTON:
-                actions.append(FlowAction(
-                    action_type="process_button_response",
-                    parameters={
-                        "button_value": structured_response.extracted_data.get("button_value"),
-                        "flow_context": structured_response.extracted_data.get("flow_context", {})
-                    },
-                    priority="normal",
-                    delay_seconds=0
-                ))
+                actions.append(
+                    FlowAction(
+                        action_type="process_button_response",
+                        parameters={
+                            "button_value": structured_response.extracted_data.get(
+                                "button_value"
+                            ),
+                            "flow_context": structured_response.extracted_data.get(
+                                "flow_context", {}
+                            ),
+                        },
+                        priority="normal",
+                        delay_seconds=0,
+                    )
+                )
 
             # Action based on extracted patterns
             if structured_response.extracted_data.get("boolean_response") is not None:
-                actions.append(FlowAction(
-                    action_type="process_boolean_response",
-                    parameters={
-                        "response_value": structured_response.extracted_data["boolean_response"],
-                        "context": structured_response.extracted_data.get("flow_context", {})
-                    },
-                    priority="normal",
-                    delay_seconds=0
-                ))
+                actions.append(
+                    FlowAction(
+                        action_type="process_boolean_response",
+                        parameters={
+                            "response_value": structured_response.extracted_data[
+                                "boolean_response"
+                            ],
+                            "context": structured_response.extracted_data.get(
+                                "flow_context", {}
+                            ),
+                        },
+                        priority="normal",
+                        delay_seconds=0,
+                    )
+                )
 
             return actions
 
@@ -92,8 +105,9 @@ class FlowHelpers:
             return []
 
     @staticmethod
-    async def generate_follow_up_message(structured_response: StructuredResponse,
-                                        flow_state: Optional[PatientFlowState]) -> Optional[str]:
+    async def generate_follow_up_message(
+        structured_response: StructuredResponse, flow_state: Optional[PatientFlowState]
+    ) -> Optional[str]:
         """
         Generate follow-up message based on response analysis.
 
@@ -106,7 +120,10 @@ class FlowHelpers:
         """
         try:
             # Generate empathetic follow-up for high concern responses
-            if structured_response.concern_level in [ConcernLevel.HIGH, ConcernLevel.CRITICAL]:
+            if structured_response.concern_level in [
+                ConcernLevel.HIGH,
+                ConcernLevel.CRITICAL,
+            ]:
                 return "Obrigada por compartilhar isso comigo. Vou conectar você com sua equipe médica."
 
             # Generate acknowledgment for positive responses
@@ -130,8 +147,9 @@ class FlowHelpers:
             return None
 
     @staticmethod
-    async def prepare_state_updates(structured_response: StructuredResponse,
-                                   flow_state: Optional[PatientFlowState]) -> Optional[dict[str, Any]]:
+    async def prepare_state_updates(
+        structured_response: StructuredResponse, flow_state: Optional[PatientFlowState]
+    ) -> Optional[dict[str, Any]]:
         """
         Prepare state updates based on response analysis.
 
@@ -154,7 +172,7 @@ class FlowHelpers:
                 "type": structured_response.response_type.value,
                 "sentiment": structured_response.sentiment_analysis.get("sentiment"),
                 "concern_level": structured_response.concern_level.value,
-                "requires_attention": structured_response.requires_attention
+                "requires_attention": structured_response.requires_attention,
             }
 
             # Update extracted patterns
@@ -183,7 +201,8 @@ class FlowHelpers:
             True if escalation required
         """
         return (
-            structured_response.concern_level in [ConcernLevel.HIGH, ConcernLevel.CRITICAL] or
-            structured_response.requires_attention or
-            bool(structured_response.medical_concerns)
+            structured_response.concern_level
+            in [ConcernLevel.HIGH, ConcernLevel.CRITICAL]
+            or structured_response.requires_attention
+            or bool(structured_response.medical_concerns)
         )

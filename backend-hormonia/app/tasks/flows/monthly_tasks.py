@@ -4,6 +4,7 @@ Monthly quiz related tasks.
 This module contains Celery tasks for processing monthly quizzes and generating
 quiz reports for patients.
 """
+
 import asyncio
 import logging
 from typing import Any
@@ -19,7 +20,9 @@ from .base import FlowTaskBase
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(bind=True, base=FlowTaskBase, max_retries=None, default_retry_delay=None)
+@celery_app.task(
+    bind=True, base=FlowTaskBase, max_retries=None, default_retry_delay=None
+)
 def process_monthly_quizzes(self, limit: int = 50) -> dict[str, Any]:
     """
     Process monthly quiz triggers for eligible patients.
@@ -52,7 +55,10 @@ def process_monthly_quizzes(self, limit: int = 50) -> dict[str, Any]:
 
         try:
             # Initialize quiz trigger service
-            from app.domain.quizzes.integration.flow_integration import get_quiz_trigger_service
+            from app.domain.quizzes.integration.flow_integration import (
+                get_quiz_trigger_service,
+            )
+
             quiz_trigger_service = get_quiz_trigger_service(db)
 
             # Check and trigger monthly quizzes using proper async handling
@@ -61,16 +67,23 @@ def process_monthly_quizzes(self, limit: int = 50) -> dict[str, Any]:
                 asyncio.set_event_loop(loop)
                 try:
                     results = loop.run_until_complete(
-                        quiz_trigger_service.check_and_trigger_monthly_quizzes(limit=limit)
+                        quiz_trigger_service.check_and_trigger_monthly_quizzes(
+                            limit=limit
+                        )
                     )
                 finally:
                     loop.close()
             except RuntimeError as e:
                 if "cannot be called from a running event loop" in str(e):
                     import concurrent.futures
+
                     with concurrent.futures.ThreadPoolExecutor() as executor:
                         future = executor.submit(
-                            lambda: asyncio.run(quiz_trigger_service.check_and_trigger_monthly_quizzes(limit=limit))
+                            lambda: asyncio.run(
+                                quiz_trigger_service.check_and_trigger_monthly_quizzes(
+                                    limit=limit
+                                )
+                            )
                         )
                         results = future.result(timeout=QUIZ_PROCESSING_TIMEOUT)
                 else:
@@ -88,15 +101,26 @@ def process_monthly_quizzes(self, limit: int = 50) -> dict[str, Any]:
         # Retry with exponential backoff
         if self.request.retries < self.max_retries:
             from app.config.settings.tasks import get_retry_countdown
-            retry_delay = get_retry_countdown(self.request.retries, QUIZ_PROCESSING_TIMEOUT)
-            logger.info(f"Retrying monthly quiz processing in {retry_delay} seconds (attempt {self.request.retries + 1})")
+
+            retry_delay = get_retry_countdown(
+                self.request.retries, QUIZ_PROCESSING_TIMEOUT
+            )
+            logger.info(
+                f"Retrying monthly quiz processing in {retry_delay} seconds (attempt {self.request.retries + 1})"
+            )
             raise self.retry(countdown=retry_delay, exc=e)
         else:
-            logger.error(f"Monthly quiz processing failed after {self.max_retries} attempts")
-            raise MaxRetriesExceededError(f"Task failed after {self.max_retries} retries: {e}")
+            logger.error(
+                f"Monthly quiz processing failed after {self.max_retries} attempts"
+            )
+            raise MaxRetriesExceededError(
+                f"Task failed after {self.max_retries} retries: {e}"
+            )
 
 
-@celery_app.task(bind=True, base=FlowTaskBase, max_retries=None, default_retry_delay=None)
+@celery_app.task(
+    bind=True, base=FlowTaskBase, max_retries=None, default_retry_delay=None
+)
 def generate_quiz_report(self, session_id: str) -> dict[str, Any]:
     """
     Generate medical report from completed quiz session.
@@ -114,7 +138,11 @@ def generate_quiz_report(self, session_id: str) -> dict[str, Any]:
     Raises:
         Exception: If report generation fails after all retries
     """
-    from app.config.settings.tasks import QUIZ_MAX_RETRIES, QUIZ_REPORT_TIMEOUT, QUIZ_REPORT_RETRY_DELAY
+    from app.config.settings.tasks import (
+        QUIZ_MAX_RETRIES,
+        QUIZ_REPORT_TIMEOUT,
+        QUIZ_REPORT_RETRY_DELAY,
+    )
 
     # Apply task limits from settings if not already set
     if not self.max_retries:
@@ -128,7 +156,10 @@ def generate_quiz_report(self, session_id: str) -> dict[str, Any]:
 
         try:
             # Initialize quiz report generator
-            from app.services.reporting.quiz_report_generator import get_quiz_report_generator
+            from app.services.reporting.quiz_report_generator import (
+                get_quiz_report_generator,
+            )
+
             report_generator = get_quiz_report_generator(db)
 
             # Generate report using proper async handling
@@ -144,9 +175,12 @@ def generate_quiz_report(self, session_id: str) -> dict[str, Any]:
             except RuntimeError as e:
                 if "cannot be called from a running event loop" in str(e):
                     import concurrent.futures
+
                     with concurrent.futures.ThreadPoolExecutor() as executor:
                         future = executor.submit(
-                            lambda: asyncio.run(report_generator.generate_quiz_report(UUID(session_id)))
+                            lambda: asyncio.run(
+                                report_generator.generate_quiz_report(UUID(session_id))
+                            )
                         )
                         report_id = future.result(timeout=QUIZ_REPORT_TIMEOUT)
                 else:
@@ -156,7 +190,7 @@ def generate_quiz_report(self, session_id: str) -> dict[str, Any]:
                 "status": "success",
                 "session_id": session_id,
                 "report_id": str(report_id),
-                "generated_at": datetime.utcnow().isoformat()
+                "generated_at": datetime.utcnow().isoformat(),
             }
 
             logger.info(f"Quiz report generated successfully: {result}")
@@ -171,14 +205,21 @@ def generate_quiz_report(self, session_id: str) -> dict[str, Any]:
         # Retry with exponential backoff
         if self.request.retries < self.max_retries:
             from app.config.settings.tasks import get_retry_countdown
-            retry_delay = get_retry_countdown(self.request.retries, QUIZ_REPORT_RETRY_DELAY)
-            logger.info(f"Retrying quiz report generation in {retry_delay} seconds (attempt {self.request.retries + 1})")
+
+            retry_delay = get_retry_countdown(
+                self.request.retries, QUIZ_REPORT_RETRY_DELAY
+            )
+            logger.info(
+                f"Retrying quiz report generation in {retry_delay} seconds (attempt {self.request.retries + 1})"
+            )
             raise self.retry(countdown=retry_delay, exc=e)
         else:
-            logger.error(f"Quiz report generation failed after {self.max_retries} attempts")
+            logger.error(
+                f"Quiz report generation failed after {self.max_retries} attempts"
+            )
             return {
                 "status": "failed",
                 "session_id": session_id,
                 "error": str(e),
-                "failed_at": datetime.utcnow().isoformat()
+                "failed_at": datetime.utcnow().isoformat(),
             }

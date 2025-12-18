@@ -2,10 +2,10 @@
 Data aggregation and analysis for quiz responses.
 Handles metrics calculation, trend analysis, and health score computation.
 """
+
 import logging
 import statistics
 from typing import Any, List, Optional, Tuple
-from datetime import datetime
 from uuid import UUID
 import json
 
@@ -32,35 +32,50 @@ class QuizDataAggregator:
         self.response_repo = QuizResponseRepository(db)
         self.gemini_client = get_gemini_client()
 
-    async def calculate_quiz_metrics(self,
-                                    session: QuizSession,
-                                    responses: List[QuizResponse]) -> QuizMetrics:
+    async def calculate_quiz_metrics(
+        self, session: QuizSession, responses: List[QuizResponse]
+    ) -> QuizMetrics:
         """Calculate basic quiz metrics."""
         try:
             # Get template to count total questions
             from app.services.quiz import QuizTemplateService
+
             template_service = QuizTemplateService(self.db)
             template = template_service.get_template(session.quiz_template_id)
 
             total_questions = len(template.questions)
             answered_questions = len(responses)
-            completion_rate = (answered_questions / total_questions) * 100 if total_questions > 0 else 0
+            completion_rate = (
+                (answered_questions / total_questions) * 100
+                if total_questions > 0
+                else 0
+            )
 
             # Calculate average response time
             response_times = []
             if session.started_at and responses:
-                for i, response in enumerate(sorted(responses, key=lambda r: r.responded_at)):  # type: ignore[arg-type,return-value]
+                for i, response in enumerate(
+                    sorted(responses, key=lambda r: r.responded_at)
+                ):  # type: ignore[arg-type,return-value]
                     if i == 0:
                         # First response time from session start
-                        time_diff = (response.responded_at - session.started_at).total_seconds()
+                        time_diff = (
+                            response.responded_at - session.started_at
+                        ).total_seconds()
                     else:
                         # Time between responses
-                        prev_response = sorted(responses, key=lambda r: r.responded_at)[i-1]  # type: ignore[arg-type,return-value]
-                        time_diff = (response.responded_at - prev_response.responded_at).total_seconds()
+                        prev_response = sorted(responses, key=lambda r: r.responded_at)[
+                            i - 1
+                        ]  # type: ignore[arg-type,return-value]
+                        time_diff = (
+                            response.responded_at - prev_response.responded_at
+                        ).total_seconds()
 
                     response_times.append(time_diff)
 
-            average_response_time = statistics.mean(response_times) if response_times else None
+            average_response_time = (
+                statistics.mean(response_times) if response_times else None
+            )
 
             # Calculate response quality score (based on completeness and consistency)
             quality_score = await self.calculate_response_quality_score(responses)
@@ -79,14 +94,16 @@ class QuizDataAggregator:
                 answered_questions=answered_questions,
                 completion_rate=completion_rate,
                 average_response_time=average_response_time,
-                response_quality_score=quality_score
+                response_quality_score=quality_score,
             )
 
         except Exception as e:
             logger.error(f"Error calculating quiz metrics: {e}")
             raise
 
-    async def calculate_response_quality_score(self, responses: List[QuizResponse]) -> float:
+    async def calculate_response_quality_score(
+        self, responses: List[QuizResponse]
+    ) -> float:
         """Calculate response quality score based on completeness and consistency."""
         try:
             if not responses:
@@ -95,15 +112,21 @@ class QuizDataAggregator:
             quality_factors = []
 
             # Completeness factor
-            non_empty_responses = [r for r in responses if r.response_value and r.response_value.strip()]
+            non_empty_responses = [
+                r for r in responses if r.response_value and r.response_value.strip()
+            ]
             completeness = len(non_empty_responses) / len(responses)
             quality_factors.append(completeness)
 
             # Response length factor (for text responses)
             text_responses = [r for r in responses if r.response_type == "open_text"]
             if text_responses:
-                avg_length = statistics.mean([len(r.response_value) for r in text_responses])
-                length_score = min(avg_length / 50, 1.0)  # Normalize to 0-1, 50 chars = 1.0
+                avg_length = statistics.mean(
+                    [len(r.response_value) for r in text_responses]
+                )
+                length_score = min(
+                    avg_length / 50, 1.0
+                )  # Normalize to 0-1, 50 chars = 1.0
                 quality_factors.append(length_score)
 
             # Consistency factor (responses that make sense in context)
@@ -117,7 +140,9 @@ class QuizDataAggregator:
             logger.error(f"Error calculating response quality score: {e}")
             return 0.0
 
-    async def _assess_response_consistency(self, responses: List[QuizResponse]) -> float:
+    async def _assess_response_consistency(
+        self, responses: List[QuizResponse]
+    ) -> float:
         """Assess consistency of responses using AI."""
         try:
             if len(responses) < 2:
@@ -126,11 +151,13 @@ class QuizDataAggregator:
             # Create context for AI analysis
             response_context = []
             for response in responses:
-                response_context.append({
-                    "question": response.question_text,
-                    "answer": response.response_value,
-                    "type": response.response_type
-                })
+                response_context.append(
+                    {
+                        "question": response.question_text,
+                        "answer": response.response_value,
+                        "type": response.response_type,
+                    }
+                )
 
             prompt = f"""
             Analise a consistência das seguintes respostas de um questionário médico:
@@ -162,10 +189,9 @@ class QuizDataAggregator:
             logger.error(f"Error assessing response consistency: {e}")
             return 0.7  # Default moderate consistency
 
-    async def analyze_response_trends(self,
-                                     patient_id: UUID,
-                                     template_id: UUID,
-                                     current_responses: List[QuizResponse]) -> List[ResponseTrend]:
+    async def analyze_response_trends(
+        self, patient_id: UUID, template_id: UUID, current_responses: List[QuizResponse]
+    ) -> List[ResponseTrend]:
         """Analyze trends in patient responses over time."""
         try:
             trends = []
@@ -189,14 +215,16 @@ class QuizDataAggregator:
                     if question_id not in question_responses:
                         question_responses[question_id] = {
                             "question_text": response.question_text,
-                            "responses": []
+                            "responses": [],
                         }
 
-                    question_responses[question_id]["responses"].append({
-                        "value": response.response_value,
-                        "date": session.completed_at,
-                        "session_id": session.id
-                    })
+                    question_responses[question_id]["responses"].append(
+                        {
+                            "value": response.response_value,
+                            "date": session.completed_at,
+                            "session_id": session.id,
+                        }
+                    )
 
             # Analyze trends for each question
             for question_id, data in question_responses.items():
@@ -211,7 +239,10 @@ class QuizDataAggregator:
                 previous_values = [r["value"] for r in sorted_responses[:-1]]
 
                 # Determine trend direction
-                trend_direction, change_percentage = await self._calculate_trend_direction(
+                (
+                    trend_direction,
+                    change_percentage,
+                ) = await self._calculate_trend_direction(
                     current_value, previous_values, question_id
                 )
 
@@ -227,7 +258,7 @@ class QuizDataAggregator:
                     previous_values=previous_values,
                     trend_direction=trend_direction,
                     change_percentage=change_percentage,
-                    significance_score=significance_score
+                    significance_score=significance_score,
                 )
 
                 trends.append(trend)
@@ -238,17 +269,18 @@ class QuizDataAggregator:
             logger.error(f"Error analyzing response trends: {e}")
             return []
 
-    async def _calculate_trend_direction(self,
-                                       current_value: Any,
-                                       previous_values: List[Any],
-                                       question_id: str) -> Tuple[TrendDirection, Optional[float]]:
+    async def _calculate_trend_direction(
+        self, current_value: Any, previous_values: List[Any], question_id: str
+    ) -> Tuple[TrendDirection, Optional[float]]:
         """Calculate trend direction and change percentage."""
         try:
             if not previous_values:
                 return TrendDirection.INSUFFICIENT_DATA, None
 
             # Handle numeric values (scale questions)
-            if self._is_numeric_response(current_value) and all(self._is_numeric_response(v) for v in previous_values):
+            if self._is_numeric_response(current_value) and all(
+                self._is_numeric_response(v) for v in previous_values
+            ):
                 current_num = float(current_value)
                 previous_nums = [float(v) for v in previous_values]
 
@@ -257,7 +289,9 @@ class QuizDataAggregator:
 
                 # Calculate change percentage
                 if avg_previous != 0:
-                    change_percentage = ((current_num - avg_previous) / avg_previous) * 100
+                    change_percentage = (
+                        (current_num - avg_previous) / avg_previous
+                    ) * 100
                 else:
                     change_percentage = 0.0
 
@@ -302,17 +336,25 @@ class QuizDataAggregator:
     def _is_positive_scale_question(self, question_id: str) -> bool:
         """Determine if higher values are positive for this question."""
         positive_indicators = [
-            "mood", "energy", "satisfaction", "quality", "well", "good", "happy",
-            "confident", "motivated", "progress", "improvement"
+            "mood",
+            "energy",
+            "satisfaction",
+            "quality",
+            "well",
+            "good",
+            "happy",
+            "confident",
+            "motivated",
+            "progress",
+            "improvement",
         ]
 
         question_id_lower = question_id.lower()
         return any(indicator in question_id_lower for indicator in positive_indicators)
 
-    async def _assess_categorical_trend(self,
-                                      current_value: str,
-                                      previous_values: List[str],
-                                      question_id: str) -> TrendDirection:
+    async def _assess_categorical_trend(
+        self, current_value: str, previous_values: List[str], question_id: str
+    ) -> TrendDirection:
         """Use AI to assess trend for categorical responses."""
         try:
             prompt = f"""
@@ -344,10 +386,12 @@ class QuizDataAggregator:
             logger.error(f"Error assessing categorical trend: {e}")
             return TrendDirection.INSUFFICIENT_DATA
 
-    async def _calculate_trend_significance(self,
-                                          current_value: Any,
-                                          previous_values: List[Any],
-                                          trend_direction: TrendDirection) -> float:
+    async def _calculate_trend_significance(
+        self,
+        current_value: Any,
+        previous_values: List[Any],
+        trend_direction: TrendDirection,
+    ) -> float:
         """Calculate significance score for trend."""
         try:
             if trend_direction == TrendDirection.INSUFFICIENT_DATA:
@@ -356,7 +400,10 @@ class QuizDataAggregator:
             # Base significance on trend direction
             if trend_direction == TrendDirection.STABLE:
                 return 0.3
-            elif trend_direction in [TrendDirection.IMPROVING, TrendDirection.DECLINING]:
+            elif trend_direction in [
+                TrendDirection.IMPROVING,
+                TrendDirection.DECLINING,
+            ]:
                 # Higher significance for consistent trends
                 if len(previous_values) >= 3:
                     return 0.8
@@ -369,9 +416,9 @@ class QuizDataAggregator:
             logger.error(f"Error calculating trend significance: {e}")
             return 0.0
 
-    async def calculate_health_score(self,
-                                    responses: List[QuizResponse],
-                                    insights: List[MedicalInsight]) -> float:
+    async def calculate_health_score(
+        self, responses: List[QuizResponse], insights: List[MedicalInsight]
+    ) -> float:
         """Calculate overall health score based on responses and insights."""
         try:
             if not responses:
@@ -380,7 +427,9 @@ class QuizDataAggregator:
             score_factors = []
 
             # Factor 1: Response completeness
-            completeness = len([r for r in responses if r.response_value and r.response_value.strip()]) / len(responses)
+            completeness = len(
+                [r for r in responses if r.response_value and r.response_value.strip()]
+            ) / len(responses)
             score_factors.append(completeness * 100)
 
             # Factor 2: Positive responses in scale questions

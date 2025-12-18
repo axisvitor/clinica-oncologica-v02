@@ -64,9 +64,7 @@ async def get_system_stats(
         db.query(func.count(User.id)).filter(User.is_active.is_(True)).scalar() or 0
     )
     new_users = (
-        db.query(func.count(User.id))
-        .filter(User.created_at >= start_of_month)
-        .scalar()
+        db.query(func.count(User.id)).filter(User.created_at >= start_of_month).scalar()
         or 0
     )
 

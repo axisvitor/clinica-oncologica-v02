@@ -78,7 +78,7 @@ def list_tasks(
     task_type_filter: Optional[str] = None,
     priority_filter: Optional[str] = None,
     start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None,
 ) -> List[Dict[str, Any]]:
     """
     List tasks with optional filters.

@@ -2,6 +2,7 @@
 Temporal Analyzer
 Analyzes temporal consistency and date-related corruption.
 """
+
 import logging
 from datetime import datetime
 from .base import BaseAnalyzer
@@ -33,7 +34,7 @@ class TemporalAnalyzer(BaseAnalyzer):
                         description="Birth date is in the future",
                         detection_method="temporal_validation",
                         examples=[f"Patient {patient.id}: {patient.birth_date}"],
-                        confidence=0.95
+                        confidence=0.95,
                     )
 
                 # Check if birth date is too far in the past
@@ -46,7 +47,7 @@ class TemporalAnalyzer(BaseAnalyzer):
                         description="Birth date is unrealistically old",
                         detection_method="temporal_validation",
                         examples=[f"Patient {patient.id}: {patient.birth_date}"],
-                        confidence=0.8
+                        confidence=0.8,
                     )
 
             # Check treatment start date
@@ -59,12 +60,17 @@ class TemporalAnalyzer(BaseAnalyzer):
                         severity="medium",
                         description="Treatment start date is in the future",
                         detection_method="temporal_validation",
-                        examples=[f"Patient {patient.id}: {patient.treatment_start_date}"],
-                        confidence=0.9
+                        examples=[
+                            f"Patient {patient.id}: {patient.treatment_start_date}"
+                        ],
+                        confidence=0.9,
                     )
 
                 # Check if treatment started before birth
-                if patient.birth_date and patient.treatment_start_date < patient.birth_date:
+                if (
+                    patient.birth_date
+                    and patient.treatment_start_date < patient.birth_date
+                ):
                     self._add_pattern(
                         type=CorruptionType.TEMPORAL_CORRUPTION,
                         field="patient.treatment_start_date",
@@ -72,12 +78,16 @@ class TemporalAnalyzer(BaseAnalyzer):
                         severity="critical",
                         description="Treatment started before birth date",
                         detection_method="temporal_validation",
-                        examples=[f"Patient {patient.id}: Treatment {patient.treatment_start_date}, Birth {patient.birth_date}"],
-                        confidence=1.0
+                        examples=[
+                            f"Patient {patient.id}: Treatment {patient.treatment_start_date}, Birth {patient.birth_date}"
+                        ],
+                        confidence=1.0,
                     )
 
         except Exception as e:
-            logger.error(f"Temporal consistency analysis failed for patient {patient.id}: {e}")
+            logger.error(
+                f"Temporal consistency analysis failed for patient {patient.id}: {e}"
+            )
 
     async def analyze_flow_temporal(self, flow) -> None:
         """Analyze temporal consistency for flow data"""
@@ -94,7 +104,7 @@ class TemporalAnalyzer(BaseAnalyzer):
                     description="Flow started in the future",
                     detection_method="temporal_validation",
                     examples=[f"Flow {flow.id}: {flow.started_at}"],
-                    confidence=0.95
+                    confidence=0.95,
                 )
 
             # Check step progression vs time
@@ -108,8 +118,10 @@ class TemporalAnalyzer(BaseAnalyzer):
                         severity="medium",
                         description="Flow step progression faster than possible",
                         detection_method="progression_analysis",
-                        examples=[f"Flow {flow.id}: Step {flow.current_step} in {days_since_start} days"],
-                        confidence=0.8
+                        examples=[
+                            f"Flow {flow.id}: Step {flow.current_step} in {days_since_start} days"
+                        ],
+                        confidence=0.8,
                     )
 
         except Exception as e:
@@ -130,15 +142,16 @@ class TemporalAnalyzer(BaseAnalyzer):
                     description="Message created in the future",
                     detection_method="temporal_validation",
                     examples=[f"Message {message.id}: {message.created_at}"],
-                    confidence=0.95
+                    confidence=0.95,
                 )
 
             # Check if scheduled_for is in the past but status is still pending
-            if (message.scheduled_for and
-                message.scheduled_for < current_time and
-                hasattr(message, 'status') and
-                str(message.status) == 'PENDING'):
-
+            if (
+                message.scheduled_for
+                and message.scheduled_for < current_time
+                and hasattr(message, "status")
+                and str(message.status) == "PENDING"
+            ):
                 time_diff = (current_time - message.scheduled_for).total_seconds()
                 if time_diff > 3600:  # More than 1 hour overdue
                     self._add_pattern(
@@ -148,9 +161,13 @@ class TemporalAnalyzer(BaseAnalyzer):
                         severity="medium",
                         description="Message scheduled in past but still pending",
                         detection_method="temporal_validation",
-                        examples=[f"Message {message.id}: Scheduled {message.scheduled_for}, still pending"],
-                        confidence=0.7
+                        examples=[
+                            f"Message {message.id}: Scheduled {message.scheduled_for}, still pending"
+                        ],
+                        confidence=0.7,
                     )
 
         except Exception as e:
-            logger.error(f"Message temporal analysis failed for message {message.id}: {e}")
+            logger.error(
+                f"Message temporal analysis failed for message {message.id}: {e}"
+            )

@@ -26,16 +26,10 @@ from .audit import router as audit_router
 router = APIRouter()
 
 # Include sub-routers
-router.include_router(
-    dlq_router,
-    prefix="/dlq",
-    tags=["Admin Extensions - DLQ"]
-)
+router.include_router(dlq_router, prefix="/dlq", tags=["Admin Extensions - DLQ"])
 
 router.include_router(
-    audit_router,
-    prefix="/audit-logs",
-    tags=["Admin Extensions - Audit Logs"]
+    audit_router, prefix="/audit-logs", tags=["Admin Extensions - Audit Logs"]
 )
 
 __all__ = ["router"]

@@ -24,10 +24,8 @@ from datetime import datetime
 
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Session
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +33,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class QueryEvent:
     """Single query execution event"""
+
     statement: str
     parameters: Any
     execution_time_ms: float
@@ -45,6 +44,7 @@ class QueryEvent:
 @dataclass
 class RequestQueryStats:
     """Query statistics for a single request"""
+
     correlation_id: str
     total_queries: int = 0
     total_time_ms: float = 0.0
@@ -89,7 +89,7 @@ class QueryMonitor:
         correlation_id: str,
         statement: str,
         parameters: Any,
-        execution_time_ms: float
+        execution_time_ms: float,
     ) -> None:
         """Record a query execution"""
         if not self._enabled or correlation_id not in self._request_stats:
@@ -102,7 +102,7 @@ class QueryMonitor:
             statement=statement,
             parameters=parameters,
             execution_time_ms=execution_time_ms,
-            correlation_id=correlation_id
+            correlation_id=correlation_id,
         )
 
         # Update statistics
@@ -164,7 +164,8 @@ class QueryMonitor:
         # Simple signature: remove specific values
         # In production, you'd use a more sophisticated normalization
         import re
-        normalized = re.sub(r'\b\d+\b', '?', statement)  # Replace numbers
+
+        normalized = re.sub(r"\b\d+\b", "?", statement)  # Replace numbers
         normalized = re.sub(r"'[^']*'", "'?'", normalized)  # Replace strings
         return normalized[:500]  # Limit length
 
@@ -210,10 +211,7 @@ class QueryMonitorMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         # Generate correlation ID
-        correlation_id = request.headers.get(
-            "X-Correlation-ID",
-            str(uuid.uuid4())
-        )
+        correlation_id = request.headers.get("X-Correlation-ID", str(uuid.uuid4()))
 
         # Start monitoring
         _global_monitor.start_request(correlation_id)
@@ -236,11 +234,13 @@ class QueryMonitorMiddleware(BaseHTTPMiddleware):
                     response.headers["X-N1-Detected"] = "true"
 
                 if stats.duplicate_queries > 0:
-                    response.headers["X-Duplicate-Queries"] = str(stats.duplicate_queries)
+                    response.headers["X-Duplicate-Queries"] = str(
+                        stats.duplicate_queries
+                    )
 
             return response
 
-        except Exception as e:
+        except Exception:
             # Clean up on error
             _global_monitor.end_request(correlation_id)
             raise
@@ -259,20 +259,23 @@ def setup_query_monitoring(engine: Engine) -> None:
 
         setup_query_monitoring(engine)
     """
+
     @event.listens_for(engine, "before_cursor_execute")
-    def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    def before_cursor_execute(
+        conn, cursor, statement, parameters, context, executemany
+    ):
         # Store start time
-        conn.info.setdefault('query_start_time', []).append(time.time())
+        conn.info.setdefault("query_start_time", []).append(time.time())
 
     @event.listens_for(engine, "after_cursor_execute")
     def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
         # Calculate execution time
-        if 'query_start_time' in conn.info and conn.info['query_start_time']:
-            start_time = conn.info['query_start_time'].pop()
+        if "query_start_time" in conn.info and conn.info["query_start_time"]:
+            start_time = conn.info["query_start_time"].pop()
             execution_time_ms = (time.time() - start_time) * 1000
 
             # Get correlation ID from context (if available)
-            correlation_id = getattr(context, 'correlation_id', None)
+            correlation_id = getattr(context, "correlation_id", None)
 
             if correlation_id:
                 # Record query
@@ -280,7 +283,7 @@ def setup_query_monitoring(engine: Engine) -> None:
                     correlation_id=correlation_id,
                     statement=statement,
                     parameters=parameters,
-                    execution_time_ms=execution_time_ms
+                    execution_time_ms=execution_time_ms,
                 )
             else:
                 # Log without correlation ID
@@ -340,7 +343,7 @@ def log_query_summary(correlation_id: str) -> None:
         f"Slow Queries: {stats.slow_queries}",
         f"Duplicate Queries: {stats.duplicate_queries}",
         f"N+1 Detected: {stats.n1_detected}",
-        f"{'-' * 80}"
+        f"{'-' * 80}",
     ]
 
     # Add individual query details
@@ -355,7 +358,7 @@ def log_query_summary(correlation_id: str) -> None:
 
     message.append(f"{'=' * 80}\n")
 
-    logger.info('\n'.join(message))
+    logger.info("\n".join(message))
 
 
 # Convenience functions for external use

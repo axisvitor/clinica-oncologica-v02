@@ -30,7 +30,9 @@ class FlowRecoveryStrategy:
         try:
             await self.handler(context)
         except Exception as exc:
-            logger.exception("Recovery handler failed for flow %s: %s", context.flow_id, exc)
+            logger.exception(
+                "Recovery handler failed for flow %s: %s", context.flow_id, exc
+            )
             raise
 
 

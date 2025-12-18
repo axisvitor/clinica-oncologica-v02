@@ -32,14 +32,14 @@ logger = logging.getLogger(__name__)
     - View appointment details
 
     **Rate Limit**: 60 requests/minute
-    """
+    """,
 )
 @limiter.limit("60/minute")
 async def get_physician_schedule(
     request: Request,
     physician_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
     start_date: date = Query(..., description="Schedule start date"),
     end_date: date = Query(..., description="Schedule end date"),
 ):
@@ -49,7 +49,7 @@ async def get_physician_schedule(
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid physician ID format"
+            detail="Invalid physician ID format",
         )
 
     # Validate access
@@ -59,9 +59,7 @@ async def get_physician_schedule(
 
     # Get schedule
     availability_service = PhysicianAvailabilityService(db)
-    schedule = availability_service.get_schedule(
-        physician_uuid, start_date, end_date
-    )
+    schedule = availability_service.get_schedule(physician_uuid, start_date, end_date)
 
     return schedule
 
@@ -73,16 +71,20 @@ async def get_physician_schedule(
     Check if physician is available at a specific datetime.
 
     **Rate Limit**: 60 requests/minute
-    """
+    """,
 )
 @limiter.limit("60/minute")
 async def check_physician_availability(
     request: Request,
     physician_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
-    requested_datetime: datetime = Query(..., description="Requested appointment datetime"),
-    duration_minutes: int = Query(30, ge=15, le=120, description="Appointment duration"),
+    current_user=Depends(get_current_user_from_session),
+    requested_datetime: datetime = Query(
+        ..., description="Requested appointment datetime"
+    ),
+    duration_minutes: int = Query(
+        30, ge=15, le=120, description="Appointment duration"
+    ),
 ):
     """Check if physician is available at a specific datetime."""
     try:
@@ -90,13 +92,11 @@ async def check_physician_availability(
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid physician ID format"
+            detail="Invalid physician ID format",
         )
 
     # Validate access
-    validate_physician_access(
-        physician_uuid, current_user, db, allow_patient_view=True
-    )
+    validate_physician_access(physician_uuid, current_user, db, allow_patient_view=True)
 
     # Check availability
     availability_service = PhysicianAvailabilityService(db)
@@ -119,14 +119,14 @@ async def check_physician_availability(
     Find the next available appointment slot for a physician.
 
     **Rate Limit**: 60 requests/minute
-    """
+    """,
 )
 @limiter.limit("60/minute")
 async def get_next_available_slot(
     request: Request,
     physician_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
     after_datetime: datetime = Query(None, description="Search after this datetime"),
     duration_minutes: int = Query(30, ge=15, le=120, description="Required duration"),
     max_days_ahead: int = Query(30, ge=1, le=90, description="Maximum days to search"),
@@ -137,13 +137,11 @@ async def get_next_available_slot(
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid physician ID format"
+            detail="Invalid physician ID format",
         )
 
     # Validate access
-    validate_physician_access(
-        physician_uuid, current_user, db, allow_patient_view=True
-    )
+    validate_physician_access(physician_uuid, current_user, db, allow_patient_view=True)
 
     # Find next available slot
     availability_service = PhysicianAvailabilityService(db)
@@ -155,7 +153,7 @@ async def get_next_available_slot(
         return {
             "physician_id": str(physician_uuid),
             "next_available": None,
-            "message": f"No available slots found within {max_days_ahead} days"
+            "message": f"No available slots found within {max_days_ahead} days",
         }
 
     return {

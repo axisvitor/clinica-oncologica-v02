@@ -22,13 +22,13 @@ Migration Note:
 """
 
 from typing import Dict, Any, Optional, List, Callable, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 import logging
 import asyncio
 from uuid import UUID
 
-from ..types import FlowContext, FlowStatus, FlowStepData, FlowStepStatus
+from ..types import FlowContext, FlowStatus
 from ..config import get_flow_config
 
 logger = logging.getLogger(__name__)
@@ -415,7 +415,7 @@ class FlowErrorHandler:
 
     def _classify_error(self, error: Exception) -> ErrorCategory:
         """Classify error into a category."""
-        error_type = type(error).__name__
+        type(error).__name__
         error_message = str(error).lower()
 
         # Validation errors

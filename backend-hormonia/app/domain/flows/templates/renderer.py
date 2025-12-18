@@ -28,7 +28,7 @@ class TemplateRenderer:
     def __init__(
         self,
         template_loader: EnhancedTemplateLoader,
-        flow_template_loader: FlowTemplateLoader
+        flow_template_loader: FlowTemplateLoader,
     ):
         """
         Initialize TemplateRenderer.
@@ -67,9 +67,7 @@ class TemplateRenderer:
             return None
 
     async def get_message_template_for_day(
-        self,
-        flow_type: str,
-        day: int
+        self, flow_type: str, day: int
     ) -> Optional[MessageTemplate]:
         """
         Get message template for specific flow type and day.
@@ -86,7 +84,9 @@ class TemplateRenderer:
             from app.services.enhanced_flow_engine import FlowType
 
             flow_type_enum = FlowType(flow_type)
-            flow_template = self.template_loader.load_flow_template(flow_type_enum.value)
+            flow_template = self.template_loader.load_flow_template(
+                flow_type_enum.value
+            )
 
             if day in flow_template.messages:
                 template = flow_template.messages[day]
@@ -101,9 +101,7 @@ class TemplateRenderer:
             return None
 
     def validate_template_availability(
-        self,
-        flow_type: str,
-        days: list[int]
+        self, flow_type: str, days: list[int]
     ) -> Dict[int, bool]:
         """
         Validate template availability for multiple days.
@@ -121,7 +119,9 @@ class TemplateRenderer:
             from app.services.enhanced_flow_engine import FlowType
 
             flow_type_enum = FlowType(flow_type)
-            flow_template = self.template_loader.load_flow_template(flow_type_enum.value)
+            flow_template = self.template_loader.load_flow_template(
+                flow_type_enum.value
+            )
 
             for day in days:
                 availability[day] = day in flow_template.messages
@@ -137,9 +137,7 @@ class TemplateRenderer:
         return availability
 
     def get_template_metadata(
-        self,
-        flow_type: str,
-        day: int
+        self, flow_type: str, day: int
     ) -> Optional[Dict[str, Any]]:
         """
         Get metadata for a specific template.
@@ -155,15 +153,19 @@ class TemplateRenderer:
             from app.services.enhanced_flow_engine import FlowType
 
             flow_type_enum = FlowType(flow_type)
-            flow_template = self.template_loader.load_flow_template(flow_type_enum.value)
+            flow_template = self.template_loader.load_flow_template(
+                flow_type_enum.value
+            )
 
             if day in flow_template.messages:
                 template = flow_template.messages[day]
                 return {
-                    'intent': template.intent,
-                    'day': template.day,
-                    'has_content': bool(template.base_content),
-                    'content_length': len(template.base_content) if template.base_content else 0
+                    "intent": template.intent,
+                    "day": template.day,
+                    "has_content": bool(template.base_content),
+                    "content_length": len(template.base_content)
+                    if template.base_content
+                    else 0,
                 }
 
             return None

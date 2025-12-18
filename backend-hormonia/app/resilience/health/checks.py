@@ -8,9 +8,8 @@ import time
 import asyncio
 import psutil
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from sqlalchemy import create_engine, text
-from sqlalchemy.exc import OperationalError
 
 from .checker import HealthCheck, HealthResult, HealthStatus
 
@@ -18,11 +17,13 @@ from .checker import HealthCheck, HealthResult, HealthStatus
 class DatabaseHealthCheck(HealthCheck):
     """Database connectivity and performance health check"""
 
-    def __init__(self,
-                 database_url: str,
-                 name: str = "database",
-                 timeout: float = 10.0,
-                 slow_query_threshold: float = 1.0):
+    def __init__(
+        self,
+        database_url: str,
+        name: str = "database",
+        timeout: float = 10.0,
+        slow_query_threshold: float = 1.0,
+    ):
         super().__init__(name, timeout)
         self.database_url = database_url
         self.slow_query_threshold = slow_query_threshold
@@ -34,16 +35,14 @@ class DatabaseHealthCheck(HealthCheck):
         try:
             # Create engine for this check
             engine = create_engine(
-                self.database_url,
-                pool_pre_ping=True,
-                pool_recycle=300
+                self.database_url, pool_pre_ping=True, pool_recycle=300
             )
 
             # Test basic connectivity
             with engine.connect() as conn:
                 # Simple query to test connectivity
                 query_start = time.time()
-                result = conn.execute(text("SELECT 1"))
+                conn.execute(text("SELECT 1"))
                 query_duration = time.time() - query_start
 
                 # Check if query is slow
@@ -67,11 +66,11 @@ class DatabaseHealthCheck(HealthCheck):
                     message=message,
                     duration=duration,
                     details={
-                        'query_duration': query_duration,
-                        'slow_query_threshold': self.slow_query_threshold,
-                        'is_slow': is_slow,
-                        **db_info
-                    }
+                        "query_duration": query_duration,
+                        "slow_query_threshold": self.slow_query_threshold,
+                        "is_slow": is_slow,
+                        **db_info,
+                    },
                 )
 
         except Exception as e:
@@ -81,7 +80,7 @@ class DatabaseHealthCheck(HealthCheck):
                 status=HealthStatus.UNHEALTHY,
                 message=f"Database connection failed: {str(e)}",
                 duration=duration,
-                error=str(e)
+                error=str(e),
             )
 
     def _get_database_info(self, conn) -> Dict[str, Any]:
@@ -92,34 +91,37 @@ class DatabaseHealthCheck(HealthCheck):
             version = version_result.scalar()
 
             # Get connection count
-            conn_result = conn.execute(text(
-                "SELECT count(*) FROM pg_stat_activity WHERE state = 'active'"
-            ))
+            conn_result = conn.execute(
+                text("SELECT count(*) FROM pg_stat_activity WHERE state = 'active'")
+            )
             active_connections = conn_result.scalar()
 
             # Get database size
-            size_result = conn.execute(text(
-                "SELECT pg_size_pretty(pg_database_size(current_database()))"
-            ))
+            size_result = conn.execute(
+                text("SELECT pg_size_pretty(pg_database_size(current_database()))")
+            )
             database_size = size_result.scalar()
 
             return {
-                'version': version,
-                'active_connections': active_connections,
-                'database_size': database_size
+                "version": version,
+                "active_connections": active_connections,
+                "database_size": database_size,
             }
 
         except Exception as e:
-            return {'info_error': str(e)}
+            return {"info_error": str(e)}
+
 
 class DiskSpaceHealthCheck(HealthCheck):
     """Disk space health check"""
 
-    def __init__(self,
-                 path: str = "/",
-                 warning_threshold: float = 80.0,
-                 critical_threshold: float = 90.0,
-                 name: str = "disk_space"):
+    def __init__(
+        self,
+        path: str = "/",
+        warning_threshold: float = 80.0,
+        critical_threshold: float = 90.0,
+        name: str = "disk_space",
+    ):
         super().__init__(name)
         self.path = Path(path)
         self.warning_threshold = warning_threshold
@@ -157,14 +159,14 @@ class DiskSpaceHealthCheck(HealthCheck):
                 message=message,
                 duration=duration,
                 details={
-                    'path': str(self.path),
-                    'total_gb': round(total_gb, 2),
-                    'used_gb': round(used_gb, 2),
-                    'free_gb': round(free_gb, 2),
-                    'used_percent': round(used_percent, 1),
-                    'warning_threshold': self.warning_threshold,
-                    'critical_threshold': self.critical_threshold
-                }
+                    "path": str(self.path),
+                    "total_gb": round(total_gb, 2),
+                    "used_gb": round(used_gb, 2),
+                    "free_gb": round(free_gb, 2),
+                    "used_percent": round(used_percent, 1),
+                    "warning_threshold": self.warning_threshold,
+                    "critical_threshold": self.critical_threshold,
+                },
             )
 
         except Exception as e:
@@ -174,17 +176,19 @@ class DiskSpaceHealthCheck(HealthCheck):
                 status=HealthStatus.UNHEALTHY,
                 message=f"Disk space check failed: {str(e)}",
                 duration=duration,
-                error=str(e)
+                error=str(e),
             )
 
 
 class MemoryHealthCheck(HealthCheck):
     """Memory usage health check"""
 
-    def __init__(self,
-                 warning_threshold: float = 80.0,
-                 critical_threshold: float = 90.0,
-                 name: str = "memory"):
+    def __init__(
+        self,
+        warning_threshold: float = 80.0,
+        critical_threshold: float = 90.0,
+        name: str = "memory",
+    ):
         super().__init__(name)
         self.warning_threshold = warning_threshold
         self.critical_threshold = critical_threshold
@@ -221,13 +225,13 @@ class MemoryHealthCheck(HealthCheck):
                 message=message,
                 duration=duration,
                 details={
-                    'total_gb': round(total_gb, 2),
-                    'used_gb': round(used_gb, 2),
-                    'available_gb': round(available_gb, 2),
-                    'used_percent': used_percent,
-                    'warning_threshold': self.warning_threshold,
-                    'critical_threshold': self.critical_threshold
-                }
+                    "total_gb": round(total_gb, 2),
+                    "used_gb": round(used_gb, 2),
+                    "available_gb": round(available_gb, 2),
+                    "used_percent": used_percent,
+                    "warning_threshold": self.warning_threshold,
+                    "critical_threshold": self.critical_threshold,
+                },
             )
 
         except Exception as e:
@@ -237,18 +241,20 @@ class MemoryHealthCheck(HealthCheck):
                 status=HealthStatus.UNHEALTHY,
                 message=f"Memory check failed: {str(e)}",
                 duration=duration,
-                error=str(e)
+                error=str(e),
             )
 
 
 class CPUHealthCheck(HealthCheck):
     """CPU usage health check"""
 
-    def __init__(self,
-                 warning_threshold: float = 80.0,
-                 critical_threshold: float = 95.0,
-                 interval: float = 1.0,
-                 name: str = "cpu"):
+    def __init__(
+        self,
+        warning_threshold: float = 80.0,
+        critical_threshold: float = 95.0,
+        interval: float = 1.0,
+        name: str = "cpu",
+    ):
         super().__init__(name)
         self.warning_threshold = warning_threshold
         self.critical_threshold = critical_threshold
@@ -261,8 +267,7 @@ class CPUHealthCheck(HealthCheck):
         try:
             # Get CPU usage with interval
             cpu_percent = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: psutil.cpu_percent(interval=self.cpu_interval)
+                None, lambda: psutil.cpu_percent(interval=self.cpu_interval)
             )
 
             # Get CPU info
@@ -291,28 +296,30 @@ class CPUHealthCheck(HealthCheck):
             duration = time.time() - start_time
 
             details = {
-                'cpu_percent': cpu_percent,
-                'cpu_count': cpu_count,
-                'cpu_count_logical': cpu_count_logical,
-                'warning_threshold': self.warning_threshold,
-                'critical_threshold': self.critical_threshold,
-                'measurement_interval': self.cpu_interval
+                "cpu_percent": cpu_percent,
+                "cpu_count": cpu_count,
+                "cpu_count_logical": cpu_count_logical,
+                "warning_threshold": self.warning_threshold,
+                "critical_threshold": self.critical_threshold,
+                "measurement_interval": self.cpu_interval,
             }
 
             # Add load averages if available
             if load_1min is not None:
-                details.update({
-                    'load_1min': load_1min,
-                    'load_5min': load_5min,
-                    'load_15min': load_15min
-                })
+                details.update(
+                    {
+                        "load_1min": load_1min,
+                        "load_5min": load_5min,
+                        "load_15min": load_15min,
+                    }
+                )
 
             return HealthResult(
                 name=self.name,
                 status=status,
                 message=message,
                 duration=duration,
-                details=details
+                details=details,
             )
 
         except Exception as e:
@@ -322,17 +329,14 @@ class CPUHealthCheck(HealthCheck):
                 status=HealthStatus.UNHEALTHY,
                 message=f"CPU check failed: {str(e)}",
                 duration=duration,
-                error=str(e)
+                error=str(e),
             )
 
 
 class RedisHealthCheck(HealthCheck):
     """Redis connectivity health check"""
 
-    def __init__(self,
-                 redis_url: str,
-                 name: str = "redis",
-                 timeout: float = 5.0):
+    def __init__(self, redis_url: str, name: str = "redis", timeout: float = 5.0):
         super().__init__(name, timeout)
         self.redis_url = redis_url
 
@@ -365,12 +369,12 @@ class RedisHealthCheck(HealthCheck):
                 message=f"Redis healthy (ping: {ping_duration:.3f}s)",
                 duration=duration,
                 details={
-                    'ping_duration': ping_duration,
-                    'redis_version': info.get('redis_version'),
-                    'connected_clients': info.get('connected_clients'),
-                    'used_memory_human': info.get('used_memory_human'),
-                    'uptime_in_seconds': info.get('uptime_in_seconds')
-                }
+                    "ping_duration": ping_duration,
+                    "redis_version": info.get("redis_version"),
+                    "connected_clients": info.get("connected_clients"),
+                    "used_memory_human": info.get("used_memory_human"),
+                    "uptime_in_seconds": info.get("uptime_in_seconds"),
+                },
             )
 
         except Exception as e:
@@ -380,5 +384,5 @@ class RedisHealthCheck(HealthCheck):
                 status=HealthStatus.UNHEALTHY,
                 message=f"Redis check failed: {str(e)}",
                 duration=duration,
-                error=str(e)
+                error=str(e),
             )

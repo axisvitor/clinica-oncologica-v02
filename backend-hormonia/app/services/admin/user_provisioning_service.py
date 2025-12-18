@@ -15,7 +15,6 @@ from typing import Optional, Dict, Any
 from app.models.user import User, UserRole
 from app.repositories.user import UserRepository
 from app.utils.security import get_password_hash
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +31,7 @@ class UserProvisioningService:
     """
 
     # Authorized email domains for auto-provisioning
-    AUTHORIZED_DOMAINS = ['oncologia.com', 'hospital.local', 'neoplasiaslitoral.com']
+    AUTHORIZED_DOMAINS = ["oncologia.com", "hospital.local", "neoplasiaslitoral.com"]
 
     def __init__(self, user_repository: UserRepository):
         """
@@ -44,9 +43,7 @@ class UserProvisioningService:
         self.user_repository = user_repository
 
     async def provision_user(
-        self,
-        email: str,
-        identity_profile: Dict[str, Any]
+        self, email: str, identity_profile: Dict[str, Any]
     ) -> Optional[User]:
         """
         Provision user from identity provider authentication data.
@@ -73,14 +70,16 @@ class UserProvisioningService:
         # Validate email domain
         if not self.validate_email_domain(email_lower):
             logger.warning(f"Unauthorized domain attempt: {email_lower}")
-            raise ValueError("Access denied. Only authorized medical professionals can access this system.")
+            raise ValueError(
+                "Access denied. Only authorized medical professionals can access this system."
+            )
 
         # Determine role
         role = self.assign_default_role(email_lower, identity_profile)
 
         # Extract metadata
-        metadata = identity_profile.get('user_metadata') or {}
-        full_name = metadata.get('full_name') or email_lower
+        metadata = identity_profile.get("user_metadata") or {}
+        full_name = metadata.get("full_name") or email_lower
 
         # Generate secure random password (not used, but required by schema)
         random_password = secrets.token_urlsafe(32)
@@ -94,7 +93,7 @@ class UserProvisioningService:
             "role": role,
             "is_active": True,
             "auto_provisioned": True,  # Track auto-provisioned users
-            "specialization": "Oncologia"  # Default specialization for doctors
+            "specialization": "Oncologia",  # Default specialization for doctors
         }
 
         try:
@@ -117,10 +116,10 @@ class UserProvisioningService:
         Returns:
             True if domain is authorized, False otherwise
         """
-        if '@' not in email:
+        if "@" not in email:
             return False
 
-        domain = email.split('@')[-1].lower()
+        domain = email.split("@")[-1].lower()
 
         # Check against authorized domains
         is_authorized = domain in self.AUTHORIZED_DOMAINS
@@ -131,9 +130,7 @@ class UserProvisioningService:
         return is_authorized
 
     def assign_default_role(
-        self,
-        email: str,
-        identity_profile: Optional[Dict[str, Any]] = None
+        self, email: str, identity_profile: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         Assign default role based on email domain and identity metadata.
@@ -152,27 +149,31 @@ class UserProvisioningService:
         """
         # Check identity provider metadata for role hint
         if identity_profile:
-            metadata = identity_profile.get('user_metadata') or {}
-            identity_role = metadata.get('role', '').lower()
+            metadata = identity_profile.get("user_metadata") or {}
+            identity_role = metadata.get("role", "").lower()
 
             # Admin role cannot be auto-provisioned (security policy)
-            if identity_role == 'admin':
-                logger.warning(f"Admin role requested for {email} - denied (manual creation required)")
+            if identity_role == "admin":
+                logger.warning(
+                    f"Admin role requested for {email} - denied (manual creation required)"
+                )
                 return UserRole.DOCTOR  # Always downgrade to doctor
 
             # Patient role is explicitly rejected
-            if identity_role == 'patient':
-                logger.error(f"Patient role attempt for {email} - patients don't have system access")
-                raise ValueError("Patients access the system via WhatsApp and Quiz links only.")
+            if identity_role == "patient":
+                logger.error(
+                    f"Patient role attempt for {email} - patients don't have system access"
+                )
+                raise ValueError(
+                    "Patients access the system via WhatsApp and Quiz links only."
+                )
 
         # Default role for all auto-provisioned users
         logger.info(f"Assigning default DOCTOR role to {email}")
         return UserRole.DOCTOR
 
     async def update_user_from_identity(
-        self,
-        user: User,
-        identity_profile: Dict[str, Any]
+        self, user: User, identity_profile: Dict[str, Any]
     ) -> User:
         """
         Update existing user with latest identity provider data.
@@ -185,10 +186,10 @@ class UserProvisioningService:
             Updated User object
         """
         try:
-            metadata = identity_profile.get('user_metadata') or {}
+            metadata = identity_profile.get("user_metadata") or {}
 
             # Update full name if changed
-            new_full_name = metadata.get('full_name')
+            new_full_name = metadata.get("full_name")
             if new_full_name and new_full_name != user.full_name:
                 user.full_name = new_full_name
                 logger.info(f"Updated full name for {user.email}")
@@ -204,9 +205,7 @@ class UserProvisioningService:
 
     # Backward compatibility alias
     async def update_user_from_supabase(
-        self,
-        user: User,
-        supabase_user: Dict[str, Any]
+        self, user: User, supabase_user: Dict[str, Any]
     ) -> User:
         return await self.update_user_from_identity(user, supabase_user)
 
@@ -215,7 +214,9 @@ class UserProvisioningService:
 _user_provisioning_service: Optional[UserProvisioningService] = None
 
 
-def get_user_provisioning_service(user_repository: UserRepository) -> UserProvisioningService:
+def get_user_provisioning_service(
+    user_repository: UserRepository,
+) -> UserProvisioningService:
     """
     Get or create global user provisioning service instance.
 

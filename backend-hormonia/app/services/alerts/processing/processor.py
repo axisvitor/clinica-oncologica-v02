@@ -9,7 +9,6 @@ and persistence.
 import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
-from uuid import UUID
 
 from ..types import Alert, AlertStatus
 

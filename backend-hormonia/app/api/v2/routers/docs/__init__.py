@@ -27,33 +27,23 @@ router = APIRouter()
 
 # Include all sub-routers with appropriate prefixes
 router.include_router(
-    endpoints_router.router,
-    prefix="/endpoints",
-    tags=["Documentation - Endpoints"]
+    endpoints_router.router, prefix="/endpoints", tags=["Documentation - Endpoints"]
 )
 
 router.include_router(
-    guides_router.router,
-    prefix="/guides",
-    tags=["Documentation - Guides"]
+    guides_router.router, prefix="/guides", tags=["Documentation - Guides"]
 )
 
 router.include_router(
-    examples_router.router,
-    prefix="/examples",
-    tags=["Documentation - Examples"]
+    examples_router.router, prefix="/examples", tags=["Documentation - Examples"]
 )
 
 router.include_router(
-    search_router.router,
-    prefix="/search",
-    tags=["Documentation - Search"]
+    search_router.router, prefix="/search", tags=["Documentation - Search"]
 )
 
 router.include_router(
-    changelog_router.router,
-    prefix="/changelog",
-    tags=["Documentation - Changelog"]
+    changelog_router.router, prefix="/changelog", tags=["Documentation - Changelog"]
 )
 
 # Re-export routers for direct access if needed

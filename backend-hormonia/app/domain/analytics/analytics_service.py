@@ -2,8 +2,8 @@
 Main analytics service orchestrator.
 Coordinates metrics collection, dashboard generation, and report building.
 """
+
 import logging
-from datetime import date
 from typing import Dict, Optional, Any
 from uuid import UUID
 
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 class AnalyticsError(Exception):
     """Analytics specific error."""
+
     pass
 
 
@@ -101,9 +102,7 @@ class AnalyticsService:
 
     @with_db_retry(max_retries=3)
     def get_treatment_distribution(
-        self,
-        period: str = "30d",
-        doctor_id: Optional[UUID] = None
+        self, period: str = "30d", doctor_id: Optional[UUID] = None
     ) -> Dict[str, Any]:
         """
         Get treatment type distribution for specified period.
@@ -119,7 +118,9 @@ class AnalyticsService:
             AnalyticsError: If distribution generation fails
         """
         try:
-            logger.info(f"Getting treatment distribution via ReportBuilder for period: {period}")
+            logger.info(
+                f"Getting treatment distribution via ReportBuilder for period: {period}"
+            )
             return self.report_builder.build_treatment_distribution(period, doctor_id)
         except Exception as e:
             logger.error(f"Treatment distribution generation failed: {e}")
@@ -127,9 +128,7 @@ class AnalyticsService:
 
     @with_db_retry(max_retries=3)
     def detect_patterns(
-        self,
-        patient_id: Optional[UUID] = None,
-        days_back: int = 30
+        self, patient_id: Optional[UUID] = None, days_back: int = 30
     ) -> Dict[str, Any]:
         """
         Detect patterns in patient data using trend analysis.
@@ -145,7 +144,7 @@ class AnalyticsService:
             AnalyticsError: If pattern detection fails
         """
         try:
-            logger.info(f"Detecting patterns via ReportBuilder")
+            logger.info("Detecting patterns via ReportBuilder")
             return self.report_builder.detect_patterns(patient_id, days_back)
         except Exception as e:
             logger.error(f"Pattern detection failed: {e}")

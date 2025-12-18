@@ -18,7 +18,6 @@ import logging
 
 from ..types import (
     FlowContext,
-    FlowStepData,
 )
 from ..config import get_flow_config
 
@@ -143,7 +142,7 @@ class AIFlowIntegration:
 
         try:
             # Build decision prompt
-            prompt = self._build_decision_prompt(decision_type, decision_data)
+            self._build_decision_prompt(decision_type, decision_data)
 
             # In production: Call AI service for decision
             # decision = ai_service.make_decision(prompt, decision_data)
@@ -338,7 +337,7 @@ class AIFlowIntegration:
 
         try:
             # Build recommendation prompt
-            prompt = self._build_recommendation_prompt(context)
+            self._build_recommendation_prompt(context)
 
             # In production: Call AI service
             # recommendation = ai_service.recommend_next_step(context_data)

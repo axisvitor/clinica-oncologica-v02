@@ -53,16 +53,17 @@ def _template_to_response(template: MessageTemplate) -> dict:
 # Template Operations (5 endpoints)
 # ============================================================================
 
+
 @router.get(
     "/templates",
     response_model=MessageTemplateV2List,
     summary="List message templates",
-    description="Get paginated list of message templates with optional filtering."
+    description="Get paginated list of message templates with optional filtering.",
 )
 async def list_templates(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
-    pagination = Depends(get_pagination_params),
+    current_user=Depends(get_current_user_from_session),
+    pagination=Depends(get_pagination_params),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     category: Optional[str] = Query(None, description="Filter by category"),
 ):
@@ -110,7 +111,9 @@ async def list_templates(
         total = total_query.count()
 
         # Create next cursor
-        next_cursor = create_cursor(str(templates[-1].id)) if has_more and templates else None
+        next_cursor = (
+            create_cursor(str(templates[-1].id)) if has_more and templates else None
+        )
 
         # Convert to response format
         data = [_template_to_response(t) for t in templates]
@@ -126,7 +129,7 @@ async def list_templates(
         logger.error(f"Error listing templates: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error listing message templates"
+            detail="Error listing message templates",
         )
 
 
@@ -134,12 +137,12 @@ async def list_templates(
     "/templates/{template_id}",
     response_model=MessageTemplateV2Response,
     summary="Get message template",
-    description="Get a specific message template by ID."
+    description="Get a specific message template by ID.",
 )
 async def get_template(
     template_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
 ):
     """Get a message template by ID."""
     try:
@@ -149,7 +152,7 @@ async def get_template(
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid template ID format"
+                detail="Invalid template ID format",
             )
 
         repo = TemplateRepository(db)
@@ -158,7 +161,7 @@ async def get_template(
         if not template:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Message template not found"
+                detail="Message template not found",
             )
 
         return _template_to_response(template)
@@ -169,7 +172,7 @@ async def get_template(
         logger.error(f"Error getting template {template_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error retrieving message template"
+            detail="Error retrieving message template",
         )
 
 
@@ -178,12 +181,12 @@ async def get_template(
     response_model=MessageTemplateV2Response,
     status_code=status.HTTP_201_CREATED,
     summary="Create message template",
-    description="Create a new message template."
+    description="Create a new message template.",
 )
 async def create_template(
     template_data: MessageTemplateV2Create,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
 ):
     """
     Create a new message template.
@@ -201,7 +204,7 @@ async def create_template(
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Template with name '{template_data.name}' already exists"
+                detail=f"Template with name '{template_data.name}' already exists",
             )
 
         # Create template
@@ -228,14 +231,14 @@ async def create_template(
         logger.error(f"Integrity error creating template: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Template name must be unique"
+            detail="Template name must be unique",
         )
     except Exception as e:
         db.rollback()
         logger.error(f"Error creating template: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error creating message template"
+            detail="Error creating message template",
         )
 
 
@@ -243,13 +246,13 @@ async def create_template(
     "/templates/{template_id}",
     response_model=MessageTemplateV2Response,
     summary="Update message template",
-    description="Update an existing message template."
+    description="Update an existing message template.",
 )
 async def update_template(
     template_id: str,
     template_data: MessageTemplateV2Update,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user=Depends(get_current_user_from_session),
 ):
     """
     Update a message template.
@@ -265,7 +268,7 @@ async def update_template(
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid template ID format"
+                detail="Invalid template ID format",
             )
 
         repo = TemplateRepository(db)
@@ -274,7 +277,7 @@ async def update_template(
         if not template:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Message template not found"
+                detail="Message template not found",
             )
 
         # Check name uniqueness if name is being changed
@@ -283,7 +286,7 @@ async def update_template(
             if existing:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Template with name '{template_data.name}' already exists"
+                    detail=f"Template with name '{template_data.name}' already exists",
                 )
 
         # Build update dict with non-None values
@@ -317,14 +320,14 @@ async def update_template(
         logger.error(f"Integrity error updating template: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Template name must be unique"
+            detail="Template name must be unique",
         )
     except Exception as e:
         db.rollback()
         logger.error(f"Error updating template {template_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error updating message template"
+            detail="Error updating message template",
         )
 
 
@@ -332,13 +335,15 @@ async def update_template(
     "/templates/{template_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete message template",
-    description="Delete a message template."
+    description="Delete a message template.",
 )
 async def delete_template(
     template_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
-    hard_delete: bool = Query(False, description="Permanently delete instead of soft delete"),
+    current_user=Depends(get_current_user_from_session),
+    hard_delete: bool = Query(
+        False, description="Permanently delete instead of soft delete"
+    ),
 ):
     """
     Delete a message template.
@@ -354,7 +359,7 @@ async def delete_template(
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid template ID format"
+                detail="Invalid template ID format",
             )
 
         repo = TemplateRepository(db)
@@ -363,17 +368,21 @@ async def delete_template(
         if not template:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Message template not found"
+                detail="Message template not found",
             )
 
         if hard_delete:
             # Permanent deletion
             db.delete(template)
-            logger.info(f"Hard deleted message template: {template.name} (ID: {template.id})")
+            logger.info(
+                f"Hard deleted message template: {template.name} (ID: {template.id})"
+            )
         else:
             # Soft delete (deactivate)
             template.is_active = False
-            logger.info(f"Soft deleted message template: {template.name} (ID: {template.id})")
+            logger.info(
+                f"Soft deleted message template: {template.name} (ID: {template.id})"
+            )
 
         db.commit()
 
@@ -386,5 +395,5 @@ async def delete_template(
         logger.error(f"Error deleting template {template_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error deleting message template"
+            detail="Error deleting message template",
         )

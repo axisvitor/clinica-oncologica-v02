@@ -2,6 +2,7 @@
 Main orchestrator for the Follow-up Action System.
 Coordinates follow-up processing, scheduling, and execution via specialized components.
 """
+
 import logging
 from typing import List, Optional, Any, Dict
 from datetime import datetime
@@ -55,12 +56,18 @@ class FollowUpSystemService:
         self.conversation_contexts: dict = {}
 
         # Initialize specialized components
-        self.context_manager = ContextManager(self.redis_store, self.conversation_contexts)
+        self.context_manager = ContextManager(
+            self.redis_store, self.conversation_contexts
+        )
         self.context_builder = ContextBuilder(self.message_repo, self.flow_state_repo)
-        self.escalation_manager = EscalationManager(self.redis_store, self.active_alerts)
+        self.escalation_manager = EscalationManager(
+            self.redis_store, self.active_alerts
+        )
         self.notification_service = NotificationService()
         self.action_scheduler = ActionScheduler(self.redis_store, self.pending_actions)
-        self.message_action_scheduler = FollowUpMessageScheduler(db, self.message_scheduler)
+        self.message_action_scheduler = FollowUpMessageScheduler(
+            db, self.message_scheduler
+        )
         self.escalation_scheduler = EscalationScheduler(
             self.notification_service, self.patient_repo, self.active_alerts
         )
@@ -78,15 +85,13 @@ class FollowUpSystemService:
         Returns:
             Dict with counts of rehydrated items
         """
-        rehydrated = {
-            "pending_actions": 0,
-            "active_alerts": 0,
-            "errors": 0
-        }
+        rehydrated = {"pending_actions": 0, "active_alerts": 0, "errors": 0}
 
         try:
             # Rehydrate pending actions
-            pending_action_dicts = await self.redis_store.get_pending_actions(limit=1000)
+            pending_action_dicts = await self.redis_store.get_pending_actions(
+                limit=1000
+            )
             for action_dict in pending_action_dicts:
                 try:
                     action = self._dict_to_follow_up_action(action_dict)
@@ -94,7 +99,9 @@ class FollowUpSystemService:
                         self.pending_actions[action.action_id] = action
                         rehydrated["pending_actions"] += 1
                 except Exception as e:
-                    logger.warning(f"Failed to rehydrate action {action_dict.get('action_id')}: {e}")
+                    logger.warning(
+                        f"Failed to rehydrate action {action_dict.get('action_id')}: {e}"
+                    )
                     rehydrated["errors"] += 1
 
             # Rehydrate active alerts
@@ -106,7 +113,9 @@ class FollowUpSystemService:
                         self.active_alerts[alert.alert_id] = alert
                         rehydrated["active_alerts"] += 1
                 except Exception as e:
-                    logger.warning(f"Failed to rehydrate alert {alert_dict.get('alert_id')}: {e}")
+                    logger.warning(
+                        f"Failed to rehydrate alert {alert_dict.get('alert_id')}: {e}"
+                    )
                     rehydrated["errors"] += 1
 
             # Note: conversation_contexts have 7-day TTL and are loaded on-demand
@@ -122,7 +131,9 @@ class FollowUpSystemService:
             logger.error(f"Failed to rehydrate from Redis: {e}", exc_info=True)
             return rehydrated
 
-    def _dict_to_follow_up_action(self, data: Dict[str, Any]) -> Optional[FollowUpAction]:
+    def _dict_to_follow_up_action(
+        self, data: Dict[str, Any]
+    ) -> Optional[FollowUpAction]:
         """Convert dictionary to FollowUpAction object."""
         try:
             from .enums import FollowUpType
@@ -134,7 +145,7 @@ class FollowUpSystemService:
                 priority=data["priority"],
                 scheduled_for=datetime.fromisoformat(data["scheduled_for"]),
                 parameters=data.get("parameters", {}),
-                created_by=data.get("created_by", "system")
+                created_by=data.get("created_by", "system"),
             )
             action.status = data.get("status", "pending")
             action.created_at = datetime.fromisoformat(data["created_at"])
@@ -146,7 +157,9 @@ class FollowUpSystemService:
             logger.warning(f"Failed to convert dict to FollowUpAction: {e}")
             return None
 
-    def _dict_to_escalation_alert(self, data: Dict[str, Any]) -> Optional[EscalationAlert]:
+    def _dict_to_escalation_alert(
+        self, data: Dict[str, Any]
+    ) -> Optional[EscalationAlert]:
         """Convert dictionary to EscalationAlert object."""
         try:
             from .enums import EscalationLevel, NotificationChannel
@@ -160,8 +173,13 @@ class FollowUpSystemService:
                 description=data["description"],
                 original_message=data["original_message"],
                 recommended_actions=data.get("recommended_actions", []),
-                notification_channels=[NotificationChannel(ch) for ch in data.get("notification_channels", [])],
-                requires_immediate_response=data.get("requires_immediate_response", False)
+                notification_channels=[
+                    NotificationChannel(ch)
+                    for ch in data.get("notification_channels", [])
+                ],
+                requires_immediate_response=data.get(
+                    "requires_immediate_response", False
+                ),
             )
             alert.created_at = datetime.fromisoformat(data["created_at"])
             if data.get("acknowledged_at"):
@@ -181,8 +199,7 @@ class FollowUpSystemService:
         return self._ai_service
 
     async def process_response_follow_up(
-        self,
-        response_result: ResponseProcessingResult
+        self, response_result: ResponseProcessingResult
     ) -> List[FollowUpAction]:
         """Process follow-up actions for a patient response."""
         try:
@@ -198,7 +215,9 @@ class FollowUpSystemService:
             if patient:
                 ai_service = await self._get_ai_service()
                 empathy_gen = EmpathyGenerator(ai_service)
-                patient_context = self.context_builder.build_patient_context(patient_id, patient)
+                patient_context = self.context_builder.build_patient_context(
+                    patient_id, patient
+                )
                 empathetic_action = await empathy_gen.create_empathetic_follow_up(
                     patient_id, patient, structured_response, patient_context
                 )
@@ -209,23 +228,28 @@ class FollowUpSystemService:
             if structured_response.medical_concerns:
                 medical_gen = MedicalConcernGenerator()
                 concern_actions = await medical_gen.handle_medical_concerns(
-                    patient_id, structured_response.medical_concerns,
-                    structured_response.original_message
+                    patient_id,
+                    structured_response.medical_concerns,
+                    structured_response.original_message,
                 )
                 follow_up_actions.extend(concern_actions)
 
             # Handle escalation
             if response_result.escalation_required:
-                escalation_action = await self.escalation_manager.create_escalation_alert(
-                    patient_id, structured_response
+                escalation_action = (
+                    await self.escalation_manager.create_escalation_alert(
+                        patient_id, structured_response
+                    )
                 )
                 if escalation_action:
                     follow_up_actions.append(escalation_action)
 
             # Handle response type specific actions
             medical_gen = MedicalConcernGenerator()
-            type_specific_actions = await medical_gen.handle_response_type_specific_actions(
-                patient_id, structured_response
+            type_specific_actions = (
+                await medical_gen.handle_response_type_specific_actions(
+                    patient_id, structured_response
+                )
             )
             follow_up_actions.extend(type_specific_actions)
 
@@ -233,7 +257,9 @@ class FollowUpSystemService:
             for action in follow_up_actions:
                 await self._schedule_action_by_type(action)
 
-            logger.info(f"Created {len(follow_up_actions)} follow-up actions for patient {patient_id}")
+            logger.info(
+                f"Created {len(follow_up_actions)} follow-up actions for patient {patient_id}"
+            )
             return follow_up_actions
 
         except Exception as e:
@@ -248,6 +274,7 @@ class FollowUpSystemService:
 
             # Schedule execution based on type
             from .enums import FollowUpType
+
             if action.follow_up_type == FollowUpType.EMPATHETIC_RESPONSE:
                 await self.message_action_scheduler.schedule_message_action(action)
             elif action.follow_up_type == FollowUpType.ESCALATION_NOTIFICATION:
@@ -264,20 +291,27 @@ class FollowUpSystemService:
         """Execute pending follow-up actions."""
         return await self.action_executor.execute_pending_actions(limit)
 
-    async def get_active_alerts(self, patient_id: Optional[UUID] = None) -> List[EscalationAlert]:
+    async def get_active_alerts(
+        self, patient_id: Optional[UUID] = None
+    ) -> List[EscalationAlert]:
         """Get active escalation alerts."""
         try:
-            alert_dicts = await self.redis_store.get_active_alerts(patient_id=patient_id)
+            alert_dicts = await self.redis_store.get_active_alerts(
+                patient_id=patient_id
+            )
 
             if not alert_dicts and self.active_alerts:
                 alerts = list(self.active_alerts.values())
                 if patient_id:
-                    alerts = [alert for alert in alerts if alert.patient_id == patient_id]
+                    alerts = [
+                        alert for alert in alerts if alert.patient_id == patient_id
+                    ]
                 return [alert for alert in alerts if alert.resolved_at is None]
 
             # Convert dicts to objects
             from .enums import EscalationLevel, NotificationChannel
             from app.services.analytics.data_extraction import MedicalConcernType
+
             active_alerts = []
             for alert_dict in alert_dicts:
                 alert = EscalationAlert(
@@ -288,12 +322,25 @@ class FollowUpSystemService:
                     description=alert_dict["description"],
                     original_message=alert_dict["original_message"],
                     recommended_actions=alert_dict["recommended_actions"],
-                    notification_channels=[NotificationChannel(ch) for ch in alert_dict["notification_channels"]],
-                    requires_immediate_response=alert_dict["requires_immediate_response"]
+                    notification_channels=[
+                        NotificationChannel(ch)
+                        for ch in alert_dict["notification_channels"]
+                    ],
+                    requires_immediate_response=alert_dict[
+                        "requires_immediate_response"
+                    ],
                 )
                 alert.created_at = datetime.fromisoformat(alert_dict["created_at"])
-                alert.acknowledged_at = datetime.fromisoformat(alert_dict["acknowledged_at"]) if alert_dict.get("acknowledged_at") else None
-                alert.resolved_at = datetime.fromisoformat(alert_dict["resolved_at"]) if alert_dict.get("resolved_at") else None
+                alert.acknowledged_at = (
+                    datetime.fromisoformat(alert_dict["acknowledged_at"])
+                    if alert_dict.get("acknowledged_at")
+                    else None
+                )
+                alert.resolved_at = (
+                    datetime.fromisoformat(alert_dict["resolved_at"])
+                    if alert_dict.get("resolved_at")
+                    else None
+                )
                 alert.assigned_to = alert_dict.get("assigned_to")
                 active_alerts.append(alert)
 
@@ -310,7 +357,7 @@ class FollowUpSystemService:
             success = await self.redis_store.update_alert_status(
                 alert_id=alert_id,
                 acknowledged_at=acknowledged_at,
-                assigned_to=acknowledged_by
+                assigned_to=acknowledged_by,
             )
 
             if alert_id in self.active_alerts:
@@ -331,9 +378,7 @@ class FollowUpSystemService:
         try:
             resolved_at = datetime.utcnow()
             success = await self.redis_store.update_alert_status(
-                alert_id=alert_id,
-                resolved_at=resolved_at,
-                assigned_to=resolved_by
+                alert_id=alert_id, resolved_at=resolved_at, assigned_to=resolved_by
             )
 
             if alert_id in self.active_alerts:
@@ -359,10 +404,22 @@ class FollowUpSystemService:
                 stats = redis_health.get("stats", {})
             else:
                 stats = {
-                    "pending_actions": len([a for a in self.pending_actions.values() if a.status == "pending"]),
-                    "active_alerts": len([a for a in self.active_alerts.values() if a.resolved_at is None]),
+                    "pending_actions": len(
+                        [
+                            a
+                            for a in self.pending_actions.values()
+                            if a.status == "pending"
+                        ]
+                    ),
+                    "active_alerts": len(
+                        [
+                            a
+                            for a in self.active_alerts.values()
+                            if a.resolved_at is None
+                        ]
+                    ),
                     "total_actions": len(self.pending_actions),
-                    "total_alerts": len(self.active_alerts)
+                    "total_alerts": len(self.active_alerts),
                 }
 
             return {
@@ -370,7 +427,7 @@ class FollowUpSystemService:
                 "timestamp": datetime.utcnow().isoformat(),
                 "healthy": True,
                 "storage": redis_health,
-                "stats": stats
+                "stats": stats,
             }
 
         except Exception as e:
@@ -379,7 +436,7 @@ class FollowUpSystemService:
                 "service": "FollowUpSystemService",
                 "timestamp": datetime.utcnow().isoformat(),
                 "healthy": False,
-                "error": str(e)
+                "error": str(e),
             }
 
 

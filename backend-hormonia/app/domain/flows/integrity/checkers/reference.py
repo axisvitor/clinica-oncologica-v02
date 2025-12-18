@@ -1,6 +1,7 @@
 """
 Reference integrity checker.
 """
+
 import logging
 from typing import Optional
 from uuid import UUID
@@ -21,7 +22,9 @@ class ReferenceChecker:
         self.db = db
         self.flow_repo = FlowStateRepository(db)
 
-    async def check_integrity(self, patient_id: Optional[UUID]) -> tuple[list[CorruptionIssue], int]:
+    async def check_integrity(
+        self, patient_id: Optional[UUID]
+    ) -> tuple[list[CorruptionIssue], int]:
         """
         Check reference integrity between related records.
 
@@ -41,15 +44,19 @@ class ReferenceChecker:
 
             for flow_message in flow_messages:
                 if not self.flow_repo.get(flow_message.flow_state_id):
-                    issues.append(CorruptionIssue(
-                        id=f"orphaned_flow_message_{flow_message.id}",
-                        corruption_type=CorruptionType.ORPHANED_DATA,
-                        severity=CorruptionSeverity.MEDIUM,
-                        description=f"Flow message references non-existent flow state {flow_message.flow_state_id}",
-                        affected_records=[{"flow_message_id": str(flow_message.id)}],
-                        suggested_fix="Delete orphaned flow message",
-                        auto_fixable=True
-                    ))
+                    issues.append(
+                        CorruptionIssue(
+                            id=f"orphaned_flow_message_{flow_message.id}",
+                            corruption_type=CorruptionType.ORPHANED_DATA,
+                            severity=CorruptionSeverity.MEDIUM,
+                            description=f"Flow message references non-existent flow state {flow_message.flow_state_id}",
+                            affected_records=[
+                                {"flow_message_id": str(flow_message.id)}
+                            ],
+                            suggested_fix="Delete orphaned flow message",
+                            auto_fixable=True,
+                        )
+                    )
 
             return issues, total_count
 

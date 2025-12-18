@@ -36,9 +36,7 @@ class AuditCleanupJob:
             logger.info("Starting audit cleanup job at %s", datetime.now())
 
             # Call the Supabase stored procedure
-            result = await execute_sql(
-                "SELECT * FROM cleanup_all_audit_tables();"
-            )
+            result = await execute_sql("SELECT * FROM cleanup_all_audit_tables();")
 
             # Log results
             total_deleted = 0

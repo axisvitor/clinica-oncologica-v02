@@ -5,6 +5,7 @@ Implements distributed tracing for debugging multi-service issues.
 NOTE: Opentelemetry is optional. This module provides mock implementations
 when opentelemetry is not installed.
 """
+
 import logging
 from typing import Optional, Dict, Any, Callable
 from contextlib import contextmanager, asynccontextmanager
@@ -15,11 +16,12 @@ logger = logging.getLogger(__name__)
 
 # Try to import opentelemetry, use mocks if not available
 try:
-    from opentelemetry import trace
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
-    from opentelemetry.sdk.resources import Resource, SERVICE_NAME, SERVICE_VERSION
-    from opentelemetry.trace import Status, StatusCode, Span
+    from opentelemetry import trace  # noqa: F401
+    from opentelemetry.sdk.trace import TracerProvider  # noqa: F401
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter  # noqa: F401
+    from opentelemetry.sdk.resources import Resource, SERVICE_NAME, SERVICE_VERSION  # noqa: F401
+    from opentelemetry.trace import Status, StatusCode, Span  # noqa: F401
+
     OPENTELEMETRY_AVAILABLE = True
 except ImportError:
     logger.warning("OpenTelemetry not installed. Tracing will be disabled.")
@@ -27,15 +29,25 @@ except ImportError:
 
     # Create mock classes
     class MockSpan:
-        def set_attribute(self, key, value): pass
-        def add_event(self, name, attributes=None): pass
-        def record_exception(self, exception): pass
-        def set_status(self, status): pass
-        def end(self): pass
+        def set_attribute(self, key, value):
+            pass
+
+        def add_event(self, name, attributes=None):
+            pass
+
+        def record_exception(self, exception):
+            pass
+
+        def set_status(self, status):
+            pass
+
+        def end(self):
+            pass
 
     class MockTracer:
         def start_span(self, name, kind=None):
             return MockSpan()
+
         def get_current_span(self):
             return MockSpan()
 
@@ -51,7 +63,7 @@ class TracingConfig:
         jaeger_host: str = "localhost",
         jaeger_port: int = 6831,
         otlp_endpoint: Optional[str] = None,
-        console_export: bool = False
+        console_export: bool = False,
     ):
         self.service_name = service_name
         self.service_version = service_version
@@ -118,43 +130,51 @@ class DistributedTracer:
             self.setup()
 
         span = self.tracer.start_span(name, kind=kind)
-        if attributes and hasattr(span, 'set_attribute'):
+        if attributes and hasattr(span, "set_attribute"):
             for key, value in attributes.items():
                 span.set_attribute(key, value)
 
         try:
             yield span
         except Exception as e:
-            if hasattr(span, 'record_exception'):
+            if hasattr(span, "record_exception"):
                 span.record_exception(e)
             raise
         finally:
-            if hasattr(span, 'end'):
+            if hasattr(span, "end"):
                 span.end()
 
     @asynccontextmanager
-    async def async_span(self, name: str, attributes: Optional[Dict[str, Any]] = None, kind=None):
+    async def async_span(
+        self, name: str, attributes: Optional[Dict[str, Any]] = None, kind=None
+    ):
         """Create an async traced span context manager."""
         if not self._initialized:
             self.setup()
 
         span = self.tracer.start_span(name, kind=kind)
-        if attributes and hasattr(span, 'set_attribute'):
+        if attributes and hasattr(span, "set_attribute"):
             for key, value in attributes.items():
                 span.set_attribute(key, value)
 
         try:
             yield span
         except Exception as e:
-            if hasattr(span, 'record_exception'):
+            if hasattr(span, "record_exception"):
                 span.record_exception(e)
             raise
         finally:
-            if hasattr(span, 'end'):
+            if hasattr(span, "end"):
                 span.end()
 
-    def trace_function(self, name: Optional[str] = None, attributes: Optional[Dict[str, Any]] = None, kind=None):
+    def trace_function(
+        self,
+        name: Optional[str] = None,
+        attributes: Optional[Dict[str, Any]] = None,
+        kind=None,
+    ):
         """Decorator to trace async functions."""
+
         def decorator(func: Callable):
             span_name = name or func.__name__
 
@@ -189,7 +209,12 @@ def get_tracer() -> DistributedTracer:
     return _global_tracer
 
 
-def setup_tracing(app, service_name: str = "clinica-oncologica", service_version: str = "1.0.0", db_engine=None) -> DistributedTracer:
+def setup_tracing(
+    app,
+    service_name: str = "clinica-oncologica",
+    service_version: str = "1.0.0",
+    db_engine=None,
+) -> DistributedTracer:
     """Setup distributed tracing for the application."""
     config = TracingConfig(
         service_name=service_name,

@@ -3,6 +3,7 @@ Admin User Service Package.
 
 Modular package structure for user administration with full backward compatibility.
 """
+
 import logging
 from typing import Any
 
@@ -24,7 +25,7 @@ from .schemas import (
     BulkUserOperationRequest,
     BulkUserOperationResult,
     EmailValidationRequest,
-    EmailValidationResult
+    EmailValidationResult,
 )
 
 # Import validators
@@ -33,7 +34,7 @@ from .validators import (
     validate_full_name,
     validate_password,
     validate_email_advanced,
-    generate_temporary_password
+    generate_temporary_password,
 )
 
 # Import mixins
@@ -50,7 +51,7 @@ class AdminUserService(
     UserCRUDMixin,
     PasswordManagementMixin,
     BulkOperationsMixin,
-    UserQueriesMixin
+    UserQueriesMixin,
 ):
     """
     Service for user administration operations with enhanced security and audit logging.
@@ -81,33 +82,30 @@ class AdminUserService(
 # Re-export everything for backward compatibility
 __all__ = [
     # Main service class
-    'AdminUserService',
-
+    "AdminUserService",
     # Schemas
-    'UserCreateRequest',
-    'UserUpdateRequest',
-    'UserPasswordUpdateRequest',
-    'UserSearchFilters',
-    'UserSummary',
-    'PaginatedUsersResponse',
-    'UserStatistics',
-    'PasswordResetRequest',
-    'PasswordResetResult',
-    'BulkUserOperationRequest',
-    'BulkUserOperationResult',
-    'EmailValidationRequest',
-    'EmailValidationResult',
-
+    "UserCreateRequest",
+    "UserUpdateRequest",
+    "UserPasswordUpdateRequest",
+    "UserSearchFilters",
+    "UserSummary",
+    "PaginatedUsersResponse",
+    "UserStatistics",
+    "PasswordResetRequest",
+    "PasswordResetResult",
+    "BulkUserOperationRequest",
+    "BulkUserOperationResult",
+    "EmailValidationRequest",
+    "EmailValidationResult",
     # Validators
-    'validate_email_format',
-    'validate_full_name',
-    'validate_password',
-    'validate_email_advanced',
-    'generate_temporary_password',
-
+    "validate_email_format",
+    "validate_full_name",
+    "validate_password",
+    "validate_email_advanced",
+    "generate_temporary_password",
     # Mixins (for advanced usage)
-    'UserCRUDMixin',
-    'PasswordManagementMixin',
-    'BulkOperationsMixin',
-    'UserQueriesMixin'
+    "UserCRUDMixin",
+    "PasswordManagementMixin",
+    "BulkOperationsMixin",
+    "UserQueriesMixin",
 ]

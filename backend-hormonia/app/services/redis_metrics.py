@@ -3,11 +3,12 @@ Redis Cache Metrics - Global Hit Rate Tracking
 
 Provides centralized cache metrics collection for all Redis caches in the system.
 """
+
 import logging
 import time
 from typing import Dict, Any, Optional
 from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 
 logger = logging.getLogger(__name__)
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CacheMetrics:
     """Cache performance metrics"""
+
     cache_name: str
     hits: int = 0
     misses: int = 0
@@ -107,10 +109,7 @@ class RedisMetricsCollector:
             metrics = self._metrics.get(cache_name)
             return metrics.to_dict() if metrics else {}
 
-        return {
-            name: metrics.to_dict()
-            for name, metrics in self._metrics.items()
-        }
+        return {name: metrics.to_dict() for name, metrics in self._metrics.items()}
 
     def get_summary(self) -> Dict[str, Any]:
         """
@@ -138,10 +137,10 @@ class RedisMetricsCollector:
                 "total_requests": total_requests,
                 "overall_hit_rate": overall_hit_rate,
                 "uptime_seconds": uptime_seconds,
-                "cache_count": len(self._metrics)
+                "cache_count": len(self._metrics),
             },
             "caches": self.get_metrics(),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
     def reset_metrics(self, cache_name: Optional[str] = None):
@@ -175,29 +174,37 @@ class RedisMetricsCollector:
         for name, metrics in self._metrics.items():
             lines.append(f'redis_cache_hits_total{{cache="{name}"}} {metrics.hits}')
 
-        lines.extend([
-            "# HELP redis_cache_misses_total Total number of cache misses",
-            "# TYPE redis_cache_misses_total counter",
-        ])
+        lines.extend(
+            [
+                "# HELP redis_cache_misses_total Total number of cache misses",
+                "# TYPE redis_cache_misses_total counter",
+            ]
+        )
 
         for name, metrics in self._metrics.items():
             lines.append(f'redis_cache_misses_total{{cache="{name}"}} {metrics.misses}')
 
-        lines.extend([
-            "# HELP redis_cache_errors_total Total number of cache errors",
-            "# TYPE redis_cache_errors_total counter",
-        ])
+        lines.extend(
+            [
+                "# HELP redis_cache_errors_total Total number of cache errors",
+                "# TYPE redis_cache_errors_total counter",
+            ]
+        )
 
         for name, metrics in self._metrics.items():
             lines.append(f'redis_cache_errors_total{{cache="{name}"}} {metrics.errors}')
 
-        lines.extend([
-            "# HELP redis_cache_hit_rate_percent Current cache hit rate percentage",
-            "# TYPE redis_cache_hit_rate_percent gauge",
-        ])
+        lines.extend(
+            [
+                "# HELP redis_cache_hit_rate_percent Current cache hit rate percentage",
+                "# TYPE redis_cache_hit_rate_percent gauge",
+            ]
+        )
 
         for name, metrics in self._metrics.items():
-            lines.append(f'redis_cache_hit_rate_percent{{cache="{name}"}} {metrics.hit_rate}')
+            lines.append(
+                f'redis_cache_hit_rate_percent{{cache="{name}"}} {metrics.hit_rate}'
+            )
 
         return "\n".join(lines) + "\n"
 
@@ -211,9 +218,11 @@ class RedisMetricsCollector:
         summary = self.get_summary()
 
         log_method = getattr(logger, level.lower(), logger.info)
-        log_method(f"Redis Cache Metrics Summary: {json.dumps(summary['summary'], indent=2)}")
+        log_method(
+            f"Redis Cache Metrics Summary: {json.dumps(summary['summary'], indent=2)}"
+        )
 
-        for cache_name, metrics in summary['caches'].items():
+        for cache_name, metrics in summary["caches"].items():
             log_method(f"  Cache '{cache_name}': {json.dumps(metrics, indent=4)}")
 
 
@@ -270,6 +279,7 @@ def track_cache_metrics(cache_name: str):
             # Returns value or None
             pass
     """
+
     def decorator(func):
         def wrapper(*args, **kwargs):
             try:
@@ -282,11 +292,12 @@ def track_cache_metrics(cache_name: str):
 
                 return result
 
-            except Exception as e:
+            except Exception:
                 record_cache_error(cache_name)
                 raise
 
         return wrapper
+
     return decorator
 
 
@@ -300,6 +311,7 @@ def async_track_cache_metrics(cache_name: str):
             # Returns value or None
             pass
     """
+
     def decorator(func):
         async def wrapper(*args, **kwargs):
             try:
@@ -312,9 +324,10 @@ def async_track_cache_metrics(cache_name: str):
 
                 return result
 
-            except Exception as e:
+            except Exception:
                 record_cache_error(cache_name)
                 raise
 
         return wrapper
+
     return decorator

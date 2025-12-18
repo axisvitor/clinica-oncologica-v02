@@ -14,7 +14,10 @@ class LinkBuilder:
         self.config = get_monthly_quiz_config()
 
         # Warn if using localhost in production-like environment
-        if "localhost" in self.config.MONTHLY_QUIZ_BASE_URL and self.config.ENVIRONMENT != "development":
+        if (
+            "localhost" in self.config.MONTHLY_QUIZ_BASE_URL
+            and self.config.ENVIRONMENT != "development"
+        ):
             logger.warning(
                 f"MONTHLY_QUIZ_BASE_URL is set to localhost ({self.config.MONTHLY_QUIZ_BASE_URL}) "
                 "in non-development environment. Quiz links will be invalid for external users."

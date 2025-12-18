@@ -4,9 +4,7 @@ Message Composer Module
 Core message composition logic including AI-based generation and personalization.
 """
 
-from datetime import datetime
-from typing import Dict, Any, Optional
-from uuid import UUID
+from typing import Dict, Any
 
 from app.integrations.gemini_client import GeminiClient
 from app.models.patient import Patient
@@ -24,10 +22,7 @@ class MessageComposer:
         self.logger = get_logger("message_composer.composer")
 
     async def generate_contextual_message(
-        self,
-        message_type: str,
-        patient: Patient,
-        context: Dict[str, Any]
+        self, message_type: str, patient: Patient, context: Dict[str, Any]
     ) -> str:
         """Generate contextual message using AI."""
         try:
@@ -37,19 +32,19 @@ class MessageComposer:
 
             Informações da paciente:
             - Nome: {patient.name}
-            - Tipo de tratamento: {context['patient'].get('treatment_type', 'terapia hormonal')}
-            - Dias desde início: {context['patient'].get('days_since_enrollment', 0)}
-            - Fase do tratamento: {context['patient'].get('treatment_phase', 'inicial')}
+            - Tipo de tratamento: {context["patient"].get("treatment_type", "terapia hormonal")}
+            - Dias desde início: {context["patient"].get("days_since_enrollment", 0)}
+            - Fase do tratamento: {context["patient"].get("treatment_phase", "inicial")}
 
             Tipo de mensagem: {message_type}
 
-            Contexto emocional: {context.get('emotional_context', {})}
+            Contexto emocional: {context.get("emotional_context", {})}
 
-            Preferências de comunicação: {context.get('communication_preferences', {})}
+            Preferências de comunicação: {context.get("communication_preferences", {})}
 
-            Histórico recente: {context.get('conversation_history', [])}
+            Histórico recente: {context.get("conversation_history", [])}
 
-            Contexto de tempo: {context.get('time_context', {})}
+            Contexto de tempo: {context.get("time_context", {})}
 
             Diretrizes:
             1. Use tom acolhedor e empático
@@ -69,7 +64,9 @@ class MessageComposer:
             if message_content:
                 message_content = self._clean_message_content(message_content)
                 if len(message_content) > self.max_message_length:
-                    message_content = message_content[:self.max_message_length - 3] + "..."
+                    message_content = (
+                        message_content[: self.max_message_length - 3] + "..."
+                    )
 
                 return message_content
             else:
@@ -84,7 +81,7 @@ class MessageComposer:
         content: str,
         patient: Patient,
         context: Dict[str, Any],
-        personalization_level: str = "high"
+        personalization_level: str = "high",
     ) -> str:
         """Personalize custom content with patient context."""
         try:
@@ -108,7 +105,9 @@ class MessageComposer:
                 Retorne apenas o conteúdo personalizado.
                 """
 
-                ai_personalized = await self.gemini_client.generate_content(personalization_prompt)
+                ai_personalized = await self.gemini_client.generate_content(
+                    personalization_prompt
+                )
                 if ai_personalized:
                     personalized = self._clean_message_content(ai_personalized)
 
@@ -123,15 +122,12 @@ class MessageComposer:
         template: str,
         patient: Patient,
         context: Dict[str, Any],
-        personalization_level: str = "high"
+        personalization_level: str = "high",
     ) -> str:
         """Personalize message template with patient context."""
         try:
             # Apply basic template substitutions
-            personalized_content = template.format(
-                name=patient.name,
-                **context
-            )
+            personalized_content = template.format(name=patient.name, **context)
 
             # Apply AI-enhanced personalization
             if personalization_level == "high":
@@ -146,7 +142,9 @@ class MessageComposer:
                 Retorne apenas a mensagem personalizada.
                 """
 
-                enhanced_content = await self.gemini_client.generate_content(enhanced_prompt)
+                enhanced_content = await self.gemini_client.generate_content(
+                    enhanced_prompt
+                )
                 if enhanced_content:
                     personalized_content = self._clean_message_content(enhanced_content)
 
@@ -161,7 +159,7 @@ class MessageComposer:
         patient: Patient,
         previous_interaction: Dict[str, Any],
         follow_up_reason: str,
-        interaction_analysis: Dict[str, Any]
+        interaction_analysis: Dict[str, Any],
     ) -> str:
         """Compose intelligent follow-up message."""
         try:
@@ -183,7 +181,9 @@ class MessageComposer:
             Retorne apenas a mensagem de follow-up.
             """
 
-            follow_up_content = await self.gemini_client.generate_content(follow_up_prompt)
+            follow_up_content = await self.gemini_client.generate_content(
+                follow_up_prompt
+            )
 
             if not follow_up_content:
                 follow_up_content = f"Oi {patient.name}! Como você está se sentindo após nossa conversa? Estou aqui se precisar de algo. 💙"
@@ -198,7 +198,7 @@ class MessageComposer:
         self,
         patient: Patient,
         quiz_context: Dict[str, Any],
-        question_data: Dict[str, Any]
+        question_data: Dict[str, Any],
     ) -> str:
         """Generate personalized quiz message."""
         try:
@@ -233,7 +233,9 @@ class MessageComposer:
                 quiz_message = f"Olá {patient.name}! Vamos fazer uma pergunta importante para acompanhar seu bem-estar:\n\n{question_text}"
 
                 if options:
-                    quiz_message += "\n\nOpções:\n" + "\n".join([f"• {opt}" for opt in options])
+                    quiz_message += "\n\nOpções:\n" + "\n".join(
+                        [f"• {opt}" for opt in options]
+                    )
 
             return self._clean_message_content(quiz_message)
 
@@ -242,10 +244,7 @@ class MessageComposer:
             return f"Olá {patient.name}! Vamos fazer uma pergunta importante para acompanhar seu bem-estar:\n\n{question_data.get('text', '')}"
 
     async def compose_from_flow_template(
-        self,
-        template: MessageTemplate,
-        patient: Patient,
-        context: Dict[str, Any]
+        self, template: MessageTemplate, patient: Patient, context: Dict[str, Any]
     ) -> str:
         """Compose message from flow template."""
         try:
@@ -257,7 +256,7 @@ class MessageComposer:
                 "engagement_level": context.get("engagement_score", 0.5),
                 "stress_level": context.get("stress_level", 0.0),
                 "personalization_hints": template.personalization_hints,
-                "core_elements": template.core_elements
+                "core_elements": template.core_elements,
             }
 
             # Use AI instructions if available
@@ -287,14 +286,14 @@ class MessageComposer:
             {template.ai_instructions}
 
             Contexto do paciente:
-            - Nome: {context['patient_name']}
-            - Dia do tratamento: {context['current_day']}
-            - Tendência de humor: {context['mood_trend']}
-            - Nível de engajamento: {context['engagement_level']}
-            - Nível de stress: {context['stress_level']}
+            - Nome: {context["patient_name"]}
+            - Dia do tratamento: {context["current_day"]}
+            - Tendência de humor: {context["mood_trend"]}
+            - Nível de engajamento: {context["engagement_level"]}
+            - Nível de stress: {context["stress_level"]}
 
-            Dicas de personalização: {', '.join(context['personalization_hints'])}
-            Elementos essenciais: {context['core_elements']}
+            Dicas de personalização: {", ".join(context["personalization_hints"])}
+            Elementos essenciais: {context["core_elements"]}
 
             Conteúdo base: {template.base_content}
 
@@ -304,7 +303,7 @@ class MessageComposer:
 
             response = await self.gemini_client.generate_content(ai_prompt)
 
-            if response and hasattr(response, 'text'):
+            if response and hasattr(response, "text"):
                 return self._clean_message_content(response.text)
 
             # Fallback to basic personalization
@@ -352,6 +351,6 @@ class MessageComposer:
 
         # Ensure reasonable length
         if len(content) > self.max_message_length:
-            content = content[:self.max_message_length - 3] + "..."
+            content = content[: self.max_message_length - 3] + "..."
 
         return content

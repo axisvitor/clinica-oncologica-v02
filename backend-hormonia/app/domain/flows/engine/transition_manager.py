@@ -2,14 +2,18 @@
 Transition manager for flow state transitions.
 Handles state transitions with distributed locking and condition evaluation.
 """
-from typing import Any, Dict
-from datetime import datetime
+
+from typing import Any
 import logging
 from sqlalchemy.orm import Session
 
 from app.models.flow import PatientFlowState
 from app.services.state_machine import StateMachine, StateTransition, TransitionResult
-from app.utils.distributed_lock import async_flow_state_lock, LockAcquisitionError, LockTimeoutError
+from app.utils.distributed_lock import (
+    async_flow_state_lock,
+    LockAcquisitionError,
+    LockTimeoutError,
+)
 from app.utils.db_retry import with_db_retry
 
 logger = logging.getLogger(__name__)
@@ -28,7 +32,7 @@ class TransitionManager:
         transition: StateTransition,
         context: dict[str, Any],
         state_machine: StateMachine,
-        step_executor = None
+        step_executor=None,
     ) -> dict[str, Any]:
         """
         Handle the result of a state transition with distributed locking.
@@ -44,13 +48,15 @@ class TransitionManager:
             "from_step": transition.from_step,
             "to_step": transition.to_step,
             "conditions_evaluated": transition.conditions_evaluated,
-            "timestamp": transition.timestamp
+            "timestamp": transition.timestamp,
         }
 
         # Acquire distributed lock for flow state transition
         try:
             async with async_flow_state_lock(flow_state.patient_id, timeout=30) as lock:
-                logger.debug(f"Acquired flow state lock for patient {flow_state.patient_id}")
+                logger.debug(
+                    f"Acquired flow state lock for patient {flow_state.patient_id}"
+                )
 
                 if transition.result == TransitionResult.SUCCESS:
                     # Update flow state
@@ -60,7 +66,7 @@ class TransitionManager:
                         "timestamp": transition.timestamp.isoformat(),
                         "from_step": transition.from_step,
                         "to_step": transition.to_step,
-                        "conditions": transition.conditions_evaluated
+                        "conditions": transition.conditions_evaluated,
                     }
 
                     self.db.commit()
@@ -69,7 +75,9 @@ class TransitionManager:
                     # Schedule next step actions (async) - still protected by lock
                     next_step = state_machine.get_current_step(transition.to_step)
                     if next_step and step_executor:
-                        await step_executor.schedule_step(flow_state, next_step, transition.timestamp)
+                        await step_executor.schedule_step(
+                            flow_state, next_step, transition.timestamp
+                        )
 
                 elif transition.result == TransitionResult.FLOW_COMPLETED:
                     # Mark flow as completed
@@ -78,7 +86,7 @@ class TransitionManager:
                     flow_state.state_data["completion"] = {
                         "timestamp": transition.timestamp.isoformat(),
                         "final_step": transition.from_step,
-                        "auto_completion": True
+                        "auto_completion": True,
                     }
 
                     self.db.commit()
@@ -87,14 +95,18 @@ class TransitionManager:
                 elif transition.result == TransitionResult.CONDITION_NOT_MET:
                     # Log the failed transition attempt
                     flow_state.state_data = flow_state.state_data or {}
-                    flow_state.state_data["failed_transitions"] = flow_state.state_data.get("failed_transitions", [])
-                    flow_state.state_data["failed_transitions"].append({
-                        "timestamp": transition.timestamp.isoformat(),
-                        "from_step": transition.from_step,
-                        "to_step": transition.to_step,
-                        "reason": "conditions_not_met",
-                        "conditions": transition.conditions_evaluated
-                    })
+                    flow_state.state_data["failed_transitions"] = (
+                        flow_state.state_data.get("failed_transitions", [])
+                    )
+                    flow_state.state_data["failed_transitions"].append(
+                        {
+                            "timestamp": transition.timestamp.isoformat(),
+                            "from_step": transition.from_step,
+                            "to_step": transition.to_step,
+                            "reason": "conditions_not_met",
+                            "conditions": transition.conditions_evaluated,
+                        }
+                    )
 
                     self.db.commit()
 

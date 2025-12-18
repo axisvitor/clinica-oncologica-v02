@@ -1,4 +1,5 @@
 """Core messaging services."""
+
 # Import from the new message_service package (modularized)
 from .message_service import (
     MessageService,

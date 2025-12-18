@@ -13,12 +13,14 @@ import time
 from typing import Any, Dict, Optional, Tuple, List
 from uuid import UUID
 
-from app.services.ai.cache_layer import CacheLayer, CacheStrategy
+from app.services.ai.cache_layer import CacheLayer
 
 _query_cache_singleton: Optional["QueryCache"] = None
 
 
-def _normalize_filters(filters: Optional[Dict[str, Any]]) -> Optional[Tuple[Tuple[str, Any], ...]]:
+def _normalize_filters(
+    filters: Optional[Dict[str, Any]],
+) -> Optional[Tuple[Tuple[str, Any], ...]]:
     if not filters:
         return None
     return tuple(sorted(filters.items()))
@@ -30,7 +32,9 @@ def _normalize_relations(relations: Optional[List[str]]) -> Optional[Tuple[str, 
     return tuple(sorted(relations))
 
 
-def _normalize_sorting(sorting: Optional[Dict[str, Any]]) -> Optional[Tuple[Tuple[str, Any], ...]]:
+def _normalize_sorting(
+    sorting: Optional[Dict[str, Any]],
+) -> Optional[Tuple[Tuple[str, Any], ...]]:
     if not sorting:
         return None
     return tuple(sorted(sorting.items()))
@@ -42,10 +46,26 @@ class QueryCache:
     def __init__(self, cache_layer: Optional[CacheLayer] = None):
         self.cache_layer = cache_layer
         self._lock = asyncio.Lock()
-        self._entities: Dict[Tuple[str, str, Optional[Tuple[str, ...]]], Dict[str, Any]] = {}
-        self._lists: Dict[Tuple[str, Optional[Tuple[Tuple[str, Any], ...]], Optional[Tuple[Tuple[str, Any], ...]], Optional[int], Optional[int]], Dict[str, Any]] = {}
-        self._aggregations: Dict[Tuple[str, str, Optional[Tuple[Tuple[str, Any], ...]], Optional[str]], Dict[str, Any]] = {}
-        self._searches: Dict[Tuple[str, str, Optional[Tuple[Tuple[str, Any], ...]]], Dict[str, Any]] = {}
+        self._entities: Dict[
+            Tuple[str, str, Optional[Tuple[str, ...]]], Dict[str, Any]
+        ] = {}
+        self._lists: Dict[
+            Tuple[
+                str,
+                Optional[Tuple[Tuple[str, Any], ...]],
+                Optional[Tuple[Tuple[str, Any], ...]],
+                Optional[int],
+                Optional[int],
+            ],
+            Dict[str, Any],
+        ] = {}
+        self._aggregations: Dict[
+            Tuple[str, str, Optional[Tuple[Tuple[str, Any], ...]], Optional[str]],
+            Dict[str, Any],
+        ] = {}
+        self._searches: Dict[
+            Tuple[str, str, Optional[Tuple[Tuple[str, Any], ...]]], Dict[str, Any]
+        ] = {}
 
     # ------------------------------------------------------------------ #
     async def set_entity(
@@ -76,7 +96,9 @@ class QueryCache:
         entity_key = str(entity_id)
         async with self._lock:
             keys = [
-                key for key in self._entities if key[0] == entity_type and key[1] == entity_key
+                key
+                for key in self._entities
+                if key[0] == entity_type and key[1] == entity_key
             ]
         deleted = 0
         for key in keys:
@@ -184,7 +206,9 @@ class QueryCache:
         ttl: Optional[int] = None,
     ) -> bool:
         key = (entity_type, term.lower(), _normalize_filters(filters))
-        await self._set_entry(self._searches, key, {"items": items, "total": total}, ttl)
+        await self._set_entry(
+            self._searches, key, {"items": items, "total": total}, ttl
+        )
         return True
 
     async def get_search(
@@ -243,13 +267,19 @@ class QueryCache:
 
     # ------------------------------------------------------------------ #
     async def _set_entry(
-        self, store: Dict[Any, Dict[str, Any]], key: Any, value: Dict[str, Any], ttl: Optional[int]
+        self,
+        store: Dict[Any, Dict[str, Any]],
+        key: Any,
+        value: Dict[str, Any],
+        ttl: Optional[int],
     ) -> None:
         expires_at = time.monotonic() + ttl if ttl else None
         async with self._lock:
             store[key] = {"expires_at": expires_at, **value}
 
-    async def _get_entry(self, store: Dict[Any, Dict[str, Any]], key: Any) -> Optional[Dict[str, Any]]:
+    async def _get_entry(
+        self, store: Dict[Any, Dict[str, Any]], key: Any
+    ) -> Optional[Dict[str, Any]]:
         async with self._lock:
             entry = store.get(key)
             if not entry:

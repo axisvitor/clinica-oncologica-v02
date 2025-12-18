@@ -8,6 +8,7 @@ Centralizes monitoring initialization including:
 - Error tracking
 - Performance profiling
 """
+
 from fastapi import FastAPI
 from app.utils.logging import get_logger
 
@@ -68,7 +69,9 @@ def setup_monitoring(app: FastAPI) -> None:
             # This keeps separation of concerns clean
 
         else:
-            logger.warning("Monitoring manager not available - continuing without monitoring")
+            logger.warning(
+                "Monitoring manager not available - continuing without monitoring"
+            )
             app.state.monitoring_manager = None
 
     except ImportError as e:
@@ -94,6 +97,7 @@ def _setup_basic_health_check(app: FastAPI) -> None:
     This is a minimal health check that's always available,
     even if comprehensive monitoring fails to initialize.
     """
+
     @app.get("/health", tags=["Health"])
     async def basic_health():
         """
@@ -105,15 +109,15 @@ def _setup_basic_health_check(app: FastAPI) -> None:
         from datetime import datetime
 
         # Get start time from app state if available
-        start_time = getattr(app.state, 'start_time', time.time())
+        start_time = getattr(app.state, "start_time", time.time())
         uptime = time.time() - start_time
 
         return {
             "status": "healthy",
-            "timestamp": datetime.utcnow().isoformat() + 'Z',
+            "timestamp": datetime.utcnow().isoformat() + "Z",
             "uptime_seconds": round(uptime, 2),
             "service": "hormonia-backend",
-            "version": "1.0.0"
+            "version": "1.0.0",
         }
 
     logger.info("✓ Basic health check endpoint configured")

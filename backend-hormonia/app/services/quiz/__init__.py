@@ -86,8 +86,6 @@ Version: 1.0.0 (QW-023)
 Status: Production Ready
 """
 
-from typing import Any, TYPE_CHECKING
-
 # Import quiz services
 from .quiz_service import (
     QuizService,

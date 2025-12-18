@@ -33,7 +33,7 @@ class SessionFactory:
         quiz_template_id: UUID,
         delivery_method: DeliveryMethod,
         expires_at: datetime,
-        custom_message: Optional[str] = None
+        custom_message: Optional[str] = None,
     ) -> tuple[QuizSession, str]:
         """Create a new quiz session with associated link metadata.
 
@@ -51,13 +51,12 @@ class SessionFactory:
         token = self.token_manager.generate_token(
             patient_id=patient_id,
             quiz_template_id=quiz_template_id,
-            expires_at=expires_at
+            expires_at=expires_at,
         )
 
         # Create session
         session_data = QuizSessionCreate(
-            patient_id=patient_id,
-            quiz_template_id=quiz_template_id
+            patient_id=patient_id, quiz_template_id=quiz_template_id
         )
 
         session = await self.quiz_session_service.start_quiz_session(session_data)
@@ -71,7 +70,7 @@ class SessionFactory:
             "link_status": QuizLinkStatus.ACTIVE.value,
             "access_count": 0,
             "custom_message": custom_message,
-            "delivery_attempts": []
+            "delivery_attempts": [],
         }
 
         self.db.commit()
