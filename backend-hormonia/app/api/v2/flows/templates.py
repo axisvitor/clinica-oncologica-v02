@@ -7,7 +7,7 @@ import logging
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
-from fastapi import APIRouter, Depends, Query, status, Request
+from fastapi import APIRouter, Depends, Query, status, Request, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
@@ -27,10 +27,10 @@ from ..dependencies import (
 )
 from app.dependencies import (
     get_current_user,
-    validate_patient_access,
     get_flow_management_service,
 )
 from app.services.flow_management import FlowManagementService
+from app.repositories.patient import PatientRepository
 from app.exceptions import (
     FlowStateNotFoundError,
     flow_not_found_exception,
@@ -49,12 +49,10 @@ logger = logging.getLogger(__name__)
 # Helper Functions
 # ============================================================================
 
+
 def _create_cursor(item_id: str, created_at: datetime) -> str:
     """Create cursor for pagination"""
-    cursor_data = {
-        "id": str(item_id),
-        "created_at": created_at.isoformat()
-    }
+    cursor_data = {"id": str(item_id), "created_at": created_at.isoformat()}
     return base64.b64encode(json.dumps(cursor_data).encode()).decode()
 
 
@@ -62,16 +60,17 @@ def _create_cursor(item_id: str, created_at: datetime) -> str:
 # Template Management (5 endpoints)
 # ============================================================================
 
+
 @router.get(
     "/templates",
     response_model=FlowTemplateV2List,
     summary="List flow templates",
-    description="Get paginated list of flow templates with cursor pagination"
+    description="Get paginated list of flow templates with cursor pagination",
 )
 async def get_flow_templates(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    pagination = Depends(get_pagination_params),
+    pagination=Depends(get_pagination_params),
     flow_type: Optional[str] = Query(None),
     active_only: bool = Query(True),
     include: Optional[List[str]] = Depends(get_eager_load_params),
@@ -88,23 +87,31 @@ async def get_flow_templates(
     limit = pagination["limit"]
 
     # Build query
-    from app.models.flow import FlowTemplate
+    from app.models.flow import FlowTemplate, FlowKind
+
     query = db.query(FlowTemplate)
 
     # Apply filters
     filters = []
     if active_only:
-        filters.append(FlowTemplate.is_active == True)
+        filters.append(FlowTemplate.is_active == True)  # noqa: E712
     if flow_type:
-        filters.append(FlowTemplate.flow_type == flow_type)
+        # Join with FlowKind to filter by flow_type (kind_key)
+        query = query.join(FlowKind, FlowTemplate.kind_id == FlowKind.id)
+        filters.append(FlowKind.flow_type == flow_type)
 
     # Apply cursor
     if cursor_data and "id" in cursor_data:
         cursor_id = UUID(cursor_data["id"])
-        cursor_created = datetime.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
+        cursor_created = datetime.fromisoformat(
+            cursor_data["created_at"].replace("Z", "+00:00")
+        )
         filters.append(
-            (FlowTemplate.created_at < cursor_created) |
-            ((FlowTemplate.created_at == cursor_created) & (FlowTemplate.id > cursor_id))
+            (FlowTemplate.created_at < cursor_created)
+            | (
+                (FlowTemplate.created_at == cursor_created)
+                & (FlowTemplate.id > cursor_id)
+            )
         )
 
     if filters:
@@ -133,7 +140,7 @@ async def get_flow_templates(
         data=[FlowTemplateV2Response.from_orm(t) for t in templates],
         next_cursor=next_cursor,
         has_more=has_more,
-        total=total
+        total=total,
     )
 
 
@@ -142,7 +149,7 @@ async def get_flow_templates(
     response_model=FlowTemplateV2Response,
     status_code=status.HTTP_201_CREATED,
     summary="Create flow template",
-    description="Create a new flow template"
+    description="Create a new flow template",
 )
 @limiter.limit("10/hour")
 async def create_flow_template(
@@ -154,8 +161,7 @@ async def create_flow_template(
     """Create new flow template"""
     try:
         template = await flow_management.create_flow_template(
-            template_data=template_data,
-            created_by=current_user.id
+            template_data=template_data, created_by=current_user.id
         )
         return FlowTemplateV2Response.from_orm(template)
     except Exception as e:
@@ -167,7 +173,7 @@ async def create_flow_template(
     "/templates/{template_id}",
     response_model=FlowTemplateV2Response,
     summary="Get flow template",
-    description="Get specific flow template by ID"
+    description="Get specific flow template by ID",
 )
 async def get_flow_template(
     template_id: UUID,
@@ -189,7 +195,7 @@ async def get_flow_template(
     "/templates/{template_id}",
     response_model=FlowTemplateV2Response,
     summary="Update flow template",
-    description="Update existing flow template"
+    description="Update existing flow template",
 )
 @limiter.limit("20/hour")
 async def update_flow_template(
@@ -204,7 +210,7 @@ async def update_flow_template(
         template = await flow_management.update_flow_template(
             template_id=template_id,
             template_data=template_data,
-            updated_by=current_user.id
+            updated_by=current_user.id,
         )
         return FlowTemplateV2Response.from_orm(template)
     except FlowStateNotFoundError:
@@ -218,7 +224,7 @@ async def update_flow_template(
     "/templates/{template_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete flow template",
-    description="Soft delete a flow template"
+    description="Soft delete a flow template",
 )
 @limiter.limit("10/hour")
 async def delete_flow_template(
@@ -230,8 +236,7 @@ async def delete_flow_template(
     """Soft delete flow template"""
     try:
         await flow_management.delete_flow_template(
-            template_id=template_id,
-            deleted_by=current_user.id
+            template_id=template_id, deleted_by=current_user.id
         )
         return None
     except FlowStateNotFoundError:
@@ -245,12 +250,13 @@ async def delete_flow_template(
 # Customization (4 endpoints)
 # ============================================================================
 
+
 @router.post(
     "/{patient_id}/customize",
     response_model=FlowCustomizationV2Response,
     status_code=status.HTTP_201_CREATED,
     summary="Customize patient flow",
-    description="Create patient-specific flow customization"
+    description="Create patient-specific flow customization",
 )
 async def customize_patient_flow(
     patient_id: UUID,
@@ -265,18 +271,18 @@ async def customize_patient_flow(
     patient = repo.get_by_id(patient_id)
     if not patient:
         raise flow_not_found_exception(str(patient_id))
-    
+
     if patient.doctor_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access this patient"
+            detail="Not authorized to access this patient",
         )
 
     try:
         customization = await flow_management.customize_patient_flow(
             patient_id=patient_id,
             customization_data=customization_data,
-            customized_by=current_user.id
+            customized_by=current_user.id,
         )
         return FlowCustomizationV2Response.from_orm(customization)
     except FlowStateNotFoundError:
@@ -290,7 +296,7 @@ async def customize_patient_flow(
     "/{patient_id}/customization",
     response_model=FlowCustomizationV2Response,
     summary="Get flow customization",
-    description="Get patient's flow customization settings"
+    description="Get patient's flow customization settings",
 )
 async def get_patient_flow_customization(
     patient_id: UUID,
@@ -304,11 +310,11 @@ async def get_patient_flow_customization(
     patient = repo.get_by_id(patient_id)
     if not patient:
         raise flow_not_found_exception(str(patient_id))
-    
+
     if patient.doctor_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access this patient"
+            detail="Not authorized to access this patient",
         )
 
     try:
@@ -325,7 +331,7 @@ async def get_patient_flow_customization(
     "/{patient_id}/customization",
     response_model=FlowCustomizationV2Response,
     summary="Update flow customization",
-    description="Update patient's flow customization"
+    description="Update patient's flow customization",
 )
 async def update_patient_flow_customization(
     patient_id: UUID,
@@ -340,24 +346,26 @@ async def update_patient_flow_customization(
     patient = repo.get_by_id(patient_id)
     if not patient:
         raise flow_not_found_exception(str(patient_id))
-    
+
     if patient.doctor_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access this patient"
+            detail="Not authorized to access this patient",
         )
 
     try:
         customization = await flow_management.update_patient_flow_customization(
             patient_id=patient_id,
             customization_data=customization_data,
-            updated_by=current_user.id
+            updated_by=current_user.id,
         )
         return FlowCustomizationV2Response.from_orm(customization)
     except FlowStateNotFoundError:
         raise flow_not_found_exception(str(patient_id))
     except Exception as e:
-        logger.error(f"Failed to update flow customization for patient {patient_id}: {e}")
+        logger.error(
+            f"Failed to update flow customization for patient {patient_id}: {e}"
+        )
         raise flow_operation_exception("update_customization", str(e))
 
 
@@ -365,7 +373,7 @@ async def update_patient_flow_customization(
     "/{patient_id}/customization",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Remove flow customization",
-    description="Remove patient's flow customization"
+    description="Remove patient's flow customization",
 )
 async def remove_patient_flow_customization(
     patient_id: UUID,
@@ -379,21 +387,22 @@ async def remove_patient_flow_customization(
     patient = repo.get_by_id(patient_id)
     if not patient:
         raise flow_not_found_exception(str(patient_id))
-    
+
     if patient.doctor_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access this patient"
+            detail="Not authorized to access this patient",
         )
 
     try:
         await flow_management.remove_patient_flow_customization(
-            patient_id=patient_id,
-            removed_by=current_user.id
+            patient_id=patient_id, removed_by=current_user.id
         )
         return None
     except FlowStateNotFoundError:
         raise flow_not_found_exception(str(patient_id))
     except Exception as e:
-        logger.error(f"Failed to remove flow customization for patient {patient_id}: {e}")
+        logger.error(
+            f"Failed to remove flow customization for patient {patient_id}: {e}"
+        )
         raise internal_server_exception("Failed to remove flow customization")
