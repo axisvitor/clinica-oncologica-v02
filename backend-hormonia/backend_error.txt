@@ -1,1 +1,0 @@
-Get-Content: Cannot find path 'C:\Users\joaov\.gemini\cache' because it does not exist.

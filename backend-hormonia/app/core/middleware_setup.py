@@ -198,11 +198,10 @@ def setup_middleware(app: FastAPI) -> None:
                 "(not recommended for production with multiple workers)"
             )
             # Fallback to simple in-memory rate limiting
+            # SimpleLimiter uses RATE_LIMITS dict with default 60 req/min
             from app.middleware.rate_limiter import RateLimitMiddleware as SimpleLimiter
 
-            app.add_middleware(
-                SimpleLimiter, requests_per_minute=100, window_seconds=60
-            )
+            app.add_middleware(SimpleLimiter)
             logger.info("✅ Rate limiting middleware ENABLED (in-memory fallback)")
     except Exception as e:
         logger.error(f"❌ Failed to configure rate limiting middleware: {e}")
