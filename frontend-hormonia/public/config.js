@@ -13,9 +13,9 @@
   }
 
   const FALLBACK_CONFIG = {
-    VITE_API_URL: 'https://backend-production-e0bd.up.railway.app/api/v2',
-    VITE_API_BASE_URL: 'https://backend-production-e0bd.up.railway.app',
-    VITE_WS_BASE_URL: 'wss://backend-production-e0bd.up.railway.app/ws',
+    VITE_API_URL: 'https://backend-clinica-production-161d.up.railway.app/api/v2',
+    VITE_API_BASE_URL: 'https://backend-clinica-production-161d.up.railway.app',
+    VITE_WS_BASE_URL: 'wss://backend-clinica-production-161d.up.railway.app/ws',
     VITE_WHATSAPP_INSTANCE_NAME: 'hormonia-instance',
     VITE_ENVIRONMENT: 'production',
     VITE_DEBUG_MODE: 'false',

@@ -83,10 +83,10 @@ export interface RuntimeConfig {
 // Production fallback configuration
 // WebSocket URLs will be auto-upgraded based on page protocol
 const PRODUCTION_FALLBACK_CONFIG: RuntimeConfig = {
-  VITE_API_URL: 'https://clinica-oncologica-v02-production.up.railway.app/api/v2',
-  VITE_API_BASE_URL: 'https://clinica-oncologica-v02-production.up.railway.app',
-  VITE_WS_URL: 'ws://clinica-oncologica-v02-production.up.railway.app/ws', // Will auto-upgrade to wss://
-  VITE_WS_BASE_URL: 'ws://clinica-oncologica-v02-production.up.railway.app/ws', // Will auto-upgrade to wss://
+  VITE_API_URL: 'https://backend-clinica-production-161d.up.railway.app/api/v2',
+  VITE_API_BASE_URL: 'https://backend-clinica-production-161d.up.railway.app',
+  VITE_WS_URL: 'ws://backend-clinica-production-161d.up.railway.app/ws', // Will auto-upgrade to wss://
+  VITE_WS_BASE_URL: 'ws://backend-clinica-production-161d.up.railway.app/ws', // Will auto-upgrade to wss://
   VITE_WHATSAPP_INSTANCE_NAME: 'hormonia-instance',
 
   // Firebase Client Configuration (must be provided via environment)
