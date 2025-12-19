@@ -141,23 +141,24 @@ class RedisManager:
                 else 0,
             }
 
-            # FIX for redis-py 5.x: SSL is determined by URL scheme (rediss://)
-            # Just convert redis:// to rediss:// when REDIS_SSL is enabled
-            # Don't pass extra SSL kwargs - let rediss:// handle it automatically
+            # SSL is determined by URL scheme (rediss://)
+            # IMPORTANT: Respect the URL scheme - don't override if URL already specifies
+            # This allows REDIS_URL to be the source of truth for SSL configuration
             redis_url = self.redis_url
 
-            if settings.REDIS_ENABLE_SSL:
-                # Convert redis:// to rediss:// if needed
-                if redis_url.startswith("redis://"):
-                    redis_url = "rediss://" + redis_url[8:]
-                    logger.info("Redis async SSL: Converted redis:// to rediss://")
-                logger.info("Redis async SSL: Using rediss:// scheme (default SSL)")
+            # Determine SSL from URL scheme (takes precedence over settings)
+            url_uses_ssl = redis_url.startswith("rediss://")
+
+            if url_uses_ssl:
+                logger.info("Redis async SSL: Using rediss:// scheme from URL")
+            elif settings.REDIS_ENABLE_SSL and not url_uses_ssl:
+                # Only warn, don't convert - URL scheme is source of truth
+                logger.warning(
+                    "REDIS_ENABLE_SSL=true but REDIS_URL uses redis:// scheme. "
+                    "Using non-SSL connection as specified by URL."
+                )
+                logger.info("Redis async: Using non-SSL connection (per URL scheme)")
             else:
-                # Warn if SSL URL used without REDIS_SSL=true
-                if redis_url.startswith("rediss://"):
-                    logger.warning(
-                        "URL uses rediss:// but REDIS_SSL=false. Connection may fail."
-                    )
                 logger.info("Redis async: Using non-SSL connection")
 
             # Create async connection pool - SSL handled via rediss:// scheme
