@@ -48,9 +48,11 @@ class FollowUpSystemService:
         self._ai_service = None
 
         # Domain services - initialize with required dependencies
+        logger.info("Initializing MessageSender with db, redis_client, evolution_client...")
         redis_client = get_sync_redis()
         evolution_client = EvolutionClient()
         self.message_sender = MessageSender(db, redis_client, evolution_client)
+        logger.info("MessageSender initialized successfully")
         self.message_scheduler = MessageScheduler(db)
 
         # Redis with in-memory fallback
