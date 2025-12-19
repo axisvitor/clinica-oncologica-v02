@@ -25,10 +25,24 @@ REDIS_CA_CERT_PATH = Path(__file__).parent.parent / "certs" / "redis_ca.pem"
 
 
 def _create_redis_ssl_context() -> ssl.SSLContext:
-    """Create SSL context with Redis Cloud CA certificate."""
+    """Create SSL context for Redis Cloud connection.
+
+    Respects REDIS_SSL_CERT_REQS setting:
+    - "none": No certificate verification (common for Redis Cloud free tier)
+    - "required": Full certificate verification with CA cert
+    """
+    ssl_cert_reqs = getattr(settings, "REDIS_SSL_CERT_REQS", "required").lower()
+
     ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
 
+    if ssl_cert_reqs == "none":
+        # No certificate verification
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        return ssl_context
+
+    # Full certificate verification
     if REDIS_CA_CERT_PATH.exists():
         ssl_context.load_verify_locations(cafile=str(REDIS_CA_CERT_PATH))
     else:

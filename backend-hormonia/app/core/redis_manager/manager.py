@@ -127,10 +127,27 @@ class RedisManager:
 
     def _create_ssl_context(self) -> ssl.SSLContext:
         """
-        Create SSL context with Redis Cloud CA certificate.
+        Create SSL context for Redis Cloud connection.
+
+        Respects REDIS_SSL_CERT_REQS setting:
+        - "none": No certificate verification (common for Redis Cloud free tier)
+        - "required": Full certificate verification with CA cert
 
         This is required for Python 3.13 compatibility with redis-py 5.x.
         """
+        # Check if certificate verification is disabled
+        ssl_cert_reqs = getattr(settings, "REDIS_SSL_CERT_REQS", "required").lower()
+
+        if ssl_cert_reqs == "none":
+            # Create SSL context without certificate verification
+            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            logger.info("Redis SSL: Enabled without certificate verification (CERT_NONE)")
+            return ssl_context
+
+        # Full certificate verification
         ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
 
