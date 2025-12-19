@@ -28,7 +28,7 @@ from app.domain.messaging.delivery import MessageSender
 from app.domain.messaging.scheduling import MessageScheduler
 from app.services.follow_up.redis_store import FollowUpRedisStore
 from app.core.redis_unified import get_sync_redis
-from app.integrations import get_evolution_client
+from app.integrations.evolution import EvolutionClient
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class FollowUpSystemService:
 
         # Domain services - initialize with required dependencies
         redis_client = get_sync_redis()
-        evolution_client = get_evolution_client()
+        evolution_client = EvolutionClient()
         self.message_sender = MessageSender(db, redis_client, evolution_client)
         self.message_scheduler = MessageScheduler(db)
 
