@@ -71,6 +71,7 @@ def get_redis_connection_kwargs(
     decode_responses: bool = True,
     socket_timeout: float = 5.0,
     socket_connect_timeout: float = 3.0,
+    mode: str = "async",
     **extra_kwargs,
 ) -> Dict[str, Any]:
     """
@@ -82,6 +83,7 @@ def get_redis_connection_kwargs(
         decode_responses: Whether to decode responses to strings
         socket_timeout: Socket timeout in seconds
         socket_connect_timeout: Connection timeout in seconds
+        mode: "async" (default) or "sync" - affects SSL configuration
         **extra_kwargs: Additional kwargs to pass to from_url()
 
     Returns:
@@ -92,7 +94,7 @@ def get_redis_connection_kwargs(
         import redis.asyncio as redis
 
         url = get_redis_url_with_ssl()
-        kwargs = get_redis_connection_kwargs()
+        kwargs = get_redis_connection_kwargs(mode="async")
         client = redis.from_url(url, **kwargs)
     """
     kwargs = {
@@ -102,9 +104,24 @@ def get_redis_connection_kwargs(
         **extra_kwargs,
     }
 
-    ssl_context = create_redis_ssl_context()
-    if ssl_context:
-        kwargs["ssl"] = ssl_context
+    if not getattr(settings, "REDIS_ENABLE_SSL", False):
+        return kwargs
+
+    ssl_cert_reqs = getattr(settings, "REDIS_SSL_CERT_REQS", "required").lower()
+
+    if mode == "async":
+        # Async redis accepts SSLContext via ssl parameter
+        ssl_context = create_redis_ssl_context()
+        if ssl_context:
+            kwargs["ssl"] = ssl_context
+    else:
+        # Sync redis uses ssl_cert_reqs parameter (not SSLContext)
+        if ssl_cert_reqs == "none":
+            kwargs["ssl_cert_reqs"] = None
+        else:
+            kwargs["ssl_cert_reqs"] = "required"
+            if REDIS_CA_CERT_PATH.exists():
+                kwargs["ssl_ca_certs"] = str(REDIS_CA_CERT_PATH)
 
     return kwargs
 

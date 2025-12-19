@@ -45,9 +45,10 @@ logger = get_logger(__name__)
 def get_redis_url() -> str:
     """
     Get Redis URL from environment variables with fallback.
+    Supports SSL via REDIS_ENABLE_SSL environment variable.
 
     Returns:
-        str: Redis connection URL
+        str: Redis connection URL (with rediss:// if SSL enabled)
     """
     redis_url = os.getenv("REDIS_URL")
 
@@ -64,6 +65,11 @@ def get_redis_url() -> str:
             )
         else:
             redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
+
+    # Convert to SSL URL if REDIS_ENABLE_SSL is true
+    enable_ssl = os.getenv("REDIS_ENABLE_SSL", "false").lower() == "true"
+    if enable_ssl and redis_url.startswith("redis://"):
+        redis_url = "rediss://" + redis_url[8:]
 
     return redis_url
 

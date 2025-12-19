@@ -62,23 +62,18 @@ redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
 enable_ssl = os.environ.get('REDIS_ENABLE_SSL', 'false').lower() == 'true'
 ssl_cert_reqs = os.environ.get('REDIS_SSL_CERT_REQS', 'required').lower()
 
-# Configure SSL if enabled
-kwargs = {'socket_timeout': 5}
+# Configure connection - sync redis uses different SSL params
+kwargs = {'socket_timeout': 5, 'socket_connect_timeout': 5}
+
 if enable_ssl:
-    # Convert redis:// to rediss://
+    # Convert redis:// to rediss:// for SSL
     if redis_url.startswith('redis://'):
         redis_url = 'rediss://' + redis_url[8:]
-    # Create SSL context
-    ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    ssl_ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    # For sync redis, use ssl_cert_reqs parameter (not ssl context)
     if ssl_cert_reqs == 'none':
-        ssl_ctx.check_hostname = False
-        ssl_ctx.verify_mode = ssl.CERT_NONE
+        kwargs['ssl_cert_reqs'] = None  # No certificate verification
     else:
-        ssl_ctx.load_default_certs()
-        ssl_ctx.check_hostname = True
-        ssl_ctx.verify_mode = ssl.CERT_REQUIRED
-    kwargs['ssl'] = ssl_ctx
+        kwargs['ssl_cert_reqs'] = 'required'
 
 try:
     r = redis.from_url(redis_url, **kwargs)
