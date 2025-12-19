@@ -206,9 +206,9 @@ class ApplicationLifecycleManager:
     async def _shutdown_redis(self, app: FastAPI):
         """Shutdown Redis connections"""
         try:
-            # Close main Redis connection
+            # Close main Redis connection (async client needs aclose)
             if hasattr(app.state, "redis_client") and app.state.redis_client:
-                app.state.redis_client.close()
+                await app.state.redis_client.aclose()
                 logger.info("Redis connection closed")
 
             # Close WebSocket events Redis connection
@@ -221,7 +221,7 @@ class ApplicationLifecycleManager:
                     and ws_events_module.websocket_events
                 ):
                     if hasattr(ws_events_module.websocket_events, "redis"):
-                        ws_events_module.websocket_events.redis.close()
+                        await ws_events_module.websocket_events.redis.aclose()
                         logger.info("WebSocket events Redis connection closed")
             except Exception as ws_error:
                 logger.error(f"WebSocket Redis cleanup error: {ws_error}")

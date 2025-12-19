@@ -557,7 +557,7 @@ async def _cleanup_websocket_events_redis(logger) -> None:
             and hasattr(ws_events_module.websocket_events, "redis")
             and ws_events_module.websocket_events.redis
         ):
-            ws_events_module.websocket_events.redis.close()
+            await ws_events_module.websocket_events.redis.aclose()
             logger.info("✓ WebSocket events Redis connection closed")
 
     except ImportError:
@@ -581,7 +581,7 @@ async def _cleanup_redis_client(redis_client, logger) -> None:
     """Helper to cleanup a Redis client safely."""
     if redis_client:
         try:
-            redis_client.close()
+            await redis_client.aclose()
         except Exception as e:
             logger.error(f"Error closing Redis client: {e}")
 

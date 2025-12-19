@@ -131,11 +131,11 @@ class RedisPubSubManager:
             except asyncio.CancelledError:
                 pass
 
-        # Unsubscribe and close pubsub
+        # Unsubscribe and close pubsub (redis 5.x uses aclose)
         if self.pubsub:
             try:
                 await self.pubsub.unsubscribe()
-                await self.pubsub.close()
+                await self.pubsub.aclose()
             except Exception as e:
                 logger.error(f"Error closing pubsub: {e}")
 

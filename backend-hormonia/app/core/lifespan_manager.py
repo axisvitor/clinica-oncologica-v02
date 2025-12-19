@@ -167,11 +167,10 @@ async def lifespan(app: FastAPI):
             await stop_monitoring()
             logger.info("Monitoring system stopped successfully")
 
-        # Close Redis connection if it exists
+        # Close Redis connection if it exists (redis 5.x async clients use aclose)
         if hasattr(app.state, "redis_client") and app.state.redis_client:
             try:
-                # Note: redis.close() is not async and returns None/bool
-                app.state.redis_client.close()
+                await app.state.redis_client.aclose()
                 logger.info("Redis connection closed successfully")
             except Exception as redis_close_error:
                 logger.error(f"Error closing Redis connection: {redis_close_error}")
@@ -190,8 +189,8 @@ async def lifespan(app: FastAPI):
                     and ws_events_module.websocket_events.redis
                 ):
                     try:
-                        # Note: redis.close() is not async and returns None/bool
-                        ws_events_module.websocket_events.redis.close()
+                        # redis 5.x async clients use aclose()
+                        await ws_events_module.websocket_events.redis.aclose()
                         logger.info("WebSocket events Redis connection closed")
                     except Exception as ws_error:
                         logger.error(

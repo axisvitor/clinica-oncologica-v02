@@ -166,7 +166,7 @@ class KnowledgeGraph:
     async def close(self):
         """Close the knowledge graph and connections."""
         if self.redis_client:
-            await self.redis_client.close()
+            await self.redis_client.aclose()
     
     # Node Management
     async def add_node(
