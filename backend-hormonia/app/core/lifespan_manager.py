@@ -10,6 +10,8 @@ Handles application startup and shutdown processes including:
 """
 
 import time
+import ssl
+from pathlib import Path
 import redis.asyncio as redis
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -17,6 +19,24 @@ from app.config import settings
 from app.utils.logging import setup_logging, get_logger
 from app.utils.security import mask_sensitive_url
 from app.services.query_caching import init_cache_system
+
+# Path to Redis CA certificate for SSL/TLS connections
+REDIS_CA_CERT_PATH = Path(__file__).parent.parent / "certs" / "redis_ca.pem"
+
+
+def _create_redis_ssl_context() -> ssl.SSLContext:
+    """Create SSL context with Redis Cloud CA certificate."""
+    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
+
+    if REDIS_CA_CERT_PATH.exists():
+        ssl_context.load_verify_locations(cafile=str(REDIS_CA_CERT_PATH))
+    else:
+        ssl_context.load_default_certs()
+
+    ssl_context.check_hostname = True
+    ssl_context.verify_mode = ssl.CERT_REQUIRED
+    return ssl_context
 
 
 @asynccontextmanager
@@ -59,15 +79,24 @@ async def lifespan(app: FastAPI):
         # Get Redis URL from settings (Redis Cloud)
         redis_url = settings.REDIS_URL
 
-        redis_client = redis.from_url(
-            redis_url,
-            decode_responses=True,
-            socket_connect_timeout=3,  # Reduced timeout
-            socket_timeout=3,
-            retry_on_timeout=True,
-            max_connections=50,  # Increased connection pool
-            health_check_interval=30,  # Moved from connection_pool_kwargs
-        )
+        # Connection kwargs
+        connection_kwargs = {
+            "decode_responses": True,
+            "socket_connect_timeout": 3,
+            "socket_timeout": 3,
+            "retry_on_timeout": True,
+            "max_connections": 50,
+            "health_check_interval": 30,
+        }
+
+        # Configure SSL if enabled
+        if settings.REDIS_ENABLE_SSL:
+            if redis_url.startswith("redis://"):
+                redis_url = "rediss://" + redis_url[8:]
+            connection_kwargs["ssl"] = _create_redis_ssl_context()
+            logger.info("Redis connection using SSL with CA certificate")
+
+        redis_client = redis.from_url(redis_url, **connection_kwargs)
         # Test connection
         await redis_client.ping()
 

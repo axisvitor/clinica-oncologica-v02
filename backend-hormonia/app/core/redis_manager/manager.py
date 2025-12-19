@@ -9,6 +9,8 @@ import asyncio
 import logging
 import threading
 import ssl
+import os
+from pathlib import Path
 from typing import Optional, Union, TYPE_CHECKING
 import redis.asyncio as redis_async
 import redis as redis_sync
@@ -20,6 +22,9 @@ if TYPE_CHECKING:
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Path to Redis CA certificate for SSL/TLS connections
+REDIS_CA_CERT_PATH = Path(__file__).parent.parent.parent.parent / "certs" / "redis_ca.pem"
 
 
 class RedisManager:
@@ -120,6 +125,32 @@ class RedisManager:
                     self._create_sync_client()
         return self._sync_client
 
+    def _create_ssl_context(self) -> ssl.SSLContext:
+        """
+        Create SSL context with Redis Cloud CA certificate.
+
+        This is required for Python 3.13 compatibility with redis-py 5.x.
+        """
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
+
+        # Load CA certificate if it exists
+        if REDIS_CA_CERT_PATH.exists():
+            ssl_context.load_verify_locations(cafile=str(REDIS_CA_CERT_PATH))
+            logger.info(f"Redis SSL: Loaded CA certificate from {REDIS_CA_CERT_PATH}")
+        else:
+            # Use system CA certificates as fallback
+            ssl_context.load_default_certs()
+            logger.warning(
+                f"Redis CA cert not found at {REDIS_CA_CERT_PATH}, using system certs"
+            )
+
+        # Verify server certificate
+        ssl_context.check_hostname = True
+        ssl_context.verify_mode = ssl.CERT_REQUIRED
+
+        return ssl_context
+
     async def _create_async_client(self):
         """
         Create async Redis client with connection pool.
@@ -141,27 +172,29 @@ class RedisManager:
                 else 0,
             }
 
-            # SSL is determined by URL scheme (rediss://)
-            # IMPORTANT: Respect the URL scheme - don't override if URL already specifies
-            # This allows REDIS_URL to be the source of truth for SSL configuration
             redis_url = self.redis_url
 
-            # Determine SSL from URL scheme (takes precedence over settings)
-            url_uses_ssl = redis_url.startswith("rediss://")
+            # Configure SSL if enabled
+            if settings.REDIS_ENABLE_SSL:
+                # Convert redis:// to rediss:// for SSL
+                if redis_url.startswith("redis://"):
+                    redis_url = "rediss://" + redis_url[8:]
 
-            if url_uses_ssl:
-                logger.info("Redis async SSL: Using rediss:// scheme from URL")
-            elif settings.REDIS_ENABLE_SSL and not url_uses_ssl:
-                # Only warn, don't convert - URL scheme is source of truth
-                logger.warning(
-                    "REDIS_ENABLE_SSL=true but REDIS_URL uses redis:// scheme. "
-                    "Using non-SSL connection as specified by URL."
+                # Create SSL context with CA certificate
+                ssl_context = self._create_ssl_context()
+                connection_kwargs["ssl"] = ssl_context
+
+                logger.info(
+                    f"Redis async SSL: Enabled with CA certificate "
+                    f"(TLS >= 1.2, verify=CERT_REQUIRED)"
                 )
-                logger.info("Redis async: Using non-SSL connection (per URL scheme)")
             else:
+                # Ensure using non-SSL scheme
+                if redis_url.startswith("rediss://"):
+                    redis_url = "redis://" + redis_url[9:]
                 logger.info("Redis async: Using non-SSL connection")
 
-            # Create async connection pool - SSL handled via rediss:// scheme
+            # Create async connection pool
             self._async_pool = redis_async.ConnectionPool.from_url(
                 redis_url, **connection_kwargs
             )
@@ -210,13 +243,22 @@ class RedisManager:
                 else 0,
             }
 
-            # Configure SSL if enabled
             redis_url = self.redis_url
+
+            # Configure SSL if enabled
             if settings.REDIS_ENABLE_SSL:
-                # Change redis:// to rediss:// for SSL
+                # Convert redis:// to rediss:// for SSL
                 if redis_url.startswith("redis://"):
                     redis_url = "rediss://" + redis_url[8:]
-                logger.info("Redis sync SSL: Enabled with rediss:// scheme")
+
+                # Create SSL context with CA certificate
+                ssl_context = self._create_ssl_context()
+                connection_kwargs["ssl"] = ssl_context
+
+                logger.info(
+                    "Redis sync SSL: Enabled with CA certificate "
+                    "(TLS >= 1.2, verify=CERT_REQUIRED)"
+                )
             else:
                 # Ensure using non-SSL scheme
                 if redis_url.startswith("rediss://"):
@@ -224,8 +266,6 @@ class RedisManager:
                 logger.info("Redis sync: Using non-SSL connection")
 
             # Create sync connection pool
-            # NOTE: Do NOT pass ssl_cert_reqs/ssl_check_hostname as kwargs
-            # redis-py 6.0+ handles SSL via URL scheme (rediss://) automatically
             self._sync_pool = redis_sync.ConnectionPool.from_url(
                 redis_url, **connection_kwargs
             )
