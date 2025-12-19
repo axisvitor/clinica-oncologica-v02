@@ -124,16 +124,27 @@ class Settings(
                 pass  # Already a list
             elif isinstance(v, str) and v.strip():
                 s = v.strip()
+
+                # Handle case where entire JSON array is wrapped in quotes
+                if (s.startswith('"') and s.endswith('"')) or (
+                    s.startswith("'") and s.endswith("'")
+                ):
+                    s = s[1:-1].strip()
+
                 if s.startswith("["):
                     try:
                         data["CORS_ALLOWED_ORIGINS"] = json.loads(s)
                     except (json.JSONDecodeError, ValueError):
+                        # Fallback: remove brackets and split
+                        s_clean = s.replace("[", "").replace("]", "")
                         data["CORS_ALLOWED_ORIGINS"] = [
-                            item.strip() for item in s.split(",") if item.strip()
+                            item.strip() for item in s_clean.split(",") if item.strip()
                         ]
                 else:
+                    # Remove brackets if present in comma-separated string (just in case)
+                    s_clean = s.replace("[", "").replace("]", "")
                     data["CORS_ALLOWED_ORIGINS"] = [
-                        item.strip() for item in s.split(",") if item.strip()
+                        item.strip() for item in s_clean.split(",") if item.strip()
                     ]
             else:
                 data["CORS_ALLOWED_ORIGINS"] = []

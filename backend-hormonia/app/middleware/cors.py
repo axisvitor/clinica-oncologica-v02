@@ -137,16 +137,28 @@ def configure_cors(
 
             cors_env = os.getenv("CORS_ALLOWED_ORIGINS", os.getenv("CORS_ORIGINS", ""))
 
+            # Handle case where entire JSON array is wrapped in quotes
+            cors_env = cors_env.strip()
+            if (cors_env.startswith('"') and cors_env.endswith('"')) or (
+                cors_env.startswith("'") and cors_env.endswith("'")
+            ):
+                cors_env = cors_env[1:-1].strip()
+
             # Try to parse as JSON array first
             if cors_env.startswith("["):
                 try:
                     allowed_origins = json.loads(cors_env)
                 except json.JSONDecodeError:
-                    allowed_origins = []
+                    # Fallback to comma-separated format but clean brackets
+                    s_clean = cors_env.replace("[", "").replace("]", "")
+                    allowed_origins = [
+                        origin.strip() for origin in s_clean.split(",") if origin.strip()
+                    ]
             else:
                 # Fallback to comma-separated format
+                s_clean = cors_env.replace("[", "").replace("]", "")
                 allowed_origins = [
-                    origin.strip() for origin in cors_env.split(",") if origin.strip()
+                    origin.strip() for origin in s_clean.split(",") if origin.strip()
                 ]
 
             # Normalize all origins (strip whitespace, remove quotes, remove trailing slashes)
