@@ -1,13 +1,14 @@
 """
 Middleware package for the Hormonia Backend System.
 Contains enhanced middleware components for security, rate limiting, and logging.
+
+NOTE: Rate limiting is handled by distributed_rate_limiter.py (RateLimitMiddleware)
+which provides Redis-based distributed rate limiting with tier support.
 """
 
 from .enhanced_middleware import (
-    EnhancedRateLimitMiddleware,
     EnhancedSecurityMiddleware,
     RequestLoggingMiddleware,
-    RateLimitRule,
     SecurityConfig,
 )
 from .security_headers import (
@@ -28,17 +29,15 @@ from .config import (
 )
 
 __all__ = [
-    # Enhanced middleware
-    "EnhancedRateLimitMiddleware",
+    # Enhanced middleware (security and logging)
     "EnhancedSecurityMiddleware",
     "RequestLoggingMiddleware",
-    "RateLimitRule",
     "SecurityConfig",
     # Security headers
     "SecurityHeadersMiddleware",
     "create_production_security_middleware",
     "SecurityMiddleware",
-    # Rate limiting
+    # Rate limiting (distributed Redis-based)
     "RateLimitMiddleware",
     # Logging
     "LoggingMiddleware",

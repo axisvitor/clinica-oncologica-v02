@@ -1,37 +1,30 @@
 """
 Enhanced middleware components for comprehensive API security and monitoring.
-Implements advanced rate limiting, request validation, and security headers.
+
+This module provides:
+- EnhancedSecurityMiddleware: SQL injection, XSS detection, request validation
+- RequestLoggingMiddleware: Structured logging with correlation IDs and rate limiting
+
+NOTE: Rate limiting is handled by distributed_rate_limiter.py (RateLimitMiddleware)
+which provides Redis-based distributed rate limiting with tier support.
 """
 
 import time
 import json
 import hashlib
 import logging
-from typing import Dict, Optional, Callable
+from typing import Optional, Callable
 from datetime import datetime
-from collections import defaultdict, deque
 
 from fastapi import Request, Response, HTTPException, status
-from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
-import redis.asyncio as redis
 from pydantic import BaseModel
 
 from app.utils.logging import get_logger
 from app.core.logging_config import OptimizedRequestLogger, RateLimitedLogger
 
 logger = get_logger(__name__)
-
-
-class RateLimitRule(BaseModel):
-    """Rate limiting rule configuration."""
-
-    endpoint: str
-    method: str
-    limit: int
-    window: int  # seconds
-    burst_limit: Optional[int] = None
 
 
 class SecurityConfig(BaseModel):
@@ -49,294 +42,9 @@ class SecurityConfig(BaseModel):
     require_user_agent: bool = True
 
 
-class EnhancedRateLimitMiddleware(BaseHTTPMiddleware):
-    """
-    Advanced rate limiting middleware with Redis backend support.
-
-    Features:
-    - Per-endpoint rate limits
-    - User-based and IP-based limiting
-    - Burst protection
-    - Sliding window algorithm
-    - Whitelist/blacklist support
-    """
-
-    def __init__(
-        self,
-        app: ASGIApp,
-        redis_client: Optional[redis.Redis] = None,
-        default_limit: int = 100,
-        default_window: int = 60,
-        whitelist_ips: Optional[list] = None,
-        blacklist_ips: Optional[list] = None,
-    ):
-        super().__init__(app)
-        self.redis = redis_client
-        self.default_limit = default_limit
-        self.default_window = default_window
-        self.whitelist_ips = set(whitelist_ips or [])
-        self.blacklist_ips = set(blacklist_ips or [])
-
-        # In-memory fallback for when Redis is unavailable
-        self.memory_store: Dict[str, deque] = defaultdict(deque)
-        self.cleanup_interval = 300  # 5 minutes
-        self.last_cleanup = time.time()
-
-        # Rate limit rules per endpoint
-        self.rules = {
-            ("POST", "/api/v2/auth/login"): RateLimitRule(
-                endpoint="/api/v2/auth/login",
-                method="POST",
-                limit=5,  # Industry standard (increased from 3)
-                window=900,  # 15 minutes
-                burst_limit=3,
-                cooldown_after_limit=3600,  # 1 hour lockout after exhaustion
-            ),
-            ("POST", "/api/v2/auth/refresh"): RateLimitRule(
-                endpoint="/api/v2/auth/refresh",
-                method="POST",
-                limit=10,
-                window=60,
-                burst_limit=5,
-            ),
-            ("POST", "/api/v2/patients"): RateLimitRule(
-                endpoint="/api/v2/patients",
-                method="POST",
-                limit=20,
-                window=60,
-                burst_limit=10,
-            ),
-            ("GET", "/api/v2/patients"): RateLimitRule(
-                endpoint="/api/v2/patients",
-                method="GET",
-                limit=100,
-                window=60,
-                burst_limit=50,
-            ),
-            ("POST", "/api/v2/messages"): RateLimitRule(
-                endpoint="/api/v2/messages",
-                method="POST",
-                limit=50,
-                window=60,
-                burst_limit=25,
-            ),
-        }
-
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """Process request with rate limiting."""
-        start_time = time.time()
-        response: Optional[Response] = None
-
-        try:
-            # Check if IP is blacklisted
-            client_ip = self._get_client_ip(request)
-            if client_ip in self.blacklist_ips:
-                logger.warning(f"Blocked request from blacklisted IP: {client_ip}")
-                return self._rate_limit_response("IP address blocked")
-
-            # Skip rate limiting for whitelisted IPs
-            if client_ip in self.whitelist_ips:
-                return await call_next(request)
-
-            # Apply rate limiting
-            await self._check_rate_limit(request)
-
-            # Process request
-            response = await call_next(request)
-
-            # Add rate limit headers
-            self._add_rate_limit_headers(response, request)
-
-            # Log successful request with rate limiting
-            process_time = time.time() - start_time
-            try:
-                await self._log_request(request, response, process_time)
-            except Exception as le:
-                logger.debug(f"Suppressed rate-limit logging error: {le}")
-
-            return response
-
-        except HTTPException as e:
-            if e.status_code == 429:
-                # Rate limit exceeded
-                logger.warning(
-                    f"Rate limit exceeded for {client_ip}",
-                    extra={
-                        "event_type": "rate_limit_exceeded",
-                        "client_ip": client_ip,
-                        "path": request.url.path,
-                        "method": request.method,
-                    },
-                )
-            raise
-        except Exception as e:
-            logger.error(f"Rate limit middleware error: {str(e)}", exc_info=True)
-            if response is not None:
-                return response
-            return await call_next(request)
-
-    async def _check_rate_limit(self, request: Request) -> None:
-        """Check if request should be rate limited."""
-        client_ip = self._get_client_ip(request)
-        user_id = getattr(request.state, "user_id", None)
-
-        # Get rate limit rule for this endpoint
-        rule = self.rules.get((request.method, request.url.path))
-        if not rule:
-            # Use default limits
-            rule = RateLimitRule(
-                endpoint=request.url.path,
-                method=request.method,
-                limit=self.default_limit,
-                window=self.default_window,
-            )
-
-        # Check rate limits (prefer user-based, fallback to IP-based)
-        key = f"rate_limit:{user_id or client_ip}:{rule.endpoint}:{rule.method}"
-
-        if self.redis:
-            await self._check_redis_rate_limit(key, rule)
-        else:
-            self._check_memory_rate_limit(key, rule)
-
-    async def _check_redis_rate_limit(self, key: str, rule: RateLimitRule) -> None:
-        """Check rate limit using Redis sliding window."""
-        try:
-            pipe = self.redis.pipeline()
-            now = time.time()
-            window_start = now - rule.window
-
-            # Remove old entries
-            pipe.zremrangebyscore(key, 0, window_start)
-
-            # Count current requests
-            pipe.zcard(key)
-
-            # Add current request
-            pipe.zadd(key, {str(now): now})
-
-            # Set expiration
-            pipe.expire(key, rule.window)
-
-            results = await pipe.execute()
-            current_count = results[1]
-
-            if current_count >= rule.limit:
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail=f"Rate limit exceeded: {rule.limit} requests per {rule.window} seconds",
-                )
-
-        except redis.RedisError as e:
-            logger.warning(f"Redis rate limit check failed: {str(e)}")
-            # Fallback to memory-based rate limiting
-            self._check_memory_rate_limit(key, rule)
-
-    def _check_memory_rate_limit(self, key: str, rule: RateLimitRule) -> None:
-        """Check rate limit using in-memory store."""
-        now = time.time()
-        window_start = now - rule.window
-
-        # Clean up old entries
-        if now - self.last_cleanup > self.cleanup_interval:
-            self._cleanup_memory_store()
-            self.last_cleanup = now
-
-        # Get request timestamps for this key
-        timestamps = self.memory_store[key]
-
-        # Remove old timestamps
-        while timestamps and timestamps[0] < window_start:
-            timestamps.popleft()
-
-        # Check limit
-        if len(timestamps) >= rule.limit:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Rate limit exceeded: {rule.limit} requests per {rule.window} seconds",
-            )
-
-        # Add current timestamp
-        timestamps.append(now)
-
-    def _cleanup_memory_store(self) -> None:
-        """Clean up expired entries from memory store."""
-        now = time.time()
-        for key, timestamps in list(self.memory_store.items()):
-            # Remove timestamps older than maximum window
-            while timestamps and timestamps[0] < now - 3600:  # 1 hour max retention
-                timestamps.popleft()
-
-            # Remove empty queues
-            if not timestamps:
-                del self.memory_store[key]
-
-    def _get_client_ip(self, request: Request) -> str:
-        """Extract client IP from request."""
-        # Check for forwarded headers
-        forwarded_for = request.headers.get("X-Forwarded-For")
-        if forwarded_for:
-            return forwarded_for.split(",")[0].strip()
-
-        real_ip = request.headers.get("X-Real-IP")
-        if real_ip:
-            return real_ip
-
-        # Fallback to client address
-        return request.client.host if request.client else "unknown"
-
-    def _add_rate_limit_headers(self, response: Response, request: Request) -> None:
-        """Add rate limit headers to response."""
-        rule = self.rules.get((request.method, request.url.path))
-        if rule:
-            response.headers["X-RateLimit-Limit"] = str(rule.limit)
-            response.headers["X-RateLimit-Window"] = str(rule.window)
-            response.headers["X-RateLimit-Policy"] = "sliding-window"
-
-    async def _log_request(
-        self, request: Request, response: Response, process_time: float
-    ) -> None:
-        """Log request details for monitoring with rate limiting."""
-        message = f"{request.method} {request.url.path} - {response.status_code}"
-
-        # Use DEBUG level for successful requests to reduce log volume
-        level = logging.DEBUG if response.status_code < 400 else logging.INFO
-
-        # Simple rate limiting check - log every 10th successful request for high-frequency endpoints
-        if response.status_code < 400 and request.url.path in [
-            "/health",
-            "/metrics",
-            "/api/v2/health",
-        ]:
-            # Skip logging for health checks and metrics to reduce noise
-            return
-
-        logger.log(
-            level,
-            message,
-            extra={
-                "event_type": "http_request",
-                "method": request.method,
-                "path": request.url.path,
-                "status_code": response.status_code,
-                "process_time": round(process_time, 3),
-                "client_ip": self._get_client_ip(request),
-                "user_agent": request.headers.get("User-Agent", "unknown"),
-                "content_length": response.headers.get("content-length", 0),
-            },
-        )
-
-    def _rate_limit_response(self, message: str) -> JSONResponse:
-        """Create rate limit exceeded response."""
-        return JSONResponse(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            content={
-                "error": "rate_limit_exceeded",
-                "message": message,
-                "timestamp": datetime.utcnow().isoformat() + "Z",
-            },
-            headers={"Retry-After": "60", "X-RateLimit-Policy": "sliding-window"},
-        )
+# =============================================================================
+# ENHANCED SECURITY MIDDLEWARE
+# =============================================================================
 
 
 class EnhancedSecurityMiddleware(BaseHTTPMiddleware):
