@@ -15,24 +15,10 @@ from .security_headers import (
     create_production_security_middleware,
 )
 from .security import SecurityHeadersMiddleware as SecurityMiddleware
-from .rate_limit import RateLimitMiddleware
-from .logging import RequestLoggingMiddleware as LoggingMiddleware
-
-# Import from legacy middleware.py
-import sys
-from pathlib import Path
-# Add parent to import from app.middleware (the .py file)
-_middleware_py = Path(__file__).parent.parent / "middleware.py"
-if _middleware_py.exists():
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("app_middleware_legacy", str(_middleware_py))
-    _legacy_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(_legacy_module)
-    InputSanitizationMiddleware = _legacy_module.InputSanitizationMiddleware
-    LoggingMiddleware = _legacy_module.LoggingMiddleware  # Use the one from .py file
-else:
-    InputSanitizationMiddleware = None
-
+from .distributed_rate_limiter import RateLimitMiddleware
+from .logging import RequestLoggingMiddleware as RequestLoggingMiddlewareAlias
+from .request_logging import LoggingMiddleware
+from .input_sanitization import InputSanitizationMiddleware
 from .config import (
     get_cors_config,
     CSRF_EXEMPT_PATHS,
@@ -42,17 +28,24 @@ from .config import (
 )
 
 __all__ = [
+    # Enhanced middleware
     "EnhancedRateLimitMiddleware",
     "EnhancedSecurityMiddleware",
     "RequestLoggingMiddleware",
     "RateLimitRule",
     "SecurityConfig",
+    # Security headers
     "SecurityHeadersMiddleware",
     "create_production_security_middleware",
     "SecurityMiddleware",
+    # Rate limiting
     "RateLimitMiddleware",
+    # Logging
     "LoggingMiddleware",
+    "RequestLoggingMiddlewareAlias",
+    # Input sanitization
     "InputSanitizationMiddleware",
+    # Configuration
     "get_cors_config",
     "CSRF_EXEMPT_PATHS",
     "RATE_LIMIT_WHITELIST_IPS",
