@@ -327,11 +327,13 @@ class RedisManager:
         """Close async Redis connections."""
         try:
             if self._async_client:
+                # Use aclose() for proper async cleanup (redis 5.x)
                 await self._async_client.aclose()
                 self._async_client = None
                 logger.debug("Async Redis client closed")
 
             if self._async_pool:
+                # Use aclose() for ConnectionPool in redis 5.x
                 await self._async_pool.aclose()
                 self._async_pool = None
                 logger.debug("Async Redis pool closed")

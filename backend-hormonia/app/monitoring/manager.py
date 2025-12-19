@@ -240,7 +240,7 @@ class MonitoringManager:
             # Close Redis connection
             if self.redis_client:
                 try:
-                    # Use aclose() for proper async cleanup (redis.asyncio)
+                    # Use aclose() for proper async cleanup (redis 5.x)
                     await self.redis_client.aclose()
                 except Exception as redis_close_error:
                     logger.error(
