@@ -434,7 +434,7 @@ __all__ = [
     "ensure_patient_access",
     # Normalization
     "normalize_cpf",
-    "normalize_phone",
+    # NOTE: normalize_phone removed - use app.utils.phone_validator.normalize_phone()
     "validate_and_format_phone",
     # Serialization
     "serialize_patient",

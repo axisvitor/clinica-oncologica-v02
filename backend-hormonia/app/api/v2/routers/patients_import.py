@@ -32,11 +32,11 @@ from app.dependencies.auth_dependencies import (
     get_redis_cache,
 )
 from app.utils.rate_limiter import limiter
+from app.utils.phone_validator import normalize_phone
 from app.api.v2.patients_utils import (
     _extract_user_context,
     _ensure_uuid,
     _normalize_cpf,
-    _normalize_phone,
 )
 
 router = APIRouter()
@@ -356,7 +356,7 @@ async def import_patients(
                 continue
 
             # Normalize phone
-            normalized_phone = _normalize_phone(phone)
+            normalized_phone = normalize_phone(phone)
             if not normalized_phone:
                 errors.append(
                     ImportError(row=row_number, message="Invalid phone format")

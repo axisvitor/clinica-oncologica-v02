@@ -40,13 +40,13 @@ from app.dependencies.auth_dependencies import (
 )
 from app.utils.rate_limiter import limiter
 
+from app.utils.phone_validator import normalize_phone
 from .base import (
     ImportError,
     ImportResponse,
     extract_user_context,
     ensure_uuid,
     normalize_cpf,
-    normalize_phone,
     parse_flow_state_filter,
 )
 
