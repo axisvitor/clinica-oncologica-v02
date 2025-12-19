@@ -22,9 +22,25 @@ from typing import Any, Dict, Optional
 class HormoniaException(Exception):
     """Base exception class for the application."""
 
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        message: str,
+        details: Optional[Dict[str, Any]] = None,
+        code: Optional[str] = None,
+        field: Optional[str] = None,
+        **kwargs
+    ):
         self.message = message
         self.details = details or {}
+        self.details.update(kwargs)
+        self.code = code or self.details.get("code")
+        self.field = field or self.details.get("field")
+
+        if self.code:
+            self.details["code"] = self.code
+        if self.field:
+            self.details["field"] = self.field
+
         super().__init__(self.message)
 
 
@@ -43,7 +59,15 @@ class AuthorizationError(HormoniaException):
 class ValidationError(HormoniaException):
     """Raised when data validation fails."""
 
-    pass
+    def __init__(
+        self,
+        message: str,
+        details: Optional[Dict[str, Any]] = None,
+        code: Optional[str] = None,
+        field: Optional[str] = None,
+        **kwargs
+    ):
+        super().__init__(message, details=details, code=code, field=field, **kwargs)
 
 
 class NotFoundError(HormoniaException):

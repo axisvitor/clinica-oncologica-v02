@@ -100,18 +100,22 @@ class FlowTemplateConfigLoader:
         """Load configuration from YAML file."""
         try:
             if not os.path.exists(self.config_path):
-                logger.error(f"Configuration file not found: {self.config_path}")
+                logger.debug(f"Configuration file not found: {self.config_path}")
                 self._config = self._get_fallback_config()
                 return
 
             with open(self.config_path, "r", encoding="utf-8") as file:
-                self._config = yaml.safe_load(file)
-                self._last_loaded = datetime.now()
-
-            logger.info(f"Loaded flow template configuration from {self.config_path}")
+                # Use safe_load but handle errors by providing fallback instead of crashing
+                try:
+                    self._config = yaml.safe_load(file)
+                    self._last_loaded = datetime.now()
+                    logger.info(f"Loaded flow template configuration from {self.config_path}")
+                except yaml.YAMLError as ye:
+                    logger.error(f"Syntax error in flow_templates.yaml: {ye}. Using fallback.")
+                    self._config = self._get_fallback_config()
 
         except Exception as e:
-            logger.error(f"Error loading configuration: {e}")
+            logger.error(f"Unexpected error loading configuration: {e}")
             self._config = self._get_fallback_config()
 
     def _get_fallback_config(self) -> Dict[str, Any]:

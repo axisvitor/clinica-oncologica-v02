@@ -11,6 +11,7 @@ Responsibility: Database patient creation
 
 from typing import Optional, TYPE_CHECKING
 from uuid import UUID
+from concurrent.futures import ThreadPoolExecutor
 import logging
 
 from sqlalchemy.orm import Session
@@ -54,6 +55,7 @@ class CreationService:
         notification_service: "NotificationService",
         validation_service: Optional["ValidationService"] = None,
         flow_service: Optional["PatientFlowService"] = None,
+        executor: Optional[ThreadPoolExecutor] = None,
     ):
         """
         Initialize CreationService with dependency injection.
@@ -65,6 +67,7 @@ class CreationService:
             notification_service: Service for notification delivery
             validation_service: Optional validation service
             flow_service: Optional flow service
+            executor: Optional thread pool executor for background tasks
         """
         self.db = db
         self.integrity_service = integrity_service
@@ -72,6 +75,7 @@ class CreationService:
         self.notification_service = notification_service
         self.validation_service = validation_service
         self.flow_service = flow_service
+        self.executor = executor
 
     async def create_patient_direct(
         self,
@@ -146,11 +150,33 @@ class CreationService:
             logger.error(f"Patient validation failed: {e}")
             raise
         except IntegrityError as e:
-            logger.error(f"Database integrity error during patient creation: {e}")
             await run_in_threadpool(self.db.rollback)
-            raise ValidationError(
-                "Patient creation failed due to data integrity constraints"
-            )
+            error_message = str(e.orig).lower()
+
+            if "uq_patient_cpf_doctor" in error_message or "cpf" in error_message:
+                raise ValidationError(
+                    message="Paciente com este CPF já existe para este médico",
+                    field="cpf",
+                    code="duplicate_cpf",
+                )
+            elif "uq_patient_phone" in error_message or "phone" in error_message:
+                raise ValidationError(
+                    message="Paciente com este telefone já existe",
+                    field="phone",
+                    code="duplicate_phone",
+                )
+            elif "uq_patient_email_doctor" in error_message or "email" in error_message:
+                raise ValidationError(
+                    message="Paciente com este email já existe para este médico",
+                    field="email",
+                    code="duplicate_email",
+                )
+            else:
+                logger.error(f"Database integrity error during patient creation: {e}")
+                raise ValidationError(
+                    "Patient creation failed due to data integrity constraints",
+                    code="integrity_error"
+                )
         except Exception as e:
             logger.error(f"Unexpected error during patient creation: {e}")
             await run_in_threadpool(self.db.rollback)

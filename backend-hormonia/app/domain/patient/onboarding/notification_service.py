@@ -101,13 +101,13 @@ class NotificationService:
         """
         try:
             # Check if welcome messages are enabled
-            if not settings.ENABLE_WHATSAPP_ON_REGISTRATION:
+            if not settings.WHATSAPP_ENABLE_ON_REGISTRATION:
                 logger.info(
                     f"WhatsApp welcome messages disabled, skipping for patient {patient.id}"
                 )
                 return False
 
-            if not settings.WHATSAPP_WELCOME_MESSAGE_ENABLED:
+            if not settings.WHATSAPP_ENABLE_WELCOME_MESSAGE:
                 logger.info(
                     f"Welcome messages disabled, skipping for patient {patient.id}"
                 )
@@ -116,8 +116,8 @@ class NotificationService:
             # Generate welcome message content
             welcome_text = get_welcome_message(
                 patient_name=patient.name,
-                clinic_name=settings.CLINIC_NAME,
-                support_phone=settings.CLINIC_SUPPORT_PHONE,
+                clinic_name=settings.WHATSAPP_CLINIC_NAME,
+                support_phone=settings.WHATSAPP_CLINIC_SUPPORT_PHONE,
             )
 
             # Schedule message for immediate sending

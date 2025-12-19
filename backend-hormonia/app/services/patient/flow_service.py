@@ -68,7 +68,7 @@ class PatientFlowService:
         Returns:
             Created PatientFlowState or None if auto-enrollment disabled
         """
-        if not settings.ENABLE_AUTO_FLOW_ENROLLMENT:
+        if not settings.FLOW_ENABLE_AUTO_ENROLLMENT:
             logger.info(f"Auto-enrollment disabled for patient {patient.id}")
             return None
 
