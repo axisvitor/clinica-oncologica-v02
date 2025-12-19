@@ -403,7 +403,7 @@ def multi_layer_rate_limit(
             # Close Redis connection
             if redis_client:
                 try:
-                    await redis_client.close()
+                    await redis_client.aclose()  # Redis 5.x uses aclose() for async
                 except Exception:
                     pass  # Ignore close errors (connection may already be closed)
 

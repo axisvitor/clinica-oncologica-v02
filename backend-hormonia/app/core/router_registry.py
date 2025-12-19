@@ -88,7 +88,7 @@ def register_routers(app: FastAPI) -> None:
             logger.error(f"Redis health check failed: {e}")
         finally:
             if redis_client:
-                await redis_client.close()
+                await redis_client.aclose()  # Redis 5.x uses aclose() for async
         return health_data
 
     logger.info("✓ Redis health check endpoint registered (/api/v2/redis/health)")

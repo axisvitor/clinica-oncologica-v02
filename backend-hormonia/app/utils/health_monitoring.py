@@ -421,7 +421,7 @@ class HealthMonitor:
                 ],
             )
 
-            await redis_client.close()
+            await redis_client.aclose()  # Redis 5.x uses aclose() for async
 
         except Exception as e:
             self.logger.error(f"Redis health check failed: {str(e)}", exc_info=True)

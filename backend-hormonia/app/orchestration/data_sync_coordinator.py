@@ -153,7 +153,7 @@ class DataSyncCoordinator:
 
             # Close Redis connection
             if self.redis_client:
-                await self.redis_client.close()
+                await self.redis_client.aclose()  # Redis 5.x uses aclose() for async
 
             logger.info("Data sync coordinator shutdown completed")
 

@@ -670,4 +670,4 @@ class MetricsRedisStorage:
     async def close(self):
         """Close Redis connections."""
         if self.redis_client:
-            await self.redis_client.close()
+            await self.redis_client.aclose()  # Redis 5.x uses aclose() for async

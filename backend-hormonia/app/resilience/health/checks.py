@@ -359,7 +359,7 @@ class RedisHealthCheck(HealthCheck):
             info = await redis_client.info()
 
             # Close connection
-            await redis_client.close()
+            await redis_client.aclose()  # Redis 5.x uses aclose() for async
 
             duration = time.time() - start_time
 

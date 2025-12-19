@@ -48,7 +48,7 @@ class MessageQueue:
     async def disconnect(self):
         """Disconnect from Redis."""
         if self.redis_client:
-            await self.redis_client.close()
+            await self.redis_client.aclose()  # Redis 5.x uses aclose() for async
 
     async def enqueue_message(
         self, message_data: Dict[str, Any], priority: int = 0, delay_seconds: int = 0
