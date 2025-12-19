@@ -141,101 +141,17 @@ class RedisManager:
                 else 0,
             }
 
-            # FIX for redis-py 5.x: Use ssl_context instead of individual SSL kwargs
-            # This prevents "unexpected keyword argument 'ssl_cert_reqs'" errors in pubsub
+            # FIX for redis-py 5.x: SSL is determined by URL scheme (rediss://)
+            # Just convert redis:// to rediss:// when REDIS_SSL is enabled
+            # Don't pass extra SSL kwargs - let rediss:// handle it automatically
             redis_url = self.redis_url
 
             if settings.REDIS_ENABLE_SSL:
-                ssl_cert_reqs = getattr(
-                    settings, "REDIS_SSL_CERT_REQS", "required"
-                ).lower()
-
-                # Create SSLContext for redis 5.x compatibility
-                ssl_context = ssl.create_default_context()
-
-                # Configure SSL certificate validation level
-                if ssl_cert_reqs == "none":
-                    ssl_context.check_hostname = False
-                    ssl_context.verify_mode = ssl.CERT_NONE
-                    logger.info(
-                        "Redis async SSL: Certificate verification DISABLED (CERT_NONE)"
-                    )
-                elif ssl_cert_reqs == "optional":
-                    ssl_context.verify_mode = ssl.CERT_OPTIONAL
-                    logger.info("Redis async SSL: Certificate verification OPTIONAL")
-                else:  # 'required'
-                    ssl_context.verify_mode = ssl.CERT_REQUIRED
-                    ssl_context.check_hostname = True
-
-                    # Use CA certificate for validation if provided
-                    ssl_ca_certs = getattr(settings, "REDIS_SSL_CA_CERTS", None)
-                    if ssl_ca_certs:
-                        import os
-
-                        # Support both absolute and relative paths
-                        if os.path.isabs(ssl_ca_certs):
-                            ca_path = ssl_ca_certs
-                        else:
-                            ca_path = os.path.join(settings.BASE_DIR, ssl_ca_certs)
-
-                        if os.path.exists(ca_path):
-                            ssl_context.load_verify_locations(ca_path)
-                            logger.info(
-                                f"Redis async SSL: Using CA certificate from {ssl_ca_certs}"
-                            )
-                        else:
-                            logger.error(
-                                f"Redis CA certificate not found at {ca_path}. Falling back to certifi."
-                            )
-                            ssl_ca_certs = None  # Trigger fallback below
-
-                    # Fallback to certifi if no custom CA specified
-                    if not ssl_ca_certs:
-                        try:
-                            import certifi
-
-                            ssl_context.load_verify_locations(certifi.where())
-                            logger.info(
-                                f"Redis async SSL: Using certifi CA bundle: {certifi.where()}"
-                            )
-                        except ImportError:
-                            logger.warning(
-                                "Redis async SSL: certifi not available, using system CA store"
-                            )
-
-                    logger.info("Redis async SSL: Certificate verification REQUIRED")
-
-                # FIX: Add explicit TLS version support for Redis Cloud compatibility
-                ssl_min_version = getattr(settings, "REDIS_SSL_MIN_VERSION", None)
-                if ssl_min_version:
-                    ssl_min_version = ssl_min_version.upper()
-                    if ssl_min_version == "TLSV1_2":
-                        ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
-                        logger.info(
-                            "Redis async SSL: Enforcing minimum TLS version 1.2"
-                        )
-                    elif ssl_min_version == "TLSV1_3":
-                        ssl_context.minimum_version = ssl.TLSVersion.TLSv1_3
-                        logger.info(
-                            "Redis async SSL: Enforcing minimum TLS version 1.3"
-                        )
-                    else:
-                        logger.warning(
-                            f"Invalid REDIS_SSL_MIN_VERSION: {ssl_min_version}. Ignoring."
-                        )
-                else:
-                    logger.info(
-                        "Redis async SSL: Using Python default TLS version negotiation"
-                    )
-
-                # Pass ssl_context to connection pool (redis 5.x compatible)
-                connection_kwargs["ssl"] = ssl_context
-
-                # Validate URL scheme matches SSL config
-                if not redis_url.startswith("rediss://"):
-                    logger.error(
-                        f"REDIS_SSL=true but URL uses {redis_url.split('://')[0]}:// scheme. Fix .env to use rediss://"
-                    )
+                # Convert redis:// to rediss:// if needed
+                if redis_url.startswith("redis://"):
+                    redis_url = "rediss://" + redis_url[8:]
+                    logger.info("Redis async SSL: Converted redis:// to rediss://")
+                logger.info("Redis async SSL: Using rediss:// scheme (default SSL)")
             else:
                 # Warn if SSL URL used without REDIS_SSL=true
                 if redis_url.startswith("rediss://"):
@@ -244,7 +160,7 @@ class RedisManager:
                     )
                 logger.info("Redis async: Using non-SSL connection")
 
-            # Create async connection pool with ssl_context (redis 5.x compatible)
+            # Create async connection pool - SSL handled via rediss:// scheme
             self._async_pool = redis_async.ConnectionPool.from_url(
                 redis_url, **connection_kwargs
             )
