@@ -65,8 +65,8 @@ class IdempotentMessageSender:
     def __init__(
         self,
         db: Session,
-        redis: Redis,
-        evolution_client: EvolutionClient,
+        redis: Optional[Redis] = None,
+        evolution_client: Optional[EvolutionClient] = None,
         cache_ttl: int = 86400,  # 24 hours
         enable_cache: bool = True,
     ):
@@ -75,17 +75,32 @@ class IdempotentMessageSender:
 
         Args:
             db: Database session
-            redis: Redis client
-            evolution_client: Evolution API client
+            redis: Redis client (optional, lazy-loaded if not provided)
+            evolution_client: Evolution API client (optional, lazy-loaded if not provided)
             cache_ttl: Cache TTL in seconds (default: 24 hours)
             enable_cache: Enable Redis cache (default: True)
         """
         self.db = db
-        self.redis = redis
-        self.evolution_client = evolution_client
+        self._redis = redis
+        self._evolution_client = evolution_client
         self.cache_ttl = cache_ttl
         self.enable_cache = enable_cache
         self.cache_prefix = "idempotency:message"
+
+    @property
+    def redis(self) -> Redis:
+        """Lazy-load Redis client if not provided."""
+        if self._redis is None:
+            from app.core.redis_unified import get_sync_redis
+            self._redis = get_sync_redis()
+        return self._redis
+
+    @property
+    def evolution_client(self) -> EvolutionClient:
+        """Lazy-load Evolution client if not provided."""
+        if self._evolution_client is None:
+            self._evolution_client = EvolutionClient()
+        return self._evolution_client
 
     def _generate_idempotency_key(
         self,

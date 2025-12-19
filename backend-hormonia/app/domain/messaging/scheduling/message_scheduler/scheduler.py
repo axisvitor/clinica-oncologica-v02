@@ -19,6 +19,8 @@ from app.repositories.patient import PatientRepository
 from app.repositories.message import MessageRepository
 from app.domain.messaging.delivery import MessageSender
 from app.exceptions import ValidationError, NotFoundError
+from app.core.redis_unified import get_sync_redis
+from app.integrations.evolution import EvolutionClient
 from app.utils.db_retry import with_db_retry
 
 from .models import SchedulingWindow
@@ -44,7 +46,9 @@ class MessageScheduler:
         if db:
             self.patient_repo = PatientRepository(db)
             self.message_repo = MessageRepository(db)
-            self.message_sender = MessageSender(db)
+            redis_client = get_sync_redis()
+            evolution_client = EvolutionClient()
+            self.message_sender = MessageSender(db, redis_client, evolution_client)
 
         # Initialize component handlers
         self.timezone_handler = TimezoneHandler(self.config)
