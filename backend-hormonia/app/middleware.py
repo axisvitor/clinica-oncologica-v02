@@ -1,13 +1,12 @@
 import time
 import uuid
 import json
-from typing import Callable, Dict, Any, Optional
+from typing import Callable, Dict, Any
 
 from fastapi import Request, Response, HTTPException, status
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.utils.logging import get_logger, log_security_event, log_performance_metric
-from app.utils.rate_limiting import RateLimitType
 from app.utils.input_sanitization import get_sanitizer
 
 logger = get_logger(__name__)
@@ -216,145 +215,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 data["body"] = "[ERROR_READING_RESPONSE]"
 
         return data
-
-
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """Enhanced middleware for adding comprehensive security headers to responses."""
-
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        response = await call_next(request)
-
-        # Core security headers
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-
-        # Content Security Policy
-        csp_directives = [
-            "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-            "style-src 'self' 'unsafe-inline'",
-            "img-src 'self' data: https:",
-            "font-src 'self'",
-            "connect-src 'self'",
-            "media-src 'self'",
-            "object-src 'none'",
-            "child-src 'none'",
-            "worker-src 'none'",
-            "frame-ancestors 'none'",
-            "form-action 'self'",
-            "base-uri 'self'",
-            "manifest-src 'self'",
-        ]
-        response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
-
-        # Permissions Policy (formerly Feature Policy)
-        permissions_directives = [
-            "accelerometer=()",
-            "camera=()",
-            "geolocation=()",
-            "gyroscope=()",
-            "magnetometer=()",
-            "microphone=()",
-            "payment=()",
-            "usb=()",
-        ]
-        response.headers["Permissions-Policy"] = ", ".join(permissions_directives)
-
-        # Add HSTS header for HTTPS
-        if request.url.scheme == "https":
-            response.headers["Strict-Transport-Security"] = (
-                "max-age=31536000; includeSubDomains; preload"
-            )
-
-        # Server information hiding
-        response.headers["Server"] = "Hormonia-API"
-
-        # Cache control for sensitive endpoints
-        if any(
-            path in str(request.url.path)
-            for path in ["/auth/", "/patients/", "/reports/"]
-        ):
-            response.headers["Cache-Control"] = (
-                "no-store, no-cache, must-revalidate, private"
-            )
-            response.headers["Pragma"] = "no-cache"
-            response.headers["Expires"] = "0"
-
-        return response
-
-
-class RateLimitMiddleware(BaseHTTPMiddleware):
-    """Enhanced rate limiting middleware with endpoint-specific limits."""
-
-    def __init__(self, app):
-        super().__init__(app)
-        self.sanitizer = get_sanitizer()
-
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        # TEMPORARILY DISABLED FOR TESTING - Rate limiting causing timeouts
-        logger.info("Rate limiting temporarily disabled for performance testing")
-        return await call_next(request)
-
-        # # Determine rate limit type based on endpoint
-        # rate_limit_type = self._get_rate_limit_type(request)
-        #
-        # if rate_limit_type:
-        #     try:
-        #         # Check rate limit and get headers
-        #         headers = await check_rate_limit(request, rate_limit_type)
-        #
-        #         # Process request
-        #         response = await call_next(request)
-        #
-        #         # Add rate limit headers
-        #         for key, value in headers.items():
-        #             response.headers[key] = str(value)
-        #
-        #         return response
-        #
-        #     except HTTPException as e:
-        #         # Rate limit exceeded
-        #         log_security_event(
-        #             'rate_limit_exceeded',
-        #             f"Rate limit exceeded for {rate_limit_type.value} endpoint",
-        #             ip_address=get_client_identifier(request),
-        #             user_agent=request.headers.get('User-Agent', 'unknown'),
-        #             severity='WARNING',
-        #             logger=logger
-        #         )
-        #         raise
-        # else:
-        #     # No rate limiting for this endpoint
-        #     return await call_next(request)
-
-    def _get_rate_limit_type(self, request: Request) -> Optional[RateLimitType]:
-        """Determine rate limit type based on request path and method."""
-        path = request.url.path.lower()
-        method = request.method.upper()
-
-        # Authentication endpoints
-        if "/auth/" in path:
-            return RateLimitType.AUTH
-
-        # Webhook endpoints
-        if "/webhooks/" in path:
-            return RateLimitType.WEBHOOK
-
-        # Upload endpoints
-        if "/upload" in path or "files" in path:
-            return RateLimitType.UPLOAD
-
-        # Write operations
-        if method in ["POST", "PUT", "PATCH", "DELETE"]:
-            return RateLimitType.WRITE
-
-        # Read operations
-        if method == "GET":
-            return RateLimitType.READ
-
-        return None
 
 
 class InputSanitizationMiddleware(BaseHTTPMiddleware):

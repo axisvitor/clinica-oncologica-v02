@@ -1,40 +1,34 @@
 """
 CORS Middleware Configuration - Production Security Guard
-SECURITY: Prevents CORS regex wildcards in production
+
+This module provides CORS configuration with production security validation.
+All CORS origins MUST come from environment variables via settings.get_cors_origins().
+
+Security Rules:
+1. NO regex patterns in production
+2. NO wildcard (*) origins in production
+3. All origins must be HTTPS in production
+4. Origins are ONLY sourced from SecuritySettings (no env var parsing here)
+
+Architecture:
+- settings.py: Single source of truth for CORS origins (parses env vars)
+- cors.py: Security validation and middleware configuration
 """
 
-import json
-import os
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
 from typing import List, Optional
+from app.config.settings import settings
 
 
 def is_production() -> bool:
     """
-    Check if running in production environment
-
-    Environment Variables:
-    - APP_ENVIRONMENT (current): Preferred variable
-    - ENVIRONMENT (deprecated v2.1.0): Legacy support, will be removed in v3.0
+    Check if running in production environment.
 
     Returns:
         bool: True if production mode
     """
-    import warnings
-
-    # Check for deprecated ENVIRONMENT variable
-    if os.getenv("ENVIRONMENT") and not os.getenv("APP_ENVIRONMENT"):
-        warnings.warn(
-            "ENVIRONMENT variable is deprecated since v2.1.0. Use APP_ENVIRONMENT instead. "
-            "ENVIRONMENT will be removed in v3.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-    # Check APP_ENVIRONMENT first (new convention), then ENVIRONMENT (legacy)
-    env = os.getenv("APP_ENVIRONMENT", os.getenv("ENVIRONMENT", "development")).lower()
-    return env in ["production", "prod"]
+    return settings.APP_ENVIRONMENT.lower() in ["production", "prod"]
 
 
 def validate_cors_origins(
@@ -83,113 +77,66 @@ def validate_cors_origins(
 
 def configure_cors(
     app: FastAPI,
-    allowed_origins: Optional[List[str]] = None,
     allowed_origin_regex: Optional[str] = None,
     allow_credentials: bool = True,
     allow_methods: Optional[List[str]] = None,
     allow_headers: Optional[List[str]] = None,
 ) -> None:
     """
-    Configure CORS middleware with production security validation
+    Configure CORS middleware with production security validation.
 
-    Production Defaults:
-    - allow_origins: Must be explicit HTTPS URLs
-    - allow_credentials: True (for httpOnly cookies)
-    - allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
-    - allow_headers: Explicit whitelist (NEVER "*" with credentials)
+    IMPORTANT: ALL origins are sourced from settings.get_cors_origins().
+    Do NOT pass origins manually - configure via environment variables instead.
+
+    Production Security:
+    - Origins must be explicit HTTPS URLs (no wildcards, no regex)
+    - Credentials enabled for httpOnly cookies
+    - Explicit header whitelist (NEVER "*" with credentials)
 
     Development Defaults:
-    - allow_origins: ["http://localhost:3000", "http://localhost:3001"]
+    - Origins from environment or localhost fallbacks
     - More permissive configuration
 
-    SECURITY NOTE:
+    Security Note:
     Using allow_headers=["*"] with allow_credentials=True is a critical
-    security vulnerability that exposes all request headers (including
-    Authorization, cookies, etc.) to cross-origin requests. This violates
-    the CORS security model and can lead to credential leakage.
+    vulnerability that exposes all request headers (Authorization, cookies)
+    to cross-origin requests. Always use explicit header whitelists.
 
     Args:
         app: FastAPI application instance
-        allowed_origins: List of allowed origin URLs
-        allowed_origin_regex: Regex pattern for origins (PROD: forbidden)
+        allowed_origin_regex: Regex pattern for origins (forbidden in production)
         allow_credentials: Allow credentials (cookies)
         allow_methods: Allowed HTTP methods
         allow_headers: Allowed request headers (explicit list required)
 
     Raises:
-        ValueError: If production security rules violated
+        ValueError: If production security rules violated or origins not configured
     """
-    # Default origins - handle both None and empty list
-    if allowed_origins is None or len(allowed_origins) == 0:
-        if is_production():
-            # Production: Must be explicitly configured via env vars (fallback if not passed in args)
-            # Support both CORS_ALLOWED_ORIGINS (preferred) and CORS_ORIGINS (deprecated v2.1.0)
-            # CORS_ORIGINS will be removed in v3.0
-            import warnings
+    # Get origins from settings (single source of truth)
+    allowed_origins = settings.get_cors_origins()
 
-            if os.getenv("CORS_ORIGINS") and not os.getenv("CORS_ALLOWED_ORIGINS"):
-                warnings.warn(
-                    "CORS_ORIGINS is deprecated since v2.1.0. Use CORS_ALLOWED_ORIGINS instead. "
-                    "CORS_ORIGINS will be removed in v3.0.",
-                    DeprecationWarning,
-                    stacklevel=2,
-                )
-
-            cors_env = os.getenv("CORS_ALLOWED_ORIGINS", os.getenv("CORS_ORIGINS", ""))
-
-            # Handle case where entire JSON array is wrapped in quotes
-            cors_env = cors_env.strip()
-            if (cors_env.startswith('"') and cors_env.endswith('"')) or (
-                cors_env.startswith("'") and cors_env.endswith("'")
-            ):
-                cors_env = cors_env[1:-1].strip()
-
-            # Try to parse as JSON array first
-            if cors_env.startswith("["):
-                try:
-                    allowed_origins = json.loads(cors_env)
-                except json.JSONDecodeError:
-                    # Fallback to comma-separated format but clean brackets
-                    s_clean = cors_env.replace("[", "").replace("]", "")
-                    allowed_origins = [
-                        origin.strip() for origin in s_clean.split(",") if origin.strip()
-                    ]
-            else:
-                # Fallback to comma-separated format
-                s_clean = cors_env.replace("[", "").replace("]", "")
-                allowed_origins = [
-                    origin.strip() for origin in s_clean.split(",") if origin.strip()
-                ]
-
-            # Normalize all origins (strip whitespace, remove quotes, remove trailing slashes)
-            allowed_origins = [
-                o.strip().strip('"').strip("'").rstrip("/")
-                for o in allowed_origins
-                if o.strip()
-            ]
-
-            if not allowed_origins:
-                raise ValueError(
-                    "CORS_ALLOWED_ORIGINS or CORS_ORIGINS environment variable must be set in production"
-                )
-        else:
-            # Development: Local origins
-            allowed_origins = [
-                "http://localhost:3000",  # Legacy frontend port (deprecated)
-                "http://localhost:3001",  # Quiz Interface
-                "http://localhost:5173",  # Frontend Hormonia Vite (current)
-                "http://127.0.0.1:3000",
-                "http://127.0.0.1:3001",
-                "http://127.0.0.1:5173",
-            ]
-    else:
-        # Normalize passed origins
+    # Fallback to localhost in development if no origins configured
+    if not allowed_origins and not is_production():
         allowed_origins = [
-            o.strip().strip('"').strip("'").rstrip("/")
-            for o in allowed_origins
-            if o.strip()
+            "http://localhost:3000",  # Legacy frontend port
+            "http://localhost:3001",  # Quiz Interface
+            "http://localhost:5173",  # Frontend Hormonia Vite (current)
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:3001",
+            "http://127.0.0.1:5173",
         ]
-    # Validate configuration for production
+
+    # Production requires explicit origins from environment
+    if is_production() and not allowed_origins:
+        raise ValueError(
+            "CORS origins must be configured in production via environment variables:\n"
+            "  - CORS_ALLOWED_ORIGINS: Explicit list of allowed origins\n"
+            "  - CORS_FRONTEND_URL: Frontend application URL\n"
+            "  - CORS_QUIZ_URL: Quiz interface URL\n"
+            "See app/config/settings/security.py for configuration details."
+        )
+
+    # Validate configuration for production security
     validate_cors_origins(allowed_origins, allowed_origin_regex)
 
     # Default methods
@@ -229,30 +176,21 @@ def configure_cors(
         max_age=3600,  # Cache preflight for 1 hour
     )
 
-    # Log configuration (sanitized) - with full origin list for debugging
+    # Log configuration (sanitized) for debugging
     import logging
 
     logger = logging.getLogger(__name__)
 
+    log_context = {
+        "origins_count": len(allowed_origins),
+        "environment": settings.APP_ENVIRONMENT,
+        "allow_credentials": allow_credentials,
+        "allowed_origins": allowed_origins,  # Full list for debugging
+    }
+
     if is_production():
-        # Log full origins list for debugging CORS issues
-        logger.info(
-            "CORS configured for PRODUCTION",
-            extra={
-                "origins_count": len(allowed_origins),
-                "environment": "production",
-                "allow_credentials": allow_credentials,
-                "allowed_origins": allowed_origins,  # Log full list for debugging
-            },
-        )
-        # Also print to stdout for easier debugging
+        logger.info("CORS configured for PRODUCTION", extra=log_context)
+        # Also print to stdout for easier debugging in production logs
         print(f"[CORS] Production origins ({len(allowed_origins)}): {allowed_origins}")
     else:
-        logger.warning(
-            "CORS configured for DEVELOPMENT",
-            extra={
-                "origins_count": len(allowed_origins),
-                "environment": "development",
-                "origins": allowed_origins,
-            },
-        )
+        logger.warning("CORS configured for DEVELOPMENT", extra=log_context)

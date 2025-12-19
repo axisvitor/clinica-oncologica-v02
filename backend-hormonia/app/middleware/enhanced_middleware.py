@@ -393,12 +393,6 @@ class EnhancedSecurityMiddleware(BaseHTTPMiddleware):
             # Process request
             response = await call_next(request)
 
-            # Get CSP nonce from request state if available
-            nonce = getattr(request.state, "csp_nonce", None)
-
-            # Add security headers with nonce support
-            self._add_security_headers(response, nonce)
-
             return response
 
         except HTTPException:
@@ -505,60 +499,6 @@ class EnhancedSecurityMiddleware(BaseHTTPMiddleware):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid request"
                 )
-
-    def _add_security_headers(self, response: Response, nonce: str = None) -> None:
-        """
-        Add comprehensive security headers with CSP Level 3 support.
-
-        Args:
-            response: The HTTP response
-            nonce: Optional CSP nonce from request state
-        """
-        security_headers = {
-            "X-Content-Type-Options": "nosniff",
-            "X-Frame-Options": "DENY",
-            "X-XSS-Protection": "1; mode=block",
-            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-            "Referrer-Policy": "strict-origin-when-cross-origin",
-            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
-            "X-Permitted-Cross-Domain-Policies": "none",
-        }
-
-        # CSP Level 3 with nonce (eliminates unsafe-inline/unsafe-eval)
-        if nonce:
-            security_headers["Content-Security-Policy"] = (
-                f"default-src 'self'; "
-                f"script-src 'self' 'nonce-{nonce}' 'strict-dynamic' https://www.gstatic.com https://identitytoolkit.googleapis.com; "
-                f"style-src 'self' 'nonce-{nonce}' https://fonts.googleapis.com; "
-                f"img-src 'self' data: https:; "
-                f"font-src 'self' data: https://fonts.gstatic.com; "
-                f"connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com wss://*.railway.app https://*.railway.app; "
-                f"object-src 'none'; "
-                f"base-uri 'self'; "
-                f"form-action 'self'; "
-                f"frame-ancestors 'none'; "
-                f"block-all-mixed-content; "
-                f"upgrade-insecure-requests"
-            )
-        else:
-            # Fallback CSP without nonce
-            security_headers["Content-Security-Policy"] = (
-                "default-src 'self'; "
-                "script-src 'self' https://www.gstatic.com https://identitytoolkit.googleapis.com; "
-                "style-src 'self' https://fonts.googleapis.com; "
-                "img-src 'self' data: https:; "
-                "font-src 'self' data: https://fonts.gstatic.com; "
-                "connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com wss://*.railway.app https://*.railway.app; "
-                "object-src 'none'; "
-                "base-uri 'self'; "
-                "form-action 'self'; "
-                "frame-ancestors 'none'"
-            )
-
-        for header, value in security_headers.items():
-            # Don't override if already set by CSPNonceMiddleware
-            if header not in response.headers:
-                response.headers[header] = value
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
