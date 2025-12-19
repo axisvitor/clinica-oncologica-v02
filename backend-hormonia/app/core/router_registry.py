@@ -12,6 +12,7 @@ from app.config import settings
 from app.utils.logging import get_logger
 import redis.asyncio as redis
 from app.utils.security import mask_sensitive_url
+from app.core.redis_manager import get_redis_connection_kwargs, get_redis_url_with_ssl
 
 # Import API versioning infrastructure
 from app.api.versioning import get_versioned_router
@@ -66,7 +67,7 @@ def register_routers(app: FastAPI) -> None:
     # Redis health endpoint (migrated from v1)
     @app.get("/api/v2/redis/health", tags=["Health"])
     async def redis_health():
-        redis_url = settings.REDIS_URL
+        redis_url = get_redis_url_with_ssl()
         health_data = {
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "redis_url": mask_sensitive_url(redis_url),
@@ -74,9 +75,8 @@ def register_routers(app: FastAPI) -> None:
         }
         redis_client = None
         try:
-            redis_client = redis.from_url(
-                redis_url, decode_responses=True, socket_connect_timeout=3
-            )
+            kwargs = get_redis_connection_kwargs(socket_connect_timeout=3)
+            redis_client = redis.from_url(redis_url, **kwargs)
             await redis_client.ping()
             info = await redis_client.info()
             health_data["status"] = "healthy"

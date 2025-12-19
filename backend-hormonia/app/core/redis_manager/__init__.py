@@ -16,9 +16,14 @@ Main exports:
 - redis_transaction: Async context manager for Redis transactions
 - cleanup_redis_connections: Cleanup all Redis connections
 - redis_health_check: Perform Redis health check
+- create_redis_ssl_context: Create SSL context for Redis connections
+- get_redis_connection_kwargs: Get kwargs for redis.from_url with SSL support
 """
 
-from .manager import RedisManager
+import ssl
+from typing import Dict, Any, Optional
+
+from .manager import RedisManager, REDIS_CA_CERT_PATH
 from .firebase_cache import FirebaseRedisCache
 from .async_client import (
     get_async_redis_client,
@@ -28,6 +33,100 @@ from .async_client import (
 )
 from .sync_client import get_sync_redis_client, get_compatible_redis_client
 from .utils import get_redis_manager, get_cache_redis_manager, get_broker_redis_manager
+from app.config import settings
+
+
+def create_redis_ssl_context() -> Optional[ssl.SSLContext]:
+    """
+    Create SSL context for Redis connections.
+
+    Respects REDIS_SSL_CERT_REQS and REDIS_ENABLE_SSL settings.
+
+    Returns:
+        SSLContext if SSL is enabled, None otherwise
+    """
+    if not getattr(settings, "REDIS_ENABLE_SSL", False):
+        return None
+
+    ssl_cert_reqs = getattr(settings, "REDIS_SSL_CERT_REQS", "required").lower()
+
+    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
+
+    if ssl_cert_reqs == "none":
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+    else:
+        if REDIS_CA_CERT_PATH.exists():
+            ssl_context.load_verify_locations(cafile=str(REDIS_CA_CERT_PATH))
+        else:
+            ssl_context.load_default_certs()
+        ssl_context.check_hostname = True
+        ssl_context.verify_mode = ssl.CERT_REQUIRED
+
+    return ssl_context
+
+
+def get_redis_connection_kwargs(
+    decode_responses: bool = True,
+    socket_timeout: float = 5.0,
+    socket_connect_timeout: float = 3.0,
+    **extra_kwargs,
+) -> Dict[str, Any]:
+    """
+    Get connection kwargs for redis.from_url() with proper SSL configuration.
+
+    Use this when you need to create a Redis connection directly via from_url().
+
+    Args:
+        decode_responses: Whether to decode responses to strings
+        socket_timeout: Socket timeout in seconds
+        socket_connect_timeout: Connection timeout in seconds
+        **extra_kwargs: Additional kwargs to pass to from_url()
+
+    Returns:
+        Dict of kwargs to pass to redis.from_url()
+
+    Example:
+        from app.core.redis_manager import get_redis_connection_kwargs, get_redis_url_with_ssl
+        import redis.asyncio as redis
+
+        url = get_redis_url_with_ssl()
+        kwargs = get_redis_connection_kwargs()
+        client = redis.from_url(url, **kwargs)
+    """
+    kwargs = {
+        "decode_responses": decode_responses,
+        "socket_timeout": socket_timeout,
+        "socket_connect_timeout": socket_connect_timeout,
+        **extra_kwargs,
+    }
+
+    ssl_context = create_redis_ssl_context()
+    if ssl_context:
+        kwargs["ssl"] = ssl_context
+
+    return kwargs
+
+
+def get_redis_url_with_ssl() -> str:
+    """
+    Get Redis URL with proper scheme based on SSL settings.
+
+    Returns:
+        Redis URL (rediss:// if SSL enabled, redis:// otherwise)
+    """
+    redis_url = settings.REDIS_URL
+
+    if getattr(settings, "REDIS_ENABLE_SSL", False):
+        if redis_url.startswith("redis://"):
+            return "rediss://" + redis_url[8:]
+    else:
+        if redis_url.startswith("rediss://"):
+            return "redis://" + redis_url[9:]
+
+    return redis_url
+
 
 __all__ = [
     # Classes
@@ -45,4 +144,9 @@ __all__ = [
     "redis_transaction",
     "cleanup_redis_connections",
     "redis_health_check",
+    # SSL helpers
+    "create_redis_ssl_context",
+    "get_redis_connection_kwargs",
+    "get_redis_url_with_ssl",
+    "REDIS_CA_CERT_PATH",
 ]
