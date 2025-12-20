@@ -9,6 +9,14 @@ Clean, minimal main.py that delegates all concerns to specialized modules:
 - Monitoring setup handles observability
 """
 
+import logging
+import sys
+
+# Early diagnostic logging - helps identify startup issues
+logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+_startup_logger = logging.getLogger("app.main.startup")
+_startup_logger.info("=== MAIN.PY LOADING - FastAPI Entry Point ===")
+
 from app.core.application_factory import create_application
 from app.config import settings
 

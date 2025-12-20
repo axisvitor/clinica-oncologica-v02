@@ -145,14 +145,17 @@ async def _initialize_monitoring(app: FastAPI, logger) -> None:
     try:
         from app.monitoring.manager import initialize_monitoring, start_monitoring
 
-        logger.info("Initializing monitoring system...")
+        logger.info("[DIAG] Monitoring: Starting initialization...")
         monitoring_manager = await initialize_monitoring()
+        logger.info("[DIAG] Monitoring: initialize_monitoring() completed, calling start_monitoring()...")
         await start_monitoring()
         app.state.monitoring_manager = monitoring_manager
         logger.info("✓ Monitoring system started successfully")
 
     except Exception as e:
         logger.error(f"Failed to initialize monitoring system: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         app.state.monitoring_manager = None
 
 
