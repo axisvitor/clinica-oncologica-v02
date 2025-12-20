@@ -1,13 +1,16 @@
 /**
- * Quiz Session Hook - Stateless Session Management
+ * Quiz Session Hook - Gold Master Implementation
  *
- * Handles quiz session initialization from URL token.
- * Uses the unified API client for direct Python backend connection.
+ * Handles quiz session initialization with support for:
+ * - New access via URL token
+ * - Session recovery via HttpOnly cookie (F5/Refresh support)
+ * - React Strict Mode protection (prevents double execution)
  *
  * Features:
  * - Extracts token from URL searchParams
  * - Exchanges URL token for secure session (HttpOnly cookie)
  * - Cleans URL after successful authentication (security)
+ * - Recovers session on page refresh via cookie
  * - Prevents double execution in React Strict Mode
  */
 
@@ -40,6 +43,10 @@ export interface UseQuizSessionResult {
 /**
  * Hook for managing quiz session lifecycle
  *
+ * Supports two access scenarios:
+ * 1. New Access: User arrives with ?token=xxx in URL
+ * 2. Page Refresh: User refreshes page, session recovered via cookie
+ *
  * @example
  * ```tsx
  * function QuizPage() {
@@ -64,7 +71,7 @@ export function useQuizSession(): UseQuizSessionResult {
   const searchParams = useSearchParams();
 
   /**
-   * Initialize session from URL token
+   * Initialize session from URL token or recover from cookie
    */
   const initSession = useCallback(async () => {
     setIsLoading(true);
@@ -74,11 +81,11 @@ export function useQuizSession(): UseQuizSessionResult {
       const urlToken = searchParams.get("token");
 
       if (urlToken) {
-        // 1. Exchange URL token for secure session (HttpOnly cookie)
+        // Scenario 1: New Access (URL contains token)
         const data = await api.accessQuiz(urlToken);
         setSession(data);
 
-        // 2. Clean URL for security (prevents sharing authenticated links)
+        // Clean URL for security (prevents sharing authenticated links)
         if (typeof window !== "undefined") {
           const newUrl = new URL(window.location.href);
           newUrl.searchParams.delete("token");
@@ -92,11 +99,22 @@ export function useQuizSession(): UseQuizSessionResult {
           });
         }
       } else {
-        // No token in URL - check if existing session is valid
-        const existingSession = await api.getSessionStatus();
-        if (existingSession) {
-          setSession(existingSession);
-        } else {
+        // Scenario 2: Page Refresh (try to recover session via cookie)
+        try {
+          const existingSession = await api.recoverSession();
+          if (existingSession) {
+            setSession(existingSession);
+            if (process.env.NODE_ENV === "development") {
+              console.log("[Session] Session recovered from cookie:", {
+                sessionId: existingSession.quiz_session_id,
+              });
+            }
+          } else {
+            // No session and no token = user needs to use the link
+            setError("Token de acesso não encontrado. Use o link enviado.");
+          }
+        } catch {
+          // Session recovery failed (expected if no active session)
           setError("Token de acesso não encontrado. Use o link enviado.");
         }
       }
