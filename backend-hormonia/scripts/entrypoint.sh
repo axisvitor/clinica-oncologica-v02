@@ -39,10 +39,20 @@ wait_for_database() {
         if python3 -c "
 import os
 import sys
+import re
+
+def normalize_database_url(url):
+    '''
+    Convert SQLAlchemy DATABASE_URL to standard PostgreSQL format.
+    Handles: postgresql+psycopg://, postgresql+asyncpg://, etc.
+    '''
+    # Remove SQLAlchemy dialect suffix (e.g., +psycopg, +asyncpg, +psycopg2)
+    url = re.sub(r'^postgresql\+\w+://', 'postgresql://', url)
+    return url
 
 try:
     import psycopg
-    database_url = os.environ.get('DATABASE_URL', '')
+    database_url = normalize_database_url(os.environ.get('DATABASE_URL', ''))
 
     # Connect with timeout
     with psycopg.connect(database_url, connect_timeout=5) as conn:
@@ -58,7 +68,7 @@ except ImportError:
     # Fallback: try psycopg2
     try:
         import psycopg2
-        database_url = os.environ.get('DATABASE_URL', '')
+        database_url = normalize_database_url(os.environ.get('DATABASE_URL', ''))
         with psycopg2.connect(database_url, connect_timeout=5) as conn:
             with conn.cursor() as cur:
                 cur.execute('SELECT 1')
