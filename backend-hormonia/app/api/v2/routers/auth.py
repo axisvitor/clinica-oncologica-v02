@@ -369,7 +369,7 @@ async def logout_all(
 
 
 @router.get("/csrf-token")
-async def get_csrf_token_endpoint(request: Request, response: Response):
+async def get_csrf_token_endpoint(response: Response):
     """
     Get signed CSRF token.
 
@@ -382,6 +382,6 @@ async def get_csrf_token_endpoint(request: Request, response: Response):
     """
     from app.middleware.csrf import get_csrf_token, set_csrf_cookie
 
-    token = get_csrf_token(request)
-    set_csrf_cookie(request, response, token)
+    token = get_csrf_token()
+    set_csrf_cookie(response, token)
     return {"csrf_token": token}
