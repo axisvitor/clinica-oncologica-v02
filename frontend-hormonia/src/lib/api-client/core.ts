@@ -344,7 +344,7 @@ export class ApiClientCore {
    * Make HTTP request with retry logic
    */
   async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-    const { params, retries = 0, timeout = 30000, ...fetchOptions } = options;
+    const { params, retries = 0, timeout = 15000, ...fetchOptions } = options;
     const url = this.buildUrl(endpoint, params);
 
     const headers: Record<string, string> = {

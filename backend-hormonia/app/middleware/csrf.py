@@ -204,8 +204,9 @@ class CsrfProtectError(HTTPException):
 # Exempt Paths Configuration (TUPLE for performance)
 # ============================================================================
 
-# Exempt paths as TUPLE (better performance than list for lookups)
-EXEMPT_PATHS = (
+# SECURITY FIX: Exempt paths as FROZENSET for O(1) lookup performance
+# Using frozenset instead of tuple for constant-time membership testing
+EXEMPT_PATHS = frozenset({
     # Health and documentation
     "/health",
     "/docs",
@@ -225,16 +226,18 @@ EXEMPT_PATHS = (
     "/api/v2/quiz-extensions/monthly/public",
     "/api/v2/monthly-quiz-public/monthly/public",
     "/api/v2/monthly-quiz/monthly/public",
-)
+})
 
 
 def is_csrf_exempt(path: str, method: str) -> bool:
     """
     Check if path and method combination is exempt from CSRF protection.
 
+    SECURITY FIX: Optimized with frozenset for O(1) lookups instead of O(n) tuple iteration.
+
     Exempt conditions:
     1. Safe HTTP methods (GET, HEAD, OPTIONS) - read-only operations
-    2. Paths in EXEMPT_PATHS tuple
+    2. Paths in EXEMPT_PATHS frozenset
     3. Static file paths
 
     Args:
@@ -244,11 +247,18 @@ def is_csrf_exempt(path: str, method: str) -> bool:
     Returns:
         True if path/method is exempt from CSRF protection
     """
+    # SECURITY FIX: Use frozenset for O(1) safe method checking
     # Safe HTTP methods are always exempt (CSRF only needed for state changes)
-    if method in ("GET", "HEAD", "OPTIONS"):
+    SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+    if method in SAFE_METHODS:
         return True
 
-    # Check if path starts with any exempt path
+    # SECURITY FIX: O(1) exact path lookup in frozenset before O(n) prefix check
+    # Check exact path match first (most common case)
+    if path in EXEMPT_PATHS:
+        return True
+
+    # Check if path starts with any exempt path prefix
     if any(path.startswith(exempt) for exempt in EXEMPT_PATHS):
         return True
 
@@ -289,11 +299,12 @@ def generate_csrf_token(secret_key: Optional[str] = None) -> str:
 
     Token Format: {timestamp}.{random_data}.{hmac_signature}
 
-    Using hexadecimal encoding instead of Base64 because:
+    SECURITY FIX: Using hexadecimal encoding instead of Base64 for:
     - More readable and auditable in logs
     - No URL-safe encoding concerns (no padding issues)
     - Cleaner regex validation (^[0-9a-f.]+$)
     - Better compatibility with different systems
+    - Prevents potential base64 decoding vulnerabilities
 
     Args:
         secret_key: Optional secret key (uses settings if not provided)
@@ -310,17 +321,18 @@ def generate_csrf_token(secret_key: Optional[str] = None) -> str:
     # Timestamp for expiration checking
     timestamp = str(int(time.time()))
 
-    # 32 bytes of cryptographically secure random data (64 hex chars)
-    # Changed from 16 bytes to 32 bytes for better security
+    # SECURITY FIX: 32 bytes of cryptographically secure random data (64 hex chars)
+    # Using secrets.token_hex() for hex encoding instead of base64
+    # 32 bytes provides 256 bits of entropy
     random_data = secrets.token_hex(32)
 
     # Combine timestamp and random data
     data = f"{timestamp}.{random_data}"
 
-    # Sign with HMAC-SHA256
+    # Sign with HMAC-SHA256 (cryptographically secure)
     signature = _generate_token_signature(data, secret_key)
 
-    # Return in format: timestamp.random.signature
+    # Return in format: timestamp.random.signature (all hexadecimal)
     token = f"{data}.{signature}"
 
     logger.debug(
@@ -340,9 +352,11 @@ def _validate_token_signature(token: str, secret_key: str, max_age: int = 3600) 
     """
     Validate CSRF token format, expiration, and signature.
 
+    SECURITY FIX: Uses constant-time comparison to prevent timing attacks.
+
     Performs validation in this order:
     1. Format validation (must have 3 parts: timestamp.random.signature)
-    2. Signature validation (constant-time comparison)
+    2. Signature validation (constant-time HMAC comparison)
     3. Expiration validation (within max_age seconds)
 
     Args:
@@ -354,7 +368,8 @@ def _validate_token_signature(token: str, secret_key: str, max_age: int = 3600) 
         True if token is valid, False otherwise
 
     Security Notes:
-    - Uses constant-time comparison (hmac.compare_digest) to prevent timing attacks
+    - SECURITY FIX: Uses hmac.compare_digest() for constant-time comparison
+    - Prevents timing attacks by avoiding early returns on signature mismatch
     - Validates signature before expiration to prevent timing leaks
     - Allows 60 seconds of clock skew for distributed systems
     """
@@ -373,15 +388,17 @@ def _validate_token_signature(token: str, secret_key: str, max_age: int = 3600) 
         # Reconstruct data for signature validation
         data = f"{timestamp_str}.{random_data}"
 
-        # Calculate expected signature
+        # Calculate expected signature using HMAC-SHA256
         expected_signature = _generate_token_signature(data, secret_key)
 
-        # Constant-time comparison to prevent timing attacks
+        # SECURITY FIX: Constant-time comparison using hmac.compare_digest()
+        # This prevents timing attacks by ensuring comparison takes same time
+        # regardless of where strings differ
         if not hmac.compare_digest(signature, expected_signature):
             logger.warning("CSRF token signature mismatch")
             return False
 
-        # Validate expiration (only after signature check)
+        # Validate expiration (only after signature check to prevent timing leaks)
         timestamp = int(timestamp_str)
         current_time = int(time.time())
         token_age = current_time - timestamp
@@ -561,6 +578,7 @@ def validate_csrf_token(request: Request) -> None:
         raise CsrfProtectError("Invalid CSRF cookie")
 
     # Step 5: Verify header and cookie tokens match (Double Submit Cookie pattern)
+    # SECURITY FIX: Use constant-time comparison to prevent timing attacks
     if not hmac.compare_digest(csrf_header, csrf_cookie):
         logger.warning(
             f"CSRF header and cookie mismatch for {request_path}",

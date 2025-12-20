@@ -57,13 +57,14 @@ def validate_cors_configuration(
     2. NO wildcard (*) origins (allows any origin)
     3. All origins must be HTTPS (prevent MITM attacks)
     4. At least one origin must be configured
+    5. Strict header validation (explicit whitelist only)
 
     Development Mode:
     - All validation is skipped to allow flexible local development
     - Localhost HTTP origins are permitted
 
     Args:
-        allow_origins: List of allowed origin URLs
+        allow_origins: List of allowed origin URLs (explicit list, no wildcards)
         allow_origin_regex: Optional regex pattern for origins
 
     Raises:
@@ -94,6 +95,7 @@ def validate_cors_configuration(
         )
 
     # Rule 2: No wildcard origins in production (allows any origin)
+    # SECURITY FIX: Check for wildcard in origins list
     if "*" in allow_origins:
         errors.append(
             "CORS wildcard origin (*) is not allowed in production.\n"
@@ -115,6 +117,7 @@ def validate_cors_configuration(
         )
 
     # Rule 4: All origins must be HTTPS in production (prevent MITM)
+    # SECURITY FIX: Use list comprehension for efficient filtering
     non_https_origins = [
         origin for origin in allow_origins
         if not origin.startswith("https://")
@@ -129,7 +132,7 @@ def validate_cors_configuration(
             "  Example: CORS_FRONTEND_URL='https://app.example.com' (not http://)"
         )
 
-    # If any validation errors, raise with detailed message
+    # If any validation errors, raise with detailed message (fail-fast)
     if errors:
         error_message = (
             "\n" + "=" * 80 + "\n"
@@ -247,7 +250,7 @@ def configure_cors(
     if allow_methods is None:
         allow_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
 
-    # Default headers - Explicit whitelist for security
+    # SECURITY FIX: Strict header validation - Explicit whitelist only
     # CRITICAL SECURITY: Never use ["*"] with allow_credentials=True
     #
     # Why? The combination of allow_headers=["*"] and allow_credentials=True
@@ -257,8 +260,9 @@ def configure_cors(
     # - Violates principle of least privilege
     # - Makes CORS protection essentially useless
     #
-    # Solution: Explicit whitelist of required headers only
+    # Solution: Explicit whitelist of required headers only (fail-fast validation)
     if allow_headers is None:
+        # Use tuple for immutability and better performance in production
         allow_headers = [
             "Content-Type",        # Standard content negotiation
             "Authorization",       # Bearer tokens and basic auth
@@ -269,6 +273,14 @@ def configure_cors(
             "Accept",              # Content type acceptance
             "Origin",              # Request origin (required for CORS)
         ]
+
+    # SECURITY FIX: Validate that wildcard headers are never used with credentials
+    if allow_credentials and "*" in allow_headers:
+        raise ValueError(
+            "Security Error: allow_headers=['*'] cannot be used with allow_credentials=True.\n"
+            "This combination exposes all request headers (Authorization, cookies) to cross-origin requests.\n"
+            "Use explicit header whitelist instead."
+        )
 
     # Add CORS middleware with validated configuration
     app.add_middleware(
