@@ -13,7 +13,7 @@ from uuid import UUID
 from sqlalchemy.orm import joinedload
 from sqlalchemy import and_
 
-from app.models.flow import PatientFlowState as FlowStateModel, FlowTemplate
+from app.models.flow import PatientFlowState as FlowStateModel, FlowTemplateVersion, FlowKind
 from app.schemas.v2.flows import (
     FlowStateV2Response,
     FlowAdvanceV2Response,
@@ -191,13 +191,17 @@ class FlowService(CoreFlowService):
     ) -> FlowTemplateV2List:
         cursor_data = pagination["cursor_data"]
         limit = pagination["limit"]
-        query = self.db.query(FlowTemplate)
+
+        # Use FlowTemplateVersion with join to FlowKind for flow_type filtering
+        query = self.db.query(FlowTemplateVersion).join(
+            FlowKind, FlowTemplateVersion.flow_kind_id == FlowKind.id
+        )
 
         filters = []
         if active_only:
-            filters.append(FlowTemplate.is_active)
+            filters.append(FlowTemplateVersion.is_active == True)
         if flow_type:
-            filters.append(FlowTemplate.flow_type == flow_type)
+            filters.append(FlowKind.kind_key == flow_type)
 
         if cursor_data and "id" in cursor_data:
             cursor_id = UUID(cursor_data["id"])
@@ -205,10 +209,10 @@ class FlowService(CoreFlowService):
                 cursor_data["created_at"].replace("Z", "+00:00")
             )
             filters.append(
-                (FlowTemplate.created_at < cursor_created)
+                (FlowTemplateVersion.created_at < cursor_created)
                 | (
-                    (FlowTemplate.created_at == cursor_created)
-                    & (FlowTemplate.id > cursor_id)
+                    (FlowTemplateVersion.created_at == cursor_created)
+                    & (FlowTemplateVersion.id > cursor_id)
                 )
             )
 
@@ -216,7 +220,7 @@ class FlowService(CoreFlowService):
             query = query.filter(and_(*filters))
 
         total = query.count() if not cursor_data else None
-        query = query.order_by(FlowTemplate.created_at.desc(), FlowTemplate.id)
+        query = query.order_by(FlowTemplateVersion.created_at.desc(), FlowTemplateVersion.id)
         templates = query.limit(limit + 1).all()
 
         has_more = len(templates) > limit

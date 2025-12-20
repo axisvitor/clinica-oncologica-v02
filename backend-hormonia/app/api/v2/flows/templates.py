@@ -86,19 +86,19 @@ async def get_flow_templates(
     cursor_data = pagination["cursor_data"]
     limit = pagination["limit"]
 
-    # Build query
-    from app.models.flow import FlowTemplate, FlowKind
+    # Build query using FlowTemplateVersion (FlowTemplate doesn't exist as SQLAlchemy model)
+    from app.models.flow import FlowTemplateVersion, FlowKind
 
-    query = db.query(FlowTemplate)
+    query = db.query(FlowTemplateVersion).join(
+        FlowKind, FlowTemplateVersion.flow_kind_id == FlowKind.id
+    )
 
     # Apply filters
     filters = []
     if active_only:
-        filters.append(FlowTemplate.is_active == True)  # noqa: E712
+        filters.append(FlowTemplateVersion.is_active == True)  # noqa: E712
     if flow_type:
-        # Join with FlowKind to filter by flow_type (kind_key)
-        query = query.join(FlowKind, FlowTemplate.kind_id == FlowKind.id)
-        filters.append(FlowKind.flow_type == flow_type)
+        filters.append(FlowKind.kind_key == flow_type)
 
     # Apply cursor
     if cursor_data and "id" in cursor_data:
@@ -107,10 +107,10 @@ async def get_flow_templates(
             cursor_data["created_at"].replace("Z", "+00:00")
         )
         filters.append(
-            (FlowTemplate.created_at < cursor_created)
+            (FlowTemplateVersion.created_at < cursor_created)
             | (
-                (FlowTemplate.created_at == cursor_created)
-                & (FlowTemplate.id > cursor_id)
+                (FlowTemplateVersion.created_at == cursor_created)
+                & (FlowTemplateVersion.id > cursor_id)
             )
         )
 
@@ -123,7 +123,7 @@ async def get_flow_templates(
         total = query.count()
 
     # Order and limit
-    query = query.order_by(FlowTemplate.created_at.desc(), FlowTemplate.id)
+    query = query.order_by(FlowTemplateVersion.created_at.desc(), FlowTemplateVersion.id)
     templates = query.limit(limit + 1).all()
 
     # Check for more results
