@@ -7,7 +7,7 @@
 # =============================================================================
 
 [build]
-builder = "NIXPACKS"
+builder = "RAILPACK"
 
 [deploy]
 healthcheckPath = "/health"

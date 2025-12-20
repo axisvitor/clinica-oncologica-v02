@@ -1,7 +1,7 @@
 # Railway Configuration - Monorepo with Railpack
 # =============================================================================
 # This project is a monorepo containing multiple services.
-# All services use Railpack (NIXPACKS) for building.
+# All services use Railpack for building.
 #
 # Services:
 # 1. Backend API     - Root: backend-hormonia    (Python/FastAPI)
@@ -12,7 +12,7 @@
 # =============================================================================
 
 [build]
-builder = "NIXPACKS"
+builder = "RAILPACK"
 
 [deploy]
 healthcheckPath = "/health"
