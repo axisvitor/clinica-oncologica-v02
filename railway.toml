@@ -1,30 +1,18 @@
-# Railway Configuration
+# Railway Configuration - Monorepo with Railpack
+# =============================================================================
 # This project is a monorepo containing multiple services.
-# Please configure the following services in your Railway project:
+# All services use Railpack (NIXPACKS) for building.
 #
-# 1. Backend API
-#    - Root Directory: backend-hormonia
-#    - Dockerfile: Dockerfile
-#
-# 2. Celery Worker
-#    - Root Directory: backend-hormonia
-#    - Dockerfile: Dockerfile.worker
-#
-# 3. Celery Beat
-#    - Root Directory: backend-hormonia
-#    - Dockerfile: Dockerfile.beat
-#
-# 4. Frontend
-#    - Root Directory: frontend-hormonia
-#    - Dockerfile: Dockerfile
-#
-# 5. Quiz Interface
-#    - Root Directory: quiz-mensal-interface
-#    - Dockerfile: Dockerfile
+# Services:
+# 1. Backend API     - Root: backend-hormonia    (Python/FastAPI)
+# 2. Celery Worker   - Root: backend-hormonia    (Python/Celery)
+# 3. Celery Beat     - Root: backend-hormonia    (Python/Celery)
+# 4. Frontend        - Root: frontend-hormonia   (React/Vite)
+# 5. Quiz Interface  - Root: quiz-mensal-interface (Next.js)
+# =============================================================================
 
 [build]
-builder = "DOCKERFILE"
-dockerfilePath = "backend-hormonia/Dockerfile"
+builder = "NIXPACKS"
 
 [deploy]
 healthcheckPath = "/health"

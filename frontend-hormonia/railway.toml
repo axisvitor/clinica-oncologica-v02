@@ -1,43 +1,17 @@
 # =============================================================================
-# RAILWAY CONFIGURATION - Frontend Hormonia (React/Vite)
+# RAILWAY CONFIGURATION - Frontend Hormonia (React/Vite + Railpack)
 # =============================================================================
 # Service: Main frontend application (Admin Dashboard)
-# Technology: React 19 + Vite + Nginx
+# Technology: React 19 + Vite
+# Builder: Railpack (auto-detects Vite, serves static files from dist/)
 # =============================================================================
 
 [build]
-builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile"
+builder = "NIXPACKS"
 
 [deploy]
-# Health check configuration
-healthcheckPath = "/health"
+healthcheckPath = "/"
 healthcheckTimeout = 120
-
-# Restart policy
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
-
-# Single replica (can scale up if needed)
 numReplicas = 1
-
-# =============================================================================
-# ENVIRONMENT VARIABLES (set in Railway Dashboard)
-# =============================================================================
-# REQUIRED:
-#   VITE_API_BASE_URL        = Backend API URL (e.g., https://api.example.railway.app)
-#   VITE_API_ENDPOINT_URL    = Full API endpoint (e.g., https://api.example.railway.app/api/v2)
-#   VITE_WS_BASE_URL         = WebSocket URL (e.g., wss://api.example.railway.app/ws)
-#
-# FIREBASE AUTH:
-#   VITE_FIREBASE_API_KEY
-#   VITE_FIREBASE_AUTH_DOMAIN
-#   VITE_FIREBASE_PROJECT_ID
-#   VITE_FIREBASE_STORAGE_BUCKET
-#   VITE_FIREBASE_MESSAGING_SENDER_ID
-#   VITE_FIREBASE_APP_ID
-#
-# OPTIONAL:
-#   VITE_MONITORING_SENTRY_DSN = Sentry DSN for error tracking
-#   VITE_APP_ENVIRONMENT       = production
-# =============================================================================

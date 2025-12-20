@@ -1,28 +1,17 @@
 # =============================================================================
-# RAILWAY CONFIGURATION - Celery Beat Service
+# RAILWAY CONFIGURATION - Celery Beat Service (Railpack)
 # =============================================================================
 # Service: hormonia-celery-beat
 # Type: Celery Beat (Scheduled Task Scheduler)
+# Builder: Railpack (uses same Python environment as API)
+# IMPORTANT: Never scale beyond 1 replica to avoid duplicate schedules
 # =============================================================================
 
 [build]
-builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile.beat"
-# Uses the same build context as main backend
-# watchPatterns = ["app/**", "requirements.txt", "Dockerfile.beat"]
+builder = "NIXPACKS"
 
 [deploy]
-# Beat doesn't expose HTTP endpoints, use process health check
-# Railway will monitor the process itself
-startCommand = "/app/scripts/entrypoint.sh beat"
-
-# Restart policy - beat scheduler should always restart
+startCommand = "celery -A app.celery_app beat --loglevel=info"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 5
-
-# Resource configuration - beat is lightweight, single replica only
-# IMPORTANT: Never scale beat beyond 1 replica to avoid duplicate schedules
 numReplicas = 1
-
-# Note: Add these environment variables in Railway dashboard:
-# SERVICE_TYPE=beat

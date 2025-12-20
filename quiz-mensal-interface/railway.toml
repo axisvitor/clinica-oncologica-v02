@@ -1,38 +1,17 @@
 # =============================================================================
-# RAILWAY CONFIGURATION - Quiz Mensal Interface (Next.js 14)
+# RAILWAY CONFIGURATION - Quiz Mensal Interface (Next.js 14 + Railpack)
 # =============================================================================
 # Service: Monthly quiz interface for patients
 # Technology: Next.js 14 with standalone output
+# Builder: Railpack (auto-detects Next.js)
 # =============================================================================
 
 [build]
-builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile"
+builder = "NIXPACKS"
 
 [deploy]
-# Health check configuration
 healthcheckPath = "/api/health"
 healthcheckTimeout = 120
-
-# Restart policy
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
-
-# Single replica (can scale up if needed)
 numReplicas = 1
-
-# =============================================================================
-# ENVIRONMENT VARIABLES (set in Railway Dashboard)
-# =============================================================================
-# REQUIRED:
-#   NEXT_PUBLIC_API_URL            = Backend base URL (e.g., https://api.example.railway.app)
-#   -- OR --
-#   NEXT_PUBLIC_QUIZ_PUBLIC_API_URL = Full quiz API endpoint (preferred)
-#
-#   QUIZ_SESSION_SECRET            = Session signing secret (min 32 chars)
-#                                    Generate: openssl rand -hex 32
-#
-# OPTIONAL:
-#   NEXT_PUBLIC_SENTRY_DSN         = Sentry DSN for error tracking
-#   NEXT_PUBLIC_DEBUG_MODE         = true/false
-# =============================================================================

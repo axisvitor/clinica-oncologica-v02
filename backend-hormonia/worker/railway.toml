@@ -1,28 +1,16 @@
 # =============================================================================
-# RAILWAY CONFIGURATION - Celery Worker Service
+# RAILWAY CONFIGURATION - Celery Worker Service (Railpack)
 # =============================================================================
 # Service: hormonia-celery-worker
 # Type: Celery Worker (Background Task Processing)
+# Builder: Railpack (uses same Python environment as API)
 # =============================================================================
 
 [build]
-builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile.worker"
-# Uses the same build context as main backend
-# watchPatterns = ["app/**", "requirements.txt", "Dockerfile.worker"]
+builder = "NIXPACKS"
 
 [deploy]
-# Worker doesn't expose HTTP endpoints, use process health check
-# Railway will monitor the process itself
-startCommand = "/app/scripts/entrypoint.sh worker"
-
-# Restart policy - workers should always restart
+startCommand = "celery -A app.celery_app worker --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-2}"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 5
-
-# Resource configuration
 numReplicas = 1
-
-# Note: Add these environment variables in Railway dashboard:
-# SERVICE_TYPE=worker
-# CELERY_WORKER_CONCURRENCY=2 (adjust based on plan)
