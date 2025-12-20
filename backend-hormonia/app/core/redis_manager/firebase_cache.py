@@ -17,7 +17,7 @@ import asyncio
 import hashlib
 import json
 from typing import Optional, Any, Dict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.config import settings
 from app.models.user import User, UserRole
@@ -88,8 +88,8 @@ class FirebaseRedisCache(SessionCacheMixin):
             "firebase_uid": user_data["uid"],
             "email": user_data.get("email"),
             "role": user_data.get("role"),
-            "validated_at": datetime.utcnow().isoformat(),
-            "expires_at": (datetime.utcnow() + timedelta(seconds=ttl)).isoformat(),
+            "validated_at": datetime.now(timezone.utc).isoformat(),
+            "expires_at": (datetime.now(timezone.utc) + timedelta(seconds=ttl)).isoformat(),
         }
 
         self.redis.setex(key, ttl, json.dumps(cache_data))
@@ -144,7 +144,7 @@ class FirebaseRedisCache(SessionCacheMixin):
         ttl = ttl_seconds or self.user_ttl
         key = f"user:firebase_uid:{firebase_uid}"
 
-        cache_data = {**user_dict, "cached_at": datetime.utcnow().isoformat()}
+        cache_data = {**user_dict, "cached_at": datetime.now(timezone.utc).isoformat()}
 
         self.redis.setex(key, ttl, json.dumps(cache_data))
         logger.debug(f"💾 User cached: {firebase_uid} (TTL: {ttl}s)")
@@ -240,7 +240,7 @@ class FirebaseRedisCache(SessionCacheMixin):
         """
         key = f"user:firebase_uid:{firebase_uid}"
 
-        cache_data = {**user_data, "cached_at": datetime.utcnow().isoformat()}
+        cache_data = {**user_data, "cached_at": datetime.now(timezone.utc).isoformat()}
 
         await asyncio.to_thread(self.redis.setex, key, ttl, json.dumps(cache_data))
         logger.debug(f"💾 User data cached: {firebase_uid} (TTL: {ttl}s)")

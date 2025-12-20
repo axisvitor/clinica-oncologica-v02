@@ -1,7 +1,8 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 from uuid import UUID
 import logging
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 
@@ -95,7 +96,7 @@ def _extract_user_id(current_user) -> str:
     response_model=FirebaseTokenVerifyResponse,
     summary="Verify Firebase token",
 )
-@limiter.limit("10/minute")
+@limiter.limit("5/minute")
 async def verify_firebase_token(
     request: Request,
     response: Response,
@@ -140,13 +141,19 @@ async def verify_firebase_token(
                 detail=str(e)
             )
 
+        # Check account lock status with proper transaction handling
         if getattr(user, "is_locked", False):
-            if user.locked_until and datetime.utcnow() < user.locked_until:
+            if user.locked_until and datetime.now(timezone.utc) < user.locked_until:
                 raise HTTPException(status_code=403, detail="Account locked")
-            user.is_locked = False
-            user.locked_until = None
-            user.failed_login_attempts = 0
+            # Use update query to avoid race conditions
+            from app.models.user import User
+            db.query(User).filter(User.id == user.id).update({
+                "is_locked": False,
+                "locked_until": None,
+                "failed_login_attempts": 0
+            })
             db.commit()
+            db.refresh(user)
 
         # Create Session
         from app.models.session import Session as SessionModel
@@ -157,35 +164,65 @@ async def verify_firebase_token(
             session_token=session_id_hex,
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent"),
-            last_activity=datetime.utcnow(),
-            expires_at=datetime.utcnow() + timedelta(days=5),  # 5 days default
+            last_activity=datetime.now(timezone.utc),
+            expires_at=datetime.now(timezone.utc) + timedelta(days=5),  # 5 days default
             is_active=True,
         )
         db.add(session)
-        db.commit()
-        db.refresh(session)
-        logger.info(f"✅ DB Session created: session_id={session.id}")
 
-        # Create Redis Session (Critical Fix)
-        redis_result = await redis_cache.create_session(
-            session_id=str(session.id),
-            user_id=str(user.id),
-            firebase_uid=user.firebase_uid,
-            metadata={
-                "ip_address": request.client.host if request.client else None,
-                "user_agent": request.headers.get("user-agent"),
-            },
-            ttl_seconds=432000,  # 5 days
-        )
-        if not redis_result:
-            logger.error("Redis create_session FAILED (returned False)")
-            raise HTTPException(
-                status_code=500, detail="Failed to create Redis session"
+        # CRITICAL FIX: Use flush() instead of commit() to get session ID without persisting
+        # This allows us to rollback if Redis creation fails
+        db.flush()
+        db.refresh(session)
+        logger.info(f"🔄 DB Session flushed (not committed): session_id={session.id}")
+
+        try:
+            # Create Redis Session (Critical Fix)
+            redis_result = await redis_cache.create_session(
+                session_id=str(session.id),
+                user_id=str(user.id),
+                firebase_uid=user.firebase_uid,
+                metadata={
+                    "ip_address": request.client.host if request.client else None,
+                    "user_agent": request.headers.get("user-agent"),
+                },
+                ttl_seconds=432000,  # 5 days
             )
 
-        logger.info(
-            f"✅ Redis Session created: session_id={session.id}, result={redis_result}"
-        )
+            if not redis_result:
+                logger.error("Redis create_session FAILED (returned False)")
+                # Rollback DB session since Redis failed
+                db.rollback()
+                raise HTTPException(
+                    status_code=500, detail="Failed to create Redis session"
+                )
+
+            logger.info(
+                f"✅ Redis Session created: session_id={session.id}, result={redis_result}"
+            )
+
+            # CRITICAL FIX: Only commit DB after Redis succeeds
+            db.commit()
+            logger.info(f"✅ DB Session committed: session_id={session.id}")
+
+        except HTTPException:
+            # Re-raise HTTP exceptions (already logged and rolled back)
+            raise
+        except Exception as e:
+            # Unexpected error during Redis creation - rollback DB and cleanup
+            logger.error(f"Unexpected error during session creation: {e}")
+            db.rollback()
+
+            # Attempt to cleanup Redis session if it was partially created
+            try:
+                await redis_cache.invalidate_session(str(session.id))
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to cleanup Redis session: {cleanup_error}")
+
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to create session - transaction rolled back"
+            )
 
         # Set HttpOnly Cookie
         response.set_cookie(
@@ -232,10 +269,6 @@ async def verify_firebase_token(
 
         logger.error(f"Auth error: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Authentication failed: {str(e)}")
-
-
-import uuid
-from datetime import timedelta
 
 
 @router.get("/verify-session", response_model=SessionV2Response)
@@ -308,21 +341,30 @@ async def logout(
         "X-Session-ID"
     )
     if session_id:
+        # Validate session_id is a valid UUID before using in query
+        try:
+            session_uuid = UUID(session_id)
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid session_id format: {session_id}")
+            raise HTTPException(status_code=400, detail="Invalid session ID")
+
         await redis_cache.invalidate_session(session_id)
 
-        # Also mark as revoked in DB
+        # Also mark as revoked in DB with proper error handling
         from app.models.session import Session as SessionModel
 
         try:
             db_session = (
-                db.query(SessionModel).filter(SessionModel.id == session_id).first()
+                db.query(SessionModel).filter(SessionModel.id == session_uuid).first()
             )
             if db_session:
                 db_session.is_active = False
-                db_session.revoked_at = datetime.utcnow()
+                db_session.revoked_at = datetime.now(timezone.utc)
                 db.commit()
         except Exception as e:
             logger.error(f"Error revoking DB session: {e}")
+            db.rollback()
+            raise HTTPException(status_code=500, detail="Failed to revoke session")
 
     return {"message": "Logged out successfully", "success": True}
 
@@ -347,7 +389,7 @@ async def logout_all(
     if firebase_uid:
         deleted_count = await redis_cache.invalidate_all_user_sessions(firebase_uid)
 
-    # Revoke all in DB
+    # Revoke all in DB with proper error handling
     from app.models.session import Session as SessionModel
 
     try:
@@ -355,11 +397,13 @@ async def logout_all(
         db.query(SessionModel).filter(
             SessionModel.user_id == user_uuid, SessionModel.is_active
         ).update(
-            {SessionModel.is_active: False, SessionModel.revoked_at: datetime.utcnow()}
+            {SessionModel.is_active: False, SessionModel.revoked_at: datetime.now(timezone.utc)}
         )
         db.commit()
     except Exception as e:
         logger.error(f"Error revoking all DB sessions: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to revoke all sessions")
 
     return {
         "message": "Logged out from all devices",

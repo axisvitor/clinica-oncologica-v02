@@ -4,7 +4,7 @@ State machine for flow progression management.
 
 from typing import List, Optional, Any, Tuple
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timezone
 from dataclasses import dataclass
 
 from app.services.template_loader import FlowTemplateData, FlowStep, FlowStepCondition
@@ -101,7 +101,7 @@ class ConditionEvaluator:
         condition: FlowStepCondition, context: dict[str, Any]
     ) -> Tuple[bool, str]:
         """Evaluate time-based condition."""
-        current_time = context.get("current_time", datetime.utcnow())
+        current_time = context.get("current_time", datetime.now(timezone.utc))
 
         if condition.field == "hours_since_start":
             start_time = context.get("flow_start_time")
@@ -272,7 +272,7 @@ class StateMachine:
         Returns:
             StateTransition: Result of the transition attempt
         """
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(timezone.utc)
 
         # Check if current step exists
         current_step = self.get_current_step(from_step_id)

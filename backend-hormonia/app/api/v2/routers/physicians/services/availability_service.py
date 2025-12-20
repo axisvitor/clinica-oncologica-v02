@@ -4,7 +4,7 @@ PhysicianAvailabilityService - Manage physician availability and schedules.
 
 import logging
 from typing import List, Optional, Dict, Any
-from datetime import datetime, time, date, timedelta
+from datetime import datetime, time, date, timedelta, timezone
 from uuid import UUID
 
 from sqlalchemy import and_, or_
@@ -183,7 +183,7 @@ class PhysicianAvailabilityService:
             Next available datetime or None
         """
         if after_datetime is None:
-            after_datetime = datetime.utcnow()
+            after_datetime = datetime.now(timezone.utc)
 
         # TODO: Implement logic to find next available slot
         # This would integrate with physician working hours/preferences

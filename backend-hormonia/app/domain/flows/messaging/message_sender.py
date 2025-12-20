@@ -162,7 +162,7 @@ class MessageSender:
             timezone = getattr(patient, "timezone", "America/Sao_Paulo")
 
             # Calculate send time for today or next business day
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             send_time = now.replace(
                 hour=preferred_hour, minute=0, second=0, microsecond=0
             )
@@ -179,4 +179,4 @@ class MessageSender:
 
         except Exception as e:
             logger.warning(f"Error calculating send time: {e}, using default")
-            return datetime.utcnow() + timedelta(hours=1)
+            return datetime.now(timezone.utc) + timedelta(hours=1)

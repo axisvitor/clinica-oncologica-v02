@@ -5,7 +5,7 @@ Implements critical error escalation, system health monitoring, and automated re
 
 import logging
 from typing import Any, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from dataclasses import dataclass
 import json
@@ -123,7 +123,7 @@ class FlowMonitoringService:
 
             return {
                 "status": health_status.value,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "metrics": metrics.__dict__,
                 "active_alerts": [alert.__dict__ for alert in active_alerts],
                 "trends": trends,
@@ -135,7 +135,7 @@ class FlowMonitoringService:
             return {
                 "status": HealthStatus.CRITICAL.value,
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
     async def collect_performance_metrics(self) -> PerformanceMetrics:
@@ -151,8 +151,8 @@ class FlowMonitoringService:
             )
 
             # Message metrics
-            one_hour_ago = datetime.utcnow() - timedelta(hours=1)
-            twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
+            one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
+            twenty_four_hours_ago = datetime.now(timezone.utc) - timedelta(hours=24)
 
             messages_last_hour = (
                 self.db.query(FlowMessage)
@@ -364,7 +364,7 @@ class FlowMonitoringService:
                 return False
 
             alert_dict = json.loads(alert_data)
-            alert_dict["resolved_at"] = datetime.utcnow().isoformat()
+            alert_dict["resolved_at"] = datetime.now(timezone.utc).isoformat()
             if resolution_note:
                 alert_dict["resolution_note"] = resolution_note
 
@@ -408,7 +408,7 @@ class FlowMonitoringService:
 
         return {
             "overall_status": overall_status.value,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "checks": health_checks,
         }
 
@@ -463,7 +463,7 @@ class FlowMonitoringService:
                 return None  # Still in cooldown
 
             # Create alert
-            alert_id = f"{component}_{title.replace(' ', '_').lower()}_{int(datetime.utcnow().timestamp())}"
+            alert_id = f"{component}_{title.replace(' ', '_').lower()}_{int(datetime.now(timezone.utc).timestamp())}"
             alert = SystemAlert(
                 id=alert_id,
                 severity=severity,
@@ -472,7 +472,7 @@ class FlowMonitoringService:
                 component=component,
                 metric_value=metric_value,
                 threshold=threshold,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
                 resolved_at=None,
                 metadata={},
             )
@@ -530,7 +530,7 @@ class FlowMonitoringService:
         """Calculate error rate from recent operations."""
         try:
             # Get error count from last hour
-            one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+            one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
             error_key = f"flow_errors:{one_hour_ago.strftime('%Y-%m-%d')}"
 
             error_count = self.redis.llen(error_key)  # FIX: Remove await
@@ -580,7 +580,7 @@ class FlowMonitoringService:
     async def _count_stale_flows(self) -> int:
         """Count flows that haven't been processed in over 24 hours."""
         try:
-            twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
+            twenty_four_hours_ago = datetime.now(timezone.utc) - timedelta(hours=24)
 
             stale_count = (
                 self.db.query(PatientFlowState)
@@ -652,10 +652,10 @@ class FlowMonitoringService:
     async def _check_database_connectivity(self) -> dict[str, Any]:
         """Check database connectivity and performance."""
         try:
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
             # Simple query to test connectivity
             self.db.execute("SELECT 1")
-            response_time = (datetime.utcnow() - start_time).total_seconds()
+            response_time = (datetime.now(timezone.utc) - start_time).total_seconds()
 
             return {
                 "status": HealthStatus.HEALTHY.value,
@@ -672,9 +672,9 @@ class FlowMonitoringService:
     async def _check_redis_connectivity(self) -> dict[str, Any]:
         """Check Redis connectivity and performance."""
         try:
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
             self.redis.ping()  # FIX: Remove await - Redis is synchronous
-            response_time = (datetime.utcnow() - start_time).total_seconds()
+            response_time = (datetime.now(timezone.utc) - start_time).total_seconds()
 
             return {
                 "status": HealthStatus.HEALTHY.value,
@@ -692,7 +692,7 @@ class FlowMonitoringService:
         """Check flow processing health."""
         try:
             # Check for recent flow processing activity
-            one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+            one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
             recent_messages = (
                 self.db.query(FlowMessage)
                 .filter(FlowMessage.sent_at >= one_hour_ago)

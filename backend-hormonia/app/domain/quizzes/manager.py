@@ -1,7 +1,7 @@
 """Main orchestrator for quiz session management (refactored from quiz_session_manager.py)."""
 
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from uuid import UUID
 from sqlalchemy.orm import Session
@@ -410,7 +410,7 @@ class QuizSessionManager:
     async def rotate_token(self, session: QuizSession, template: QuizTemplate) -> str:
         """Generate new rotated token for quiz session."""
         expires_at_dt = datetime.fromisoformat(
-            session.session_metadata.get("expires_at", datetime.utcnow().isoformat())
+            session.session_metadata.get("expires_at", datetime.now(timezone.utc).isoformat())
         )
 
         new_token = self.token_manager.generate_token(
@@ -424,7 +424,7 @@ class QuizSessionManager:
 
         metadata = session.session_metadata or {}
         metadata["previous_token_hash"] = metadata.get("token_hash")
-        metadata["token_rotated_at"] = datetime.utcnow().isoformat()
+        metadata["token_rotated_at"] = datetime.now(timezone.utc).isoformat()
         metadata["token_hash"] = new_token_hash
 
         session.session_metadata = metadata

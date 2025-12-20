@@ -68,6 +68,15 @@ class RLSJWTMiddleware:
         """
         Validate JWT token and extract claims.
 
+        SECURITY NOTE: This method decodes JWT without signature verification.
+        This is ONLY acceptable because:
+        1. The token has already been verified by Firebase/auth middleware
+        2. This is used for extracting context AFTER authentication
+        3. Critical operations must use proper auth dependencies
+
+        For security-critical operations, use auth_dependencies.py which
+        properly validates tokens through Firebase Admin SDK.
+
         Args:
             token: JWT token string
 
@@ -75,8 +84,9 @@ class RLSJWTMiddleware:
             Decoded token claims or None if invalid
         """
         try:
-            # For Supabase tokens, we can decode without verification
-            # since they're already validated by the frontend
+            # SECURITY WARNING: Signature verification disabled
+            # This is acceptable ONLY for extracting context from already-verified tokens
+            # Do NOT use this for authentication - use Firebase Admin SDK validation
             decoded_token = jwt.decode(token, options={"verify_signature": False})
 
             # Check if token is expired

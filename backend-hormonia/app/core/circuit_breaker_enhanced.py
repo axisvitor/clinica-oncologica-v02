@@ -25,7 +25,7 @@ Priority: HIGH (critical for production)
 import asyncio
 import logging
 from typing import Callable, Any, Optional, Dict, TypeVar, Generic
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from dataclasses import dataclass
 import functools
@@ -176,14 +176,14 @@ class EnhancedCircuitBreaker(Generic[T]):
         Raises:
             CircuitBreakerError: If circuit is open and no fallback provided
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         try:
             # Call through circuit breaker
             result = await self._breaker.call_async(func, *args, **kwargs)
 
             # Record success metrics
-            duration = (datetime.utcnow() - start_time).total_seconds()
+            duration = (datetime.now(timezone.utc) - start_time).total_seconds()
             circuit_breaker_successes_total.labels(service=self.name).inc()
             circuit_breaker_call_duration_seconds.labels(
                 service=self.name, status="success"
@@ -195,7 +195,7 @@ class EnhancedCircuitBreaker(Generic[T]):
             # Circuit is OPEN - use fallback
             logger.error(f"Circuit {self.name} is OPEN: {e}")
 
-            duration = (datetime.utcnow() - start_time).total_seconds()
+            duration = (datetime.now(timezone.utc) - start_time).total_seconds()
             circuit_breaker_failures_total.labels(service=self.name).inc()
             circuit_breaker_call_duration_seconds.labels(
                 service=self.name, status="circuit_open"
@@ -215,7 +215,7 @@ class EnhancedCircuitBreaker(Generic[T]):
             # Service failure - circuit breaker will track this
             logger.error(f"Service {self.name} call failed: {e}")
 
-            duration = (datetime.utcnow() - start_time).total_seconds()
+            duration = (datetime.now(timezone.utc) - start_time).total_seconds()
             circuit_breaker_failures_total.labels(service=self.name).inc()
             circuit_breaker_call_duration_seconds.labels(
                 service=self.name, status="failure"
@@ -249,7 +249,7 @@ class EnhancedCircuitBreaker(Generic[T]):
                     "function": func.__name__,
                     "args": str(args),  # Simplified - production should use pickle/json
                     "kwargs": str(kwargs),
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "service": self.name,
                 }
 

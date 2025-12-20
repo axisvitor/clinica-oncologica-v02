@@ -7,7 +7,7 @@ context preparation, and question display logic.
 """
 
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from app.models.quiz import QuizTemplate

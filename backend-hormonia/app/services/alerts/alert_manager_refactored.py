@@ -8,7 +8,7 @@ clear separation of concerns through dependency injection.
 import logging
 from typing import Dict, Any, List, Optional
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .types import (
     Alert,
@@ -274,7 +274,7 @@ class AlertManager:
 
         # Update alert
         alert.status = AlertStatus.ACKNOWLEDGED
-        alert.acknowledged_at = datetime.now()
+        alert.acknowledged_at = datetime.now(timezone.utc)
         alert.acknowledged_by = user_id
 
         if notes:
@@ -319,7 +319,7 @@ class AlertManager:
 
         # Update alert
         alert.status = AlertStatus.RESOLVED
-        alert.resolved_at = datetime.now()
+        alert.resolved_at = datetime.now(timezone.utc)
         alert.resolved_by = user_id
         alert.metadata["resolution"] = resolution
 

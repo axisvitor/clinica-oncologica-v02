@@ -6,7 +6,7 @@ Simple circuit breaker implementation for flow integrations.
 """
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 @dataclass
@@ -28,12 +28,12 @@ class CircuitBreaker:
     def record_failure(self) -> None:
         self.state.failures += 1
         if self.state.failures >= self.failure_threshold:
-            self.state.opened_at = datetime.utcnow()
+            self.state.opened_at = datetime.now(timezone.utc)
 
     def allow_request(self) -> bool:
         if self.state.opened_at is None:
             return True
-        if datetime.utcnow() - self.state.opened_at >= self.reset_timeout:
+        if datetime.now(timezone.utc) - self.state.opened_at >= self.reset_timeout:
             self.state = CircuitState()
             return True
         return False

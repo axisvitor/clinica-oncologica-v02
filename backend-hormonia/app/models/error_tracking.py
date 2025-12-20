@@ -5,7 +5,7 @@ Error tracking model for monitoring and debugging critical system errors.
 from sqlalchemy import Column, String, Text, Integer, Boolean, DateTime
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.base import BaseModel
 
@@ -52,7 +52,7 @@ class ErrorLog(BaseModel):
     def increment_count(self):
         """Increment the error count and update last_seen timestamp."""
         self.count += 1
-        self.last_seen = datetime.utcnow()
+        self.last_seen = datetime.now(timezone.utc)
 
     def mark_resolved(self):
         """Mark this error as resolved."""

@@ -7,7 +7,7 @@ Contains:
 - Processing status tracking
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -70,7 +70,7 @@ async def process_image(
     Returns:
         ProcessingInfo with results
     """
-    start_time = datetime.utcnow()
+    start_time = datetime.now(timezone.utc)
     processing_info = ProcessingInfo(
         status=ProcessingStatus.PROCESSING,
         virus_scan_clean=None,
@@ -137,7 +137,7 @@ async def process_image(
         processing_info.status = ProcessingStatus.FAILED
 
     # Calculate processing time
-    end_time = datetime.utcnow()
+    end_time = datetime.now(timezone.utc)
     processing_time_ms = int((end_time - start_time).total_seconds() * 1000)
     processing_info.processing_time_ms = processing_time_ms
 

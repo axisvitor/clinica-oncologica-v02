@@ -10,7 +10,7 @@ Enhanced dashboard endpoints with:
 """
 
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 import logging
 
@@ -172,7 +172,7 @@ async def get_main_dashboard(
             "alert_metrics": alert_metrics,
             "flow_metrics": flow_metrics,
             "recent_activity": recent_activity,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
         # Cache the result
@@ -272,7 +272,7 @@ async def get_patient_dashboard(
             "flow_metrics": flow_metrics,
             "recent_activity": recent_activity,
             "engagement_chart": engagement_data,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
         # Cache the result
@@ -358,7 +358,7 @@ async def get_physician_dashboard(
             "flow_metrics": flow_metrics,
             "high_priority_alerts": high_priority_alerts,
             "top_risk_patients": top_risk_patients,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
         # Cache the result

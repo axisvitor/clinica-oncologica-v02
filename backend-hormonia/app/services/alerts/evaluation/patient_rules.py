@@ -7,7 +7,7 @@ migrated from the original AlertService.
 
 import logging
 from typing import Dict, Any, TYPE_CHECKING
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 if TYPE_CHECKING:
     from ..rule_engine import RuleEngine
@@ -50,13 +50,13 @@ async def evaluate_no_response(
     context.get("patient_id")
     last_inbound_at = context.get("last_inbound_message_at")
     outbound_count = context.get("outbound_messages_since_response", 0)
-    patient_created_at = context.get("patient_created_at", datetime.utcnow())
+    patient_created_at = context.get("patient_created_at", datetime.now(timezone.utc))
 
     # Extract rule configuration
     threshold_hours = rule.condition.get("threshold_hours", 48)
 
     # Calculate cutoff time
-    cutoff_time = datetime.utcnow() - timedelta(hours=threshold_hours)
+    cutoff_time = datetime.now(timezone.utc) - timedelta(hours=threshold_hours)
 
     # Check if we've sent messages without response
     if outbound_count > 0:
@@ -65,7 +65,7 @@ async def evaluate_no_response(
 
         # Check if last response is before cutoff
         if reference_time < cutoff_time:
-            hours_since = (datetime.utcnow() - reference_time).total_seconds() / 3600
+            hours_since = (datetime.now(timezone.utc) - reference_time).total_seconds() / 3600
 
             return AlertEvaluation(
                 rule=rule,

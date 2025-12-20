@@ -5,7 +5,7 @@ Implements comprehensive event tracking, engagement metrics, and patient risk id
 
 import logging
 from typing import List, Optional, Any, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, and_, desc
 from uuid import UUID
 from enum import Enum
@@ -130,7 +130,7 @@ class FlowAnalyticsService:
                 flow_day=flow_day,
                 event_type=EventType.MESSAGE_SENT,
                 event_data=event_data,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
             )
 
             self.db.add(analytics)
@@ -193,7 +193,7 @@ class FlowAnalyticsService:
                 sentiment_score=sentiment_score,
                 engagement_score=engagement_score,
                 response_time_seconds=response_time_seconds,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
             )
 
             self.db.add(analytics)
@@ -238,7 +238,7 @@ class FlowAnalyticsService:
                 flow_day=flow_day,
                 event_type=event_type,
                 event_data=event_data or {},
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
             )
 
             self.db.add(analytics)
@@ -271,7 +271,7 @@ class FlowAnalyticsService:
         try:
             # Default to last 30 days if no range provided
             if not date_range:
-                end_date = datetime.utcnow()
+                end_date = datetime.now(timezone.utc)
                 start_date = end_date - timedelta(days=30)
                 date_range = (start_date, end_date)
 
@@ -400,7 +400,7 @@ class FlowAnalyticsService:
             List of at-risk patients
         """
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=lookback_days)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=lookback_days)
             at_risk_patients = []
 
             # Get all active patients
@@ -438,7 +438,7 @@ class FlowAnalyticsService:
                     risk_level = RiskLevel.HIGH
                 elif last_response.timestamp < cutoff_date:
                     days_since_response = (
-                        datetime.utcnow() - last_response.timestamp
+                        datetime.now(timezone.utc) - last_response.timestamp
                     ).days
                     risk_factors.append(f"No response for {days_since_response} days")
                     if days_since_response > 14:
@@ -603,7 +603,7 @@ class FlowAnalyticsService:
         """
         try:
             if not date_range:
-                end_date = datetime.utcnow()
+                end_date = datetime.now(timezone.utc)
                 start_date = end_date - timedelta(days=30)
                 date_range = (start_date, end_date)
 
@@ -719,7 +719,7 @@ class FlowAnalyticsService:
             Patient analytics summary
         """
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=lookback_days)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=lookback_days)
 
             # Get patient's analytics data
             analytics_data = (
@@ -801,7 +801,7 @@ class FlowAnalyticsService:
                 "patient_id": str(patient_id),
                 "analysis_period": {
                     "start_date": cutoff_date.isoformat(),
-                    "end_date": datetime.utcnow().isoformat(),
+                    "end_date": datetime.now(timezone.utc).isoformat(),
                     "days": lookback_days,
                 },
                 "engagement_summary": {
@@ -828,7 +828,7 @@ class FlowAnalyticsService:
                     if last_response
                     else None,
                     "days_since_last_response": (
-                        datetime.utcnow() - last_response.timestamp
+                        datetime.now(timezone.utc) - last_response.timestamp
                     ).days
                     if last_response
                     else None,
@@ -879,7 +879,7 @@ class FlowAnalyticsService:
             Number of records deleted
         """
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days_to_keep)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_to_keep)
 
             deleted_count = (
                 self.db.query(FlowAnalytics)

@@ -3,7 +3,7 @@ AI Services - Humanize Endpoints
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, BackgroundTasks, status
 
@@ -164,9 +164,9 @@ async def humanize_message(
                 hit=False,
                 key=cache_key,
                 ttl_seconds=CACHE_TTL_AI_RESPONSE,
-                cached_at=datetime.utcnow(),
+                cached_at=datetime.now(timezone.utc),
             ),
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
         )
 
         # Cache response
@@ -202,7 +202,7 @@ async def humanize_message(
             tone_analysis={},
             token_usage=None,
             cache_info=None,
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
         )
 
 
@@ -263,7 +263,7 @@ async def batch_humanize_messages(
                     personalization_notes=["Error: Failed to process"],
                     readability_score=0.0,
                     tone_analysis={},
-                    generated_at=datetime.utcnow(),
+                    generated_at=datetime.now(timezone.utc),
                 )
             )
 
@@ -285,7 +285,7 @@ async def batch_humanize_messages(
         results=results,
         total_token_usage=total_token_usage,
         cache_hit_rate=cache_hit_rate,
-        processed_at=datetime.utcnow(),
+        processed_at=datetime.now(timezone.utc),
     )
 
 
@@ -345,7 +345,7 @@ async def get_humanize_cache_stats(
                     "ttl_seconds": CACHE_TTL_AI_RESPONSE,
                 }
             },
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
         )
 
     except Exception as e:

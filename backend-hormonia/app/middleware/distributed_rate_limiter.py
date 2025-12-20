@@ -197,7 +197,28 @@ class DistributedRateLimiter:
             current_time = time.time()
             window_start = current_time - window
 
-            # Use Redis pipeline for atomicity
+            # NOTE: This pipeline is NOT fully atomic - there's a race condition
+            # between ZCARD and ZADD where concurrent requests may all read count=0
+            # and all proceed before any increments are visible.
+            #
+            # TODO: For true atomicity, implement using Lua script:
+            # ```lua
+            # local key = KEYS[1]
+            # local window_start = tonumber(ARGV[1])
+            # local current_time = tonumber(ARGV[2])
+            # local limit = tonumber(ARGV[3])
+            # redis.call('ZREMRANGEBYSCORE', key, 0, window_start)
+            # local count = redis.call('ZCARD', key)
+            # if count < limit then
+            #     redis.call('ZADD', key, current_time, tostring(current_time))
+            #     return {1, count + 1}  -- allowed, new_count
+            # end
+            # return {0, count}  -- denied, count
+            # ```
+            #
+            # Current implementation is acceptable for most use cases but may allow
+            # brief bursts during high concurrency. Consider Redis WATCH/MULTI/EXEC
+            # or Lua script for stricter rate limiting requirements.
             pipe = self.redis.pipeline()
 
             # 1. Remove old entries (outside window)
@@ -492,35 +513,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             else:
                 return RateLimitTier.AUTHENTICATED
 
-        # Fallback: Try to extract role from Authorization header
-        auth_header = request.headers.get("authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-            try:
-                # Try to decode JWT token to get role
-                import jwt
-
-                # Decode without verification (just to extract claims)
-                # This is safe for rate limiting purposes only
-                decoded = jwt.decode(token, options={"verify_signature": False})
-
-                # Check for admin role in various possible fields
-                role = (
-                    decoded.get("role")
-                    or decoded.get("custom_claims", {}).get("role")
-                    or decoded.get("roles", [None])[0]
-                    if isinstance(decoded.get("roles"), list)
-                    else None
-                )
-
-                if role and str(role).lower() == "admin":
-                    logger.info("Admin user detected via JWT token for rate limiting")
-                    return RateLimitTier.ADMIN
-                elif role:
-                    return RateLimitTier.AUTHENTICATED
-
-            except Exception as e:
-                logger.debug(f"Could not decode JWT for rate limiting: {e}")
+        # SECURITY FIX: Do NOT trust unverified JWT tokens for tier determination
+        # JWT signature MUST be verified before trusting any claims
+        # Admin tier should ONLY be granted via properly authenticated request.state.user
+        # Removed: Unverified JWT decode that allowed rate limit bypass via forged tokens
+        #
+        # If authentication middleware has not set request.state.user, default to PUBLIC tier
+        # This ensures rate limiting cannot be bypassed with forged JWTs
 
         return RateLimitTier.PUBLIC
 
@@ -549,13 +548,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if client_ip in self.whitelist_ips:
             return await call_next(request)
 
-        # TEMPORARY: Check for admin bypass in headers
-        auth_header = request.headers.get("authorization", "")
-        if auth_header and (
-            "admin" in auth_header.lower() or "super_admin" in auth_header.lower()
-        ):
-            logger.info(f"Admin bypass activated for {client_ip} on {request.url.path}")
-            return await call_next(request)
+        # SECURITY FIX: Removed admin bypass backdoor
+        # Previously allowed any request with "admin" in Authorization header to bypass rate limiting
+        # This was a critical security vulnerability - attackers could bypass all rate limits
 
         # Get client identifier and tier
         identifier = self._get_client_identifier(request)
@@ -565,13 +560,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Debug logging for admin detection
         if tier == RateLimitTier.ADMIN:
             logger.info(f"Admin tier detected for {identifier} on {request.url.path}")
-        elif "admin" in request.headers.get("authorization", "").lower():
-            logger.warning(
-                f"Potential admin user not detected properly for {identifier}"
-            )
-            # Force admin tier if we see admin in token
-            tier = RateLimitTier.ADMIN
-            config = self.tier_configs.get(tier)
+        # SECURITY FIX: Removed unsafe admin string detection
+        # Admin tier must be determined by proper authentication via request.state.user
 
         if not config:
             config = RateLimitConfig(

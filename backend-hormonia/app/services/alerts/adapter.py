@@ -10,7 +10,7 @@ This is a transitional component for Phase 5 migration (QW-020).
 import logging
 from typing import Any, Dict, List, Optional
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 from app.repositories.alert import AlertRepository
@@ -197,7 +197,7 @@ class AlertManagerAdapter:
 
         # Update in database
         db_alert.status = AlertStatus.ACKNOWLEDGED
-        db_alert.acknowledged_at = datetime.utcnow()
+        db_alert.acknowledged_at = datetime.now(timezone.utc)
         db_alert.acknowledged_by = user_id
 
         if notes:
@@ -236,7 +236,7 @@ class AlertManagerAdapter:
 
         # Update in database
         db_alert.status = AlertStatus.RESOLVED
-        db_alert.resolved_at = datetime.utcnow()
+        db_alert.resolved_at = datetime.now(timezone.utc)
         db_alert.resolved_by = user_id
 
         if resolution_notes:
@@ -332,7 +332,7 @@ class AlertManagerAdapter:
             "recent_alerts": [self._alert_to_dict(a) for a in recent_alerts[:20]],
             "unacknowledged_count": unacknowledged_count,
             "critical_count": critical_count,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         logger.info("Dashboard data generated successfully")
@@ -373,7 +373,7 @@ class AlertManagerAdapter:
             if not alert.metadata:
                 alert.metadata = {}
             alert.metadata["manually_escalated"] = True
-            alert.metadata["escalated_at"] = datetime.utcnow().isoformat()
+            alert.metadata["escalated_at"] = datetime.now(timezone.utc).isoformat()
             alert.metadata["previous_severity"] = current_severity.value
 
             self.db.commit()

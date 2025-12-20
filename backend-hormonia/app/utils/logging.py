@@ -4,7 +4,7 @@ Comprehensive logging utilities for structured JSON logging.
 
 import logging
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional, Union
 
 from pythonjsonlogger import jsonlogger
@@ -25,7 +25,7 @@ class StructuredFormatter(jsonlogger.JsonFormatter):
         super().add_fields(log_record, record, message_dict)
 
         # Add timestamp in ISO format
-        log_record["timestamp"] = datetime.utcnow().isoformat() + "Z"
+        log_record["timestamp"] = datetime.now(timezone.utc).isoformat() + "Z"
 
         # Add service information
         log_record["service"] = "hormonia-backend"

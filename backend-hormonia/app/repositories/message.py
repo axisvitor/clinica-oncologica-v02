@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 import hashlib
 import logging
 
@@ -548,7 +548,7 @@ class MessageIntegrityService:
         """Validate message chronological order"""
         try:
             patient_id = message_data["patient_id"]
-            message_timestamp = message_data.get("created_at", datetime.utcnow())
+            message_timestamp = message_data.get("created_at", datetime.now(timezone.utc))
 
             # Get the most recent message for this patient
             latest_message = (
@@ -585,7 +585,7 @@ class MessageIntegrityService:
                 "type": message_data.get("type", ""),
                 "content": message_data.get("content", ""),
                 "created_at": message_data.get(
-                    "created_at", datetime.utcnow()
+                    "created_at", datetime.now(timezone.utc)
                 ).isoformat(),
             }
 

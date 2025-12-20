@@ -5,7 +5,7 @@ PERFORMANCE OPTIMIZATION: All methods support eager loading by default to elimin
 Achieves 60-80% query reduction for read operations.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
@@ -134,7 +134,7 @@ class ConsentRepository(BaseRepository[Consent]):
         Returns:
             List of active consents with relationships pre-loaded
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         filters = [
             Consent.is_active,
             Consent.status == ConsentStatus.GRANTED,
@@ -273,7 +273,7 @@ class ConsentRepository(BaseRepository[Consent]):
         """
         from datetime import timedelta
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         expiry_date = now + timedelta(days=days)
 
         query = self.db.query(Consent).filter(
@@ -312,7 +312,7 @@ class ConsentRepository(BaseRepository[Consent]):
 
         if consent and consent.status == ConsentStatus.PENDING:
             consent.status = ConsentStatus.GRANTED
-            consent.granted_at = datetime.utcnow()
+            consent.granted_at = datetime.now(timezone.utc)
             consent.consented_by_id = consented_by_id
             self.db.commit()
             self.db.refresh(consent)
@@ -336,7 +336,7 @@ class ConsentRepository(BaseRepository[Consent]):
 
         if consent and consent.status == ConsentStatus.GRANTED:
             consent.status = ConsentStatus.REVOKED
-            consent.revoked_at = datetime.utcnow()
+            consent.revoked_at = datetime.now(timezone.utc)
             consent.is_active = False
             if reason:
                 consent.revocation_reason = reason

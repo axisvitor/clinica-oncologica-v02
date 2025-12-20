@@ -8,7 +8,7 @@ Provides version control operations for flow templates including:
 """
 
 from typing import Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 import logging
 
@@ -471,7 +471,7 @@ async def rollback_template_version(
             if rollback_data.set_as_active is not None
             else False,
             is_draft=False,  # Rollbacks are published by default
-            published_at=datetime.utcnow(),
+            published_at=datetime.now(timezone.utc),
             created_by=user_uuid,
         )
 
@@ -559,7 +559,7 @@ async def publish_template_version(
 
         # Publish template
         template.is_draft = False
-        template.published_at = datetime.utcnow()
+        template.published_at = datetime.now(timezone.utc)
 
         if set_as_active:
             # Deactivate other versions
@@ -569,7 +569,7 @@ async def publish_template_version(
             ).update({"is_active": False})
             template.is_active = True
 
-        template.updated_at = datetime.utcnow()
+        template.updated_at = datetime.now(timezone.utc)
 
         db.commit()
         db.refresh(template)

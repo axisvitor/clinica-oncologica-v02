@@ -4,7 +4,7 @@ Handles message sending operations: send message, schedule message, cancel sched
 """
 
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
@@ -93,7 +93,7 @@ async def send_message(
     message = message_service.schedule_message(
         patient_id=patient_uuid,
         content=message_data.content,
-        scheduled_for=datetime.utcnow(),
+        scheduled_for=datetime.now(timezone.utc),
         message_type=msg_type,
         message_metadata=message_data.message_metadata or {},
     )
@@ -108,7 +108,7 @@ async def send_message(
     return {
         "success": message.status != MessageStatus.FAILED,
         "message": _serialize_message(message, include_patient=True),
-        "estimated_delivery": (datetime.utcnow() + timedelta(seconds=3)).isoformat()
+        "estimated_delivery": (datetime.now(timezone.utc) + timedelta(seconds=3)).isoformat()
         if message.status == MessageStatus.SENT
         else None,
     }
@@ -235,7 +235,7 @@ async def cancel_message(
         "success": True,
         "message_id": message_id,
         "previous_status": previous_status.value,
-        "cancelled_at": datetime.utcnow().isoformat(),
+        "cancelled_at": datetime.now(timezone.utc).isoformat(),
         "message": "Message cancelled successfully",
     }
 

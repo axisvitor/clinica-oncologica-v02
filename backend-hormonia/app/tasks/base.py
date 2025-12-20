@@ -3,7 +3,7 @@
 import logging
 from contextlib import contextmanager
 from typing import Any, Dict, Generator
-from datetime import datetime
+from datetime import datetime, timezone
 from celery import Task
 from sqlalchemy.orm import Session
 
@@ -126,7 +126,7 @@ class BaseTask(Task):
             "success": False,
             "error": error,
             "task_name": self.name,
-            "failed_at": datetime.utcnow().isoformat(),
+            "failed_at": datetime.now(timezone.utc).isoformat(),
             **context,
         }
 
@@ -146,7 +146,7 @@ class BaseTask(Task):
         return {
             "success": True,
             "task_name": self.name,
-            "completed_at": datetime.utcnow().isoformat(),
+            "completed_at": datetime.now(timezone.utc).isoformat(),
             **data,
         }
 

@@ -4,7 +4,7 @@ WebSocket event schemas for real-time communication.
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Any, Optional, Union
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from enum import Enum
 
@@ -67,7 +67,7 @@ class WebSocketMessage(BaseModel):
     """Base WebSocket message structure."""
 
     type: WebSocketEventType
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     data: dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(
@@ -281,5 +281,5 @@ def create_websocket_message(
         data = data.dict()
 
     return WebSocketMessage(
-        type=event_type, data=data, timestamp=timestamp or datetime.utcnow()
+        type=event_type, data=data, timestamp=timestamp or datetime.now(timezone.utc)
     )

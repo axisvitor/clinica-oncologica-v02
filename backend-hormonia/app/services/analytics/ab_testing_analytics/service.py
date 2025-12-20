@@ -6,7 +6,7 @@ operations including comprehensive results calculation, reporting, and real-time
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional, Any
 from sqlalchemy import and_
 
@@ -149,7 +149,7 @@ class ABTestingAnalyticsService:
             results = {
                 "experiment_id": experiment_id,
                 "experiment_name": experiment.name,
-                "analysis_timestamp": datetime.utcnow().isoformat(),
+                "analysis_timestamp": datetime.now(timezone.utc).isoformat(),
                 "analysis_version": "2.0",
                 # Sample information
                 "sample_sizes": {
@@ -239,7 +239,7 @@ class ABTestingAnalyticsService:
         """
         try:
             # Get recent data (last 24 hours)
-            cutoff_time = datetime.utcnow() - timedelta(hours=24)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=24)
 
             recent_metrics = (
                 self.db.query(ABExperimentMetric)
@@ -265,7 +265,7 @@ class ABTestingAnalyticsService:
 
             # Calculate real-time KPIs
             real_time_kpis = {
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "period": "last_24_hours",
                 "message_volume": {
                     "control": len(control_metrics),
@@ -363,7 +363,7 @@ class ABTestingAnalyticsService:
 
             return {
                 "experiment_id": experiment_id,
-                "analysis_timestamp": datetime.utcnow().isoformat(),
+                "analysis_timestamp": datetime.now(timezone.utc).isoformat(),
                 "sprt_analysis": sprt_result,
                 "bayesian_analysis": bayesian_analysis,
                 "futility_analysis": futility_analysis,
@@ -397,7 +397,7 @@ class ABTestingAnalyticsService:
             # Extract key statistical measures
             statistical_summary = {
                 "experiment_id": experiment_id,
-                "analysis_date": datetime.utcnow().isoformat(),
+                "analysis_date": datetime.now(timezone.utc).isoformat(),
                 # Hypothesis testing
                 "primary_hypothesis": {
                     "null_hypothesis": "No difference between control and treatment",

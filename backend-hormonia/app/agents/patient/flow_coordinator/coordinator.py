@@ -3,7 +3,7 @@ Flow Coordinator Agent - Main coordinator class.
 """
 
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -274,7 +274,7 @@ class FlowCoordinatorAgent(BaseAgent):
                         "flow_decision": "continue_current",
                     },
                     status=MessageStatus.PENDING,
-                    scheduled_for=datetime.utcnow(),
+                    scheduled_for=datetime.now(timezone.utc),
                 )
 
                 # Save and send
@@ -292,7 +292,7 @@ class FlowCoordinatorAgent(BaseAgent):
 
                         context.flow_state.state_data.update(
                             {
-                                "last_message_sent": datetime.utcnow().isoformat(),
+                                "last_message_sent": datetime.now(timezone.utc).isoformat(),
                                 "current_day": context.current_day,
                                 "decision_agent": self.agent_id,
                             }

@@ -15,7 +15,7 @@ import asyncio
 import json
 import logging
 from typing import Dict, Set, Optional, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import WebSocket
@@ -160,7 +160,7 @@ class UnifiedWebSocketConnectionManager:
                 "type": "connection",
                 "status": "connected",
                 "connection_id": connection_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         )
 
@@ -186,7 +186,7 @@ class UnifiedWebSocketConnectionManager:
                 {
                     "type": "disconnection",
                     "reason": reason,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 },
             )
         except Exception as e:
@@ -349,7 +349,7 @@ class UnifiedWebSocketConnectionManager:
         connection_info.email = user.email
         connection_info.display_name = user.name
         connection_info.state = ConnectionState.AUTHENTICATED
-        connection_info.authenticated_at = datetime.utcnow()
+        connection_info.authenticated_at = datetime.now(timezone.utc)
 
         # Add to user connections
         if connection_info.user_id not in self.user_connections:
@@ -537,7 +537,7 @@ class UnifiedWebSocketConnectionManager:
 
     async def _perform_cleanup(self):
         """Perform cleanup of inactive connections."""
-        cutoff_time = datetime.utcnow() - timedelta(hours=1)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=1)
 
         for connection_id, connection_info in list(self.connections.items()):
             if connection_info.last_activity < cutoff_time:

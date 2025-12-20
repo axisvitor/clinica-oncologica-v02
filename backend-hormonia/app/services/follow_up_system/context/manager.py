@@ -5,7 +5,7 @@ Handles storage, retrieval, and updates of patient conversation context.
 
 import logging
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from ..models import ConversationContext
@@ -87,7 +87,7 @@ class ContextManager:
                         "updated_at": pref.extracted_at.isoformat(),
                     }
 
-            context.last_updated = datetime.utcnow()
+            context.last_updated = datetime.now(timezone.utc)
 
             # Store in Redis (with fallback to in-memory)
             await self._store_context(context)

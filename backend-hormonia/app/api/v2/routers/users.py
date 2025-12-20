@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 from uuid import UUID
 import json
@@ -204,7 +204,7 @@ async def patch_preferences(
     if not user.metadata:
         user.metadata = {}
     user.metadata["preferences"] = current
-    user.updated_at = datetime.utcnow()
+    user.updated_at = datetime.now(timezone.utc)
 
     db.commit()
 
@@ -283,7 +283,7 @@ async def revoke_session(
         raise HTTPException(status_code=404)
 
     session.is_active = False
-    session.revoked_at = datetime.utcnow()
+    session.revoked_at = datetime.now(timezone.utc)
     db.commit()
 
     return {"session_id": session_id, "revoked": True, "message": "Revoked"}

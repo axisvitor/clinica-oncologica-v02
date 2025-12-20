@@ -5,7 +5,7 @@ Handles flow analytics, metrics collection, and response processing.
 
 import logging
 from typing import Any, Optional, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from sqlalchemy.orm import Session
 
@@ -55,7 +55,7 @@ class AnalyticsTracker:
         try:
             # Default to last 7 days if no range provided
             if not date_range:
-                end_date = datetime.utcnow()
+                end_date = datetime.now(timezone.utc)
                 start_date = end_date - timedelta(days=7)
                 date_range = (start_date, end_date)
 
@@ -206,7 +206,7 @@ class AnalyticsTracker:
             if flow_state:
                 flow_state.state_data = flow_state.state_data or {}
                 flow_state.state_data["last_response_processed"] = {
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "message_id": str(message_id) if message_id else None,
                     "sentiment": processing_result.get("sentiment_analysis", {}),
                     "requires_attention": processing_result.get(
@@ -272,7 +272,7 @@ class AnalyticsTracker:
                     "old_step": old_step,
                     "new_step": new_step,
                     "advancement_reason": advancement_reason,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 },
             )
             logger.info(
@@ -306,7 +306,7 @@ class AnalyticsTracker:
                     "message_id": str(message_id),
                     "delivery_status": delivery_status,
                     "delivery_time_seconds": delivery_time_seconds,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 },
             )
         except Exception as e:

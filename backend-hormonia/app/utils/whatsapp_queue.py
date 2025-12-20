@@ -9,7 +9,7 @@ import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Dict, List, Optional, Callable, Any
 from uuid import uuid4
@@ -48,7 +48,7 @@ class QueuedMessage:
     retry_count: int = 0
     max_retries: int = 3
     scheduled_at: Optional[datetime] = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     callback: Optional[Callable] = None
 
 
@@ -237,7 +237,7 @@ class PerPatientRateLimiter:
 
     def _get_time_keys(self, patient_id: str) -> Dict[str, tuple]:
         """Get Redis keys and TTLs for rate limit windows."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         return {
             "minute": (
                 f"rate:patient:{patient_id}:minute:{now.strftime('%Y%m%d%H%M')}",
@@ -288,7 +288,7 @@ class PerPatientRateLimiter:
     async def _check_rate_limit_local(self, patient_id: str) -> Dict[str, Any]:
         """Check rate limits using local memory (single instance only)."""
         async with self._lock:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             minute_key = now.strftime("%Y%m%d%H%M")
             hour_key = now.strftime("%Y%m%d%H")
             day_key = now.strftime("%Y%m%d")
@@ -345,7 +345,7 @@ class PerPatientRateLimiter:
     async def _record_message_local(self, patient_id: str) -> None:
         """Record message in local memory."""
         async with self._lock:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
 
             if patient_id not in self._local_counters:
                 self._local_counters[patient_id] = {}
@@ -373,7 +373,7 @@ class OrderedMessage:
     priority: Priority = Priority.NORMAL
     retry_count: int = 0
     max_retries: int = 3
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class OrderedMessageQueue:

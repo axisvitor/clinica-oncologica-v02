@@ -20,7 +20,7 @@ Integration:
 import json
 import logging
 from typing import Any, Dict, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from redis.asyncio import Redis
@@ -103,8 +103,8 @@ class WebhookDLQ:
                 "error": error,
                 "retry_count": retry_count,
                 "max_retries": self.MAX_RETRIES,
-                "timestamp": (original_timestamp or datetime.utcnow()).isoformat(),
-                "added_to_dlq_at": datetime.utcnow().isoformat(),
+                "timestamp": (original_timestamp or datetime.now(timezone.utc)).isoformat(),
+                "added_to_dlq_at": datetime.now(timezone.utc).isoformat(),
                 "next_retry_at": self._calculate_next_retry(retry_count).isoformat(),
             }
 
@@ -164,7 +164,7 @@ class WebhookDLQ:
                 pattern = f"{self.DLQ_KEY_PREFIX}:*"
                 dlq_keys = await redis_client.keys(pattern)
 
-            current_time = datetime.utcnow()
+            current_time = datetime.now(timezone.utc)
 
             for dlq_key in dlq_keys:
                 # Process batch from this DLQ
@@ -294,7 +294,7 @@ class WebhookDLQ:
 
             # Add to dead letter storage (separate key with longer TTL)
             dead_letter_key = f"webhook:dead_letter:{event['event_type']}"
-            event["moved_to_dead_letter_at"] = datetime.utcnow().isoformat()
+            event["moved_to_dead_letter_at"] = datetime.now(timezone.utc).isoformat()
             await redis_client.rpush(dead_letter_key, json.dumps(event))
 
             # Set longer TTL (30 days for manual review)
@@ -332,7 +332,7 @@ class WebhookDLQ:
         delay_seconds = self.BASE_RETRY_DELAY * (2**retry_count)
         # Cap at 30 minutes
         delay_seconds = min(delay_seconds, 1800)
-        return datetime.utcnow() + timedelta(seconds=delay_seconds)
+        return datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
 
     async def _update_dlq_metadata(self, event_type: str, action: str) -> None:
         """
@@ -349,7 +349,7 @@ class WebhookDLQ:
             # Increment counter for action
             await redis_client.hincrby(metadata_key, f"total_{action}", 1)
             await redis_client.hset(
-                metadata_key, "last_updated", datetime.utcnow().isoformat()
+                metadata_key, "last_updated", datetime.now(timezone.utc).isoformat()
             )
 
             # Set TTL

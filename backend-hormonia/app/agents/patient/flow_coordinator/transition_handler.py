@@ -4,7 +4,7 @@ Transition Handler - Manages phase transitions and timing optimizations.
 
 import logging
 from typing import Dict, List, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -30,7 +30,7 @@ class TransitionHandler:
                     "phase_transition": {
                         "from": "daily_intensive",
                         "to": "monthly_recurring",
-                        "transitioned_at": datetime.utcnow().isoformat(),
+                        "transitioned_at": datetime.now(timezone.utc).isoformat(),
                         "transitioned_by": self.agent_id,
                     }
                 }
@@ -58,7 +58,7 @@ class TransitionHandler:
                 {
                     "optimized_timing": optimized_timing,
                     "timing_optimized_by": self.agent_id,
-                    "timing_optimized_at": datetime.utcnow().isoformat(),
+                    "timing_optimized_at": datetime.now(timezone.utc).isoformat(),
                 }
             )
 
@@ -78,7 +78,7 @@ class TransitionHandler:
                 else "normal",
                 "content_focus": await self._determine_content_focus(context),
                 "personalized_by": self.agent_id,
-                "personalized_at": datetime.utcnow().isoformat(),
+                "personalized_at": datetime.now(timezone.utc).isoformat(),
             }
 
             context.flow_state.state_data = context.flow_state.state_data or {}
@@ -114,7 +114,7 @@ class TransitionHandler:
             context.flow_state.state_data.update(
                 {
                     "flow_paused": True,
-                    "paused_at": datetime.utcnow().isoformat(),
+                    "paused_at": datetime.now(timezone.utc).isoformat(),
                     "paused_by": self.agent_id,
                     "pause_reason": "patient_request_or_medical_indication",
                 }
@@ -129,7 +129,7 @@ class TransitionHandler:
             context.flow_state.state_data.update(
                 {
                     "flow_paused": False,
-                    "resumed_at": datetime.utcnow().isoformat(),
+                    "resumed_at": datetime.now(timezone.utc).isoformat(),
                     "resumed_by": self.agent_id,
                 }
             )

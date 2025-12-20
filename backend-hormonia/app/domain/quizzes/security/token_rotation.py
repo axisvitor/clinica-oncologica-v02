@@ -13,7 +13,7 @@ INTEGRATION INSTRUCTIONS:
 """
 
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Tuple
 from uuid import UUID
 from sqlalchemy import and_
@@ -90,7 +90,7 @@ def _validate_token_with_grace_period(
                 )
 
                 # Calculate time since invalidation
-                time_since_invalidation = datetime.utcnow() - invalidated_at
+                time_since_invalidation = datetime.now(timezone.utc) - invalidated_at
 
                 if time_since_invalidation < grace_period:
                     # Token is within grace period - allow but log warning
@@ -300,7 +300,7 @@ async def submit_quiz_response_with_rotation(
         response_type=QuestionType(question.get("type", "open_text")),
         response_value=encrypted_response_value,
         response_metadata=response_metadata,
-        responded_at=datetime.utcnow(),
+        responded_at=datetime.now(timezone.utc),
     )
 
     response = await self.quiz_response_service.create_response(response_create)
@@ -328,11 +328,11 @@ async def submit_quiz_response_with_rotation(
 
             # Store previous token hash for grace period
             metadata["previous_token_hash"] = metadata.get("token_hash")
-            metadata["previous_token_invalidated_at"] = datetime.utcnow().isoformat()
+            metadata["previous_token_invalidated_at"] = datetime.now(timezone.utc).isoformat()
 
             # Update to new token
             metadata["token_hash"] = new_token_hash
-            metadata["token_rotated_at"] = datetime.utcnow().isoformat()
+            metadata["token_rotated_at"] = datetime.now(timezone.utc).isoformat()
             metadata["rotation_count"] = rotation_count + 1
 
             session.session_metadata = metadata
@@ -396,7 +396,7 @@ async def submit_quiz_response_with_rotation(
     session.current_question_index += 1
     if session.current_question_index >= len(template.questions):
         session.status = "completed"
-        session.completed_at = datetime.utcnow()
+        session.completed_at = datetime.now(timezone.utc)
 
     self.db.commit()
 

@@ -105,7 +105,7 @@ async def list_quizzes(
         filters.append(Patient.doctor_id == current_user_uuid)
 
     if cursor_data and "id" in cursor_data:
-        from datetime import datetime as dt
+        from datetime import datetime as dt, timezone
 
         cid = UUID(cursor_data["id"])
         cdate = dt.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
@@ -268,7 +268,7 @@ async def create_quiz(
     Uses distributed lock to prevent race condition where concurrent requests
     could both pass the "existing session" check and create duplicate sessions.
     """
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     try:
         pid = UUID(quiz_data.patient_id)
@@ -308,7 +308,7 @@ async def create_quiz(
                 patient_id=pid,
                 quiz_template_id=tid,
                 status=quiz_data.status or "started",
-                started_at=datetime.utcnow(),
+                started_at=datetime.now(timezone.utc),
             )
             db.add(new_quiz)
             db.commit()

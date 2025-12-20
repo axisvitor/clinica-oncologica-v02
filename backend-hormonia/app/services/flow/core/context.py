@@ -9,7 +9,7 @@ the production database without changing orchestration code.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
 from uuid import UUID
 import logging
@@ -165,7 +165,7 @@ class FlowContextRepository:
             "flow_metadata": context.model_dump(mode="json"),
             "started_at": context.started_at,
             "completed_at": context.completed_at,
-            "updated_at": datetime.utcnow(),
+            "updated_at": datetime.now(timezone.utc),
         }
 
         existing = self._db_repo.get(context.flow_instance_id)
@@ -173,7 +173,7 @@ class FlowContextRepository:
             self._db_repo.update(existing, payload)
         else:
             payload["id"] = context.flow_instance_id
-            payload.setdefault("started_at", datetime.utcnow())
+            payload.setdefault("started_at", datetime.now(timezone.utc))
             self._db_repo.create(payload)
 
         return True, None

@@ -21,7 +21,7 @@ import asyncio
 import json
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Callable, Any
 from uuid import uuid4
 from redis.asyncio import Redis
@@ -97,11 +97,11 @@ class MockEvolutionClient:
 
         message_id = str(uuid4())
         response = MessageResponse(
-            id=message_id, status=MessageStatus.SENT, timestamp=datetime.utcnow()
+            id=message_id, status=MessageStatus.SENT, timestamp=datetime.now(timezone.utc)
         )
 
         self.sent_messages.append(
-            {"request": request, "response": response, "timestamp": datetime.utcnow()}
+            {"request": request, "response": response, "timestamp": datetime.now(timezone.utc)}
         )
 
         return response
@@ -164,7 +164,7 @@ class WhatsAppHelper:
                 templates = repo.list_active()
                 for template in templates:
                     self.templates[template.name] = template
-            self.last_template_refresh = datetime.utcnow()
+            self.last_template_refresh = datetime.now(timezone.utc)
             logger.info(f"Loaded {len(self.templates)} templates from database")
         except Exception as e:
             logger.error(f"Error loading templates from database: {e}")
@@ -185,7 +185,7 @@ class WhatsAppHelper:
                     # Check if message is scheduled for future
                     if (
                         message.scheduled_at
-                        and message.scheduled_at > datetime.utcnow()
+                        and message.scheduled_at > datetime.now(timezone.utc)
                     ):
                         # Re-queue for later processing
                         await self.queue.enqueue(message)
@@ -237,7 +237,7 @@ class WhatsAppHelper:
         if message.retry_count <= message.max_retries:
             # Calculate exponential backoff delay
             delay = min(300, 2**message.retry_count)  # Max 5 minutes
-            message.scheduled_at = datetime.utcnow() + timedelta(seconds=delay)
+            message.scheduled_at = datetime.now(timezone.utc) + timedelta(seconds=delay)
 
             logger.info(
                 f"Retrying message {message.id} in {delay} seconds (attempt {message.retry_count}/{message.max_retries})"
@@ -268,11 +268,11 @@ class WhatsAppHelper:
         if status == MessageStatus.SENT and response:
             report.sent_at = response.timestamp
         elif status == MessageStatus.DELIVERED:
-            report.delivered_at = datetime.utcnow()
+            report.delivered_at = datetime.now(timezone.utc)
         elif status == MessageStatus.READ:
-            report.read_at = datetime.utcnow()
+            report.read_at = datetime.now(timezone.utc)
         elif status == MessageStatus.FAILED:
-            report.failed_at = datetime.utcnow()
+            report.failed_at = datetime.now(timezone.utc)
             report.error_message = error
 
     # Public API Methods
@@ -405,7 +405,7 @@ class WhatsAppHelper:
                     # Update Redis cache
                     await self._cache_template(template)
 
-            self.last_template_refresh = datetime.utcnow()
+            self.last_template_refresh = datetime.now(timezone.utc)
             logger.info(f"Refreshed {len(self.templates)} templates from database")
         except Exception as e:
             logger.error(f"Error refreshing template cache: {e}")

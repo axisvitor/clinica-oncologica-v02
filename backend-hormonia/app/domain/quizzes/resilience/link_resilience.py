@@ -8,7 +8,7 @@ fallback mechanisms, and retry logic for quiz reminders.
 import logging
 import hashlib
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any, Tuple
 from uuid import UUID
 from enum import Enum
@@ -97,7 +97,7 @@ class QuizLinkResilienceService:
         logger.info(f"Checking for expired quiz links (limit: {limit})")
 
         # Query for sessions with expired tokens
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         sessions = (
             self.db.query(QuizSession)
             .filter(
@@ -228,7 +228,7 @@ class QuizLinkResilienceService:
         regeneration_count = metadata.get("regeneration_count", 0)
 
         # Generate new expiry time (extend by configured hours)
-        new_expires_at = datetime.utcnow() + timedelta(
+        new_expires_at = datetime.now(timezone.utc) + timedelta(
             hours=self.config.MONTHLY_QUIZ_TOKEN_EXPIRY_HOURS
         )
 
@@ -244,7 +244,7 @@ class QuizLinkResilienceService:
         metadata["token_hash"] = hashlib.sha256(new_token.encode()).hexdigest()
         metadata["expires_at"] = new_expires_at.isoformat()
         metadata["regeneration_count"] = regeneration_count + 1
-        metadata["regenerated_at"] = datetime.utcnow().isoformat()
+        metadata["regenerated_at"] = datetime.now(timezone.utc).isoformat()
         metadata["link_status"] = QuizLinkStatus.ACTIVE.value
 
         session.session_metadata = metadata
@@ -305,7 +305,7 @@ class QuizLinkResilienceService:
 
         # Add failure record
         failure_record = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "reason": reason.value,
             "details": details or {},
         }
@@ -342,7 +342,7 @@ class QuizLinkResilienceService:
 
         metadata = session.session_metadata or {}
         metadata["fallback_activated"] = True
-        metadata["fallback_activated_at"] = datetime.utcnow().isoformat()
+        metadata["fallback_activated_at"] = datetime.now(timezone.utc).isoformat()
         metadata["fallback_reason"] = "max_failures_exceeded"
         metadata["delivery_method"] = DeliveryMethod.WHATSAPP.value
         metadata["link_status"] = QuizLinkStatus.REVOKED.value
@@ -377,7 +377,7 @@ class QuizLinkResilienceService:
         Args:
             channel: Delivery channel name
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         if channel not in self._channel_failures:
             self._channel_failures[channel] = []
@@ -508,7 +508,7 @@ class QuizLinkResilienceService:
             if expires_at_str:
                 try:
                     expires_at = datetime.fromisoformat(expires_at_str)
-                    if datetime.utcnow() > expires_at and session.status != "completed":
+                    if datetime.now(timezone.utc) > expires_at and session.status != "completed":
                         expired_count += 1
                 except (ValueError, TypeError) as e:
                     logger.debug(
@@ -593,7 +593,7 @@ class QuizLinkResilienceService:
             metadata["dead_letter_queue"] = []
 
         dlq_record = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "reason": reason,
             "payload": payload,
             "retry_count": payload.get("retry_count", 0),

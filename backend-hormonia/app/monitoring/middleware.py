@@ -9,7 +9,7 @@ import asyncio
 import functools
 import logging
 from typing import Callable, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from contextlib import asynccontextmanager
@@ -73,7 +73,7 @@ class MonitoringMiddleware(BaseHTTPMiddleware):
                 method=request.method,
                 status_code=response.status_code,
                 response_time=response_time,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 user_id=user_id,
                 db_queries=request.state.monitoring.get("db_queries", 0),
                 cache_hits=request.state.monitoring.get("cache_hits", 0),
@@ -102,7 +102,7 @@ class MonitoringMiddleware(BaseHTTPMiddleware):
                 method=request.method,
                 status_code=500,
                 response_time=response_time,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 user_id=user_id,
                 error_type=type(e).__name__,
                 db_queries=request.state.monitoring.get("db_queries", 0),

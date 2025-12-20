@@ -6,7 +6,7 @@ Provides efficient caching for admin dashboard data and user management.
 
 import json
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional, List, Callable
 from functools import wraps
 
@@ -62,7 +62,7 @@ class AdminCacheManager:
                 # Check if cache is still valid
                 if "expires_at" in data:
                     expires_at = datetime.fromisoformat(data["expires_at"])
-                    if datetime.utcnow() > expires_at:
+                    if datetime.now(timezone.utc) > expires_at:
                         await redis_client.delete(cache_key)
                         self.stats["misses"] += 1
                         return None
@@ -88,8 +88,8 @@ class AdminCacheManager:
 
             cache_data = {
                 "response": response_data,
-                "cached_at": datetime.utcnow().isoformat(),
-                "expires_at": (datetime.utcnow() + timedelta(seconds=ttl)).isoformat(),
+                "cached_at": datetime.now(timezone.utc).isoformat(),
+                "expires_at": (datetime.now(timezone.utc) + timedelta(seconds=ttl)).isoformat(),
             }
 
             await redis_client.setex(

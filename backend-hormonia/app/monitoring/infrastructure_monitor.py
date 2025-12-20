@@ -6,7 +6,7 @@ Comprehensive system resource and health monitoring for the healthcare platform.
 import asyncio
 import psutil
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from enum import Enum
@@ -160,7 +160,7 @@ class ResourceMonitor:
                 network_bytes_recv=net_io.bytes_recv,
                 network_packets_sent=net_io.packets_sent,
                 network_packets_recv=net_io.packets_recv,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 status=status,
             )
 
@@ -274,7 +274,7 @@ class ResourceMonitor:
                                 "pid": proc.info["pid"],
                                 "name": proc.info["name"],
                                 "memory_mb": memory_mb,
-                                "timestamp": datetime.utcnow(),
+                                "timestamp": datetime.now(timezone.utc),
                             }
                         )
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -331,7 +331,7 @@ class ProcessMonitor:
                                 num_fds=num_fds,
                                 status=proc.info["status"],
                                 create_time=proc.info["create_time"],
-                                timestamp=datetime.utcnow(),
+                                timestamp=datetime.now(timezone.utc),
                             )
                         )
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -508,7 +508,7 @@ class InfrastructureMonitor:
             metric_name=metric_name,
             current_value=current_value,
             threshold_value=threshold_value,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
 
         self.alerts.append(alert)
@@ -522,7 +522,7 @@ class InfrastructureMonitor:
 
         return {
             "status": metrics.status,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "resources": {
                 "cpu": {
                     "current": metrics.cpu_percent,

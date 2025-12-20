@@ -8,7 +8,7 @@ for the alert system.
 import logging
 from typing import Dict, Any, List, Optional
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from .types import (
     Alert,
@@ -207,7 +207,7 @@ class AlertStatisticsCollector:
 
     def _generate_alert_timeline(self, alerts: List[Alert]) -> List[Dict[str, Any]]:
         """Generate hourly alert timeline for last 24 hours."""
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         timeline = []
 
         for hour_offset in range(24):

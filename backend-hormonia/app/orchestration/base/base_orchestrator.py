@@ -15,7 +15,7 @@ Provides:
 import logging
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -219,7 +219,7 @@ class BaseOrchestrator(ABC):
                 "service": self.service_name,
                 "healthy": True,
                 "message": "Health checks disabled",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         health = {
@@ -232,7 +232,7 @@ class BaseOrchestrator(ABC):
                 "last_execution": self._last_execution_time,
                 "last_error": self._last_error_time,
             },
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         # Check database connectivity
@@ -262,7 +262,7 @@ class BaseOrchestrator(ABC):
             - Records timestamp of last execution
         """
         self._execution_count += 1
-        self._last_execution_time = datetime.utcnow().isoformat()
+        self._last_execution_time = datetime.now(timezone.utc).isoformat()
 
     def track_error(self):
         """
@@ -273,7 +273,7 @@ class BaseOrchestrator(ABC):
             - Records timestamp of last error
         """
         self._error_count += 1
-        self._last_error_time = datetime.utcnow().isoformat()
+        self._last_error_time = datetime.now(timezone.utc).isoformat()
 
     def get_metrics(self) -> Dict[str, Any]:
         """

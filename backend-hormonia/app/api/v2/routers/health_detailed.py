@@ -6,7 +6,7 @@ Provides comprehensive system health including saga orchestration, database cons
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any
 import asyncio
 
@@ -59,7 +59,7 @@ async def detailed_health_check(db: AsyncSession = Depends(get_db)) -> Dict[str,
 
     return {
         "status": overall_status,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "version": "1.0.0-with-critical-fixes",
         "components": {
             "database": database_health
@@ -84,10 +84,10 @@ async def detailed_health_check(db: AsyncSession = Depends(get_db)) -> Dict[str,
 async def check_database_health(db: AsyncSession) -> Dict[str, Any]:
     """Check database connection and basic query performance"""
     try:
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         result = await db.execute(text("SELECT 1"))
         result.scalar()
-        latency_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        latency_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
         # Check connection pool status
         pool_size = (
@@ -116,9 +116,9 @@ async def check_redis_health() -> Dict[str, Any]:
     """Check Redis connection and latency"""
     try:
         redis_client = await get_redis_client()
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         await redis_client.ping()
-        latency_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        latency_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
         # Get Redis info
         info = await redis_client.info()
@@ -139,7 +139,7 @@ async def check_saga_health(db: AsyncSession) -> Dict[str, Any]:
     """Check saga orchestrator health and performance"""
     try:
         # Check for stuck sagas (sagas in intermediate state for > 30 minutes)
-        cutoff_time = datetime.utcnow() - timedelta(minutes=30)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=30)
 
         stuck_sagas_query = text("""
             SELECT COUNT(*) as stuck_count
@@ -152,7 +152,7 @@ async def check_saga_health(db: AsyncSession) -> Dict[str, Any]:
         stuck_count = result.scalar() or 0
 
         # Calculate recent success rate (last 1 hour)
-        recent_cutoff = datetime.utcnow() - timedelta(hours=1)
+        recent_cutoff = datetime.now(timezone.utc) - timedelta(hours=1)
 
         success_rate_query = text("""
             SELECT
@@ -279,7 +279,7 @@ async def check_database_constraints(db: AsyncSession) -> Dict[str, Any]:
             all_present = all_present and exists
 
         # Check for recent duplicate prevention (blocked attempts)
-        recent_cutoff = datetime.utcnow() - timedelta(hours=24)
+        recent_cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
 
         duplicate_blocks_query = text("""
             SELECT COUNT(*)
@@ -410,4 +410,4 @@ async def celery_health_endpoint() -> Dict[str, Any]:
 @router.get("/health")
 async def basic_health_check() -> Dict[str, str]:
     """Basic health check for load balancers"""
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}

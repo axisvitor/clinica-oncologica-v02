@@ -4,7 +4,7 @@ Quiz Flow Integration Service - Main service for quiz and flow integration.
 
 import logging
 from typing import Any, Optional, Dict, List
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -199,7 +199,7 @@ class QuizFlowIntegrationService:
 
             # Update session status
             active_session.status = "cancelled"
-            active_session.completed_at = datetime.utcnow()
+            active_session.completed_at = datetime.now(timezone.utc)
             self.db.commit()
 
             logger.info(

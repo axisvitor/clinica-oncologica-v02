@@ -12,7 +12,7 @@ import secrets
 import json
 import httpx
 from typing import Optional, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException
@@ -187,7 +187,7 @@ class WebhookService:
 
         # WA-006: DB fallback for reliability
         try:
-            cutoff_time = datetime.utcnow() - timedelta(hours=IDEMPOTENCY_WINDOW_HOURS)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=IDEMPOTENCY_WINDOW_HOURS)
             existing = self.db.execute(
                 select(WebhookEvent).where(
                     WebhookEvent.event_id == webhook_id,
@@ -456,7 +456,7 @@ class WebhookService:
         last_24h = (
             self.db.query(func.count(WebhookDelivery.id))
             .filter(
-                WebhookDelivery.created_at >= datetime.utcnow() - timedelta(hours=24)
+                WebhookDelivery.created_at >= datetime.now(timezone.utc) - timedelta(hours=24)
             )
             .scalar()
             or 0
@@ -489,7 +489,7 @@ class WebhookService:
             self.db.query(func.count(WebhookDelivery.id))
             .filter(
                 WebhookDelivery.webhook_id == webhook_id,
-                WebhookDelivery.created_at >= datetime.utcnow() - timedelta(hours=24),
+                WebhookDelivery.created_at >= datetime.now(timezone.utc) - timedelta(hours=24),
             )
             .scalar()
             or 0
@@ -500,7 +500,7 @@ class WebhookService:
             .filter(
                 WebhookDelivery.webhook_id == webhook_id,
                 WebhookDelivery.status == "success",
-                WebhookDelivery.created_at >= datetime.utcnow() - timedelta(hours=24),
+                WebhookDelivery.created_at >= datetime.now(timezone.utc) - timedelta(hours=24),
             )
             .scalar()
             or 0
@@ -515,7 +515,7 @@ class WebhookService:
             .filter(
                 WebhookDelivery.webhook_id == webhook_id,
                 WebhookDelivery.status == "failed",
-                WebhookDelivery.created_at >= datetime.utcnow() - timedelta(hours=1),
+                WebhookDelivery.created_at >= datetime.now(timezone.utc) - timedelta(hours=1),
             )
             .scalar()
             or 0
@@ -764,7 +764,7 @@ class WebhookService:
             action=action,
             event_type=event_type,
             details=details,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
         self.db.add(log)
 
@@ -795,7 +795,7 @@ class WebhookService:
                 if response.is_success:
                     delivery.status = "success"
                     webhook.success_count += 1
-                    webhook.last_triggered_at = datetime.utcnow()
+                    webhook.last_triggered_at = datetime.now(timezone.utc)
                 else:
                     delivery.status = "failed"
                     delivery.error = f"HTTP {response.status_code}"
@@ -807,6 +807,6 @@ class WebhookService:
             delivery.response_time_ms = (time.time() - start_time) * 1000
             webhook.failure_count += 1
 
-        delivery.completed_at = datetime.utcnow()
+        delivery.completed_at = datetime.now(timezone.utc)
         self.db.commit()
         return delivery.status == "success"

@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import logging
 import hashlib
@@ -304,7 +304,7 @@ async def send_message(
         raise HTTPException(status_code=404)
 
     message_service = MessageService(db)
-    scheduled_time = message_data.scheduled_for or datetime.utcnow()
+    scheduled_time = message_data.scheduled_for or datetime.now(timezone.utc)
     idempotency_key = hashlib.sha256(
         f"{message_data.patient_id}:{message_data.content}:{scheduled_time.isoformat()}".encode()
     ).hexdigest()[:32]
@@ -322,7 +322,7 @@ async def send_message(
         idempotency_key=idempotency_key,
     )
 
-    if scheduled_time <= datetime.utcnow():
+    if scheduled_time <= datetime.now(timezone.utc):
         sender = MessageSender(db, messaging_mode=MessagingMode.QUEUE)
         background_tasks.add_task(sender.send_message, message)
 
@@ -360,7 +360,7 @@ async def mark_message_as_read(
     from app.schemas.message import MessageUpdate
 
     updated = service.update_message(
-        mid, MessageUpdate(status=MessageStatus.READ, read_at=datetime.utcnow())
+        mid, MessageUpdate(status=MessageStatus.READ, read_at=datetime.now(timezone.utc))
     )
 
     try:
@@ -485,7 +485,7 @@ async def send_bulk_messages(
         raise HTTPException(status_code=400)
 
     batch_id = hashlib.sha256(
-        f"{datetime.utcnow()}:{len(bulk_data.patient_ids)}".encode()
+        f"{datetime.now(timezone.utc)}:{len(bulk_data.patient_ids)}".encode()
     ).hexdigest()[:16]
 
     # In a real refactor, this loop should be pushed to a Service method "process_bulk"

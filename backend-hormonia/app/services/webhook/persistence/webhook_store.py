@@ -9,7 +9,7 @@ idempotency protection.
 import hashlib
 import logging
 from typing import Any, Dict, List, Optional, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 from sqlalchemy import text
@@ -410,7 +410,7 @@ class WebhookEventStore:
             Number of deleted events
         """
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
 
             delete_stmt = text("""
                 DELETE FROM webhook_events

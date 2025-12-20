@@ -6,7 +6,7 @@ Evaluates conditions for business rules.
 
 import logging
 from typing import Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 logger = logging.getLogger(__name__)

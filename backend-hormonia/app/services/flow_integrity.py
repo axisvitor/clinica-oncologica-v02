@@ -6,7 +6,7 @@ Extracted from FlowEngineIntegrationService for better separation of concerns.
 import hashlib
 import logging
 from typing import List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from app.models.flow import PatientFlowState
@@ -222,7 +222,7 @@ class FlowIntegrityService:
             if "last_updated" in state_data:
                 try:
                     last_updated = datetime.fromisoformat(state_data["last_updated"])
-                    if last_updated > datetime.utcnow():
+                    if last_updated > datetime.now(timezone.utc):
                         raise ValidationError(
                             "Flow last_updated cannot be in the future"
                         )
@@ -256,7 +256,7 @@ class FlowIntegrityService:
                 )
                 # Update with correct checksum
                 state_data["integrity_checksum"] = expected_checksum
-                state_data["checksum_updated"] = datetime.utcnow().isoformat()
+                state_data["checksum_updated"] = datetime.now(timezone.utc).isoformat()
                 self.db.commit()
 
         except ValidationError:
@@ -436,7 +436,7 @@ class FlowIntegrityService:
                 if not stored_checksum or stored_checksum != expected_checksum:
                     flow_state.state_data["integrity_checksum"] = expected_checksum
                     flow_state.state_data["checksum_repaired"] = (
-                        datetime.utcnow().isoformat()
+                        datetime.now(timezone.utc).isoformat()
                     )
                     repair_results["repairs_applied"].append(
                         "integrity_checksum_updated"
@@ -449,7 +449,7 @@ class FlowIntegrityService:
 
                 if "last_updated" not in flow_state.state_data:
                     flow_state.state_data["last_updated"] = (
-                        datetime.utcnow().isoformat()
+                        datetime.now(timezone.utc).isoformat()
                     )
                     repair_results["repairs_applied"].append("last_updated_field_added")
 
@@ -500,7 +500,7 @@ class FlowIntegrityService:
         try:
             results = {
                 "service": "FlowIntegrityService",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "healthy": True,
                 "checks": {},
             }
@@ -531,7 +531,7 @@ class FlowIntegrityService:
             logger.error(f"Flow integrity health check failed: {e}")
             return {
                 "service": "FlowIntegrityService",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "healthy": False,
                 "error": str(e),
             }

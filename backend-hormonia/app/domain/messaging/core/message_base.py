@@ -1,6 +1,6 @@
 from typing import List, Optional, Any
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 import hashlib
 
 from sqlalchemy.orm import Session
@@ -90,7 +90,7 @@ class MessageService:
             ts = (
                 scheduled_for.replace(second=0, microsecond=0).isoformat()
                 if scheduled_for
-                else datetime.utcnow().replace(second=0, microsecond=0).isoformat()
+                else datetime.now(timezone.utc).replace(second=0, microsecond=0).isoformat()
             )
             base = f"{patient_id}:{message_type.value}:{content}:{ts}"
             idempotency_key = hashlib.sha256(base.encode("utf-8")).hexdigest()[:32]
@@ -168,7 +168,7 @@ class MessageService:
         update_data = {
             "status": MessageStatus.SENT,
             "whatsapp_id": whatsapp_id,
-            "sent_at": datetime.utcnow(),
+            "sent_at": datetime.now(timezone.utc),
         }
         return self.repository.update(message, update_data)
 
@@ -181,7 +181,7 @@ class MessageService:
 
         update_data = {
             "status": MessageStatus.DELIVERED,
-            "delivered_at": datetime.utcnow(),
+            "delivered_at": datetime.now(timezone.utc),
         }
         return self.repository.update(message, update_data)
 
@@ -192,7 +192,7 @@ class MessageService:
         if not message:
             return None
 
-        update_data = {"status": MessageStatus.READ, "read_at": datetime.utcnow()}
+        update_data = {"status": MessageStatus.READ, "read_at": datetime.now(timezone.utc)}
         return self.repository.update(message, update_data)
 
     @with_db_retry(max_retries=3)
@@ -207,7 +207,7 @@ class MessageService:
         message_metadata = message.message_metadata or {}
         if error_info:
             message_metadata["error"] = error_info
-            message_metadata["failed_at"] = datetime.utcnow().isoformat()
+            message_metadata["failed_at"] = datetime.now(timezone.utc).isoformat()
 
         update_data = {
             "status": MessageStatus.FAILED,
@@ -238,7 +238,7 @@ class MessageService:
             return None
 
         if timestamp is None:
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(timezone.utc)
 
         update_data = {"status": status}
 

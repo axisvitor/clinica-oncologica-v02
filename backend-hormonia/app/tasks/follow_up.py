@@ -8,7 +8,7 @@ Quick Win #5 - Sprint 1
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any
 from uuid import UUID
 
@@ -50,7 +50,7 @@ def execute_pending_follow_ups(self) -> Dict[str, Any]:
             follow_up_service = FollowUpSystemService(db)
 
             # Get pending actions that are due
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             executed_count = 0
             failed_count = 0
             skipped_count = 0
@@ -74,7 +74,7 @@ def execute_pending_follow_ups(self) -> Dict[str, Any]:
 
                     if result.get("success"):
                         action.status = "completed"
-                        action.executed_at = datetime.utcnow()
+                        action.executed_at = datetime.now(timezone.utc)
                         action.execution_result = result
                         executed_count += 1
 
@@ -203,7 +203,7 @@ def _send_empathetic_response(
         message = message_service.schedule_message(
             patient_id=patient_id,
             content=content,
-            scheduled_for=datetime.utcnow(),
+            scheduled_for=datetime.now(timezone.utc),
             message_type=MessageType.TEXT,
             message_metadata={"follow_up_type": "empathetic_response"},
         )
@@ -234,7 +234,7 @@ def _send_medical_clarification(
         message = message_service.schedule_message(
             patient_id=patient_id,
             content=content,
-            scheduled_for=datetime.utcnow(),
+            scheduled_for=datetime.now(timezone.utc),
             message_type=MessageType.TEXT,
             message_metadata={"follow_up_type": "medical_clarification"},
         )
@@ -334,7 +334,7 @@ def _send_conversation_continuation(
         message = message_service.schedule_message(
             patient_id=patient_id,
             content=content,
-            scheduled_for=datetime.utcnow(),
+            scheduled_for=datetime.now(timezone.utc),
             message_type=MessageType.TEXT,
             message_metadata={"follow_up_type": "conversation_continuation"},
         )
@@ -378,7 +378,7 @@ def process_escalation_alerts(self) -> Dict[str, Any]:
 
             follow_up_service = FollowUpSystemService(db)
 
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             processed_count = 0
             escalated_count = 0
 
@@ -448,7 +448,7 @@ def cleanup_old_contexts(self) -> Dict[str, Any]:
 
             follow_up_service = FollowUpSystemService(db)
 
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             cleanup_threshold = now - timedelta(days=7)
             cleaned_count = 0
 

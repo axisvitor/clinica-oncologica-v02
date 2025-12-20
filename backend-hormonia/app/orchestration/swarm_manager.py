@@ -7,7 +7,7 @@ across the distributed agent network.
 
 import asyncio
 from typing import Dict, List, Optional, Any, Callable
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from collections import defaultdict
 from dataclasses import dataclass, asdict
@@ -64,7 +64,7 @@ class SwarmTask:
 
     def __post_init__(self):
         if self.created_at is None:
-            self.created_at = datetime.utcnow()
+            self.created_at = datetime.now(timezone.utc)
 
 
 @dataclass
@@ -84,7 +84,7 @@ class AgentHealth:
         self, max_response_time: float = 5.0, min_success_rate: float = 0.8
     ) -> bool:
         """Check if agent is healthy based on metrics."""
-        time_since_heartbeat = (datetime.utcnow() - self.last_heartbeat).total_seconds()
+        time_since_heartbeat = (datetime.now(timezone.utc) - self.last_heartbeat).total_seconds()
 
         return (
             self.status == AgentStatus.ACTIVE
@@ -115,7 +115,7 @@ class SwarmManager:
         # Swarm state
         self.status = SwarmStatus.INITIALIZING
         self.swarm_id = str(uuid4())
-        self.created_at = datetime.utcnow()
+        self.created_at = datetime.now(timezone.utc)
 
         # Health monitoring
         self.health_monitor: Optional[SystemHealthMonitor] = None
@@ -231,7 +231,7 @@ class SwarmManager:
             self.agent_health[agent.agent_id] = AgentHealth(
                 agent_id=agent.agent_id,
                 status=agent.status,
-                last_heartbeat=datetime.utcnow(),
+                last_heartbeat=datetime.now(timezone.utc),
                 response_time=0.0,
                 success_rate=1.0,
                 active_tasks=0,
@@ -300,7 +300,7 @@ class SwarmManager:
     async def agent_heartbeat(self, agent_id: str):
         """Record heartbeat from agent."""
         if agent_id in self.agent_health:
-            self.agent_health[agent_id].last_heartbeat = datetime.utcnow()
+            self.agent_health[agent_id].last_heartbeat = datetime.now(timezone.utc)
 
     # Task Management
     async def submit_task(
@@ -419,7 +419,7 @@ class SwarmManager:
             message_type=message_type,
             payload=payload,
             priority=priority,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
 
         await self.route_message(message)
@@ -517,7 +517,7 @@ class SwarmManager:
             # Update task status
             task.status = TaskStatus.ASSIGNED
             task.assigned_agent = agent_id
-            task.assigned_at = datetime.utcnow()
+            task.assigned_at = datetime.now(timezone.utc)
 
             # Send task to agent
             await self.send_message_to_agent(
@@ -816,7 +816,7 @@ class SwarmManager:
             task.status = TaskStatus.COMPLETED
             task.result = result
 
-        task.completed_at = datetime.utcnow()
+        task.completed_at = datetime.now(timezone.utc)
 
         # Decrement agent active tasks
         if task.assigned_agent and task.assigned_agent in self.agent_health:

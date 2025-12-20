@@ -6,7 +6,7 @@ with 7-year retention as required by HIPAA regulations.
 """
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from enum import Enum
 import json
@@ -73,7 +73,7 @@ class AuditEntry:
         self.resource_type = resource_type
         self.resource_id = resource_id
         self.user_id = user_id
-        self.timestamp = timestamp or datetime.utcnow()
+        self.timestamp = timestamp or datetime.now(timezone.utc)
         self.patient_id = patient_id
         self.changes = changes or {}
         self.reason = reason

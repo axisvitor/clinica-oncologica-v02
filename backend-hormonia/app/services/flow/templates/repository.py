@@ -11,7 +11,7 @@ Migration Note:
 """
 
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from ..types import FlowType, FlowTemplate
@@ -122,7 +122,7 @@ class FlowTemplateRepository:
             raise ValueError(f"Template not found: {template.template_id}")
 
         # Update timestamp
-        template.updated_at = datetime.utcnow()
+        template.updated_at = datetime.now(timezone.utc)
 
         # Store updated template
         old_template = self._templates[template.template_id]

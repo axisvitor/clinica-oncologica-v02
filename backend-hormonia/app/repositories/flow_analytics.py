@@ -3,7 +3,7 @@ Flow Analytics Repository for database operations.
 """
 
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, desc, asc
 from uuid import UUID

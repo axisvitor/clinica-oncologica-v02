@@ -10,7 +10,7 @@ QW-004: Enhanced with atomic retry counter support.
 import logging
 from typing import Optional, Tuple
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from redis.asyncio import Redis
 
@@ -148,7 +148,7 @@ class DLQRetryHandler:
 
         # Calculate delay
         delay_seconds = self.get_retry_delay(failed_message.retry_count)
-        next_retry_at = datetime.utcnow() + timedelta(seconds=delay_seconds)
+        next_retry_at = datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
 
         # Update message metadata
         failed_message.metadata["next_retry_at"] = next_retry_at.isoformat()
@@ -182,7 +182,7 @@ class DLQRetryHandler:
 
         try:
             next_retry = datetime.fromisoformat(next_retry_str)
-            return datetime.utcnow() >= next_retry
+            return datetime.now(timezone.utc) >= next_retry
         except (ValueError, TypeError) as e:
             logger.error(f"Invalid next_retry_at format: {e}")
             return False
@@ -198,7 +198,7 @@ class DLQRetryHandler:
         """
         failed_message.retry_count += 1
         failed_message.status = DLQStatus.RETRYING
-        failed_message.last_retry_at = datetime.utcnow()
+        failed_message.last_retry_at = datetime.now(timezone.utc)
         self.db.commit()
 
     async def mark_retry_started_atomic(
@@ -235,7 +235,7 @@ class DLQRetryHandler:
         # Update database (non-blocking, for consistency)
         failed_message.retry_count = new_count
         failed_message.status = DLQStatus.RETRYING
-        failed_message.last_retry_at = datetime.utcnow()
+        failed_message.last_retry_at = datetime.now(timezone.utc)
         self.db.commit()
 
         return True, new_count
@@ -272,7 +272,7 @@ class DLQRetryHandler:
             failed_message: Successfully processed message
         """
         failed_message.status = DLQStatus.RESOLVED
-        failed_message.resolved_at = datetime.utcnow()
+        failed_message.resolved_at = datetime.now(timezone.utc)
         self.db.commit()
 
     def mark_retry_failed(

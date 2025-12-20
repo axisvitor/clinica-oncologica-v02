@@ -11,7 +11,7 @@ import logging
 import time
 from typing import Optional, Tuple
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.failed_message import FailedMessage, FailureReason
 from app.schemas.dlq import DLQMessageList, DLQStats
@@ -150,7 +150,7 @@ class DLQService:
 
         if manual:
             failed_message.metadata["manual_retry"] = True
-            failed_message.metadata["manual_retry_at"] = datetime.utcnow().isoformat()
+            failed_message.metadata["manual_retry_at"] = datetime.now(timezone.utc).isoformat()
             self.db.commit()
 
         # Start processing metrics

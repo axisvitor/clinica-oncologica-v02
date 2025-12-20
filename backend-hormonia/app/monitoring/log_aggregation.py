@@ -7,7 +7,7 @@ HIPAA compliance for healthcare data.
 
 import asyncio
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional
 from collections import defaultdict, deque
 import re
@@ -137,7 +137,7 @@ class LogEntry:
         self.message = message
         self.level = level
         self.category = category
-        self.timestamp = timestamp or datetime.utcnow()
+        self.timestamp = timestamp or datetime.now(timezone.utc)
         self.context = context or {}
         self.exception = exception
         self.request_id = request_id
@@ -152,7 +152,7 @@ class LogEntry:
     def _generate_id(self) -> str:
         """Generate unique log entry ID."""
         return hashlib.sha256(
-            f"{datetime.utcnow().isoformat()}{id(self)}".encode()
+            f"{datetime.now(timezone.utc).isoformat()}{id(self)}".encode()
         ).hexdigest()[:16]
 
     def _detect_phi(self):
@@ -232,7 +232,7 @@ class ErrorPatternDetector:
             return None
 
         signature = self._error_signature(entry)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Add to history
         self.error_history[signature].append(now)
@@ -260,7 +260,7 @@ class ErrorPatternDetector:
 
     def get_top_patterns(self, limit: int = 10) -> List[Dict[str, Any]]:
         """Get top error patterns."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         cutoff = now - timedelta(seconds=self.window_seconds)
 
         patterns = []
@@ -475,7 +475,7 @@ class LogAggregator:
                 "type": "error_pattern",
                 "pattern": pattern,
                 "sample_entry": entry.to_dict(),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             await self.redis.setex(

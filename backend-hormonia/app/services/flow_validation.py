@@ -8,7 +8,7 @@ Critical P7 Fix: Ensures flows don't start with incomplete patient information.
 """
 
 from typing import Dict, List, Any, Optional
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 import logging
 
 from app.models.patient import Patient
@@ -438,7 +438,7 @@ class FlowPreflightValidator:
                 "critical": [rule.field_name for rule in self.critical_rules],
                 "recommended": [rule.field_name for rule in self.recommended_rules],
             },
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         # Log validation results

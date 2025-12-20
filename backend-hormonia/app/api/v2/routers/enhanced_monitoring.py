@@ -5,7 +5,7 @@ Delegates logic to MonitoringService.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, List
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query, status
@@ -260,7 +260,7 @@ async def dashboard_websocket_endpoint(websocket: WebSocket):
         await websocket.close(code=1003, reason="Dashboard not available")
         return
 
-    client_id = f"dashboard_{int(datetime.utcnow().timestamp() * 1000000)}"
+    client_id = f"dashboard_{int(datetime.now(timezone.utc).timestamp() * 1000000)}"
     try:
         await manager.dashboard.handle_websocket_connection(websocket, client_id)
     except WebSocketDisconnect:

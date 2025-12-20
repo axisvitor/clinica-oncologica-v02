@@ -3,7 +3,7 @@ Backup manager for data correction operations.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ class BackupManager:
         """
         return {
             f"original_{field_name}": original_value,
-            "backup_timestamp": datetime.utcnow().isoformat(),
+            "backup_timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     @staticmethod
@@ -49,7 +49,7 @@ class BackupManager:
         """
         return {
             f"original_{field_name}": original_value,
-            "backup_timestamp": datetime.utcnow().isoformat(),
+            "backup_timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     @staticmethod
@@ -69,7 +69,7 @@ class BackupManager:
                 "flow_state_id": str(flow_message.flow_state_id),
                 "content": flow_message.content,
             },
-            "backup_timestamp": datetime.utcnow().isoformat(),
+            "backup_timestamp": datetime.now(timezone.utc).isoformat(),
         }
         logger.info(f"Backup created for orphaned flow message: {backup_data}")
         return backup_data
@@ -91,7 +91,7 @@ class BackupManager:
         return {
             "completed_flows": [str(f.id) for f in completed_flows],
             "kept_flow": str(kept_flow.id),
-            "backup_timestamp": datetime.utcnow().isoformat(),
+            "backup_timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     @staticmethod

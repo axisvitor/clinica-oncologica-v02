@@ -6,7 +6,7 @@ Provides basic health checks, readiness/liveness probes, and detailed health che
 
 import time
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import Response
@@ -52,7 +52,7 @@ async def basic_health_check() -> HealthResponse:
     """
     return HealthResponse(
         status=HealthStatus.HEALTHY,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         version="2.0.0",
         environment=settings.APP_ENVIRONMENT,
     )
@@ -99,7 +99,7 @@ async def readiness_probe(
     return ReadinessProbe(
         ready=ready,
         checks=checks,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
     )
 
 
@@ -119,7 +119,7 @@ async def liveness_probe() -> LivenessProbe:
     return LivenessProbe(
         alive=True,
         uptime_seconds=uptime,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
     )
 
 
@@ -171,7 +171,7 @@ async def detailed_health_check(
     return DetailedHealthResponse(
         status=overall_status,
         health_score=health_score,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         version="2.0.0",
         environment=settings.APP_ENVIRONMENT,
         database=database,

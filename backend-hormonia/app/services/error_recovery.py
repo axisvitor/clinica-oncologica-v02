@@ -4,7 +4,7 @@ Error recovery service for flow operations with exponential backoff and graceful
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Any, Callable
 from uuid import UUID
 import json
@@ -316,7 +316,7 @@ class ErrorRecoveryService:
             "error_type": type(error).__name__,
             "error_message": str(error),
             "context": context,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         if isinstance(error, FlowException):
@@ -330,7 +330,7 @@ class ErrorRecoveryService:
 
         # Store in Redis for monitoring
         try:
-            error_key = f"flow_errors:{datetime.utcnow().strftime('%Y-%m-%d')}"
+            error_key = f"flow_errors:{datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
             await self.redis.lpush(error_key, json.dumps(error_data))
             await self.redis.expire(error_key, 86400 * 7)  # Keep for 7 days
         except Exception:
@@ -348,7 +348,7 @@ class ErrorRecoveryService:
             "message_id": str(error.message_id) if error.message_id else None,
             "retry_count": error.retry_count + 1,
             "original_context": context,
-            "scheduled_for": (datetime.utcnow() + timedelta(seconds=delay)).isoformat(),
+            "scheduled_for": (datetime.now(timezone.utc) + timedelta(seconds=delay)).isoformat(),
         }
 
         # Store retry information
@@ -392,7 +392,7 @@ class ErrorRecoveryService:
             "corruption_type": error.corruption_type,
             "corrupted_data": error.flow_state_data,
             "context": context,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "status": "pending",
         }
 
@@ -429,7 +429,7 @@ class ErrorRecoveryService:
         """Activate fallback mode for failed service."""
         fallback_key = f"fallback_mode:{service_name}"
         fallback_data = {
-            "activated_at": datetime.utcnow().isoformat(),
+            "activated_at": datetime.now(timezone.utc).isoformat(),
             "context": context,
         }
         await self.redis.setex(fallback_key, 3600, json.dumps(fallback_data))
@@ -489,7 +489,7 @@ class ErrorRecoveryService:
             investigation_data = {
                 "patient_id": str(patient_id),
                 "reason": reason,
-                "paused_at": datetime.utcnow().isoformat(),
+                "paused_at": datetime.now(timezone.utc).isoformat(),
                 "status": "requires_investigation",
             }
 
@@ -512,7 +512,7 @@ class ErrorRecoveryService:
             "retry_count": error.retry_count,
             "last_error": error.last_error,
             "context": context,
-            "escalated_at": datetime.utcnow().isoformat(),
+            "escalated_at": datetime.now(timezone.utc).isoformat(),
         }
 
         escalation_key = f"escalations:message_delivery:{error.patient_id}"
@@ -532,7 +532,7 @@ class ErrorRecoveryService:
             "error_code": error.error_code,
             "is_recoverable": error.is_recoverable,
             "context": context,
-            "escalated_at": datetime.utcnow().isoformat(),
+            "escalated_at": datetime.now(timezone.utc).isoformat(),
         }
 
         escalation_key = f"escalations:service_failure:{error.service_name}"

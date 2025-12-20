@@ -10,7 +10,7 @@ This is the refactored version with modular composition.
 import logging
 from typing import Dict, Any, List, Optional, TYPE_CHECKING
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 if TYPE_CHECKING:
     from .rule_engine import RuleEngine
@@ -182,7 +182,7 @@ class AlertManager:
 
         # Update alert
         alert.status = AlertStatus.ACKNOWLEDGED
-        alert.acknowledged_at = datetime.now()
+        alert.acknowledged_at = datetime.now(timezone.utc)
         alert.acknowledged_by = user_id
 
         if notes:
@@ -219,7 +219,7 @@ class AlertManager:
 
         # Update alert
         alert.status = AlertStatus.RESOLVED
-        alert.resolved_at = datetime.now()
+        alert.resolved_at = datetime.now(timezone.utc)
         alert.resolved_by = user_id
         alert.metadata["resolution"] = resolution
 

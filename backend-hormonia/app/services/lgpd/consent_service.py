@@ -6,7 +6,7 @@ including consent tracking, revocation, and audit logging.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 
@@ -77,9 +77,9 @@ class ConsentService:
         """
         expires_at = None
         if expires_in_days:
-            expires_at = datetime.utcnow() + timedelta(days=expires_in_days)
+            expires_at = datetime.now(timezone.utc) + timedelta(days=expires_in_days)
         elif self.DEFAULT_EXPIRATION_DAYS:
-            expires_at = datetime.utcnow() + timedelta(
+            expires_at = datetime.now(timezone.utc) + timedelta(
                 days=self.DEFAULT_EXPIRATION_DAYS
             )
 
@@ -145,7 +145,7 @@ class ConsentService:
             raise ValueError(f"Consent {consent_id} is already {consent.status.value}")
 
         consent.status = ConsentStatus.GRANTED
-        consent.granted_at = datetime.utcnow()
+        consent.granted_at = datetime.now(timezone.utc)
         consent.consented_by_id = user_id
         if signature_data:
             consent.signature_data = signature_data
@@ -198,7 +198,7 @@ class ConsentService:
             )
 
         consent.status = ConsentStatus.REVOKED
-        consent.revoked_at = datetime.utcnow()
+        consent.revoked_at = datetime.now(timezone.utc)
         consent.revocation_reason = reason
 
         self.db.commit()
@@ -232,7 +232,7 @@ class ConsentService:
         Returns:
             True if consent is granted and valid
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         consent = (
             self.db.query(Consent)
@@ -272,7 +272,7 @@ class ConsentService:
         )
 
         if not include_expired:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             query = query.filter(
                 or_(Consent.expires_at.is_(None), Consent.expires_at > now)
             )
@@ -289,7 +289,7 @@ class ConsentService:
         Returns:
             Number of consents marked as expired
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         expired = (
             self.db.query(Consent)
@@ -532,7 +532,7 @@ class LGPDAuditService:
         Returns:
             List of failed access logs
         """
-        since = datetime.utcnow() - timedelta(hours=hours)
+        since = datetime.now(timezone.utc) - timedelta(hours=hours)
 
         return (
             self.db.query(LGPDAuditLog)

@@ -5,7 +5,7 @@ Implements ULTRATHINK approach with delivery guarantees, rate limiting, and retr
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List, Tuple
 from urllib.parse import urljoin
 import aiohttp
@@ -35,7 +35,7 @@ class RateLimiter:
     async def acquire(self) -> bool:
         """Acquire rate limit permission."""
         async with self._lock:
-            now = datetime.now()
+            now = datetime.now(timezone.utc)
             # Remove old requests outside the window
             cutoff = now - timedelta(seconds=self.window_seconds)
             self.requests = [
@@ -266,7 +266,7 @@ class EvolutionAPIClient:
                 external_id=message_data.get("key", {}).get("id"),
                 status=MessageStatus.SENT,
                 message="Message sent successfully",
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 message_data=message_data,
             )
         else:
@@ -318,7 +318,7 @@ class EvolutionAPIClient:
                 external_id=message_data.get("key", {}).get("id"),
                 status=MessageStatus.SENT,
                 message="Media message sent successfully",
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 message_data=message_data,
             )
         else:

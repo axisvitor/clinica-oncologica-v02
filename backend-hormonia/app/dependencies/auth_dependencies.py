@@ -12,6 +12,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional, Dict, List, Any, TYPE_CHECKING
 import logging
 import asyncio
+import re
 
 if TYPE_CHECKING:
     from app.core.redis_manager import FirebaseRedisCache
@@ -24,7 +25,19 @@ from app.core.database import SessionLocal
 logger = logging.getLogger(__name__)
 
 # In-memory registry used by test fixtures to bypass Firebase validation.
+# SECURITY: This registry is ONLY used when APP_ENABLE_DEBUG=True
+# In production, test tokens are NEVER accepted
 TEST_TOKEN_REGISTRY: Dict[str, User] = {}
+
+def _is_test_mode_enabled() -> bool:
+    """Check if test/debug mode is enabled (NEVER in production)."""
+    app_env = getattr(settings, "APP_ENVIRONMENT", "development").lower()
+    debug_enabled = getattr(settings, "APP_ENABLE_DEBUG", False)
+    # SECURITY: Never allow test tokens in production
+    if app_env in ("production", "prod"):
+        return False
+    return debug_enabled
+
 security = HTTPBearer(auto_error=False)
 
 # Initialize Firebase Auth Service if configured
@@ -56,6 +69,84 @@ except Exception as e:
 # =============================================================================
 # CORE AUTHENTICATION DEPENDENCIES
 # =============================================================================
+
+# Firebase UID validation pattern: alphanumeric, 20-128 characters
+_FIREBASE_UID_PATTERN = re.compile(r'^[A-Za-z0-9]{20,128}$')
+
+# Email validation pattern: basic RFC 5322 compliant pattern
+_EMAIL_PATTERN = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+
+def _validate_email(email: str) -> None:
+    """
+    Validate email format.
+
+    Args:
+        email: The email address to validate
+
+    Raises:
+        HTTPException: If the email format is invalid
+    """
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email is required"
+        )
+
+    if not isinstance(email, str):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email must be a string"
+        )
+
+    if len(email) > 254:  # RFC 5321
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email exceeds maximum length of 254 characters"
+        )
+
+    if not _EMAIL_PATTERN.match(email):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid email format"
+        )
+
+
+def _validate_firebase_uid(firebase_uid: str) -> None:
+    """
+    Validate Firebase UID format to prevent injection attacks.
+
+    Firebase UIDs are typically 28 alphanumeric characters, but we allow 20-128
+    to accommodate different Firebase UID formats.
+
+    Args:
+        firebase_uid: The Firebase UID to validate
+
+    Raises:
+        HTTPException: If the UID format is invalid
+    """
+    if not firebase_uid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Firebase UID is required"
+        )
+
+    if not isinstance(firebase_uid, str):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Firebase UID must be a string"
+        )
+
+    if len(firebase_uid) > 128:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Firebase UID exceeds maximum length of 128 characters"
+        )
+
+    if not _FIREBASE_UID_PATTERN.match(firebase_uid):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid Firebase UID format. Must be alphanumeric, 20-128 characters"
+        )
 
 
 def _get_service_provider():
@@ -274,6 +365,9 @@ async def get_current_user_from_session(
                 headers={"WWW-Authenticate": "Session"},
             )
 
+        # Validate Firebase UID format to prevent injection attacks
+        _validate_firebase_uid(firebase_uid)
+
         # Layer 2: Get user from cache (~2-5ms on hit, ~50-100ms on miss)
         user_data = await redis_cache.get_user_by_uid(firebase_uid)
 
@@ -455,12 +549,19 @@ async def get_current_user(
         if cached_token:
             logger.debug(f"✅ Token cache HIT for {cached_token.get('email')}")
             firebase_uid = cached_token["firebase_uid"]
+
+            # Validate Firebase UID format to prevent injection attacks
+            _validate_firebase_uid(firebase_uid)
+
             user_data = cached_token  # Temporary: will be replaced by Layer 2
         else:
             # MISS: Validate with Firebase Admin SDK (200ms)
             logger.debug("❌ Token cache MISS - validating with Firebase")
             user_data = await _firebase_service.verify_token(token_value)
             firebase_uid = user_data["uid"]
+
+            # Validate Firebase UID format to prevent injection attacks
+            _validate_firebase_uid(firebase_uid)
 
             # Cache validated token (1 hour TTL)
             firebase_cache.cache_validated_token(token_value, user_data)
@@ -534,14 +635,19 @@ async def get_current_user(
             f"User not found in database, creating minimal record for: {user_data.get('email')}"
         )
 
+        # Validate email format
+        email = user_data.get("email")
+        if email:
+            _validate_email(email)
+
         # Extract role from Firebase custom claims or default to DOCTOR
         firebase_role = user_data.get("role", "doctor").lower()
         user_role = UserRole.ADMIN if firebase_role == "admin" else UserRole.DOCTOR
 
         user = User(
             firebase_uid=firebase_uid,
-            email=user_data.get("email"),
-            full_name=user_data.get("name", user_data.get("email", "").split("@")[0]),
+            email=email,
+            full_name=user_data.get("name", email.split("@")[0] if email else "Unknown"),
             is_active=True,
             role=user_role,  # From Firebase custom claims
         )

@@ -3,7 +3,7 @@ WhatsApp API routes for message management and instance control.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -129,7 +129,7 @@ async def get_qr_code(
     try:
         qr_code = await evolution_client.get_qr_code(instance_name)
         if qr_code:
-            return {"qr_code": qr_code, "timestamp": datetime.utcnow()}
+            return {"qr_code": qr_code, "timestamp": datetime.now(timezone.utc)}
         else:
             raise HTTPException(status_code=404, detail="QR code not available")
     except Exception as e:
@@ -146,7 +146,7 @@ async def restart_instance(
     try:
         success = await evolution_client.restart_instance(instance_name)
         if success:
-            return {"status": "restarted", "timestamp": datetime.utcnow()}
+            return {"status": "restarted", "timestamp": datetime.now(timezone.utc)}
         else:
             raise HTTPException(status_code=500, detail="Failed to restart instance")
     except Exception as e:
@@ -177,7 +177,7 @@ async def delete_instance(
                 await db.delete(instance)
                 await db.commit()
 
-            return {"status": "deleted", "timestamp": datetime.utcnow()}
+            return {"status": "deleted", "timestamp": datetime.now(timezone.utc)}
         else:
             raise HTTPException(status_code=500, detail="Failed to delete instance")
     except Exception as e:
@@ -260,7 +260,7 @@ async def get_message_statistics(
             "instance_name": instance_name,
             "period": {"start_date": start_date, "end_date": end_date},
             "statistics": stats,
-            "generated_at": datetime.utcnow(),
+            "generated_at": datetime.now(timezone.utc),
         }
     except Exception as e:
         logger.error(f"Error getting message statistics: {e}")
@@ -280,7 +280,7 @@ async def sync_contacts(
         return {
             "status": "sync_started",
             "instance_name": instance_name,
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
         }
     except Exception as e:
         logger.error(f"Error starting contact sync: {e}")
@@ -360,7 +360,7 @@ async def check_whatsapp_number(
             "phone_number": phone_number,
             "formatted_number": formatted_number,
             "is_whatsapp_user": is_whatsapp,
-            "checked_at": datetime.utcnow(),
+            "checked_at": datetime.now(timezone.utc),
         }
     except Exception as e:
         logger.error(f"Error checking WhatsApp number: {e}")
@@ -374,7 +374,7 @@ async def get_queue_stats():
     try:
         message_queue = MessageQueue(redis_url=settings.REDIS_URL)
         stats = await message_queue.get_queue_stats()
-        return {"queue_statistics": stats, "timestamp": datetime.utcnow()}
+        return {"queue_statistics": stats, "timestamp": datetime.now(timezone.utc)}
     except Exception as e:
         logger.error(f"Error getting queue stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -388,7 +388,7 @@ async def start_queue_processing(
     """Start message queue processing."""
     try:
         background_tasks.add_task(message_service.process_message_queue)
-        return {"status": "queue_processing_started", "timestamp": datetime.utcnow()}
+        return {"status": "queue_processing_started", "timestamp": datetime.now(timezone.utc)}
     except Exception as e:
         logger.error(f"Error starting queue processing: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -401,7 +401,7 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "whatsapp-integration",
-        "timestamp": datetime.utcnow(),
+        "timestamp": datetime.now(timezone.utc),
         "version": "1.0.0",
     }
 
@@ -429,7 +429,7 @@ async def list_instances(db: AsyncSession = Depends(get_db)):
                 for instance in instances
             ],
             "total": len(instances),
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
         }
     except Exception as e:
         logger.error(f"Error listing instances: {e}")

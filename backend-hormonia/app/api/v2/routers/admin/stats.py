@@ -5,7 +5,7 @@ Provides system-wide metrics for admin dashboards.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, Request
@@ -56,7 +56,7 @@ async def get_system_stats(
     if cached_stats:
         return cached_stats
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     total_users = db.query(func.count(User.id)).scalar() or 0

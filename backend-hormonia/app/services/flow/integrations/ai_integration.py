@@ -12,7 +12,7 @@ Migration Note:
 """
 
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 import logging
 
@@ -417,7 +417,7 @@ class AIFlowIntegration:
             "type": interaction_type,
             "input": input_data[:500],  # Truncate for storage
             "output": output_data[:500],  # Truncate for storage
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         self._ai_interactions[flow_instance_id].append(interaction)
@@ -451,7 +451,7 @@ class AIFlowIntegration:
             "type": decision_type,
             "data": decision_data,
             "result": decision_result,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         self._ai_decisions[flow_instance_id].append(decision)
@@ -593,7 +593,7 @@ class AIFlowIntegration:
         Returns:
             Number of flows cleaned up.
         """
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
         cleaned = 0
 
         # Clean up interactions

@@ -8,7 +8,7 @@ encryption handling, and validation rules enforcement.
 
 import json
 from typing import Any, Dict, Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.quiz import QuizTemplate
 from app.exceptions import ValidationError, NotFoundError
@@ -315,7 +315,7 @@ class AnswerValidator:
         Raises:
             ValidationError: If submission is too fast
         """
-        elapsed = (datetime.utcnow() - session_started_at).total_seconds()
+        elapsed = (datetime.now(timezone.utc) - session_started_at).total_seconds()
         if elapsed < min_time_seconds:
             raise ValidationError(
                 "Response submitted too quickly. Please take time to read the question."

@@ -4,7 +4,7 @@ System health monitoring utilities.
 
 import time
 import psutil
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, List, Optional
 from dataclasses import dataclass, field
 from enum import Enum
@@ -36,7 +36,7 @@ class HealthMetric:
     status: HealthStatus
     threshold_warning: Optional[float] = None
     threshold_critical: Optional[float] = None
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -48,7 +48,7 @@ class ComponentHealth:
     status: HealthStatus
     metrics: List[HealthMetric] = field(default_factory=list)
     error_message: Optional[str] = None
-    last_check: datetime = field(default_factory=datetime.utcnow)
+    last_check: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     response_time_ms: Optional[float] = None
 
 
@@ -86,7 +86,7 @@ class HealthMonitor:
             overall_status = self._calculate_overall_status()
 
             # Update last check time
-            self.last_full_check = datetime.utcnow()
+            self.last_full_check = datetime.now(timezone.utc)
 
             # Calculate check duration
             check_duration = (time.time() - start_time) * 1000
@@ -114,7 +114,7 @@ class HealthMonitor:
             return {
                 "status": HealthStatus.CRITICAL.value,
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
                 "check_duration_ms": (time.time() - start_time) * 1000,
             }
 
@@ -603,7 +603,7 @@ class HealthMonitor:
             "service": "hormonia-backend",
             "version": "1.0.0",
             "environment": settings.APP_ENVIRONMENT,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
             "check_duration_ms": round(check_duration, 2),
             "components": {
                 name: {

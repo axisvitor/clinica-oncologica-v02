@@ -9,7 +9,7 @@ Handles CRUD operations for message templates including:
 """
 
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 import json
 import logging
@@ -88,8 +88,8 @@ async def create_template(
             "is_active": True,
             "usage_count": 0,
             "created_by": current_user.get("id"),
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
         }
 
         # Store in cache (30 min TTL for templates)
@@ -332,7 +332,7 @@ async def update_template(
 
         # Increment version
         template_dict["version"] = template_dict.get("version", 1) + 1
-        template_dict["updated_at"] = datetime.utcnow()
+        template_dict["updated_at"] = datetime.now(timezone.utc)
 
         # Update cache
         await redis_cache.set(

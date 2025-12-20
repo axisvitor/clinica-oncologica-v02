@@ -6,7 +6,7 @@ trend analysis, and data extraction.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -73,7 +73,7 @@ class TrendAnalyzer:
             from app.models.ab_experiment import ABExperimentMetric
 
             # Get last 7 days of data
-            cutoff_time = datetime.utcnow() - timedelta(days=7)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(days=7)
 
             metrics = (
                 self.db.query(ABExperimentMetric)

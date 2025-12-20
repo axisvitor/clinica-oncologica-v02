@@ -3,7 +3,7 @@ Enhanced Report Service for comprehensive report generation.
 Updated with FIX #13 - PROTEÇÃO DE DADOS SENSÍVEIS
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 from uuid import UUID, uuid4
 
@@ -66,7 +66,7 @@ class ReportService:
                 "report_type": report_request.report_type,
                 "status": "generating",
                 "format": report_request.format,
-                "created_at": datetime.utcnow(),
+                "created_at": datetime.now(timezone.utc),
                 "user_id": user_id,
             }
 
@@ -306,7 +306,7 @@ class ReportService:
                     "failed_messages": message_stats_result.failed_count or 0,
                 },
                 "recent_patients": recent_patients,
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
@@ -327,7 +327,7 @@ class ReportService:
                 additional_context={"action": "system_analytics", "days": days},
             )
 
-            start_date = datetime.utcnow() - timedelta(days=days)
+            start_date = datetime.now(timezone.utc) - timedelta(days=days)
 
             # FIX #6: Single aggregation query for multiple metrics
             analytics_query = select(
@@ -370,7 +370,7 @@ class ReportService:
                 "failed_messages": analytics_result.failed_messages or 0,
                 "average_treatment_day": float(analytics_result.avg_treatment_day or 0),
                 "flow_state_distribution": flow_distribution,
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:

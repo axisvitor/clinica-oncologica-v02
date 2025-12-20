@@ -6,7 +6,7 @@ Provides admin-only manual health testing endpoint.
 
 import time
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends
@@ -74,7 +74,7 @@ async def manual_health_test(
 
     return HealthTestResponse(
         test_id=test_id,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         status=test_status,
         components_tested=components_to_test,
         results=results,

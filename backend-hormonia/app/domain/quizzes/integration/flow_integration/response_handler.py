@@ -4,7 +4,7 @@ Conversational quiz service for managing quiz presentation via WhatsApp.
 
 import logging
 from typing import Any, Optional, List, Dict
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 import re
 
@@ -115,7 +115,7 @@ class ConversationalQuizService:
                     "session_id": str(active_session.id),
                     "question_index": active_session.current_question_index,
                 },
-                responded_at=datetime.utcnow(),
+                responded_at=datetime.now(timezone.utc),
             )
 
             await self.quiz_response_service.create_response(response_data)
@@ -130,7 +130,7 @@ class ConversationalQuizService:
                         question_sent_at = datetime.fromisoformat(question_sent_at)
 
                     response_latency = (
-                        datetime.utcnow() - question_sent_at
+                        datetime.now(timezone.utc) - question_sent_at
                     ).total_seconds()
 
                     metrics = await get_quiz_metrics_collector()
@@ -426,7 +426,7 @@ class ConversationalQuizService:
                 ) == str(session.id):
                     flow_state.state_data["quiz_state"] = QuizFlowState.COMPLETED.value
                     flow_state.state_data["quiz_completed_at"] = (
-                        datetime.utcnow().isoformat()
+                        datetime.now(timezone.utc).isoformat()
                     )
 
                     # Get delivery method from flow state
@@ -486,7 +486,7 @@ class ConversationalQuizService:
                 ) == str(active_session.id):
                     flow_state.state_data["quiz_state"] = QuizFlowState.PAUSED.value
                     flow_state.state_data["quiz_paused_at"] = (
-                        datetime.utcnow().isoformat()
+                        datetime.now(timezone.utc).isoformat()
                     )
                     break
 
@@ -539,7 +539,7 @@ class ConversationalQuizService:
                             QuizFlowState.IN_PROGRESS.value
                         )
                         flow_state.state_data["quiz_resumed_at"] = (
-                            datetime.utcnow().isoformat()
+                            datetime.now(timezone.utc).isoformat()
                         )
                     break
 

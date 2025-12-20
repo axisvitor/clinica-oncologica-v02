@@ -3,7 +3,7 @@ Hard delete operations with LGPD compliance audit trail.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy import delete
@@ -81,7 +81,7 @@ class PatientAuditMixin:
                 "event": "patient_hard_delete",
                 "patient_id": str(patient_id),
                 "reason": audit_reason,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "compliance_article": "LGPD Art. 16 (Right to deletion)",
             },
         )
@@ -162,7 +162,7 @@ class PatientAuditMixin:
                 "event": "patient_deletion_audit",
                 "patient_id": str(patient_id),
                 "reason": reason,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "compliance": "LGPD Art. 16, 18",
             },
         )
@@ -171,7 +171,7 @@ class PatientAuditMixin:
         # audit_record = DeletionAudit(
         #     patient_id=patient_id,
         #     reason=reason,
-        #     deleted_at=datetime.utcnow(),
+        #     deleted_at=datetime.now(timezone.utc),
         #     deleted_by=current_user_id  # from request context
         # )
         # self.db.add(audit_record)

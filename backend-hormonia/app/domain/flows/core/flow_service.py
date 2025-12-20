@@ -5,7 +5,7 @@ Main service that coordinates all flow operations using specialized modules.
 
 import logging
 from typing import Optional, Any, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from sqlalchemy.orm import Session
 
@@ -101,7 +101,7 @@ class FlowService:
             Processing results summary
         """
         try:
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
 
             # Get all active flow states
             active_flows = await self.scheduler.get_active_flows(limit=limit)
@@ -144,7 +144,7 @@ class FlowService:
                     )
 
             results["processing_time"] = (
-                datetime.utcnow() - start_time
+                datetime.now(timezone.utc) - start_time
             ).total_seconds()
 
             logger.info(
@@ -351,7 +351,7 @@ class FlowService:
         try:
             results = {
                 "service": "FlowService",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "components": {},
                 "overall_healthy": True,
                 "error_count": 0,
@@ -475,7 +475,7 @@ class FlowService:
             logger.error(f"Critical health check failure: {e}", exc_info=True)
             return {
                 "service": "FlowService",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "overall_healthy": False,
                 "error": str(e),
                 "critical_failure": True,

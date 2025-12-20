@@ -5,7 +5,7 @@ Handles scheduling retries, calculating backoff delays, and managing retry state
 
 import logging
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from dataclasses import dataclass, field
 from typing import Optional, Any
@@ -124,7 +124,7 @@ class RetryManager:
         else:
             delay_seconds = ErrorHandlerConstants.DEFAULT_LINEAR_DELAY
 
-        return datetime.utcnow() + timedelta(seconds=delay_seconds)
+        return datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
 
     async def schedule_retry(
         self, error_record: ErrorRecord, retry_at: datetime
@@ -150,7 +150,7 @@ class RetryManager:
 
             # Calculate TTL with buffer
             ttl_seconds = (
-                int((retry_at - datetime.utcnow()).total_seconds())
+                int((retry_at - datetime.now(timezone.utc)).total_seconds())
                 + ErrorHandlerConstants.REDIS_RETRY_BUFFER
             )
 
@@ -186,7 +186,7 @@ class RetryManager:
 
             # Calculate TTL with buffer
             ttl_seconds = (
-                int((resume_at - datetime.utcnow()).total_seconds())
+                int((resume_at - datetime.now(timezone.utc)).total_seconds())
                 + ErrorHandlerConstants.REDIS_RETRY_BUFFER
             )
 

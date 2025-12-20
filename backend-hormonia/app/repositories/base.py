@@ -33,6 +33,30 @@ class BaseRepository(Generic[ModelType]):
         self.db = db
         self.model = model
 
+    @property
+    def _redis_pool(self):
+        """
+        Get or create a Redis connection pool for cache invalidation.
+
+        This property ensures connection reuse across multiple cache operations,
+        preventing connection exhaustion under high load.
+
+        Returns:
+            redis.ConnectionPool: Shared connection pool instance
+        """
+        if not hasattr(self, '_redis_pool_instance'):
+            import redis
+            from app.config import settings
+
+            self._redis_pool_instance = redis.ConnectionPool.from_url(
+                settings.REDIS_URL,
+                max_connections=10,
+                decode_responses=True,
+                socket_connect_timeout=2,
+                socket_timeout=2,
+            )
+        return self._redis_pool_instance
+
     def get_by_id(self, id: UUID) -> Optional[ModelType]:
         """Get record by ID"""
         return self.db.query(self.model).filter(self.model.id == id).first()
@@ -192,27 +216,22 @@ class BaseRepository(Generic[ModelType]):
         - Quiz: Invalidate quiz:ID tag
         - Report: Invalidate report:ID tag
 
-        This method uses direct synchronous Redis access to avoid async/sync conflicts
-        in repository operations.
+        This method uses a shared connection pool to avoid connection exhaustion
+        and ensures proper connection cleanup in all code paths.
 
         Args:
             db_obj: Model instance that was mutated
         """
+        redis_client = None
         try:
             # Lazy imports to avoid circular dependencies
             import redis
-            from app.config import settings
 
             model_name = self.model.__name__.lower()
 
-            # Direct Redis access (sync) to avoid async/sync conflicts
+            # Use connection pool to avoid connection exhaustion
             try:
-                redis_client = redis.Redis.from_url(
-                    settings.REDIS_URL,
-                    decode_responses=True,
-                    socket_connect_timeout=2,
-                    socket_timeout=2,
-                )
+                redis_client = redis.Redis(connection_pool=self._redis_pool)
 
                 # Test connection
                 redis_client.ping()
@@ -283,12 +302,16 @@ class BaseRepository(Generic[ModelType]):
                             f"Invalidated {len(patient_keys)} report cache keys for patient:{db_obj.patient_id}"
                         )
 
-            # Close Redis connection
-            redis_client.close()
-
         except Exception as e:
             # Log error but don't fail the mutation - cache invalidation is non-critical
             logger.warning(
                 f"Cache invalidation failed for {self.model.__name__}: {e}",
                 exc_info=True,
             )
+        finally:
+            # Ensure connection is always closed to return it to the pool
+            if redis_client is not None:
+                try:
+                    redis_client.close()
+                except Exception as e:
+                    logger.debug(f"Error closing Redis connection: {e}")

@@ -5,7 +5,7 @@ Business logic for dashboard metrics and data aggregation.
 
 import logging
 from typing import Optional, List, Dict, Any, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -108,7 +108,7 @@ class DashboardService:
         custom_end: Optional[datetime] = None,
     ) -> Tuple[datetime, datetime]:
         """Calculate start and end dates based on time range enum."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         today = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
         if time_range == TimeRangeEnum.TODAY:
@@ -401,7 +401,7 @@ class DashboardService:
         self, patient_ids: Optional[List[UUID]] = None, days: int = 7
     ) -> List[Dict[str, Any]]:
         """Get engagement chart data (messages sent vs responses)."""
-        start_date = datetime.utcnow().date() - timedelta(days=days - 1)
+        start_date = datetime.now(timezone.utc).date() - timedelta(days=days - 1)
 
         params = {"start_date": start_date}
         patient_filter = ""

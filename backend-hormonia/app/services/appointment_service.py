@@ -1,6 +1,6 @@
 from typing import Optional, Any
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 from app.repositories.appointment import AppointmentRepository
@@ -88,9 +88,9 @@ class AppointmentService:
 
             # Auto-timestamps
             if new_status == AppointmentStatus.COMPLETED:
-                update_data["completed_at"] = datetime.utcnow()
+                update_data["completed_at"] = datetime.now(timezone.utc)
             elif new_status == AppointmentStatus.CANCELLED:
-                update_data["cancelled_at"] = datetime.utcnow()
+                update_data["cancelled_at"] = datetime.now(timezone.utc)
 
         # Type conversion
         if "appointment_type" in update_data:
@@ -126,7 +126,7 @@ class AppointmentService:
             raise ValueError(f"Cannot cancel appointment with status {current_status}")
 
         appt.status = AppointmentStatus.CANCELLED
-        appt.cancelled_at = datetime.utcnow()
+        appt.cancelled_at = datetime.now(timezone.utc)
         self.db.commit()
         self.db.refresh(appt)
         return appt
@@ -149,7 +149,7 @@ class AppointmentService:
             )
 
         appt.status = AppointmentStatus.COMPLETED
-        appt.completed_at = datetime.utcnow()
+        appt.completed_at = datetime.now(timezone.utc)
         if notes:
             appt.post_appointment_notes = notes
 

@@ -6,7 +6,7 @@ import json
 import pickle
 import hashlib
 from typing import Any, List, Optional, Callable
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from dataclasses import dataclass
 
@@ -128,7 +128,7 @@ class CacheManager:
             # Fallback to local cache
             if cache_key in self._local_cache:
                 cache_entry = self._local_cache[cache_key]
-                if datetime.utcnow() < cache_entry["expires_at"]:
+                if datetime.now(timezone.utc) < cache_entry["expires_at"]:
                     self._cache_stats["hits"] += 1
                     return cache_entry["data"]
                 else:
@@ -182,7 +182,7 @@ class CacheManager:
             # Also set in local cache as fallback
             self._local_cache[cache_key] = {
                 "data": value,
-                "expires_at": datetime.utcnow() + timedelta(seconds=ttl),
+                "expires_at": datetime.now(timezone.utc) + timedelta(seconds=ttl),
             }
 
             return True

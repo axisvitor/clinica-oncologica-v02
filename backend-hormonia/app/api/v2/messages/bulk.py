@@ -3,7 +3,7 @@ Messages API v2 - Bulk Operations
 Handles bulk operations: bulk send messages.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 import logging
 from fastapi import APIRouter, Depends, Request
@@ -66,7 +66,7 @@ async def bulk_send_messages(
 
     # Create messages for valid patients
     message_service = MessageService(db)
-    batch_id = f"batch_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+    batch_id = f"batch_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
 
     scheduled_count = 0
     for patient_uuid in patient_uuids:
@@ -77,7 +77,7 @@ async def bulk_send_messages(
             message_service.schedule_message(
                 patient_id=patient_uuid,
                 content=bulk_request.content,
-                scheduled_for=bulk_request.scheduled_for or datetime.utcnow(),
+                scheduled_for=bulk_request.scheduled_for or datetime.now(timezone.utc),
                 message_type=MessageType.TEXT,
                 message_metadata=metadata,
             )
@@ -94,7 +94,7 @@ async def bulk_send_messages(
         "failed_count": len(failed_patients),
         "failed_patients": failed_patients,
         "estimated_completion": (
-            bulk_request.scheduled_for or datetime.utcnow() + timedelta(minutes=5)
+            bulk_request.scheduled_for or datetime.now(timezone.utc) + timedelta(minutes=5)
         ).isoformat()
         if scheduled_count > 0
         else None,

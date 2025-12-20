@@ -7,7 +7,7 @@ Handles quiz and follow-up scheduling orchestration for flow execution.
 import logging
 from typing import Dict, Any, Optional, Callable
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.patient import Patient
 from app.utils.date_helpers import get_next_scheduled_time

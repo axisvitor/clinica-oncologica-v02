@@ -5,7 +5,7 @@ Handles generation of empathetic messages, clarifications, and support responses
 
 import logging
 from typing import Optional, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 from ..enums import FollowUpType
@@ -62,7 +62,7 @@ class ResponseGenerator:
             delay_minutes = self._calculate_response_delay(
                 structured_response.concern_level
             )
-            scheduled_for = datetime.utcnow() + timedelta(minutes=delay_minutes)
+            scheduled_for = datetime.now(timezone.utc) + timedelta(minutes=delay_minutes)
 
             # Create follow-up action
             action = FollowUpAction(

@@ -1,5 +1,5 @@
 from typing import Optional, Dict, Any, Set
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 from collections import defaultdict
 
@@ -295,7 +295,7 @@ class AuthService:
         Returns:
             True if rate limited, False otherwise
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         attempts = self._failed_attempts[email]
 
         # Check if we're within the lockout period
@@ -375,7 +375,7 @@ class AuthService:
             email: User email address
             client_ip: Client IP address
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         attempts = self._failed_attempts[email]
 
         # Check if lockout window has passed - reset if so

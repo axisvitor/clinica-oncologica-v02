@@ -3,7 +3,7 @@ Step executor for flow processing.
 Handles step scheduling, execution, and action coordination.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 from sqlalchemy.orm import Session
 
@@ -147,7 +147,7 @@ class StepExecutor:
         if not step:
             return
 
-        scheduled_for = datetime.utcnow() + timedelta(hours=step.delay_hours)
+        scheduled_for = datetime.now(timezone.utc) + timedelta(hours=step.delay_hours)
 
         # Get original content
         original_content = step.content

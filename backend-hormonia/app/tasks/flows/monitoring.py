@@ -8,7 +8,7 @@ system, including database, Redis, and external service connectivity checks.
 import asyncio
 import logging
 from typing import Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.celery_app import celery_app
 from app.database import get_db
@@ -54,7 +54,7 @@ def monitor_flow_task_health(self) -> dict[str, Any]:
                 "active_flows_count": 0,
                 "pending_messages_count": 0,
                 "failed_tasks_count": 0,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             # Test database connection
@@ -179,6 +179,6 @@ def monitor_flow_task_health(self) -> dict[str, Any]:
         logger.error(f"Flow task health monitoring failed: {e}")
         return {
             "error": str(e),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "overall_healthy": False,
         }

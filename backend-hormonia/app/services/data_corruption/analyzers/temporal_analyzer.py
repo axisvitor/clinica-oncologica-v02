@@ -4,7 +4,7 @@ Analyzes temporal consistency and date-related corruption.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from .base import BaseAnalyzer
 from ..types import CorruptionType
 
@@ -21,7 +21,7 @@ class TemporalAnalyzer(BaseAnalyzer):
     async def analyze_patient_temporal(self, patient) -> None:
         """Analyze temporal consistency for patient data"""
         try:
-            current_time = datetime.utcnow().date()
+            current_time = datetime.now(timezone.utc).date()
 
             # Check birth date
             if patient.birth_date:
@@ -92,7 +92,7 @@ class TemporalAnalyzer(BaseAnalyzer):
     async def analyze_flow_temporal(self, flow) -> None:
         """Analyze temporal consistency for flow data"""
         try:
-            current_time = datetime.utcnow()
+            current_time = datetime.now(timezone.utc)
 
             # Check if flow started in the future
             if flow.started_at and flow.started_at > current_time:
@@ -130,7 +130,7 @@ class TemporalAnalyzer(BaseAnalyzer):
     async def analyze_message_temporal(self, message) -> None:
         """Analyze temporal consistency for message data"""
         try:
-            current_time = datetime.utcnow()
+            current_time = datetime.now(timezone.utc)
 
             # Check if message created in the future
             if message.created_at > current_time:

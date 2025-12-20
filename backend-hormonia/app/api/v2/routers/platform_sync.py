@@ -8,7 +8,7 @@ import logging
 import json
 import secrets
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 from fastapi import (
@@ -254,7 +254,7 @@ async def trigger_sync(
                     status=SyncJobStatus.PENDING,
                     message="Duplicate sync request (idempotency)",
                     estimated_items=0,
-                    started_at=datetime.utcnow(),
+                    started_at=datetime.now(timezone.utc),
                 )
 
         # Estimate items to sync
@@ -287,7 +287,7 @@ async def trigger_sync(
             status=SyncJobStatus.PENDING,
             message="Sync job created successfully",
             estimated_items=estimated_items,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
         )
 
     except Exception as e:
@@ -419,8 +419,8 @@ async def create_sync_config(
             timeout_seconds=config_data.timeout_seconds,
             custom_headers={},
             custom_settings={},
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
             last_sync_at=None,
             last_sync_status=None,
             total_syncs=0,
@@ -677,7 +677,7 @@ async def resolve_conflict(
             if resolution_request.merged_data
             else {},
             message="Conflict resolved successfully",
-            resolved_at=datetime.utcnow(),
+            resolved_at=datetime.now(timezone.utc),
         )
 
     except Exception as e:
@@ -788,7 +788,7 @@ async def rollback_sync(
             status="pending",
             message="Rollback initiated successfully",
             estimated_items_to_revert=0,  # Mock
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
         )
 
     except Exception as e:

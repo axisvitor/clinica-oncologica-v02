@@ -6,7 +6,7 @@ Orchestrates entity extraction, concern detection, and preference extraction.
 import logging
 import re
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from app.services.ai import get_ai_service, PatientContext
@@ -401,7 +401,7 @@ class DataExtractionService:
         try:
             health_status = {
                 "service": "DataExtractionService",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "healthy": True,
                 "components": {},
             }
@@ -463,7 +463,7 @@ class DataExtractionService:
             logger.error(f"Health check failed: {e}")
             return {
                 "service": "DataExtractionService",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "healthy": False,
                 "error": str(e),
             }

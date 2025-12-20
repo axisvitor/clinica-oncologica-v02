@@ -1,5 +1,5 @@
 from typing import Optional, Dict
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 import json
 import logging
@@ -225,7 +225,7 @@ async def update_quiz_template(
         if updates.randomize_questions is not None:
             template.randomize_questions = updates.randomize_questions
 
-        template.updated_at = datetime.utcnow()
+        template.updated_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(template)
         await _invalidate_template_cache("quiz", template_id)

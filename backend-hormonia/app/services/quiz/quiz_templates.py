@@ -13,7 +13,7 @@ Total: 5 files → 1 file
 
 from typing import List, Optional, Dict, Any
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 
@@ -188,7 +188,7 @@ class TemplateCache:
         cached_time = self._cache_times.get(template_id)
         if (
             cached_time
-            and (datetime.utcnow() - cached_time).total_seconds() > self._ttl_seconds
+            and (datetime.now(timezone.utc) - cached_time).total_seconds() > self._ttl_seconds
         ):
             self.invalidate(template_id)
             return None
@@ -198,7 +198,7 @@ class TemplateCache:
     def set(self, template_id: UUID, template: QuizTemplate) -> None:
         """Set template in cache."""
         self._cache[template_id] = template
-        self._cache_times[template_id] = datetime.utcnow()
+        self._cache_times[template_id] = datetime.now(timezone.utc)
 
     def invalidate(self, template_id: UUID) -> None:
         """Invalidate cache entry."""

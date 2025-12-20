@@ -8,7 +8,7 @@ including query execution times, connection counts, error rates, and system heal
 import asyncio
 import logging
 from typing import Dict, List, Optional, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from enum import Enum
 import json
@@ -171,7 +171,7 @@ class PerformanceMetricsCollector:
             return
 
         metric_point = MetricPoint(
-            timestamp=timestamp or datetime.utcnow(),
+            timestamp=timestamp or datetime.now(timezone.utc),
             metric_name=metric_name,
             metric_type=metric_type,
             value=value,
@@ -382,7 +382,7 @@ class PerformanceMetricsCollector:
         self, threshold: float = 1.0, limit: int = 10, hours: int = 24
     ) -> List[Dict[str, Any]]:
         """Get slow database queries."""
-        start_time = datetime.utcnow() - timedelta(hours=hours)
+        start_time = datetime.now(timezone.utc) - timedelta(hours=hours)
 
         query_metrics = await self.get_metrics(
             metric_name="db_query_execution_time",
@@ -409,7 +409,7 @@ class PerformanceMetricsCollector:
 
     async def get_error_analysis(self, hours: int = 24) -> Dict[str, Any]:
         """Get error rate analysis."""
-        start_time = datetime.utcnow() - timedelta(hours=hours)
+        start_time = datetime.now(timezone.utc) - timedelta(hours=hours)
 
         error_metrics = await self.get_metrics(
             metric_name="error_rate",
@@ -458,13 +458,13 @@ class PerformanceMetricsCollector:
             "by_endpoint": by_endpoint,
             "time_range": {
                 "start": start_time.isoformat(),
-                "end": datetime.utcnow().isoformat(),
+                "end": datetime.now(timezone.utc).isoformat(),
             },
         }
 
     async def get_performance_dashboard_data(self) -> Dict[str, Any]:
         """Get comprehensive performance data for dashboard."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         last_hour = now - timedelta(hours=1)
         now - timedelta(hours=24)
 
@@ -617,9 +617,9 @@ class PerformanceMetricsCollector:
     ) -> List[str]:
         """Generate Redis keys for time range."""
         if not start_time:
-            start_time = datetime.utcnow() - timedelta(hours=24)
+            start_time = datetime.now(timezone.utc) - timedelta(hours=24)
         if not end_time:
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
 
         keys = []
         current_time = start_time.replace(minute=0, second=0, microsecond=0)
@@ -661,7 +661,7 @@ class PerformanceMetricsCollector:
             return
 
         try:
-            cutoff_time = datetime.utcnow() - timedelta(days=self.retention_days)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(days=self.retention_days)
 
             # Find keys older than retention period
             pattern = f"{self.redis_prefix}*"

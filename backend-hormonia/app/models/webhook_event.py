@@ -5,7 +5,7 @@ Stores webhook events to prevent duplicate processing using idempotency keys.
 Events expire after 24 hours for automatic cleanup.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import Column, String, DateTime, Integer, Index, text
 from sqlalchemy.dialects.postgresql import JSONB
 from app.models.base import Base
@@ -123,7 +123,7 @@ class WebhookEvent(Base):
         Returns:
             WebhookEvent instance
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         expires_at = now + timedelta(hours=ttl_hours)
 
         return cls(
@@ -140,14 +140,14 @@ class WebhookEvent(Base):
     def mark_completed(self, response_data: dict | None = None) -> None:
         """Mark event as successfully processed."""
         self.status = "completed"
-        self.processed_at = datetime.utcnow()
+        self.processed_at = datetime.now(timezone.utc)
         if response_data:
             self.response_data = response_data
 
     def mark_failed(self, error_data: dict | None = None) -> None:
         """Mark event as failed processing."""
         self.status = "failed"
-        self.processed_at = datetime.utcnow()
+        self.processed_at = datetime.now(timezone.utc)
         if error_data:
             self.response_data = error_data
 
@@ -157,7 +157,7 @@ class WebhookEvent(Base):
 
     def is_expired(self) -> bool:
         """Check if idempotency record has expired."""
-        return datetime.utcnow() > self.expires_at
+        return datetime.now(timezone.utc) > self.expires_at
 
     def __repr__(self) -> str:
         return (

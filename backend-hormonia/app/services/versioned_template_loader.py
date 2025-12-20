@@ -7,7 +7,7 @@ from typing import Dict, Optional, Any
 from pathlib import Path
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ class VersionedTemplateLoader:
                 "name": name,
                 "version": data.get("version", "1.0.0"),
                 "description": data.get("description", ""),
-                "created_at": data.get("created_at", datetime.utcnow().isoformat()),
+                "created_at": data.get("created_at", datetime.now(timezone.utc).isoformat()),
             }
             for name, data in self.templates_cache.items()
         }
@@ -101,7 +101,7 @@ class VersionedTemplateLoader:
 
             # Add metadata
             data["version"] = version or "1.0.0"
-            data["created_at"] = datetime.utcnow().isoformat()
+            data["created_at"] = datetime.now(timezone.utc).isoformat()
             data["name"] = name
 
             # Save to file

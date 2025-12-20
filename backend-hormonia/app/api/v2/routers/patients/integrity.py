@@ -14,7 +14,7 @@ Lines: 60-381
 """
 
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 import logging
 
@@ -153,7 +153,7 @@ async def delete_patient(
         )
 
     # Soft delete: set deleted_at timestamp
-    patient.deleted_at = datetime.utcnow()
+    patient.deleted_at = datetime.now(timezone.utc)
     db.commit()
 
     return None

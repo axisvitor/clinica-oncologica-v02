@@ -3,7 +3,7 @@ Evolution API client main orchestration class.
 Coordinates message sending, webhook handling, and API communication.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 
 import httpx
@@ -251,7 +251,7 @@ class EvolutionClient:
         health_status = {
             "service": "evolution_api",
             "healthy": False,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "details": {},
         }
 

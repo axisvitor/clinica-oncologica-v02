@@ -8,7 +8,7 @@ Endpoints:
 """
 
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from collections import defaultdict
 import logging
@@ -152,7 +152,7 @@ async def get_task_statistics(
             return TaskStatisticsV2(**cached_data)
 
         # Calculate date range
-        end_date = datetime.utcnow()
+        end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(hours=hours)
 
         # Filter tasks

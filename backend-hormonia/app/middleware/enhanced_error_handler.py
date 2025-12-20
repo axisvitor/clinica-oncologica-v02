@@ -14,7 +14,7 @@ from starlette.status import (
     HTTP_500_INTERNAL_SERVER_ERROR,
     HTTP_503_SERVICE_UNAVAILABLE,
 )
-from datetime import datetime
+from datetime import datetime, timezone
 import psutil
 import os
 
@@ -96,7 +96,7 @@ class EnhancedErrorHandler(BaseHTTPMiddleware):
         response_data = {
             "detail": exc.detail,
             "status_code": exc.status_code,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "request_id": request_id,
         }
 
@@ -146,7 +146,7 @@ class EnhancedErrorHandler(BaseHTTPMiddleware):
             if not self.enable_detailed_errors
             else str(exc),
             "status_code": status_code,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "request_id": request_id,
             "error_category": error_category,
         }
@@ -167,6 +167,25 @@ class EnhancedErrorHandler(BaseHTTPMiddleware):
             headers={"X-Request-ID": request_id, "X-Error-Category": error_category},
         )
 
+    # SECURITY: Headers that should never be logged (contain sensitive data)
+    _SENSITIVE_HEADERS = {
+        "authorization",
+        "cookie",
+        "x-api-key",
+        "x-auth-token",
+        "x-csrf-token",
+        "x-xsrf-token",
+        "set-cookie",
+        "proxy-authorization",
+    }
+
+    def _filter_sensitive_headers(self, headers: dict) -> dict:
+        """Filter sensitive headers before logging to prevent credential leakage."""
+        return {
+            k: "[REDACTED]" if k.lower() in self._SENSITIVE_HEADERS else v
+            for k, v in headers.items()
+        }
+
     def _build_error_context(
         self,
         request: Request,
@@ -174,19 +193,24 @@ class EnhancedErrorHandler(BaseHTTPMiddleware):
         start_time: float,
         request_id: str,
     ) -> Dict[str, Any]:
-        """Build comprehensive error context for logging."""
+        """Build comprehensive error context for logging.
+
+        SECURITY: Sensitive headers are filtered to prevent credential leakage in logs.
+        """
+        # SECURITY FIX: Filter sensitive headers before logging
+        filtered_headers = self._filter_sensitive_headers(dict(request.headers))
 
         return {
             "request_id": request_id,
             "method": request.method,
             "path": str(request.url.path),
             "query_params": dict(request.query_params),
-            "headers": dict(request.headers),
+            "headers": filtered_headers,  # SECURITY: Use filtered headers
             "client_ip": getattr(request.client, "host", "unknown"),
             "user_agent": request.headers.get("user-agent", "unknown"),
             "response_time_ms": round((time.time() - start_time) * 1000, 2),
             "exception_message": str(exc),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     def _categorize_error(self, exc: Exception) -> str:
@@ -326,7 +350,7 @@ class EnhancedErrorHandler(BaseHTTPMiddleware):
             content={
                 "detail": "Service temporarily unavailable due to high error rate",
                 "status_code": HTTP_503_SERVICE_UNAVAILABLE,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "retry_after": 60,
             },
             headers={"Retry-After": "60"},

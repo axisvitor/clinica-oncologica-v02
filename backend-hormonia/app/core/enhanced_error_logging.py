@@ -13,7 +13,7 @@ import logging
 import traceback
 import uuid
 from typing import Dict, Any, Optional, List, Set
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from contextlib import contextmanager
 from dataclasses import dataclass, field, asdict
 from enum import Enum
@@ -92,7 +92,7 @@ class ErrorAggregation:
         user_threshold = threshold_config.get("affected_users_threshold", 5)
 
         # Check if within time window
-        time_diff = datetime.utcnow() - self.first_occurrence
+        time_diff = datetime.now(timezone.utc) - self.first_occurrence
         if time_diff > timedelta(minutes=time_window):
             return False
 
@@ -253,7 +253,7 @@ class StructuredErrorLogger:
         # Create error context
         error_context = ErrorContext(
             correlation_id=correlation_id,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             error_type=type(error).__name__,
             error_message=str(error),
             stack_trace=traceback.format_exc(),
@@ -334,7 +334,7 @@ class StructuredErrorLogger:
                 extra={
                     "event_type": event_type,
                     "correlation_id": correlation_id,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "context": context_data,
                 },
             )
@@ -494,7 +494,7 @@ class StructuredErrorLogger:
     def cleanup_old_aggregations(self) -> None:
         """Clean up old error aggregations."""
         with self.aggregation_lock:
-            cutoff_time = datetime.utcnow() - timedelta(
+            cutoff_time = datetime.now(timezone.utc) - timedelta(
                 minutes=self.aggregation_window_minutes * 2
             )
 

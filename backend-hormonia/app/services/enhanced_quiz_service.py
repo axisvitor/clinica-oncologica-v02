@@ -6,7 +6,7 @@ Business logic for advanced quiz operations, risk scoring, and adaptive flows.
 import json
 import hashlib
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 
@@ -380,7 +380,7 @@ class EnhancedQuizService:
             response_type="adaptive",
             response_value=str(flow_request.response_value),
             response_metadata=flow_request.response_metadata or {},
-            responded_at=datetime.utcnow(),
+            responded_at=datetime.now(timezone.utc),
         )
         self.db.add(new_response)
 
@@ -439,7 +439,7 @@ class EnhancedQuizService:
 
         if is_completed:
             session.status = "completed"
-            session.completed_at = datetime.utcnow()
+            session.completed_at = datetime.now(timezone.utc)
 
         self.db.commit()
 
@@ -486,7 +486,7 @@ class EnhancedQuizService:
         if role_enum != UserRole.ADMIN and patient.doctor_id != user_uuid:
             raise HTTPException(status_code=403, detail="Not authorized")
 
-        lookback_date = datetime.utcnow() - timedelta(days=risk_request.lookback_days)
+        lookback_date = datetime.now(timezone.utc) - timedelta(days=risk_request.lookback_days)
         query = self.db.query(QuizSession).filter(
             and_(
                 QuizSession.patient_id == patient_uuid,
@@ -546,7 +546,7 @@ class EnhancedQuizService:
 
         result = RiskScoringResponse(
             patient_id=risk_request.patient_id,
-            assessment_date=datetime.utcnow(),
+            assessment_date=datetime.now(timezone.utc),
             current_risk=current_risk,
             trend=trend,
             historical_scores=historical_scores,
@@ -579,7 +579,7 @@ class EnhancedQuizService:
             .filter(
                 and_(
                     QuizSession.patient_id == patient_uuid,
-                    QuizSession.created_at >= datetime.utcnow() - timedelta(days=90),
+                    QuizSession.created_at >= datetime.now(timezone.utc) - timedelta(days=90),
                 )
             )
             .options(joinedload(QuizSession.quiz_template))
@@ -612,7 +612,7 @@ class EnhancedQuizService:
                     else QuizCategory.GENERAL_HEALTH,
                     priority=priority,
                     reason=reason,
-                    due_date=datetime.utcnow() + timedelta(days=7),
+                    due_date=datetime.now(timezone.utc) + timedelta(days=7),
                 )
             )
 
@@ -635,7 +635,7 @@ class EnhancedQuizService:
         user_uuid: Optional[UUID],
     ) -> PerformanceMetricsResponse:
         if not end_date:
-            end_date = datetime.utcnow()
+            end_date = datetime.now(timezone.utc)
         if not start_date:
             start_date = end_date - timedelta(days=30)
 
@@ -805,7 +805,7 @@ class EnhancedQuizService:
                                 patient_id=patient.id,
                                 quiz_template_id=template_uuid,
                                 status="started",
-                                started_at=operation.scheduled_for or datetime.utcnow(),
+                                started_at=operation.scheduled_for or datetime.now(timezone.utc),
                             )
                         )
                         successful += 1
@@ -903,6 +903,6 @@ class EnhancedQuizService:
             format=export_request.format,
             status="processing",
             download_url=None,
-            expires_at=datetime.utcnow() + timedelta(hours=24),
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
             file_size_bytes=None,
         )

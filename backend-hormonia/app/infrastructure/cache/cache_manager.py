@@ -8,7 +8,7 @@ statistics tracking, and cache configuration management.
 import hashlib
 import asyncio
 from typing import Any, Callable, Optional, Union, List, Dict
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 from dataclasses import dataclass, field
 from enum import Enum
 from concurrent.futures import ThreadPoolExecutor
@@ -55,7 +55,7 @@ class CacheStats:
     sets: int = 0
     deletes: int = 0
     invalidations: int = 0
-    last_reset: datetime = field(default_factory=datetime.utcnow)
+    last_reset: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     @property
     def total_requests(self) -> int:
@@ -75,7 +75,7 @@ class CacheStats:
         self.sets = 0
         self.deletes = 0
         self.invalidations = 0
-        self.last_reset = datetime.utcnow()
+        self.last_reset = datetime.now(timezone.utc)
 
 
 # Default cache configurations for different data types
@@ -655,7 +655,7 @@ class UnifiedCacheManager:
             if cache_key in self._backend._local_cache:
                 cache_entry = self._backend._local_cache[cache_key]
                 remaining = (
-                    cache_entry["expires_at"] - datetime.utcnow()
+                    cache_entry["expires_at"] - datetime.now(timezone.utc)
                 ).total_seconds()
                 return int(remaining) if remaining > 0 else None
 

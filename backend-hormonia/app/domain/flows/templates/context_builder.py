@@ -5,7 +5,7 @@ Creates context data structures for template rendering and personalization.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from uuid import UUID
 
@@ -58,7 +58,7 @@ class TemplateContextBuilder:
             "flow_type": flow_type,
             "current_day": current_day,
             "operation": operation,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         if flow_state_id:
@@ -142,7 +142,7 @@ class TemplateContextBuilder:
                 "day": current_day,
                 "template_intent": template_intent,
             },
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         if additional_data:
@@ -179,7 +179,7 @@ class TemplateContextBuilder:
             "event_type": event_type,
             "flow_type": flow_type,
             "flow_day": current_day,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         if metadata:

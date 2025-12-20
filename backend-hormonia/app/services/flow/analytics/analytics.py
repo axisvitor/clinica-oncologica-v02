@@ -12,7 +12,7 @@ Migration Note:
 """
 
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 import logging
 
@@ -537,7 +537,7 @@ class FlowAnalytics:
                 }
                 for e in self.get_recent_events(limit=10)
             ],
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
     def export_analytics_report(self) -> Dict[str, Any]:
@@ -554,7 +554,7 @@ class FlowAnalytics:
                 "queue_size": self.event_broadcaster.get_queue_size(),
                 "subscriber_count": self.event_broadcaster.get_subscriber_count(),
             },
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
     # ========================================================================

@@ -8,7 +8,7 @@ import asyncio
 import json
 import logging
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from dataclasses import dataclass
 import redis.asyncio as redis
 from fastapi import WebSocket, WebSocketDisconnect
@@ -206,7 +206,7 @@ class RealTimeDashboard:
 
     async def _collect_dashboard_metrics(self) -> DashboardMetrics:
         """Collect all dashboard metrics."""
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(timezone.utc)
 
         # APM metrics
         apm_stats = self.apm_collector.get_global_stats()
@@ -415,7 +415,7 @@ class RealTimeDashboard:
         try:
             # Connect client
             await self.connection_manager.connect(
-                websocket, client_id, {"connected_at": datetime.utcnow().isoformat()}
+                websocket, client_id, {"connected_at": datetime.now(timezone.utc).isoformat()}
             )
 
             # Send initial dashboard state
@@ -462,7 +462,7 @@ class RealTimeDashboard:
         if message_type == "ping":
             # Respond to ping with pong
             await self.connection_manager.send_to_client(
-                client_id, {"type": "pong", "timestamp": datetime.utcnow().isoformat()}
+                client_id, {"type": "pong", "timestamp": datetime.now(timezone.utc).isoformat()}
             )
 
         elif message_type == "request_metrics":

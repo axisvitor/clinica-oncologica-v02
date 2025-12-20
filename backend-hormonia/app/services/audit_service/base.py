@@ -6,7 +6,7 @@ to the new AuditLog model schema.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from uuid import UUID
 
@@ -131,7 +131,7 @@ class AuditServiceBase:
             user_agent=user_agent[:500] if user_agent else None,
             event_metadata=sanitized_metadata,
             message=f"{event_category}: {event_type}",
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
 
         self.db.add(audit_log)

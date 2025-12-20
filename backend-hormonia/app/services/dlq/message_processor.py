@@ -8,7 +8,7 @@ message types (WhatsApp, Email, Quiz, Notifications).
 import logging
 import asyncio
 from typing import Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 
 from app.models.failed_message import FailedMessage, FailureReason
@@ -82,7 +82,7 @@ class DLQMessageProcessor:
                 exc_info=True,
             )
             failed_message.metadata["last_reprocess_error"] = str(e)
-            failed_message.metadata["last_reprocess_at"] = datetime.utcnow().isoformat()
+            failed_message.metadata["last_reprocess_at"] = datetime.now(timezone.utc).isoformat()
             return False
 
     def _infer_and_process(

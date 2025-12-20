@@ -8,7 +8,7 @@ This module implements monitoring tasks to detect and alert on saga anomalies:
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any
 
 from celery import shared_task
@@ -48,7 +48,7 @@ def check_orphaned_sagas() -> dict:
         ]
 
         # Define threshold for orphan detection (24 hours)
-        orphan_threshold = datetime.utcnow() - timedelta(hours=24)
+        orphan_threshold = datetime.now(timezone.utc) - timedelta(hours=24)
 
         # Query for orphaned sagas
         orphaned_sagas = (
@@ -130,7 +130,7 @@ def check_long_running_sagas() -> dict:
         logger.info("Starting long-running saga detection...")
 
         # Define threshold for long-running detection (30 minutes)
-        long_running_threshold = datetime.utcnow() - timedelta(minutes=30)
+        long_running_threshold = datetime.now(timezone.utc) - timedelta(minutes=30)
 
         # Query for long-running sagas
         long_running_sagas = (
@@ -159,7 +159,7 @@ def check_long_running_sagas() -> dict:
 
         # Send alerts
         for saga in long_running_sagas:
-            duration = (datetime.utcnow() - saga.started_at).total_seconds() / 60
+            duration = (datetime.now(timezone.utc) - saga.started_at).total_seconds() / 60
             logger.warning(
                 f"Long-running saga detected: {saga.id} (running for {duration:.1f} minutes)"
             )
@@ -203,7 +203,7 @@ def generate_saga_metrics() -> dict:
         logger.info("Generating saga metrics...")
 
         # Define time window (last 24 hours)
-        time_window = datetime.utcnow() - timedelta(hours=24)
+        time_window = datetime.now(timezone.utc) - timedelta(hours=24)
 
         # Query sagas in time window
         recent_sagas = (
@@ -300,7 +300,7 @@ def _alert_orphaned_saga(saga: PatientOnboardingSaga, db: Session) -> None:
         db: Database session
     """
     try:
-        duration = (datetime.utcnow() - saga.created_at).total_seconds() / 3600
+        duration = (datetime.now(timezone.utc) - saga.created_at).total_seconds() / 3600
 
         logger.error(
             f"ORPHANED SAGA DETECTED: {saga.id} "
@@ -381,7 +381,7 @@ def _generate_orphan_summary(sagas: List[PatientOnboardingSaga]) -> Dict[str, An
         "oldest_saga_age_hours": round(
             max(
                 [
-                    (datetime.utcnow() - s.created_at).total_seconds() / 3600
+                    (datetime.now(timezone.utc) - s.created_at).total_seconds() / 3600
                     for s in sagas
                 ]
             ),

@@ -10,7 +10,7 @@ Provides:
 
 import logging
 import time
-from datetime import datetime, UTC
+from datetime import datetime, UTC, timezone
 from typing import Dict
 from uuid import UUID
 

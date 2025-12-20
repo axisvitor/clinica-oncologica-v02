@@ -8,7 +8,7 @@ Endpoints:
 
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy import text
@@ -104,7 +104,7 @@ async def get_database_diagnostics(
             pool_info=pool_info,
             response_time_ms=response_time_ms,
             error=error_msg,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
 
         # Audit log
@@ -124,7 +124,7 @@ async def get_database_diagnostics(
             success=True,
             data=diagnostics.dict(),
             audit_logged=True,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
 
     except Exception as e:
@@ -232,7 +232,7 @@ async def test_sql_query(
             success=test_result.success,
             data=test_result.dict(),
             audit_logged=True,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
 
     except Exception as e:

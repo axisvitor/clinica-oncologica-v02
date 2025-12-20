@@ -8,7 +8,7 @@ Functions for interacting with Celery task system:
 """
 
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID, uuid4
 import logging
 
@@ -125,7 +125,7 @@ def _register_task(
         "priority": priority.value,
         "user_id": str(user_id) if user_id else None,
         "metadata": metadata or {},
-        "created_at": datetime.utcnow(),
+        "created_at": datetime.now(timezone.utc),
         "retry_count": 0,
         "logs": [],
     }

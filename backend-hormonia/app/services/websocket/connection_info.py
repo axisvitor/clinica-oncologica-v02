@@ -6,7 +6,7 @@ Extracted from enhanced_websocket_manager.py for modular architecture.
 
 from enum import Enum
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from fastapi import WebSocket
 
@@ -62,7 +62,7 @@ class ConnectionInfo:
 
     def update_activity(self):
         """Update last activity timestamp."""
-        self.last_activity = datetime.utcnow()
+        self.last_activity = datetime.now(timezone.utc)
 
     def record_message_sent(self, size_bytes: int = 0):
         """Record a sent message."""

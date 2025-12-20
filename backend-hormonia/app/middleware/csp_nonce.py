@@ -13,7 +13,7 @@ Features:
 
 import secrets
 from typing import Callable, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -110,7 +110,7 @@ class CSPNonceMiddleware(BaseHTTPMiddleware):
             extra={
                 "event_type": "csp_nonce_generated",
                 "nonce_length": len(nonce),
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             },
         )
 
@@ -255,7 +255,7 @@ class CSPReportHandler:
             csp_report = report.get("csp-report", {})
 
             violation = {
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
                 "document_uri": csp_report.get("document-uri"),
                 "violated_directive": csp_report.get("violated-directive"),
                 "effective_directive": csp_report.get("effective-directive"),

@@ -8,7 +8,7 @@ to prevent race conditions where multiple workers process the same event.
 import logging
 import hashlib
 from typing import Optional, Tuple, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 from redis.asyncio import Redis
 from sqlalchemy.orm import Session
@@ -161,7 +161,7 @@ class AtomicWebhookIdempotency:
         effective_ttl = ttl or self._get_ttl(event_type)
 
         # Value stores processing info for debugging
-        value = f"processing:{worker_id or 'unknown'}:{datetime.utcnow().isoformat()}"
+        value = f"processing:{worker_id or 'unknown'}:{datetime.now(timezone.utc).isoformat()}"
 
         try:
             # Atomic SET NX EX
@@ -215,7 +215,7 @@ class AtomicWebhookIdempotency:
 
         key = self._get_key(event_type, event_id)
         effective_ttl = ttl or self._get_ttl(event_type)
-        value = f"processing:{worker_id or 'unknown'}:{datetime.utcnow().isoformat()}"
+        value = f"processing:{worker_id or 'unknown'}:{datetime.now(timezone.utc).isoformat()}"
 
         try:
             result = await self.redis.evalsha(
@@ -256,7 +256,7 @@ class AtomicWebhookIdempotency:
             ttl = await self.redis.ttl(key)
             if ttl > 0:
                 await self.redis.set(
-                    key, f"completed:{datetime.utcnow().isoformat()}", ex=ttl
+                    key, f"completed:{datetime.now(timezone.utc).isoformat()}", ex=ttl
                 )
         except Exception as e:
             logger.debug(f"Could not mark event as completed in Redis: {e}")
@@ -278,7 +278,7 @@ class AtomicWebhookIdempotency:
             # Set to 'failed' state with short TTL for retry window
             await self.redis.set(
                 key,
-                f"failed:{error or 'unknown'}:{datetime.utcnow().isoformat()}",
+                f"failed:{error or 'unknown'}:{datetime.now(timezone.utc).isoformat()}",
                 ex=300,  # 5 minute retry window
             )
         except Exception as e:

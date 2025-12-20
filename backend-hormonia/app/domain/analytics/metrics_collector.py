@@ -79,9 +79,9 @@ class MetricsCollector:
 
             # Set date range
             if not start_date:
-                start_date = datetime.utcnow().date() - timedelta(days=30)
+                start_date = datetime.now(timezone.utc).date() - timedelta(days=30)
             if not end_date:
-                end_date = datetime.utcnow().date()
+                end_date = datetime.now(timezone.utc).date()
 
             analytics = PatientAnalytics(
                 patient_id=patient_id,
@@ -134,11 +134,11 @@ class MetricsCollector:
         """
         # Set default date range
         if not end_date:
-            end_date = datetime.utcnow().date()
+            end_date = datetime.now(timezone.utc).date()
         if not start_date:
             start_date = end_date - timedelta(days=30)
 
-        today = datetime.utcnow().date()
+        today = datetime.now(timezone.utc).date()
         week_start = today - timedelta(days=7)
         month_start = today - timedelta(days=30)
 
@@ -215,7 +215,7 @@ class MetricsCollector:
         Get all quick stats in a single optimized query using CTEs.
         This reduces database round-trips from 4 separate queries to 1.
         """
-        today = datetime.utcnow().date()
+        today = datetime.now(timezone.utc).date()
 
         # Build the consolidated query with CTEs (corrected enum values and columns)
         if doctor_id:
@@ -271,7 +271,7 @@ class MetricsCollector:
         self, days: int, doctor_id: Optional[UUID]
     ) -> int:
         """Return total quizzes completed in the last N days, optionally filtered by doctor."""
-        end_date = datetime.utcnow().date()
+        end_date = datetime.now(timezone.utc).date()
         start_date = end_date - timedelta(days=days)
         query = self.db.query(QuizResponse).filter(
             and_(

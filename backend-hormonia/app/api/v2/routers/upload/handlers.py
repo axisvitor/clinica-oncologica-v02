@@ -8,7 +8,7 @@ Contains:
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
 from fastapi import (
@@ -100,7 +100,7 @@ async def upload_file_handler(
         HTTPException: If upload fails
     """
     redis_client = await get_redis_client()
-    start_time = datetime.utcnow()
+    start_time = datetime.now(timezone.utc)
 
     try:
         logger.info(
@@ -231,7 +231,7 @@ async def upload_file_handler(
             storage_provider=StorageProvider.LOCAL,
             storage_path=storage_path,
             uploaded_by=current_user.id,
-            uploaded_at=datetime.utcnow(),
+            uploaded_at=datetime.now(timezone.utc),
             is_public=public,
             expires_at=None,
             custom_metadata=None,
@@ -282,7 +282,7 @@ async def upload_file_handler(
 
         logger.info(
             f"Upload completed: {file_path} ({file_size} bytes) in "
-            f"{(datetime.utcnow() - start_time).total_seconds():.2f}s"
+            f"{(datetime.now(timezone.utc) - start_time).total_seconds():.2f}s"
         )
 
         # Apply field selection
@@ -529,7 +529,7 @@ async def delete_upload_handler(
                     db.query(Upload).filter(Upload.id == upload_id).first()
                 )
                 if upload_to_delete:
-                    upload_to_delete.deleted_at = datetime.utcnow()
+                    upload_to_delete.deleted_at = datetime.now(timezone.utc)
                     db.commit()
                     logger.info(f"Soft deleted upload {upload_id} in database")
             except Exception as e:

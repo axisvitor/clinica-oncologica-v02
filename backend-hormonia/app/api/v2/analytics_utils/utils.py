@@ -5,7 +5,7 @@ Extracted from enhanced_analytics.py to reduce god class complexity.
 
 from typing import Optional, Tuple
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import logging
@@ -141,7 +141,7 @@ def parse_date_range(
     Returns:
         Tuple of (start_date, end_date)
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     if start_date and end_date:
         return start_date, end_date

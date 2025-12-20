@@ -9,7 +9,7 @@ import logging
 import hashlib
 import json
 from typing import Callable
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import Request, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -126,7 +126,7 @@ class IdempotencyMiddleware:
                 webhook_event.mark_completed(
                     {
                         "status_code": response.status_code,
-                        "processed_at": datetime.utcnow().isoformat(),
+                        "processed_at": datetime.now(timezone.utc).isoformat(),
                     }
                 )
                 db.commit()
@@ -311,7 +311,7 @@ async def cleanup_expired_events(db: Session, batch_size: int = 1000) -> int:
             # Find expired events
             expired_events = (
                 db.query(WebhookEvent)
-                .filter(WebhookEvent.expires_at < datetime.utcnow())
+                .filter(WebhookEvent.expires_at < datetime.now(timezone.utc))
                 .limit(batch_size)
                 .all()
             )

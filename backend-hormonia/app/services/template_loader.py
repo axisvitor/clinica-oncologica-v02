@@ -6,7 +6,7 @@ All templates MUST be in the database - no file system access.
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 
 from pydantic import BaseModel, Field
@@ -394,7 +394,7 @@ class EnhancedTemplateLoader:
         # Check cache first
         if cache_key in self._template_cache:
             cached_template, cached_time = self._template_cache[cache_key]
-            if datetime.utcnow() - cached_time < self._cache_ttl:
+            if datetime.now(timezone.utc) - cached_time < self._cache_ttl:
                 logger.debug(f"Loading template from cache: {cache_key}")
                 return cached_template
             else:
@@ -673,7 +673,7 @@ class EnhancedTemplateLoader:
             del self._template_cache[oldest_key]
             logger.debug(f"Removed oldest cached template: {oldest_key}")
 
-        self._template_cache[cache_key] = (template_data, datetime.utcnow())
+        self._template_cache[cache_key] = (template_data, datetime.now(timezone.utc))
         logger.debug(f"Cached template: {cache_key}")
 
     def _invalidate_cache_for_flow_type(self, flow_type: str) -> None:
@@ -694,7 +694,7 @@ class EnhancedTemplateLoader:
 
     def get_cache_stats(self) -> Dict[str, Any]:
         """Get cache statistics for monitoring."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         expired_count = sum(
             1
             for _, cached_time in self._template_cache.values()

@@ -6,7 +6,7 @@ queue size monitoring for the DLQ system.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import func
 
@@ -161,7 +161,7 @@ class DLQMetricsCollector:
             )
 
             if oldest:
-                age_seconds = (datetime.utcnow() - oldest.created_at).total_seconds()
+                age_seconds = (datetime.now(timezone.utc) - oldest.created_at).total_seconds()
                 update_oldest_message_age(
                     category=oldest.failure_reason.value,
                     age_seconds=age_seconds,

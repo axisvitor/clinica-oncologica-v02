@@ -5,7 +5,7 @@ Utilities for monitoring database performance and managing indexes.
 
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import defaultdict, deque
 from sqlalchemy import Engine, text, inspect
 from sqlalchemy.orm import Session
@@ -39,7 +39,7 @@ class QueryMetrics:
         self.min_time = min(self.min_time, execution_time)
         self.max_time = max(self.max_time, execution_time)
         self.avg_time = self.total_time / self.execution_count
-        self.last_executed = datetime.utcnow()
+        self.last_executed = datetime.now(timezone.utc)
 
         if params and len(self.parameters) < 10:  # Keep last 10 parameter sets
             self.parameters.append(params)
@@ -76,7 +76,7 @@ class QueryPerformanceMonitor:
         """End monitoring a database session."""
         with self.lock:
             self.session_metrics["durations"].append(session_duration)
-            self.session_metrics["timestamps"].append(datetime.utcnow())
+            self.session_metrics["timestamps"].append(datetime.now(timezone.utc))
 
             # Keep only last 1000 sessions
             if len(self.session_metrics["durations"]) > 1000:
@@ -117,7 +117,7 @@ class QueryPerformanceMonitor:
             query_text=self._normalize_query(query),
             execution_time=execution_time,
             parameters=params,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
 
         with self.lock:
@@ -199,7 +199,7 @@ class QueryPerformanceMonitor:
                     }
                     for sq in recent_slow
                 ],
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
             }
 
     def get_query_suggestions(self) -> List[Dict[str, Any]]:

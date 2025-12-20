@@ -5,7 +5,7 @@ Coordinates all analyzers and generates final reports.
 
 import logging
 from typing import Dict, List, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.patient import Patient
 from app.models.flow import PatientFlowState
@@ -49,7 +49,7 @@ class DataCorruptionDetector:
             Corruption detection results
         """
         try:
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
             self.corruption_patterns = []
 
             detection_results = {
@@ -90,7 +90,7 @@ class DataCorruptionDetector:
                 self.scoring.generate_recommendations(self.corruption_patterns)
             )
 
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
             detection_results["completed_at"] = end_time.isoformat()
             detection_results["duration_seconds"] = (
                 end_time - start_time
@@ -106,7 +106,7 @@ class DataCorruptionDetector:
             logger.error(f"Corruption detection failed: {e}")
             return {
                 "error": str(e),
-                "analysis_id": f"corruption_detection_failed_{int(datetime.utcnow().timestamp())}",
+                "analysis_id": f"corruption_detection_failed_{int(datetime.now(timezone.utc).timestamp())}",
                 "patterns_detected": 0,
                 "corruption_score": 0.0,
             }

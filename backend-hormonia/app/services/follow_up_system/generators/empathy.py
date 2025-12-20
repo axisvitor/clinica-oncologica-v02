@@ -5,7 +5,7 @@ Creates personalized, empathetic messages for patient responses.
 
 import logging
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 from .base import BaseGenerator
@@ -63,7 +63,7 @@ class EmpathyGenerator(BaseGenerator):
             delay_minutes = self.calculate_response_delay(
                 structured_response.concern_level
             )
-            scheduled_for = datetime.utcnow() + timedelta(minutes=delay_minutes)
+            scheduled_for = datetime.now(timezone.utc) + timedelta(minutes=delay_minutes)
 
             # Create follow-up action
             action = FollowUpAction(

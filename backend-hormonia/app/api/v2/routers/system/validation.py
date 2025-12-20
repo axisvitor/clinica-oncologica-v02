@@ -8,7 +8,7 @@ Security: Admin role required.
 """
 
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 
@@ -160,7 +160,7 @@ async def validate_configuration(
             valid=len(errors) == 0,
             warnings=warnings,
             errors=errors,
-            checked_at=datetime.utcnow(),
+            checked_at=datetime.now(timezone.utc),
             categories_checked=categories_checked,
             recommendations=recommendations,
         )

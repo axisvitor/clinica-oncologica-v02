@@ -8,7 +8,7 @@ that supports custom rule types and evaluators.
 import logging
 from typing import Dict, Any, List, Optional, Callable, Awaitable
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ..types import (
     AlertRule,
@@ -309,7 +309,7 @@ class RuleEngine:
                 raise ValueError(f"Cannot update field: {field}")
             setattr(rule, field, value)
 
-        rule.updated_at = datetime.now()
+        rule.updated_at = datetime.now(timezone.utc)
 
         logger.info(f"Updated rule {rule_id}: {list(updates.keys())}")
 

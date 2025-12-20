@@ -23,7 +23,7 @@ Retry Schedule:
 import logging
 import asyncio
 from typing import Any, Dict, Optional, Callable
-from datetime import datetime
+from datetime import datetime, timezone
 
 from tenacity import (
     retry,
@@ -213,7 +213,7 @@ class WebhookRetryService:
         return {
             "status": "success",
             "webhook_id": webhook_data.get("id"),
-            "processed_at": datetime.utcnow().isoformat(),
+            "processed_at": datetime.now(timezone.utc).isoformat(),
         }
 
     async def _send_to_dlq(self, webhook_data: Dict[str, Any], error: str) -> None:
@@ -235,7 +235,7 @@ class WebhookRetryService:
             "webhook_data": webhook_data,
             "error": error,
             "retry_count": self.max_retries,
-            "failed_at": datetime.utcnow().isoformat(),
+            "failed_at": datetime.now(timezone.utc).isoformat(),
             "error_type": "max_retries_exhausted",
         }
 

@@ -9,7 +9,7 @@ Implementação do Sprint 0 - Configuração de Monitoramento
 import os
 import logging
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -217,7 +217,7 @@ def capture_exception(
                     scope.set_extra(key, value)
 
             # Adicionar timestamp
-            scope.set_extra("captured_at", datetime.utcnow().isoformat())
+            scope.set_extra("captured_at", datetime.now(timezone.utc).isoformat())
 
             # Definir nível
             scope.level = level

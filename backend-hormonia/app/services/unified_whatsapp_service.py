@@ -18,7 +18,7 @@ import json
 import logging
 from typing import Any, Optional, Callable, Dict
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -175,7 +175,7 @@ class UnifiedWhatsAppService:
             "messages_failed": 0,
             "queue_processed": 0,
             "retries_attempted": 0,
-            "last_reset": datetime.utcnow(),
+            "last_reset": datetime.now(timezone.utc),
         }
 
         logger.info("Unified WhatsApp Service initialized in Queue Mode")
@@ -256,7 +256,7 @@ class UnifiedWhatsAppService:
             True if message was queued successfully
         """
         try:
-            send_start = datetime.utcnow()
+            send_start = datetime.now(timezone.utc)
             kwargs.get("flow_context")
 
             # Track metrics
@@ -278,7 +278,7 @@ class UnifiedWhatsAppService:
                     quiz_template_id = metadata.get("quiz_template_id")
 
                     if quiz_template_id and template_type.startswith("quiz_"):
-                        latency = (datetime.utcnow() - send_start).total_seconds()
+                        latency = (datetime.now(timezone.utc) - send_start).total_seconds()
                         metrics = await get_quiz_metrics_collector()
                         await metrics.record_send_latency(
                             template_id=UUID(quiz_template_id),
@@ -313,7 +313,7 @@ class UnifiedWhatsAppService:
                 "unified_service": {
                     "version": "2.0.0",
                     "mode": "queue",
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 },
                 "requires_queue": True,
             }
@@ -473,7 +473,7 @@ class UnifiedWhatsAppService:
         # Add unified error metadata
         unified_error = {
             "unified_service_error": True,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "pipeline": "queue",
             **error_info,
         }
@@ -564,7 +564,7 @@ class UnifiedWhatsAppService:
             logger.warning(f"Could not get queue stats: {e}")
 
         # Calculate uptime
-        uptime = (datetime.utcnow() - self.metrics["last_reset"]).total_seconds()
+        uptime = (datetime.now(timezone.utc) - self.metrics["last_reset"]).total_seconds()
 
         return {
             "unified_metrics": {
@@ -582,7 +582,7 @@ class UnifiedWhatsAppService:
             "queue_metrics": queue_stats,
             "messaging_mode": "queue",
             "retry_policies": list(self.retry_policies.keys()),
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
     async def process_queue_messages(self, max_messages: int = 100) -> Dict[str, Any]:
@@ -606,7 +606,7 @@ class UnifiedWhatsAppService:
         return {
             "queue_processing_started": True,
             "max_messages": max_messages,
-            "started_at": datetime.utcnow().isoformat(),
+            "started_at": datetime.now(timezone.utc).isoformat(),
         }
 
     async def health_check(self) -> Dict[str, Any]:
@@ -619,7 +619,7 @@ class UnifiedWhatsAppService:
         health = {
             "service": "unified_whatsapp",
             "status": "healthy",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "components": {},
         }
 

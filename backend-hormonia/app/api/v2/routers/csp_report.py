@@ -6,7 +6,7 @@ from browsers to monitor security issues and potential attacks.
 """
 
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Request, HTTPException, status
 from fastapi.responses import JSONResponse
@@ -72,7 +72,7 @@ async def receive_csp_report(request: Request) -> JSONResponse:
                 "event_type": "csp_report_received",
                 "violation_id": result.get("violation_id"),
                 "client_ip": request.client.host if request.client else "unknown",
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
             },
         )
 
@@ -114,7 +114,7 @@ async def get_csp_violations(
         return {
             "total": len(violations),
             "violations": violations,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
         }
 
     except Exception as e:
@@ -145,7 +145,7 @@ async def get_csp_stats() -> Dict[str, Any]:
                 "suspicious_violations": 0,
                 "by_directive": {},
                 "by_uri": {},
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
             }
 
         # Count violations by directive
@@ -171,7 +171,7 @@ async def get_csp_stats() -> Dict[str, Any]:
             "top_blocked_uris": sorted(
                 by_uri.items(), key=lambda x: x[1], reverse=True
             )[:10],
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
         }
 
     except Exception as e:
@@ -199,14 +199,14 @@ async def clear_csp_violations() -> Dict[str, str]:
             "CSP violations cleared",
             extra={
                 "event_type": "csp_violations_cleared",
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
             },
         )
 
         return {
             "status": "success",
             "message": "CSP violations cleared",
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
         }
 
     except Exception as e:

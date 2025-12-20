@@ -4,7 +4,7 @@ Quiz trigger service for monthly quiz initiation within flow system.
 
 import logging
 from typing import Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -147,7 +147,7 @@ class QuizTriggerService:
 
             # Calculate days since enrollment
             enrollment_date = patient.enrollment_date or patient.created_at
-            days_since_enrollment = (datetime.utcnow() - enrollment_date).days
+            days_since_enrollment = (datetime.now(timezone.utc) - enrollment_date).days
 
             # Check if it's a monthly quiz day (every 30 days after day 45)
             if days_since_enrollment < 45:
@@ -451,13 +451,13 @@ class QuizTriggerService:
             flow_state.state_data = flow_state.state_data or {}
             flow_state.state_data["quiz_session_id"] = result["quiz_session_id"]
             flow_state.state_data["quiz_state"] = QuizFlowState.AWAITING_RESPONSE.value
-            flow_state.state_data["quiz_started_at"] = datetime.utcnow().isoformat()
+            flow_state.state_data["quiz_started_at"] = datetime.now(timezone.utc).isoformat()
             flow_state.state_data["quiz_delivery_method"] = "link"
             flow_state.state_data["quiz_link_token"] = result["token"]
             flow_state.state_data["quiz_link_expires_at"] = result["expires_at"]
             flow_state.state_data["monthly_cycle"] = quiz_info["monthly_cycle"]
             flow_state.state_data["quiz_link_created_at"] = (
-                datetime.utcnow().isoformat()
+                datetime.now(timezone.utc).isoformat()
             )
             flow_state.state_data["quiz_link_access_count"] = 0
 
@@ -530,7 +530,7 @@ class QuizTriggerService:
             {
                 "monthly_cycle": quiz_info["monthly_cycle"],
                 "triggered_by": "flow_system",
-                "trigger_date": datetime.utcnow().isoformat(),
+                "trigger_date": datetime.now(timezone.utc).isoformat(),
                 "flow_state_id": str(flow_state.id),
                 "delivery_method": "whatsapp_conversational",
             }
@@ -539,7 +539,7 @@ class QuizTriggerService:
             flow_state.state_data = flow_state.state_data or {}
             flow_state.state_data["quiz_session_id"] = str(session.id)
             flow_state.state_data["quiz_state"] = QuizFlowState.IN_PROGRESS.value
-            flow_state.state_data["quiz_started_at"] = datetime.utcnow().isoformat()
+            flow_state.state_data["quiz_started_at"] = datetime.now(timezone.utc).isoformat()
             flow_state.state_data["quiz_delivery_method"] = "whatsapp_conversational"
             flow_state.state_data["monthly_cycle"] = quiz_info["monthly_cycle"]
 
@@ -588,7 +588,7 @@ class QuizTriggerService:
             reminder_2_time = expires_at - timedelta(hours=6)
 
             # Schedule reminders using Celery
-            if reminder_1_time > datetime.utcnow():
+            if reminder_1_time > datetime.now(timezone.utc):
                 task_1 = send_quiz_link_reminder_task.apply_async(
                     args=[str(quiz_session_id), 24], eta=reminder_1_time
                 )
@@ -596,7 +596,7 @@ class QuizTriggerService:
                     f"Scheduled first reminder for quiz {quiz_session_id} at {reminder_1_time} (task: {task_1.id})"
                 )
 
-            if reminder_2_time > datetime.utcnow():
+            if reminder_2_time > datetime.now(timezone.utc):
                 task_2 = send_quiz_link_reminder_task.apply_async(
                     args=[str(quiz_session_id), 6], eta=reminder_2_time
                 )
@@ -610,12 +610,12 @@ class QuizTriggerService:
                 session_metadata = session.session_metadata or {}
                 session_metadata["reminders_scheduled"] = {
                     "first_reminder": reminder_1_time.isoformat()
-                    if reminder_1_time > datetime.utcnow()
+                    if reminder_1_time > datetime.now(timezone.utc)
                     else None,
                     "second_reminder": reminder_2_time.isoformat()
-                    if reminder_2_time > datetime.utcnow()
+                    if reminder_2_time > datetime.now(timezone.utc)
                     else None,
-                    "scheduled_at": datetime.utcnow().isoformat(),
+                    "scheduled_at": datetime.now(timezone.utc).isoformat(),
                 }
                 session.session_metadata = session_metadata
                 self.db.commit()
@@ -696,7 +696,7 @@ class QuizTriggerService:
                 flow_state.state_data["quiz_fallback_triggered"] = True
                 flow_state.state_data["quiz_fallback_reason"] = error_reason
                 flow_state.state_data["quiz_fallback_at"] = (
-                    datetime.utcnow().isoformat()
+                    datetime.now(timezone.utc).isoformat()
                 )
                 self.db.commit()
 

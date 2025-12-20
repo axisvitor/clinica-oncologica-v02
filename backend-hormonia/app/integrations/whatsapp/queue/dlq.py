@@ -6,7 +6,7 @@ Routes failed messages to DLQ storage for manual review and retry.
 import logging
 from typing import Dict, Any, Optional, List
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
@@ -98,8 +98,8 @@ class DLQHandler:
                 failure_reason=failure_reason,
                 failure_details=failure_details or {},
                 retry_count=retry_count,
-                last_retry_at=datetime.utcnow() if retry_count > 0 else None,
-                failed_at=datetime.utcnow(),
+                last_retry_at=datetime.now(timezone.utc) if retry_count > 0 else None,
+                failed_at=datetime.now(timezone.utc),
                 dlq_status=DLQStatus.PENDING_REVIEW,
                 dlq_metadata=metadata or {},
             )
@@ -134,7 +134,7 @@ class DLQHandler:
                 if not message.message_metadata:
                     message.message_metadata = {}
                 message.message_metadata["dlq_routed_at"] = (
-                    datetime.utcnow().isoformat()
+                    datetime.now(timezone.utc).isoformat()
                 )
                 self.db.commit()
         except Exception as e:
@@ -275,7 +275,7 @@ class DLQHandler:
                     "dlq_entry_id": str(failed_message.id),
                     "original_failure_reason": failed_message.failure_reason.value,
                     "requeue_count": failed_message.requeue_count + 1,
-                    "requeued_at": datetime.utcnow().isoformat(),
+                    "requeued_at": datetime.now(timezone.utc).isoformat(),
                 },
             )
 
@@ -288,10 +288,10 @@ class DLQHandler:
 
             if immediate:
                 # Schedule for immediate delivery (1 minute from now)
-                send_time = datetime.utcnow() + timedelta(minutes=1)
+                send_time = datetime.now(timezone.utc) + timedelta(minutes=1)
             else:
                 # Schedule for next business hours
-                send_time = datetime.utcnow() + timedelta(hours=1)
+                send_time = datetime.now(timezone.utc) + timedelta(hours=1)
 
             await scheduler.schedule_existing_message(
                 message_id=retry_message.id, send_time=send_time, priority="high"
@@ -330,7 +330,7 @@ class DLQHandler:
             DLQ metrics including failure reasons, counts, trends
         """
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days_back)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_back)
 
             # Get all DLQ entries in period
             entries = (
@@ -384,7 +384,7 @@ class DLQHandler:
                 "avg_retry_count": round(avg_retry_count, 2),
                 "requeue_rate": round(requeue_rate, 2),
                 "period_days": days_back,
-                "analysis_date": datetime.utcnow().isoformat(),
+                "analysis_date": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
@@ -410,7 +410,7 @@ class DLQHandler:
             List of critical failed messages
         """
         try:
-            cutoff_time = datetime.utcnow() - timedelta(hours=hours_back)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours_back)
 
             critical_failures = (
                 self.db.query(FailedMessage)

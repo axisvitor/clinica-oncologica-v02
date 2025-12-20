@@ -12,7 +12,7 @@ Migration Note:
 """
 
 from typing import Dict, Any, List, Optional, Set
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from collections import defaultdict
 from enum import Enum
@@ -152,11 +152,11 @@ class FlowMonitor:
             FlowHealthMetrics(flow_instance_id),
         )
 
-        metrics.last_check = datetime.utcnow()
+        metrics.last_check = datetime.now(timezone.utc)
 
         # Update metrics from context
         if context.started_at:
-            execution_time = (datetime.utcnow() - context.started_at).total_seconds()
+            execution_time = (datetime.now(timezone.utc) - context.started_at).total_seconds()
             metrics.execution_time_seconds = execution_time
 
             # Check execution time
@@ -183,7 +183,7 @@ class FlowMonitor:
                 )
 
         # Check for expired flows
-        if context.expires_at and datetime.utcnow() > context.expires_at:
+        if context.expires_at and datetime.now(timezone.utc) > context.expires_at:
             metrics.issues.append("Flow has expired")
 
         # Check priority handling
@@ -297,7 +297,7 @@ class FlowMonitor:
             "degraded_flows": health_counts[HealthStatus.DEGRADED.value],
             "unhealthy_flows": health_counts[HealthStatus.UNHEALTHY.value],
             "critical_flows": health_counts[HealthStatus.CRITICAL.value],
-            "checked_at": datetime.utcnow().isoformat(),
+            "checked_at": datetime.now(timezone.utc).isoformat(),
         }
 
     def get_unhealthy_flows(self) -> List[FlowHealthMetrics]:
@@ -426,7 +426,7 @@ class FlowMonitor:
             "execution_time_seconds": metrics.execution_time_seconds,
             "steps_executed": metrics.steps_executed,
             "steps_failed": metrics.steps_failed,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     # ========================================================================
@@ -481,7 +481,7 @@ class FlowMonitor:
         Returns:
             Number of metrics cleaned up.
         """
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
         cleaned = 0
 
         flow_ids_to_remove = []
@@ -533,7 +533,7 @@ class FlowMonitor:
                 }
                 for m in self.get_unhealthy_flows()
             ],
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
 

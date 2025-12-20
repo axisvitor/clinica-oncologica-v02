@@ -9,7 +9,7 @@ Endpoints:
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
@@ -170,7 +170,7 @@ async def debug_token_decode(
         success=token_info.valid or not token_info.error,
         data=token_info.dict(),
         audit_logged=True,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         warning="JWT decoding not yet implemented",
     )
 
@@ -268,7 +268,7 @@ async def test_login_flow(
             success=True,
             data=result.dict(),
             audit_logged=True,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
 
     except Exception as e:
@@ -365,7 +365,7 @@ async def test_permissions(
             success=True,
             data=result.dict(),
             audit_logged=True,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
 
     except HTTPException:
@@ -420,7 +420,7 @@ async def simulate_authentication(
         # Create temporary debug session
         if sim_request.simulate_session:
             session_id = f"debug_sess_{uuid4().hex[:12]}"
-            expires_at = datetime.utcnow() + timedelta(
+            expires_at = datetime.now(timezone.utc) + timedelta(
                 minutes=sim_request.duration_minutes
             )
 
@@ -471,7 +471,7 @@ async def simulate_authentication(
             success=True,
             data=result.dict(),
             audit_logged=True,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             warning="Debug session created - temporary use only",
         )
 

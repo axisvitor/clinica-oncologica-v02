@@ -1,7 +1,7 @@
 """Celery tasks for monitoring and automated recovery."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any
 
 from celery import current_app as celery_app
@@ -63,14 +63,14 @@ class SystemHealthCheckTask(MonitoringTask):
 
                 # Store health status
                 health_key = (
-                    f"system_health:{datetime.utcnow().strftime('%Y-%m-%d-%H-%M')}"
+                    f"system_health:{datetime.now(timezone.utc).strftime('%Y-%m-%d-%H-%M')}"
                 )
                 redis.setex(health_key, 3600, str(health_status))  # Keep for 1 hour
 
                 result = self.create_success_result(
                     {
                         "health_status": health_status.get("status", "unknown"),
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 )
 
@@ -121,7 +121,7 @@ class PerformanceMetricsCollectionTask(MonitoringTask):
                 result = self.create_success_result(
                     {
                         "metrics_collected": len(metrics),
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 )
 
@@ -185,7 +185,7 @@ class BottleneckDetectionTask(MonitoringTask):
                     {
                         "bottlenecks_detected": len(bottlenecks),
                         "critical_bottlenecks": len(critical_bottlenecks),
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 )
 
@@ -254,7 +254,7 @@ class AlertMonitoringTask(MonitoringTask):
                     {
                         "alerts_created": len(alerts),
                         "critical_alerts": len(critical_alerts),
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 )
 
@@ -300,7 +300,7 @@ class EscalationCheckTask(MonitoringTask):
                 result = self.create_success_result(
                     {
                         "escalations_processed": len(escalations),
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 )
 
@@ -385,7 +385,7 @@ class AutomatedRecoveryTask(MonitoringTask):
                 result = self.create_success_result(
                     {
                         "recovery_results": recovery_results,
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 )
 
@@ -459,7 +459,7 @@ class CleanupOldMonitoringDataTask(MonitoringTask):
                 {
                     "keys_deleted": deleted_count,
                     "total_keys_checked": total_keys,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             )
 

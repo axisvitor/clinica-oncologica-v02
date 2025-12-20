@@ -4,7 +4,7 @@ Handles CSV-based patient data import and export operations.
 """
 
 from typing import Optional, List
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from uuid import UUID
 import csv
 import io
@@ -227,7 +227,7 @@ async def export_patients(
     def iter_csv():
         yield csv_content.encode("utf-8")
 
-    filename = f"patients_export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+    filename = f"patients_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
     return StreamingResponse(
         iter_csv(),
         media_type="text/csv",

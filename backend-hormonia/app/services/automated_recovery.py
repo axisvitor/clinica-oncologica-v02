@@ -6,7 +6,7 @@ Implements automated recovery mechanisms for common failure scenarios.
 import logging
 import asyncio
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from dataclasses import dataclass
 
@@ -99,7 +99,7 @@ class AutomatedRecoveryService:
 
     async def run_automated_recovery_cycle(self) -> Dict[str, Any]:
         """Run complete automated recovery cycle."""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         try:
             logger.info("Starting automated recovery cycle")
@@ -142,7 +142,7 @@ class AutomatedRecoveryService:
                 "status": "error",
                 "error": str(e),
                 "started_at": start_time.isoformat(),
-                "failed_at": datetime.utcnow().isoformat(),
+                "failed_at": datetime.now(timezone.utc).isoformat(),
             }
 
     async def _assess_recovery_needs(self) -> List[RecoveryAction]:
@@ -213,12 +213,12 @@ class AutomatedRecoveryService:
         for action in recovery_plan:
             try:
                 logger.info(f"Executing recovery action: {action.value}")
-                start_time = datetime.utcnow()
+                start_time = datetime.now(timezone.utc)
 
                 # Execute the specific recovery action
                 result = await self._execute_recovery_action(action)
 
-                execution_time = (datetime.utcnow() - start_time).total_seconds()
+                execution_time = (datetime.now(timezone.utc) - start_time).total_seconds()
                 result.execution_time = execution_time
 
                 results.append(result)
@@ -704,7 +704,7 @@ class AutomatedRecoveryService:
                 cooldown_end = last_recovery_time + timedelta(
                     minutes=self.recovery_config["recovery_cooldown_minutes"]
                 )
-                return datetime.utcnow() < cooldown_end
+                return datetime.now(timezone.utc) < cooldown_end
             return False
         except Exception:
             return False
@@ -715,7 +715,7 @@ class AutomatedRecoveryService:
             await self.redis.setex(
                 "last_recovery_time",
                 self.recovery_config["recovery_cooldown_minutes"] * 60,
-                datetime.utcnow().isoformat(),
+                datetime.now(timezone.utc).isoformat(),
             )
         except Exception as e:
             logger.error(f"Error setting recovery cooldown: {e}")
@@ -738,7 +738,7 @@ class AutomatedRecoveryService:
         self, recovery_results: List[RecoveryOperation], start_time: datetime
     ) -> Dict[str, Any]:
         """Generate recovery report."""
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
         total_execution_time = (end_time - start_time).total_seconds()
 
         successful_actions = [

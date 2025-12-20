@@ -12,7 +12,7 @@ This module provides a robust heartbeat system that:
 import asyncio
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Optional, Callable, Any, Awaitable
 from dataclasses import dataclass, field
 from enum import Enum
@@ -252,7 +252,7 @@ class WebSocketHeartbeatManager:
             "type": "ping",
             "data": {
                 "ping_id": ping_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "server_time": timestamp,
             },
         }
@@ -264,7 +264,7 @@ class WebSocketHeartbeatManager:
             # Track ping
             self.pending_pings[connection_id][ping_id] = timestamp
             metrics.ping_count += 1
-            metrics.last_ping_sent = datetime.utcnow()
+            metrics.last_ping_sent = datetime.now(timezone.utc)
             self.total_pings_sent += 1
 
             # Schedule timeout check
@@ -312,7 +312,7 @@ class WebSocketHeartbeatManager:
 
         # Update metrics
         metrics.pong_count += 1
-        metrics.last_pong_received = datetime.utcnow()
+        metrics.last_pong_received = datetime.now(timezone.utc)
         metrics.missed_pings = 0  # Reset missed pings counter
         metrics.add_latency_sample(latency)
         metrics.update_status(self.max_missed_pings, self.warning_threshold)

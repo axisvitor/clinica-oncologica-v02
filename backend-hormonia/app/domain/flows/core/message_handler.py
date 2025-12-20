@@ -6,7 +6,7 @@ Handles message creation, scheduling, callbacks, and retry logic.
 import asyncio
 import logging
 from typing import Optional, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
@@ -242,7 +242,7 @@ class MessageHandler:
                                 "template_intent": message_template.intent,
                             },
                             "error": str(schedule_error),
-                            "failed_at": datetime.utcnow().isoformat(),
+                            "failed_at": datetime.now(timezone.utc).isoformat(),
                             "total_attempts": attempt + 1,
                             "failure_type": "scheduling_failed",
                         },
@@ -359,7 +359,7 @@ class MessageHandler:
             self.db.refresh(message)
 
             # Schedule for immediate delivery (within 5 minutes)
-            send_time = datetime.utcnow() + timedelta(minutes=5)
+            send_time = datetime.now(timezone.utc) + timedelta(minutes=5)
 
             scheduled = await self.message_scheduler.schedule_existing_message(
                 message_id=message.id,
@@ -411,7 +411,7 @@ class MessageHandler:
                         if flow_state:
                             flow_state.state_data = flow_state.state_data or {}
                             flow_state.state_data["last_message_sent"] = {
-                                "timestamp": datetime.utcnow().isoformat(),
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
                                 "message_id": str(message.id),
                                 "day": flow_context.get("current_day"),
                                 "intent": flow_context.get("template_intent"),
@@ -445,7 +445,7 @@ class MessageHandler:
                                     "flow_day": flow_context.get("current_day"),
                                     "flow_type": flow_context.get("flow_type"),
                                     "intent": flow_context.get("template_intent"),
-                                    "timestamp": datetime.utcnow().isoformat(),
+                                    "timestamp": datetime.now(timezone.utc).isoformat(),
                                 }
                             },
                         )
@@ -481,7 +481,7 @@ class MessageHandler:
                     if flow_state:
                         flow_state.state_data = flow_state.state_data or {}
                         flow_state.state_data["last_message_failed"] = {
-                            "timestamp": datetime.utcnow().isoformat(),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
                             "message_id": str(message.id),
                             "error": error,
                             "day": flow_context.get("current_day"),
@@ -515,7 +515,7 @@ class MessageHandler:
                         )
                         flow_state.state_data["message_status_updates"].append(
                             {
-                                "timestamp": datetime.utcnow().isoformat(),
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
                                 "message_id": str(message.id),
                                 "status": status.value,
                                 "additional_data": additional_data,

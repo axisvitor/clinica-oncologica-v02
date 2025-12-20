@@ -9,7 +9,7 @@ This service handles all LGPD (Brazilian Data Protection Law) requirements:
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 from uuid import UUID
 from sqlalchemy import Column, String, DateTime, JSON, Boolean, Text
@@ -80,7 +80,7 @@ class PrivacyService:
             consent_text=consent_text,
             ip_address=ip_address,
             user_agent=user_agent[:500] if user_agent else None,
-            given_at=datetime.utcnow() if consent_given else None,
+            given_at=datetime.now(timezone.utc) if consent_given else None,
             metadata=metadata or {},
         )
 
@@ -116,7 +116,7 @@ class PrivacyService:
             raise NotFoundError(f"No active consent found for type {consent_type}")
 
         consent.consent_given = False
-        consent.revoked_at = datetime.utcnow()
+        consent.revoked_at = datetime.now(timezone.utc)
 
         self.db.commit()
 
@@ -177,7 +177,7 @@ class PrivacyService:
         audit_logs = self.audit_service.get_patient_audit_trail(patient_id)
 
         export_data = {
-            "export_date": datetime.utcnow().isoformat(),
+            "export_date": datetime.now(timezone.utc).isoformat(),
             "patient": {
                 "id": str(patient.id),
                 "name": patient.name,
@@ -298,7 +298,7 @@ class PrivacyService:
 
         Data older than cutoff_days will be anonymized.
         """
-        cutoff_date = datetime.utcnow() - timedelta(days=retention_cutoff_days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_cutoff_days)
 
         # Anonymize old quiz responses
         old_responses = (
@@ -315,7 +315,7 @@ class PrivacyService:
             # Keep statistical data but remove identifying info
             response.response_metadata = response.response_metadata or {}
             response.response_metadata["anonymized"] = True
-            response.response_metadata["anonymized_at"] = datetime.utcnow().isoformat()
+            response.response_metadata["anonymized_at"] = datetime.now(timezone.utc).isoformat()
             anonymized_count += 1
 
         self.db.commit()

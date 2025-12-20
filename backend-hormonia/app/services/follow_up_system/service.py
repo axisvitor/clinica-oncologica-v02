@@ -5,7 +5,7 @@ Coordinates follow-up processing, scheduling, and execution via specialized comp
 
 import logging
 from typing import List, Optional, Any, Dict
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from .context.manager import ContextManager
@@ -359,7 +359,7 @@ class FollowUpSystemService:
     async def acknowledge_alert(self, alert_id: UUID, acknowledged_by: str) -> bool:
         """Acknowledge an escalation alert."""
         try:
-            acknowledged_at = datetime.utcnow()
+            acknowledged_at = datetime.now(timezone.utc)
             success = await self.redis_store.update_alert_status(
                 alert_id=alert_id,
                 acknowledged_at=acknowledged_at,
@@ -382,7 +382,7 @@ class FollowUpSystemService:
     async def resolve_alert(self, alert_id: UUID, resolved_by: str) -> bool:
         """Resolve an escalation alert."""
         try:
-            resolved_at = datetime.utcnow()
+            resolved_at = datetime.now(timezone.utc)
             success = await self.redis_store.update_alert_status(
                 alert_id=alert_id, resolved_at=resolved_at, assigned_to=resolved_by
             )
@@ -430,7 +430,7 @@ class FollowUpSystemService:
 
             return {
                 "service": "FollowUpSystemService",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "healthy": True,
                 "storage": redis_health,
                 "stats": stats,
@@ -440,7 +440,7 @@ class FollowUpSystemService:
             logger.error(f"Health check failed: {e}")
             return {
                 "service": "FollowUpSystemService",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "healthy": False,
                 "error": str(e),
             }

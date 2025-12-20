@@ -18,7 +18,7 @@ ISSUE-005 PHASE 2:
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, TYPE_CHECKING
 from uuid import UUID
 
@@ -128,7 +128,7 @@ class NotificationService:
                     lambda: self.message_service.schedule_message(
                         patient_id=patient.id,
                         content=welcome_text,
-                        scheduled_for=datetime.utcnow(),
+                        scheduled_for=datetime.now(timezone.utc),
                         message_type=MessageType.TEXT,
                         message_metadata={
                             "patient_id": str(patient.id),

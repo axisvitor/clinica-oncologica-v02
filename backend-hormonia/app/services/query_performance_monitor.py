@@ -6,7 +6,7 @@ Tracks slow queries, provides optimization suggestions, and monitors database pe
 import logging
 import time
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, asdict
 from functools import wraps
@@ -78,7 +78,7 @@ class QueryPerformanceMonitor:
         self.redis_client = get_sync_redis()
         self._query_cache: Dict[str, SlowQuery] = {}
         self._metrics = QueryMetrics()
-        self._start_time = datetime.utcnow()
+        self._start_time = datetime.now(timezone.utc)
 
         # Register SQLAlchemy event listeners
         self._register_event_listeners()
@@ -140,13 +140,13 @@ class QueryPerformanceMonitor:
                 slow_query.max_duration_ms = max(
                     slow_query.max_duration_ms, duration_ms
                 )
-                slow_query.timestamp = datetime.utcnow()
+                slow_query.timestamp = datetime.now(timezone.utc)
             else:
                 slow_query = SlowQuery(
                     query_hash=query_hash,
                     query_text=self._normalize_query(query),
                     duration_ms=duration_ms,
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     parameters=clean_params,
                     optimization_suggestions=self._generate_optimization_suggestions(
                         query
@@ -228,7 +228,7 @@ class QueryPerformanceMonitor:
         """
         try:
             # Update queries per second
-            elapsed_seconds = (datetime.utcnow() - self._start_time).total_seconds()
+            elapsed_seconds = (datetime.now(timezone.utc) - self._start_time).total_seconds()
             if elapsed_seconds > 0:
                 self._metrics.queries_per_second = (
                     self._metrics.total_queries / elapsed_seconds
@@ -255,7 +255,7 @@ class QueryPerformanceMonitor:
             metrics = self.get_performance_metrics()
 
             # Filter queries by time period
-            cutoff_time = datetime.utcnow() - timedelta(hours=hours_back)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours_back)
             recent_queries = [q for q in slow_queries if q.timestamp >= cutoff_time]
 
             # Analyze patterns
@@ -270,7 +270,7 @@ class QueryPerformanceMonitor:
                 "recommendations": self._generate_performance_recommendations(
                     recent_queries
                 ),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:

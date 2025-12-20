@@ -20,7 +20,7 @@ Migration Note:
 """
 
 from typing import Dict, Any, Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 import logging
 
@@ -404,7 +404,7 @@ class FlowValidator:
                 errors.append("Expires_at is before started_at")
 
             if context.status == FlowStatus.ACTIVE:
-                if datetime.utcnow() > context.expires_at:
+                if datetime.now(timezone.utc) > context.expires_at:
                     warnings.append("Flow has expired but is still active")
 
         # Validate steps history

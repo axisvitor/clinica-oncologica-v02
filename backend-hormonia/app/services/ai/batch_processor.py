@@ -22,7 +22,7 @@ Version: 2.0.0 (Refactored)
 import asyncio
 import logging
 from typing import Dict, Any, List, Optional, Union
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from dataclasses import dataclass, field
 
@@ -153,7 +153,7 @@ class BatchProcessor:
             >>> print(result.results['sentiment_analysis'])
             >>> print(result.latency_ms)
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         # Define all operations for patient interaction
         operations = [
@@ -187,7 +187,7 @@ class BatchProcessor:
         results = await self._process_batch(operations)
 
         # Calculate latency
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
         latency_ms = (end_time - start_time).total_seconds() * 1000
 
         # Create batch result
@@ -234,7 +234,7 @@ class BatchProcessor:
         Returns:
             BatchResult with interpretation results
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         operations = [
             AIOperation(
@@ -257,7 +257,7 @@ class BatchProcessor:
         results = await self._process_batch(operations)
 
         # Calculate latency
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
         latency_ms = (end_time - start_time).total_seconds() * 1000
 
         batch_result = BatchResult(patient_id=patient_id, latency_ms=latency_ms)

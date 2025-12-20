@@ -3,7 +3,7 @@ Response handlers for invalid and quiz responses.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from app.services.ai import ConcernLevel
@@ -192,7 +192,7 @@ class QuizResponseHandler:
 
                 state_updates = {
                     "quiz_state": "completed",
-                    "quiz_completed_at": datetime.utcnow().isoformat(),
+                    "quiz_completed_at": datetime.now(timezone.utc).isoformat(),
                 }
 
             elif quiz_result["action"] == "next_question":
@@ -206,7 +206,7 @@ class QuizResponseHandler:
                 # Invalid response - clarification already sent
                 state_updates = {
                     "quiz_state": "awaiting_response",
-                    "last_clarification_at": datetime.utcnow().isoformat(),
+                    "last_clarification_at": datetime.now(timezone.utc).isoformat(),
                 }
 
             elif quiz_result["action"] == "error":

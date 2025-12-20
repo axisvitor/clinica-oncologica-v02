@@ -6,7 +6,7 @@ Handles message queuing, routing, and delivery to Evolution instances.
 
 import asyncio
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from .schemas import MessageRequest, MessageResponse, QueueStatus
@@ -55,7 +55,7 @@ class QueueManager:
         """
         try:
             # Update stats
-            self._stats["last_activity"] = datetime.utcnow()
+            self._stats["last_activity"] = datetime.now(timezone.utc)
 
             # For testing purposes, simulate successful delivery
             # In production, this would interact with actual Evolution instances
@@ -74,7 +74,7 @@ class QueueManager:
             return MessageResponse(
                 success=True,
                 message_id=message_id,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 instance_name=request.instance_name,
             )
 
@@ -88,7 +88,7 @@ class QueueManager:
                 success=False,
                 error_code="SEND_FAILED",
                 error_message=str(e),
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 instance_name=request.instance_name,
             )
 

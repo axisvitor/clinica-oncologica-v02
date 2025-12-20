@@ -4,7 +4,7 @@ Builds execution context with patient data, flow state, quiz responses, and mess
 """
 
 from typing import List, Optional, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from uuid import UUID
 
@@ -51,7 +51,7 @@ class ContextBuilder:
                 "metadata": patient.patient_data or {},
             },
             "flow_start_time": flow_state.started_at,
-            "current_time": datetime.utcnow(),
+            "current_time": datetime.now(timezone.utc),
             "flow_data": flow_state.state_data or {},
             "quiz_responses": self._get_recent_quiz_responses(patient.id),
             "message_count": self._get_message_count(patient.id),
@@ -66,7 +66,7 @@ class ContextBuilder:
     def _get_recent_quiz_responses(self, patient_id: UUID) -> dict[str, Any]:
         """Get recent quiz responses for the patient."""
         # Get responses from last 7 days
-        since_date = datetime.utcnow() - timedelta(days=7)
+        since_date = datetime.now(timezone.utc) - timedelta(days=7)
         responses = self.quiz_repo.get_by_patient_since(patient_id, since_date)
 
         # Convert to dict format for easy access

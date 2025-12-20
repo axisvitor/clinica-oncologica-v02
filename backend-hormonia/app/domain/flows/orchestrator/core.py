@@ -6,7 +6,7 @@ Main FlowOrchestrator class implementing core flow execution logic.
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Callable
 from uuid import UUID
 
@@ -501,7 +501,7 @@ class FlowOrchestrator(
     ) -> Dict[str, Any]:
         """Process daily flows for all active patients."""
         try:
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
 
             # Get active flows
             active_flows = self.flow_state_repo.get_active_flows(limit=limit)
@@ -578,7 +578,7 @@ class FlowOrchestrator(
                     )
 
             results["processing_time"] = (
-                datetime.utcnow() - start_time
+                datetime.now(timezone.utc) - start_time
             ).total_seconds()
 
             self.log_info(
@@ -654,7 +654,7 @@ class FlowOrchestrator(
             self.log_error("Health check failed", e)
             return {
                 "service": "FlowOrchestrator",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "overall_healthy": False,
                 "error": str(e),
                 "critical_failure": True,

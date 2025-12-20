@@ -5,7 +5,7 @@ Implements escalation logic for critical system errors and automated notificatio
 
 import logging
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 from enum import Enum
 from dataclasses import dataclass
@@ -162,7 +162,7 @@ class CriticalErrorEscalationService:
                     if not existing_escalation:
                         # Check if initial delay has passed
                         time_since_alert = (
-                            datetime.utcnow() - alert.created_at
+                            datetime.now(timezone.utc) - alert.created_at
                         ).total_seconds()
 
                         if time_since_alert >= matching_rule.initial_delay:
@@ -233,14 +233,14 @@ class CriticalErrorEscalationService:
             escalation_dict = json.loads(escalation_data)
             escalation_dict["acknowledged"] = True
             escalation_dict["acknowledged_by"] = acknowledged_by
-            escalation_dict["acknowledged_at"] = datetime.utcnow().isoformat()
+            escalation_dict["acknowledged_at"] = datetime.now(timezone.utc).isoformat()
 
             # Add to notification history
             escalation_dict["notification_history"].append(
                 {
                     "action": "acknowledged",
                     "by": acknowledged_by,
-                    "at": datetime.utcnow().isoformat(),
+                    "at": datetime.now(timezone.utc).isoformat(),
                     "level": escalation_dict["current_level"],
                 }
             )
@@ -275,7 +275,7 @@ class CriticalErrorEscalationService:
             escalation_dict = json.loads(escalation_data)
             escalation_dict["resolved"] = True
             escalation_dict["resolved_by"] = resolved_by
-            escalation_dict["resolved_at"] = datetime.utcnow().isoformat()
+            escalation_dict["resolved_at"] = datetime.now(timezone.utc).isoformat()
             escalation_dict["resolution_note"] = resolution_note
 
             # Add to notification history
@@ -283,7 +283,7 @@ class CriticalErrorEscalationService:
                 {
                     "action": "resolved",
                     "by": resolved_by,
-                    "at": datetime.utcnow().isoformat(),
+                    "at": datetime.now(timezone.utc).isoformat(),
                     "note": resolution_note,
                     "level": escalation_dict["current_level"],
                 }
@@ -361,8 +361,8 @@ class CriticalErrorEscalationService:
             alert_id=alert.id,
             rule=rule,
             current_level=EscalationLevel.LEVEL_1,
-            created_at=datetime.utcnow(),
-            last_escalated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            last_escalated_at=datetime.now(timezone.utc),
             acknowledged=False,
             acknowledged_by=None,
             acknowledged_at=None,
@@ -394,7 +394,7 @@ class CriticalErrorEscalationService:
             return None
 
         time_since_last_escalation = (
-            datetime.utcnow() - escalation.last_escalated_at
+            datetime.now(timezone.utc) - escalation.last_escalated_at
         ).total_seconds()
         current_level_index = list(EscalationLevel).index(escalation.current_level)
 
@@ -409,7 +409,7 @@ class CriticalErrorEscalationService:
 
                 if next_level.value <= escalation.rule.max_level.value:
                     escalation.current_level = next_level
-                    escalation.last_escalated_at = datetime.utcnow()
+                    escalation.last_escalated_at = datetime.now(timezone.utc)
 
                     # Update stored escalation
                     escalation_key = f"escalation:{escalation.id}"
@@ -452,7 +452,7 @@ class CriticalErrorEscalationService:
                             escalation_dict["created_at"]
                         )
                         time_since_creation = (
-                            datetime.utcnow() - created_at
+                            datetime.now(timezone.utc) - created_at
                         ).total_seconds()
 
                         # Get rule from escalation data
@@ -466,7 +466,7 @@ class CriticalErrorEscalationService:
                             escalation_dict["resolved"] = True
                             escalation_dict["resolved_by"] = "system"
                             escalation_dict["resolved_at"] = (
-                                datetime.utcnow().isoformat()
+                                datetime.now(timezone.utc).isoformat()
                             )
                             escalation_dict["resolution_note"] = (
                                 "Auto-resolved due to timeout"
@@ -476,7 +476,7 @@ class CriticalErrorEscalationService:
                                 {
                                     "action": "auto_resolved",
                                     "by": "system",
-                                    "at": datetime.utcnow().isoformat(),
+                                    "at": datetime.now(timezone.utc).isoformat(),
                                     "reason": "timeout",
                                 }
                             )

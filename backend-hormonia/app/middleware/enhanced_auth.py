@@ -77,13 +77,13 @@ class EnhancedAuthMiddleware(BaseHTTPMiddleware):
         self.fail_open_on_redis_error = fail_open_on_redis_error
 
         # Default excluded paths (health checks, docs, etc.)
+        # NOTE: Removed duplicate "/health" entry
         self.excluded_paths = excluded_paths or [
             "/health",
             "/docs",
             "/redoc",
             "/openapi.json",
             "/favicon.ico",
-            "/health",
             "/api/v2/health",
             "/api/v2/health/railway",
             "/api/v2/health/production",

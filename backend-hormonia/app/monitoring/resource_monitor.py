@@ -10,7 +10,7 @@ import logging
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import threading
 import redis.asyncio as redis
 
@@ -113,7 +113,7 @@ class ResourceMonitor:
 
     async def _collect_snapshot(self) -> ResourceSnapshot:
         """Collect current resource usage snapshot."""
-        current_time = datetime.utcnow()
+        current_time = datetime.now(timezone.utc)
 
         # CPU metrics
         cpu_percent = psutil.cpu_percent(interval=None)
@@ -328,7 +328,7 @@ class ResourceMonitor:
 
     def get_historical_stats(self, minutes: int = 60) -> Dict[str, Any]:
         """Get historical resource statistics."""
-        cutoff_time = datetime.utcnow() - timedelta(minutes=minutes)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=minutes)
 
         with self._lock:
             recent_snapshots = [s for s in self.snapshots if s.timestamp >= cutoff_time]
@@ -441,7 +441,7 @@ class ResourceMonitor:
     def _empty_stats(self) -> Dict[str, Any]:
         """Return empty stats structure."""
         return {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "cpu": {"percent": 0, "cores": [], "load_average": [0, 0, 0]},
             "memory": {"total_gb": 0, "used_gb": 0, "available_gb": 0, "percent": 0},
             "disk": {

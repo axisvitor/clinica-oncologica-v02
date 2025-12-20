@@ -436,9 +436,9 @@ class MetricsExporter:
         """Update quiz completion rate"""
         try:
             if month is None:
-                from datetime import datetime
+                from datetime import datetime, timezone
 
-                month = datetime.now().strftime("%Y-%m")
+                month = datetime.now(timezone.utc).strftime("%Y-%m")
             quiz_completion_rate.labels(quiz_type=quiz_type, month=month).set(rate)
         except Exception as e:
             logger.error(f"Error updating quiz completion rate: {e}")
@@ -450,9 +450,9 @@ class MetricsExporter:
         """Update token expiry rate"""
         try:
             if month is None:
-                from datetime import datetime
+                from datetime import datetime, timezone
 
-                month = datetime.now().strftime("%Y-%m")
+                month = datetime.now(timezone.utc).strftime("%Y-%m")
             token_expiry_rate.labels(quiz_type=quiz_type, month=month).set(rate)
         except Exception as e:
             logger.error(f"Error updating token expiry rate: {e}")
@@ -464,9 +464,9 @@ class MetricsExporter:
         """Update fallback activation frequency"""
         try:
             if month is None:
-                from datetime import datetime
+                from datetime import datetime, timezone
 
-                month = datetime.now().strftime("%Y-%m")
+                month = datetime.now(timezone.utc).strftime("%Y-%m")
             fallback_activation_frequency.labels(reason=reason, month=month).set(
                 frequency
             )

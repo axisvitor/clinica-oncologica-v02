@@ -8,7 +8,7 @@ memory access, consensus participation, and Claude-Flow integration.
 import asyncio
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional, Callable
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from dataclasses import dataclass, asdict
 from enum import Enum
@@ -148,8 +148,8 @@ class BaseAgent(ABC):
 
         # Agent state
         self.status = AgentStatus.INITIALIZING
-        self.created_at = datetime.utcnow()
-        self.last_heartbeat = datetime.utcnow()
+        self.created_at = datetime.now(timezone.utc)
+        self.last_heartbeat = datetime.now(timezone.utc)
 
         # Configuration
         self.config = kwargs
@@ -163,7 +163,7 @@ class BaseAgent(ABC):
 
         # Metrics
         self.metrics = AgentMetrics()
-        self.start_time = datetime.utcnow()
+        self.start_time = datetime.now(timezone.utc)
 
         # Memory and coordination
         self.memory_store = {}
@@ -292,7 +292,7 @@ class BaseAgent(ABC):
             message_type=message_type,
             payload=payload,
             priority=priority,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             requires_response=requires_response,
             correlation_id=correlation_id,
         )
@@ -384,7 +384,7 @@ class BaseAgent(ABC):
     # Default message handlers
     async def _handle_ping(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Handle ping message."""
-        self.last_heartbeat = datetime.utcnow()
+        self.last_heartbeat = datetime.now(timezone.utc)
         return {"pong": True, "timestamp": self.last_heartbeat.isoformat()}
 
     async def _handle_status_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -392,14 +392,14 @@ class BaseAgent(ABC):
         return {
             "agent_id": self.agent_id,
             "status": self.status.value,
-            "uptime": (datetime.utcnow() - self.start_time).total_seconds(),
+            "uptime": (datetime.now(timezone.utc) - self.start_time).total_seconds(),
             "active_tasks": len(self.active_tasks),
             "capabilities": await self.get_capabilities(),
         }
 
     async def _handle_metrics_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Handle metrics request."""
-        self.metrics.uptime = datetime.utcnow() - self.start_time
+        self.metrics.uptime = datetime.now(timezone.utc) - self.start_time
         self.metrics.last_activity = self.last_heartbeat
         return asdict(self.metrics)
 
@@ -425,7 +425,7 @@ class BaseAgent(ABC):
     # Task execution
     async def _execute_task(self, task_id: str, task_data: Dict[str, Any]):
         """Execute assigned task with error handling and metrics."""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         try:
             self.logger.info(f"Executing task {task_id}")
@@ -440,7 +440,7 @@ class BaseAgent(ABC):
 
             # Update metrics
             self.metrics.tasks_completed += 1
-            execution_time = (datetime.utcnow() - start_time).total_seconds()
+            execution_time = (datetime.now(timezone.utc) - start_time).total_seconds()
             self._update_average_response_time(execution_time)
 
             # Run Claude-Flow post-task hook
@@ -489,7 +489,7 @@ class BaseAgent(ABC):
                 swarm_manager = await get_swarm_manager()
                 await swarm_manager.agent_heartbeat(self.agent_id)
 
-                self.last_heartbeat = datetime.utcnow()
+                self.last_heartbeat = datetime.now(timezone.utc)
 
                 # Wait for next heartbeat
                 await asyncio.sleep(self.heartbeat_interval)

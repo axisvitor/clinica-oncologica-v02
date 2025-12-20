@@ -5,7 +5,7 @@ Business logic for advanced reporting, custom builders, and scheduled delivery.
 
 import json
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from uuid import UUID, uuid4
 
@@ -127,7 +127,7 @@ class EnhancedReportsService:
             "description": data.description,
             "fields": [f.dict() for f in data.fields],
             "filters": data.filters,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "created_by": str(user_id),
             "row_count": 0,
             "generation_time_seconds": 0.0,
@@ -163,8 +163,8 @@ class EnhancedReportsService:
             "report_id": str(data.report_id),
             "config": data.visualization.dict(),
             "data": viz_data,
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
         }
 
         await self._set_cached_result(
@@ -226,7 +226,7 @@ class EnhancedReportsService:
             else None,
             "export_format": data.export_format.value,
             "is_active": data.is_active,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "created_by": str(user_id),
         }
 
@@ -263,7 +263,7 @@ class EnhancedReportsService:
                 "shared_with": str(shared_user_id),
                 "permission_level": data.permission_level.value,
                 "shared_by": str(user_id),
-                "shared_at": datetime.utcnow().isoformat(),
+                "shared_at": datetime.now(timezone.utc).isoformat(),
                 "is_active": True,
             }
             shares.append(share)
@@ -283,7 +283,7 @@ class EnhancedReportsService:
             "token": token,
             "url": f"/api/v2/enhanced-reports/public/{token}",
             "expires_at": data.expires_at.isoformat() if data.expires_at else None,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "created_by": str(user_id),
             "is_active": True,
         }
@@ -304,7 +304,7 @@ class EnhancedReportsService:
             "report_id": str(data.report_id),
             "formats": [f.value for f in data.formats],
             "status": "pending",
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
         }
         return response
 
@@ -325,7 +325,7 @@ class EnhancedReportsService:
         versions = [
             {
                 "version": 1,
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
                 "created_by": str(user_id),
                 "change_summary": "Initial",
             }
@@ -349,7 +349,7 @@ class EnhancedReportsService:
             "description": "Restored",
             "fields": [],
             "filters": {},
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "created_by": str(user_id),
             "row_count": 0,
         }
@@ -364,9 +364,9 @@ class EnhancedReportsService:
             "description": data.description,
             "layout": data.layout.value,
             "widgets": [w.dict() for w in data.widgets],
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "created_by": str(user_id),
-            "updated_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         await self._set_cached_result(
             self._get_cache_key("dashboard", dashboard_id=str(dashboard_id)),
@@ -396,7 +396,7 @@ class EnhancedReportsService:
             cached["description"] = request.description
         if request.widgets is not None:
             cached["widgets"] = [w.dict() for w in request.widgets]
-        cached["updated_at"] = datetime.utcnow().isoformat()
+        cached["updated_at"] = datetime.now(timezone.utc).isoformat()
 
         await self._set_cached_result(cache_key, cached, DASHBOARD_CACHE_TTL)
         await self._invalidate_cache_pattern(f"*dashboard*{dashboard_id}*")
@@ -416,9 +416,9 @@ class EnhancedReportsService:
             "description": data.description,
             "snapshot_data": {
                 "widgets": [],
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "created_by": str(user_id),
         }
         return response

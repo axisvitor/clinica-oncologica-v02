@@ -3,7 +3,7 @@ Tasks Router Dependencies - Shared dependencies for task endpoints.
 """
 
 from typing import Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID, uuid4
 import logging
 
@@ -162,7 +162,7 @@ def _register_task(
         "priority": priority.value,
         "user_id": str(user_id) if user_id else None,
         "metadata": metadata or {},
-        "created_at": datetime.utcnow(),
+        "created_at": datetime.now(timezone.utc),
         "retry_count": 0,
         "logs": [],
     }
@@ -193,7 +193,7 @@ def _serialize_task(task_data: Dict[str, Any], fields: list = None) -> Dict[str,
         "retry_config": task_data.get("retry_config"),
         "worker_name": task_data.get("worker_name"),
         "queue_name": task_data.get("queue_name", "celery"),
-        "created_at": task_data.get("created_at", datetime.utcnow()).isoformat()
+        "created_at": task_data.get("created_at", datetime.now(timezone.utc)).isoformat()
         if isinstance(task_data.get("created_at"), datetime)
         else task_data.get("created_at"),
         "started_at": task_data.get("started_at").isoformat()

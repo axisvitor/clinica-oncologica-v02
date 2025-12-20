@@ -7,7 +7,7 @@ import logging
 import statistics
 import json
 from typing import Any, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from redis import Redis
 
@@ -47,7 +47,7 @@ class MetricCollector:
                         metric_type=MetricType.RESPONSE_TIME,
                         value=avg_response_time,
                         component="api",
-                        timestamp=datetime.utcnow(),
+                        timestamp=datetime.now(timezone.utc),
                         metadata={
                             "p95": p95_response_time,
                             "sample_count": len(times),
@@ -69,7 +69,7 @@ class MetricCollector:
 
         try:
             # Get message count from last minute
-            one_minute_ago = datetime.utcnow() - timedelta(minutes=1)
+            one_minute_ago = datetime.now(timezone.utc) - timedelta(minutes=1)
 
             message_count = (
                 self.db.query(FlowMessage)
@@ -82,7 +82,7 @@ class MetricCollector:
                     metric_type=MetricType.THROUGHPUT,
                     value=float(message_count),
                     component="flow_processing",
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     metadata={
                         "messages_per_minute": message_count,
                         "time_window": "1_minute",
@@ -113,7 +113,7 @@ class MetricCollector:
                     metric_type=MetricType.ERROR_RATE,
                     value=error_rate,
                     component="flow_processing",
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     metadata={
                         "error_count": error_count,
                         "total_operations": total_operations,
@@ -141,7 +141,7 @@ class MetricCollector:
                     metric_type=MetricType.QUEUE_DEPTH,
                     value=float(queue_depth),
                     component="message_queue",
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     metadata={"queue_name": "flow_processing"},
                 )
             )
@@ -170,7 +170,7 @@ class MetricCollector:
                         metric_type=MetricType.MEMORY_USAGE,
                         value=memory_usage,
                         component="redis",
-                        timestamp=datetime.utcnow(),
+                        timestamp=datetime.now(timezone.utc),
                         metadata={
                             "used_memory_mb": used_memory / (1024 * 1024),
                             "max_memory_mb": max_memory / (1024 * 1024),
@@ -201,7 +201,7 @@ class MetricCollector:
                     metric_type=MetricType.CACHE_HIT_RATE,
                     value=hit_rate,
                     component="redis",
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     metadata={
                         "cache_hits": int(cache_hits),
                         "cache_misses": int(cache_misses),
@@ -230,7 +230,7 @@ class MetricCollector:
                     metric_type=MetricType.DATABASE_CONNECTIONS,
                     value=float(connection_count),
                     component="database",
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     metadata={"active_connections": connection_count},
                 )
             )

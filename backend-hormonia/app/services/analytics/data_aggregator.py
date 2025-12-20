@@ -4,7 +4,7 @@ Compiles patient data from multiple sources for report generation.
 """
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
@@ -122,7 +122,7 @@ class DataAggregator:
                 "alert_data": alert_data,
                 "treatment_data": treatment_data,
                 # Generated timestamp
-                "generated_at": datetime.utcnow(),
+                "generated_at": datetime.now(timezone.utc),
             }
 
             logger.info(f"Successfully aggregated data for patient {patient_id}")

@@ -11,7 +11,7 @@ Migration Note:
 """
 
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 import logging
 import inspect
@@ -335,7 +335,7 @@ class FlowIntegrationManager:
                 "active_flows": len(self.quiz.list_active_quiz_flows()),
             },
             "ai": self.ai.get_ai_usage_stats(),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     # ========================================================================

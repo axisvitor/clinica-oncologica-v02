@@ -5,7 +5,7 @@ Provides dashboard data, trend analysis, and optimization recommendations.
 
 import logging
 from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import and_, desc
 from enum import Enum
 
@@ -141,7 +141,7 @@ class FlowDashboardService:
                 "flow_type_breakdown": flow_type_metrics,
                 "trends": trends,
                 "recent_alerts": recent_alerts,
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
@@ -282,7 +282,7 @@ class FlowDashboardService:
                 "risk_factor_analysis": risk_factor_analysis,
                 "intervention_recommendations": interventions,
                 "risk_trends": risk_trends,
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
@@ -303,7 +303,7 @@ class FlowDashboardService:
             Flow optimization recommendations
         """
         try:
-            end_date = datetime.utcnow()
+            end_date = datetime.now(timezone.utc)
             start_date = end_date - timedelta(days=analysis_days)
 
             # Get flow performance metrics
@@ -346,7 +346,7 @@ class FlowDashboardService:
                 "dropoff_analysis": dropoff_analysis,
                 "recommendations": recommendations,
                 "priority_actions": self._prioritize_recommendations(recommendations),
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
@@ -366,7 +366,7 @@ class FlowDashboardService:
             Real-time alerts data
         """
         try:
-            current_time = datetime.utcnow()
+            current_time = datetime.now(timezone.utc)
 
             alerts = []
 
@@ -421,7 +421,7 @@ class FlowDashboardService:
         if timeframe == DashboardTimeframe.CUSTOM and custom_range:
             return custom_range
 
-        end_date = datetime.utcnow()
+        end_date = datetime.now(timezone.utc)
 
         if timeframe == DashboardTimeframe.LAST_24_HOURS:
             start_date = end_date - timedelta(hours=24)
@@ -862,7 +862,7 @@ class FlowDashboardService:
         alerts = []
 
         # Get patients with no responses in last 48 hours
-        datetime.utcnow() - timedelta(hours=48)
+        datetime.now(timezone.utc) - timedelta(hours=48)
 
         # This would involve complex queries
         # For now, return empty list
@@ -878,7 +878,7 @@ class FlowDashboardService:
             .filter(
                 and_(
                     FlowAnalytics.sentiment_score < -0.5,
-                    FlowAnalytics.timestamp >= datetime.utcnow() - timedelta(hours=24),
+                    FlowAnalytics.timestamp >= datetime.now(timezone.utc) - timedelta(hours=24),
                 )
             )
             .all()

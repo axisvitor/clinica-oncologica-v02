@@ -3,7 +3,7 @@
 import logging
 from typing import Dict, List, Optional, Any, TYPE_CHECKING
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 if TYPE_CHECKING:
     from app.services.enhanced_flow_engine import FlowType
@@ -61,7 +61,7 @@ class DatabaseFlowProcessor:
 
         flow_state.current_step = current_day
         flow_state.state_data = flow_state.state_data or {}
-        flow_state.state_data["last_advancement"] = datetime.utcnow().isoformat()
+        flow_state.state_data["last_advancement"] = datetime.now(timezone.utc).isoformat()
 
         self.db.commit()
 
@@ -79,7 +79,7 @@ class DatabaseFlowProcessor:
                 "enrollment_date", flow_state.started_at.isoformat()
             )
         )
-        return (datetime.utcnow() - enrollment_date).days + 1
+        return (datetime.now(timezone.utc) - enrollment_date).days + 1
 
     def _determine_flow_type(self, current_day: int) -> "FlowType":
         """Determine appropriate flow type (business logic)"""
@@ -155,11 +155,11 @@ class DatabaseMessageScheduler:
             patient = self.patient_repo.get(patient_id)
             preferred_hour = getattr(patient, "preferred_message_hour", 10)
 
-            send_time = datetime.utcnow().replace(
+            send_time = datetime.now(timezone.utc).replace(
                 hour=preferred_hour, minute=0, second=0, microsecond=0
             )
 
-            if send_time <= datetime.utcnow():
+            if send_time <= datetime.now(timezone.utc):
                 send_time += timedelta(days=1)
 
             # Add randomization (±30 minutes)
@@ -172,7 +172,7 @@ class DatabaseMessageScheduler:
 
         except Exception as e:
             logger.error(f"Send time calculation failed: {e}")
-            return datetime.utcnow() + timedelta(hours=1)
+            return datetime.now(timezone.utc) + timedelta(hours=1)
 
 
 class AITemplateResolver:
@@ -291,7 +291,7 @@ class RedisFlowAnalytics:
             if self.redis:
                 # Implementation would depend on specific metrics needed
                 return {
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "total_events": 0,
                     "by_flow_type": {},
                     "by_event_type": {},

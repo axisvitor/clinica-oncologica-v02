@@ -1,5 +1,5 @@
 from typing import Optional, Dict
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 import json
 import logging
@@ -235,7 +235,7 @@ async def create_flow_template(
             template_metadata=template.metadata or {},
             is_active=template.is_active if template.is_active is not None else False,
             is_draft=template.is_draft if template.is_draft is not None else True,
-            published_at=None if template.is_draft else datetime.utcnow(),
+            published_at=None if template.is_draft else datetime.now(timezone.utc),
             created_by=user_uuid,
         )
         db.add(template_version)
@@ -289,10 +289,10 @@ async def update_flow_template(
             template.is_active = updates.is_active
         if updates.is_draft is not None:
             if template.is_draft and not updates.is_draft:
-                template.published_at = datetime.utcnow()
+                template.published_at = datetime.now(timezone.utc)
             template.is_draft = updates.is_draft
 
-        template.updated_at = datetime.utcnow()
+        template.updated_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(template)
         await _invalidate_template_cache("flow", template_id)
@@ -332,7 +332,7 @@ async def delete_flow_template(
 
         if soft_delete:
             template.is_active = False
-            template.updated_at = datetime.utcnow()
+            template.updated_at = datetime.now(timezone.utc)
             db.commit()
         else:
             db.delete(template)

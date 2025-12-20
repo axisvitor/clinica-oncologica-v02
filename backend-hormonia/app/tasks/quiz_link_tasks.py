@@ -9,7 +9,7 @@ Handles:
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any
 from uuid import UUID
 
@@ -470,7 +470,7 @@ def monitor_resilience_metrics(self) -> Dict[str, Any]:
             resilience_service = QuizLinkResilienceService(db)
 
             # Calculate metrics for last 24 hours
-            end_date = datetime.utcnow()
+            end_date = datetime.now(timezone.utc)
             start_date = end_date - timedelta(hours=24)
 
             metrics = resilience_service.get_resilience_metrics(

@@ -9,7 +9,7 @@ import logging
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 import statistics
 import redis.asyncio as redis
@@ -243,7 +243,7 @@ class AnomalyDetector:
     ) -> List[Anomaly]:
         """Process a metric value and detect anomalies."""
         if timestamp is None:
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(timezone.utc)
 
         anomalies = []
 
@@ -318,7 +318,7 @@ class AnomalyDetector:
         metric_filter: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Get recent anomalies with optional filtering."""
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
 
         filtered_anomalies = []
         for anomaly in self.recent_anomalies:
@@ -350,7 +350,7 @@ class AnomalyDetector:
 
     def get_anomaly_summary(self, hours: int = 24) -> Dict[str, Any]:
         """Get summary of anomalies."""
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
 
         recent_anomalies = [
             a for a in self.recent_anomalies if a.timestamp >= cutoff_time

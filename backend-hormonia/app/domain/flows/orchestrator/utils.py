@@ -4,7 +4,7 @@ Flow Orchestrator - Utility Functions
 Contains helper functions for flow orchestration operations.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from app.models.patient import Patient

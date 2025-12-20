@@ -256,7 +256,7 @@ class MessageService:
         if not message:
             return None
 
-        update_data = {"status": MessageStatus.SENT, "sent_at": datetime.utcnow()}
+        update_data = {"status": MessageStatus.SENT, "sent_at": datetime.now(timezone.utc)}
         if whatsapp_id:
             update_data["whatsapp_id"] = whatsapp_id
 
@@ -277,7 +277,7 @@ class MessageService:
             "message_metadata": {
                 **(message.message_metadata or {}),
                 "error": error_message,
-                "failed_at": datetime.utcnow().isoformat(),
+                "failed_at": datetime.now(timezone.utc).isoformat(),
             },
         }
 

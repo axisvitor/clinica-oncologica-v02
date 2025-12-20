@@ -6,7 +6,7 @@ Central manager for all monitoring components with lifecycle management.
 
 import logging
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.engine import Engine
 
 from app.core.redis_unified import get_async_redis
@@ -315,7 +315,7 @@ class MonitoringManager:
     async def get_system_metrics(self) -> Dict[str, Any]:
         """Get current system metrics from all collectors."""
         metrics = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "system_health": self.get_health_status(),
         }
 

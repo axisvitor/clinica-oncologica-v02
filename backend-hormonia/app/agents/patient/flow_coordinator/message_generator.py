@@ -4,7 +4,7 @@ Message Generator - Generates and personalizes flow messages.
 
 import logging
 from typing import Dict, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -180,7 +180,7 @@ class MessageGenerator:
                 if template.ai_instructions
                 else "standard",
                 "template_intent": template.intent,
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
                 "source": "template",
             }
 
@@ -194,7 +194,7 @@ class MessageGenerator:
                 ),
                 "personalization_level": "basic",
                 "template_intent": template.intent,
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
                 "source": "template_fallback",
             }
 

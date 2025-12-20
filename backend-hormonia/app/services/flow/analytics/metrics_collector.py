@@ -12,7 +12,7 @@ Migration Note:
 """
 
 from typing import Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from collections import defaultdict
 import logging
@@ -68,7 +68,7 @@ class FlowMetricsCollector:
         if not self.config.enable_metrics:
             return
 
-        self._flow_start_times[flow_instance_id] = datetime.utcnow()
+        self._flow_start_times[flow_instance_id] = datetime.now(timezone.utc)
         self._flow_metrics[flow_instance_id] = FlowMetrics()
 
         logger.debug(f"Started tracking flow {flow_instance_id}")
@@ -93,7 +93,7 @@ class FlowMetricsCollector:
         # Calculate duration
         start_time = self._flow_start_times.get(flow_instance_id)
         if start_time:
-            duration = (datetime.utcnow() - start_time).total_seconds()
+            duration = (datetime.now(timezone.utc) - start_time).total_seconds()
             metrics = self._flow_metrics.get(flow_instance_id, FlowMetrics())
             metrics.duration_seconds = duration
 
@@ -195,7 +195,7 @@ class FlowMetricsCollector:
             return
 
         tracking_key = f"{flow_instance_id}:{step_id}"
-        self._step_start_times[tracking_key] = datetime.utcnow()
+        self._step_start_times[tracking_key] = datetime.now(timezone.utc)
 
         logger.debug(f"Started tracking step {step_id} in flow {flow_instance_id}")
 
@@ -222,7 +222,7 @@ class FlowMetricsCollector:
         start_time = self._step_start_times.get(tracking_key)
 
         if start_time:
-            duration = (datetime.utcnow() - start_time).total_seconds()
+            duration = (datetime.now(timezone.utc) - start_time).total_seconds()
 
             # Store step metrics
             self._step_metrics[tracking_key] = {
@@ -230,7 +230,7 @@ class FlowMetricsCollector:
                 "step_id": step_id,
                 "status": status.value,
                 "duration_seconds": duration,
-                "completed_at": datetime.utcnow().isoformat(),
+                "completed_at": datetime.now(timezone.utc).isoformat(),
             }
 
             # Update aggregate metrics
@@ -330,7 +330,7 @@ class FlowMetricsCollector:
         Returns:
             Dictionary with recent metrics.
         """
-        cutoff_time = datetime.utcnow() - timedelta(minutes=minutes)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=minutes)
 
         # Filter recent flows
         recent_flows = {
@@ -403,7 +403,7 @@ class FlowMetricsCollector:
                 for flow_id, metrics in self._flow_metrics.items()
             },
             "step_metrics": dict(self._step_metrics),
-            "exported_at": datetime.utcnow().isoformat(),
+            "exported_at": datetime.now(timezone.utc).isoformat(),
         }
 
 

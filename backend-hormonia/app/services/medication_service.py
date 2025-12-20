@@ -1,6 +1,6 @@
 from typing import Any, Optional
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 from app.repositories.medication import MedicationRepository
@@ -65,6 +65,6 @@ class MedicationService:
             return False
 
         medication.is_active = False
-        medication.deleted_at = datetime.utcnow()
+        medication.deleted_at = datetime.now(timezone.utc)
         self.db.commit()
         return True

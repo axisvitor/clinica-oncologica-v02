@@ -10,7 +10,7 @@ Handles:
 """
 
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import text, inspect
 from sqlalchemy.engine import Engine
@@ -42,7 +42,7 @@ class DatabaseInitializationService:
         self.logger.info("🔌 Initializing database system...")
 
         initialization_result = {
-            "started_at": datetime.utcnow().isoformat(),
+            "started_at": datetime.now(timezone.utc).isoformat(),
             "status": "initializing",
             "checks": {},
             "performance_metrics": {},
@@ -64,7 +64,7 @@ class DatabaseInitializationService:
             await self._validate_constraints(initialization_result)
 
             initialization_result["status"] = "completed"
-            initialization_result["completed_at"] = datetime.utcnow().isoformat()
+            initialization_result["completed_at"] = datetime.now(timezone.utc).isoformat()
 
             self.logger.info("✅ Database initialization completed successfully")
 
@@ -100,7 +100,7 @@ class DatabaseInitializationService:
                     "database_version": db_version,
                     "engine_url": self.engine.url.render_as_string(hide_password=True),
                     "pool_size": self.engine.pool.size(),
-                    "checked_at": datetime.utcnow().isoformat(),
+                    "checked_at": datetime.now(timezone.utc).isoformat(),
                 }
 
             self.logger.info("✅ Database connectivity check passed")
@@ -109,7 +109,7 @@ class DatabaseInitializationService:
             result["checks"]["connectivity"] = {
                 "status": "failed",
                 "error": str(e),
-                "checked_at": datetime.utcnow().isoformat(),
+                "checked_at": datetime.now(timezone.utc).isoformat(),
             }
             raise
 
@@ -164,7 +164,7 @@ class DatabaseInitializationService:
                 "missing_tables": missing_tables,
                 "extra_tables": extra_tables,
                 "table_schemas": table_schemas,
-                "checked_at": datetime.utcnow().isoformat(),
+                "checked_at": datetime.now(timezone.utc).isoformat(),
             }
 
             if missing_tables:
@@ -178,7 +178,7 @@ class DatabaseInitializationService:
             result["checks"]["schema"] = {
                 "status": "failed",
                 "error": str(e),
-                "checked_at": datetime.utcnow().isoformat(),
+                "checked_at": datetime.now(timezone.utc).isoformat(),
             }
             raise
 
@@ -193,7 +193,7 @@ class DatabaseInitializationService:
                 result["checks"]["migrations"] = {
                     "status": "warning",
                     "message": "Alembic version table not found - migrations may not be initialized",
-                    "checked_at": datetime.utcnow().isoformat(),
+                    "checked_at": datetime.now(timezone.utc).isoformat(),
                 }
                 result["warnings"].append("Migration system not initialized")
                 return
@@ -227,7 +227,7 @@ class DatabaseInitializationService:
                             "current_revision": current_rev,
                             "head_revision": head_rev,
                             "up_to_date": is_up_to_date,
-                            "checked_at": datetime.utcnow().isoformat(),
+                            "checked_at": datetime.now(timezone.utc).isoformat(),
                         }
 
                         if not is_up_to_date:
@@ -239,7 +239,7 @@ class DatabaseInitializationService:
                         "status": "warning",
                         "message": "Alembic configuration file not found",
                         "current_version": current_version,
-                        "checked_at": datetime.utcnow().isoformat(),
+                        "checked_at": datetime.now(timezone.utc).isoformat(),
                     }
                     result["warnings"].append("Alembic configuration not found")
 
@@ -248,7 +248,7 @@ class DatabaseInitializationService:
                     "status": "warning",
                     "error": str(alembic_error),
                     "current_version": current_version,
-                    "checked_at": datetime.utcnow().isoformat(),
+                    "checked_at": datetime.now(timezone.utc).isoformat(),
                 }
                 result["warnings"].append(
                     f"Migration check incomplete: {str(alembic_error)}"
@@ -260,7 +260,7 @@ class DatabaseInitializationService:
             result["checks"]["migrations"] = {
                 "status": "failed",
                 "error": str(e),
-                "checked_at": datetime.utcnow().isoformat(),
+                "checked_at": datetime.now(timezone.utc).isoformat(),
             }
             # Don't raise here - migrations check is not critical for operation
             self.logger.warning(f"Migration check failed: {e}")
@@ -307,7 +307,7 @@ class DatabaseInitializationService:
             result["checks"]["indexes"] = {
                 "status": "success",
                 "analysis": index_analysis,
-                "checked_at": datetime.utcnow().isoformat(),
+                "checked_at": datetime.now(timezone.utc).isoformat(),
             }
 
             self.logger.info("✅ Index validation completed")
@@ -316,7 +316,7 @@ class DatabaseInitializationService:
             result["checks"]["indexes"] = {
                 "status": "failed",
                 "error": str(e),
-                "checked_at": datetime.utcnow().isoformat(),
+                "checked_at": datetime.now(timezone.utc).isoformat(),
             }
             # Don't raise - index check is not critical
             self.logger.warning(f"Index validation failed: {e}")
@@ -366,7 +366,7 @@ class DatabaseInitializationService:
             result["checks"]["integrity"] = {
                 "status": "success",
                 "table_checks": integrity_checks,
-                "checked_at": datetime.utcnow().isoformat(),
+                "checked_at": datetime.now(timezone.utc).isoformat(),
             }
 
             self.logger.info("✅ Table integrity check completed")
@@ -375,7 +375,7 @@ class DatabaseInitializationService:
             result["checks"]["integrity"] = {
                 "status": "failed",
                 "error": str(e),
-                "checked_at": datetime.utcnow().isoformat(),
+                "checked_at": datetime.now(timezone.utc).isoformat(),
             }
             # Don't raise - integrity check is not critical for startup
             self.logger.warning(f"Table integrity check failed: {e}")
@@ -387,18 +387,18 @@ class DatabaseInitializationService:
 
             with self.engine.connect() as conn:
                 # Test query performance
-                start_time = datetime.utcnow()
+                start_time = datetime.now(timezone.utc)
                 conn.execute(text("SELECT 1"))
                 simple_query_time = (
-                    datetime.utcnow() - start_time
+                    datetime.now(timezone.utc) - start_time
                 ).total_seconds() * 1000
 
                 # Test more complex query if tables exist
                 try:
-                    start_time = datetime.utcnow()
+                    start_time = datetime.now(timezone.utc)
                     conn.execute(text("SELECT COUNT(*) FROM users"))
                     count_query_time = (
-                        datetime.utcnow() - start_time
+                        datetime.now(timezone.utc) - start_time
                     ).total_seconds() * 1000
                 except Exception:
                     count_query_time = None  # Table may not exist yet
@@ -475,7 +475,7 @@ class DatabaseInitializationService:
             result["checks"]["constraints"] = {
                 "status": "success",
                 "analysis": constraint_analysis,
-                "checked_at": datetime.utcnow().isoformat(),
+                "checked_at": datetime.now(timezone.utc).isoformat(),
             }
 
             self.logger.info("✅ Constraint validation completed")
@@ -484,7 +484,7 @@ class DatabaseInitializationService:
             result["checks"]["constraints"] = {
                 "status": "failed",
                 "error": str(e),
-                "checked_at": datetime.utcnow().isoformat(),
+                "checked_at": datetime.now(timezone.utc).isoformat(),
             }
             self.logger.warning(f"Constraint validation failed: {e}")
 
@@ -496,15 +496,15 @@ class DatabaseInitializationService:
 
             status = {
                 "status": "healthy",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "basic_checks": {},
             }
 
             # Quick connectivity check
             with self.engine.connect() as conn:
-                start_time = datetime.utcnow()
+                start_time = datetime.now(timezone.utc)
                 conn.execute(text("SELECT 1"))
-                response_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+                response_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
                 status["basic_checks"]["connectivity"] = {
                     "status": "healthy",
@@ -532,7 +532,7 @@ class DatabaseInitializationService:
             return {
                 "status": "unhealthy",
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
 

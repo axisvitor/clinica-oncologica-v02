@@ -7,7 +7,7 @@ platform logging system, ensuring complete traceability of all flow interactions
 
 import logging
 from typing import Dict, List, Optional, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from enum import Enum
 from dataclasses import dataclass, field
@@ -400,7 +400,7 @@ class AuditTrailService:
                 audit_metadata={
                     "source": "flow_system",
                     "version": "1.0.0",
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 },
                 session_id=context.session_id if context else None,
                 request_id=context.request_id if context else None,
@@ -565,7 +565,7 @@ class AuditTrailService:
                 severity_counts[severity.value] = count
 
             # Get recent activity (last 24 hours)
-            recent_cutoff = datetime.utcnow() - timedelta(hours=24)
+            recent_cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
             recent_activity = query.filter(
                 AuditLogEntry.timestamp >= recent_cutoff
             ).count()

@@ -1,6 +1,6 @@
 """Factory for creating quiz sessions."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 from sqlalchemy.orm import Session

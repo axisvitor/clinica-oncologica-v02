@@ -8,7 +8,7 @@ debouncing, notification, and lifecycle management.
 import logging
 from typing import Dict, Optional, TYPE_CHECKING
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 if TYPE_CHECKING:
     from .notification_dispatcher import NotificationDispatcher
@@ -143,7 +143,7 @@ class AlertProcessor:
     ) -> bool:
         """Check if alert should be debounced."""
         debounce_window = timedelta(minutes=self.config.debounce_minutes)
-        cutoff_time = datetime.now() - debounce_window
+        cutoff_time = datetime.now(timezone.utc) - debounce_window
 
         # Check for similar alerts within debounce window
         for existing_alert in alert_cache.values():

@@ -3,7 +3,7 @@ Capacity Planning and Forecasting
 Predictive resource planning and scaling recommendations.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, asdict
 from enum import Enum
@@ -201,7 +201,7 @@ class CapacityPlanner:
             self.resource_history[resource_type] = deque(maxlen=1000)
 
         self.resource_history[resource_type].append(
-            {"value": value, "timestamp": timestamp or datetime.utcnow()}
+            {"value": value, "timestamp": timestamp or datetime.now(timezone.utc)}
         )
 
     async def generate_forecast(self, resource_type: str) -> Optional[ResourceForecast]:
@@ -236,7 +236,7 @@ class CapacityPlanner:
             forecast_7d=forecast_7d[167] if len(forecast_7d) > 167 else values[-1],
             trend=trend,
             confidence_score=confidence,
-            forecast_timestamp=datetime.utcnow(),
+            forecast_timestamp=datetime.now(timezone.utc),
         )
 
     def _determine_trend(self, data: List[float]) -> TrendDirection:
@@ -293,7 +293,7 @@ class CapacityPlanner:
             remaining_capacity = capacity - forecast.current_value
             days_to_exhaustion = remaining_capacity / growth_rate
             if days_to_exhaustion > 0:
-                projected_exhaustion = datetime.utcnow() + timedelta(
+                projected_exhaustion = datetime.now(timezone.utc) + timedelta(
                     days=days_to_exhaustion
                 )
                 days_until_exhaustion = int(days_to_exhaustion)
@@ -420,7 +420,7 @@ class CapacityPlanner:
     async def generate_capacity_report(self) -> Dict[str, Any]:
         """Generate comprehensive capacity planning report"""
         report = {
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "resources": {},
             "summary": {
                 "total_resources": len(self.resource_history),

@@ -4,7 +4,7 @@ Handles patient engagement, risk assessment and patient-related metrics.
 """
 
 from typing import Optional, Dict
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 
@@ -157,6 +157,6 @@ async def get_risk_assessment(
         "risk_level_filter": risk_level.value if risk_level else "all",
         "risk_assessments": serialized,
         "total_patients": len(serialized),
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "lookback_days": lookback_days,
     }

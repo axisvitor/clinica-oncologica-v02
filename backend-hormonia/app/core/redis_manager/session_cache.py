@@ -9,7 +9,7 @@ import logging
 import asyncio
 import json
 from typing import Optional, Any, Dict, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -63,8 +63,8 @@ class SessionCache:
         session_data = {
             "user_id": user_id,
             "firebase_uid": firebase_uid,
-            "created_at": datetime.utcnow().isoformat(),
-            "last_activity": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "last_activity": datetime.now(timezone.utc).isoformat(),
             **(metadata or {}),
         }
 
@@ -95,7 +95,7 @@ class SessionCache:
             if cached:
                 # Update last_activity timestamp
                 session_data = json.loads(cached)
-                session_data["last_activity"] = datetime.utcnow().isoformat()
+                session_data["last_activity"] = datetime.now(timezone.utc).isoformat()
 
                 # Refresh TTL on activity
                 await asyncio.to_thread(
@@ -245,7 +245,7 @@ class SessionCache:
 
             # Parse and update session data
             session_data = json.loads(cached)
-            session_data["last_activity"] = datetime.utcnow().isoformat()
+            session_data["last_activity"] = datetime.now(timezone.utc).isoformat()
 
             # Determine TTL
             if extend_ttl:

@@ -5,7 +5,7 @@ Handles analytics dashboards, metrics, engagement, risk assessment, and AI insig
 
 import logging
 from typing import Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
@@ -76,7 +76,7 @@ async def get_dashboard_overview(
             "success": True,
             "timeframe": timeframe.value,
             "data": overview_data,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
     try:
@@ -115,7 +115,7 @@ async def get_flow_metrics(
             "flow_type": flow_type,
             "timeframe": timeframe.value,
             "metrics": metrics_data,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
     try:
@@ -152,7 +152,7 @@ async def get_patient_engagement_metrics(
             "success": True,
             "timeframe": timeframe.value,
             "engagement_metrics": engagement_data,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
     try:
@@ -191,7 +191,7 @@ async def get_risk_assessment(
             "risk_level_filter": risk_level or "all",
             "risk_assessments": risk_data,
             "total_patients": len(risk_data),
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
     try:
@@ -265,7 +265,7 @@ async def get_patient_journey_analytics(
             "flow_type": flow_type,
             "timeframe": timeframe.value,
             "journey_analytics": journey_data,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
         logger.error(f"Failed to get patient journey analytics: {e}")
@@ -296,7 +296,7 @@ async def generate_flow_insights(
             "flow_type": flow_type,
             "analysis_depth": analysis_depth,
             "insights": insights,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
         logger.error(f"Failed to generate flow insights: {e}")

@@ -5,7 +5,7 @@ Provides intelligent humanization for patient questions with variation control
 
 import logging
 from typing import Optional, Dict, List, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 from uuid import UUID
@@ -252,7 +252,7 @@ class QuestionHumanizer:
                 history = json.loads(data)
                 # Filter by time window
                 cutoff = (
-                    datetime.utcnow() - timedelta(hours=self.history_window_hours)
+                    datetime.now(timezone.utc) - timedelta(hours=self.history_window_hours)
                 ).isoformat()
                 recent = [q for q in history if q.get("timestamp", "") > cutoff]
                 return recent[-10:]  # Return last 10 questions with metadata
@@ -285,7 +285,7 @@ class QuestionHumanizer:
                     "text": question,
                     "type": question_type,
                     "intent": intent_pattern or "default",  # Store intent pattern NAME
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "hash": hashlib.md5(question.encode()).hexdigest(),
                 }
             )
@@ -476,7 +476,7 @@ class QuestionHumanizer:
             cache_key = str(patient_uuid)
             if cache_key in self._patient_cache:
                 cached_patient, cached_at = self._patient_cache[cache_key]
-                cache_age = (datetime.utcnow() - cached_at).total_seconds()
+                cache_age = (datetime.now(timezone.utc) - cached_at).total_seconds()
 
                 if cache_age < self._cache_ttl_seconds:
                     logger.debug(
@@ -498,12 +498,12 @@ class QuestionHumanizer:
                         f"Patient {patient_id} fetched from database successfully"
                     )
                     # Cache the result
-                    self._patient_cache[cache_key] = (patient, datetime.utcnow())
+                    self._patient_cache[cache_key] = (patient, datetime.now(timezone.utc))
                     return patient
                 else:
                     logger.warning(f"Patient {patient_id} not found in database")
                     # Cache the negative result to avoid repeated queries
-                    self._patient_cache[cache_key] = (None, datetime.utcnow())
+                    self._patient_cache[cache_key] = (None, datetime.now(timezone.utc))
                     return None
 
             finally:
@@ -542,7 +542,7 @@ class QuestionHumanizer:
             redis_client = await self._get_redis_client()
             telemetry = {
                 "patient_id": patient_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "original_length": len(original),
                 "result_length": len(result),
                 "changed": original != result,
@@ -554,7 +554,7 @@ class QuestionHumanizer:
                 telemetry.update(metadata)
 
             # Store in Redis for monitoring
-            key = f"telemetry:humanization:{datetime.utcnow().strftime('%Y%m%d')}"
+            key = f"telemetry:humanization:{datetime.now(timezone.utc).strftime('%Y%m%d')}"
             await redis_client.rpush(key, json.dumps(telemetry))
 
             # Expire after 30 days

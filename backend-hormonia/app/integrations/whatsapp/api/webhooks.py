@@ -7,7 +7,7 @@ QW-006: Atomic idempotency using Redis SET NX EX to prevent race conditions
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Request, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -166,7 +166,7 @@ async def evolution_webhook(
             db,
         )
 
-        return {"status": "received", "timestamp": datetime.utcnow()}
+        return {"status": "received", "timestamp": datetime.now(timezone.utc)}
 
     except Exception as e:
         logger.error(
@@ -300,7 +300,7 @@ async def handle_message_upsert(
                     created_at=datetime.fromtimestamp(
                         message_data.get("messageTimestamp", 0)
                     ),
-                    delivered_at=datetime.utcnow(),
+                    delivered_at=datetime.now(timezone.utc),
                     message_data={"incoming": True, "message_data": message_data},
                 )
 
@@ -441,12 +441,12 @@ async def handle_message_update(
 
             if message:
                 message.status = new_status
-                message.updated_at = datetime.utcnow()
+                message.updated_at = datetime.now(timezone.utc)
 
                 if new_status == MessageStatus.DELIVERED:
-                    message.delivered_at = datetime.utcnow()
+                    message.delivered_at = datetime.now(timezone.utc)
                 elif new_status == MessageStatus.READ:
-                    message.read_at = datetime.utcnow()
+                    message.read_at = datetime.now(timezone.utc)
 
                 await db.commit()
                 logger.info(f"Updated message {message_id} status to {new_status}")
@@ -476,7 +476,7 @@ async def handle_send_message(
             if message:
                 message[0].external_id = message_id
                 message[0].status = MessageStatus.SENT
-                message[0].sent_at = datetime.utcnow()
+                message[0].sent_at = datetime.now(timezone.utc)
                 await db.commit()
 
                 logger.info(f"Updated outgoing message with external ID {message_id}")
@@ -512,7 +512,7 @@ async def handle_contact_upsert(
                 existing_contact.profile_picture_url = contact_data.get(
                     "profilePictureUrl"
                 )
-                existing_contact.updated_at = datetime.utcnow()
+                existing_contact.updated_at = datetime.now(timezone.utc)
             else:
                 # Create new contact
                 contact = WhatsAppContact(
@@ -546,8 +546,8 @@ async def handle_connection_update(
         if instance:
             instance.status = state
             instance.is_connected = state == "open"
-            instance.last_activity = datetime.utcnow()
-            instance.updated_at = datetime.utcnow()
+            instance.last_activity = datetime.now(timezone.utc)
+            instance.updated_at = datetime.now(timezone.utc)
 
             # Update phone number and profile if available
             if "number" in data:
@@ -587,7 +587,7 @@ async def handle_presence_update(
                 last_seen_timestamp = presence.get("lastSeen")
                 if last_seen_timestamp:
                     contact.last_seen = datetime.fromtimestamp(last_seen_timestamp)
-                    contact.updated_at = datetime.utcnow()
+                    contact.updated_at = datetime.now(timezone.utc)
                     await db.commit()
 
     except Exception as e:
@@ -619,7 +619,7 @@ async def handle_chat_upsert(
                     # Update contact with chat information
                     if "name" in chat_data:
                         contact.name = chat_data["name"]
-                    contact.updated_at = datetime.utcnow()
+                    contact.updated_at = datetime.now(timezone.utc)
                     await db.commit()
 
     except Exception as e:
@@ -632,7 +632,7 @@ async def webhook_health():
     """Health check for webhook endpoint."""
     return {
         "status": "healthy",
-        "timestamp": datetime.utcnow(),
+        "timestamp": datetime.now(timezone.utc),
         "service": "whatsapp-webhooks",
     }
 
@@ -646,7 +646,7 @@ async def validate_webhook(request: Request):
         return {
             "status": "valid",
             "received_data": payload,
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
         }
     except Exception as e:
         raise HTTPException(

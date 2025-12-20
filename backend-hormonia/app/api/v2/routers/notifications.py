@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 import json
 import logging
@@ -181,7 +181,7 @@ async def mark_notifications_read(
     for notification in notifications:
         if not notification.is_read:
             notification.is_read = True
-            notification.read_at = datetime.utcnow()
+            notification.read_at = datetime.now(timezone.utc)
             marked_count += 1
 
     db.commit()

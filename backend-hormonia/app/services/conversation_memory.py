@@ -6,7 +6,7 @@ Stores and analyzes conversation patterns to avoid repetitive messaging.
 import json
 import logging
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 
@@ -33,7 +33,7 @@ class ConversationPattern:
         self.sentence_starters = sentence_starters or []
         self.message_length = message_length
         self.emoji_count = emoji_count
-        self.timestamp = timestamp or datetime.utcnow()
+        self.timestamp = timestamp or datetime.now(timezone.utc)
         self.engagement_score = engagement_score
 
     def to_dict(self) -> Dict[str, Any]:
@@ -60,7 +60,7 @@ class ConversationPattern:
             message_length=data.get("message_length", 0),
             emoji_count=data.get("emoji_count", 0),
             timestamp=datetime.fromisoformat(
-                data.get("timestamp", datetime.utcnow().isoformat())
+                data.get("timestamp", datetime.now(timezone.utc).isoformat())
             ),
             engagement_score=data.get("engagement_score", 0.0),
         )
@@ -214,7 +214,7 @@ class ConversationMemory:
                             "similarity": similarity,
                             "pattern": pattern.to_dict(),
                             "age_hours": (
-                                datetime.utcnow() - pattern.timestamp
+                                datetime.now(timezone.utc) - pattern.timestamp
                             ).total_seconds()
                             / 3600,
                         }
@@ -284,7 +284,7 @@ class ConversationMemory:
                 "emotional_tone": self._analyze_emotional_tone(patterns),
                 "message_length_preference": self._analyze_message_length(patterns),
                 "pattern_count": len(patterns),
-                "last_updated": datetime.utcnow().isoformat(),
+                "last_updated": datetime.now(timezone.utc).isoformat(),
             }
 
             # Cache preferences
@@ -311,7 +311,7 @@ class ConversationMemory:
             "emotional_tone": "supportive",
             "message_length_preference": "moderate",
             "pattern_count": 0,
-            "last_updated": datetime.utcnow().isoformat(),
+            "last_updated": datetime.now(timezone.utc).isoformat(),
         }
 
     def _analyze_formality(self, patterns: List[ConversationPattern]) -> str:
@@ -469,12 +469,12 @@ class ConversationMemory:
                 "avg_patterns_per_patient": total_patterns / len(pattern_keys)
                 if pattern_keys
                 else 0,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
             logger.error(f"Failed to get memory stats: {e}")
-            return {"error": str(e), "timestamp": datetime.utcnow().isoformat()}
+            return {"error": str(e), "timestamp": datetime.now(timezone.utc).isoformat()}
 
     async def health_check(self) -> bool:
         """

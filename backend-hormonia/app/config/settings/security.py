@@ -190,6 +190,68 @@ class SecuritySettings(BaseAppSettings):
     # ============================================================================
 
     @model_validator(mode="after")
+    def validate_secret_key(self) -> "SecuritySettings":
+        """
+        Validate SECRET_KEY is secure and not using default/development values.
+
+        CRITICAL SECURITY: Prevents deployment with insecure default SECRET_KEY.
+
+        Rules:
+        - Production: MUST NOT contain "dev-insecure" and MUST be at least 32 characters
+        - Development: Warns if using weak keys but allows startup
+        """
+        import logging
+
+        logger = logging.getLogger(__name__)
+        is_production = self.APP_ENVIRONMENT.lower() == "production"
+
+        # Check if SECRET_KEY is set
+        if not self.SECURITY_SECRET_KEY:
+            if is_production:
+                raise ValueError(
+                    "SECURITY_SECRET_KEY must be set in production environment.\n"
+                    "Generate a secure key with: python -c 'import secrets; print(secrets.token_urlsafe(64))'"
+                )
+            else:
+                logger.warning(
+                    "⚠️  SECURITY_SECRET_KEY not set. Using empty key is UNSAFE even in development!"
+                )
+                return self
+
+        # Check for insecure patterns
+        insecure_patterns = ["dev-insecure", "must-be-changed", "change-this", "your-secret"]
+        key_lower = self.SECURITY_SECRET_KEY.lower()
+
+        if any(pattern in key_lower for pattern in insecure_patterns):
+            if is_production:
+                raise ValueError(
+                    f"SECURITY_SECRET_KEY contains insecure default value and CANNOT be used in production.\n"
+                    f"Current key starts with: {self.SECURITY_SECRET_KEY[:20]}...\n"
+                    f"Generate a secure key with: python -c 'import secrets; print(secrets.token_urlsafe(64))'"
+                )
+            else:
+                logger.warning(
+                    f"⚠️  SECURITY_SECRET_KEY contains development/default value: {self.SECURITY_SECRET_KEY[:20]}...\n"
+                    "This is UNSAFE for production. Generate a secure key with:\n"
+                    "python -c 'import secrets; print(secrets.token_urlsafe(64))'"
+                )
+
+        # Check minimum length (32 characters is minimum, 64+ recommended)
+        if len(self.SECURITY_SECRET_KEY) < 32:
+            if is_production:
+                raise ValueError(
+                    f"SECURITY_SECRET_KEY must be at least 32 characters (current: {len(self.SECURITY_SECRET_KEY)}).\n"
+                    "Generate a secure key with: python -c 'import secrets; print(secrets.token_urlsafe(64))'"
+                )
+            else:
+                logger.warning(
+                    f"⚠️  SECURITY_SECRET_KEY is too short ({len(self.SECURITY_SECRET_KEY)} characters). "
+                    "Minimum 32 characters required, 64+ recommended for production."
+                )
+
+        return self
+
+    @model_validator(mode="after")
     def validate_required_environment_variables(self) -> "SecuritySettings":
         """
         Validate that all required environment variables are set at startup.

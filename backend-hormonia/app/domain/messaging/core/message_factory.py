@@ -4,7 +4,7 @@ Centralizes message creation patterns to eliminate code duplication.
 """
 
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from enum import Enum
 
@@ -110,7 +110,7 @@ class MessageFactory:
             direction=MessageDirection.OUTBOUND,
             status=MessageStatus.PENDING,
             metadata=msg_metadata,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
             **kwargs,
         )
 

@@ -7,7 +7,7 @@ Endpoints:
 """
 
 from typing import Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
@@ -96,7 +96,7 @@ async def cancel_task(
         task_registry[celery_task_id].update(
             {
                 "status": TaskStatus.CANCELLED,
-                "completed_at": datetime.utcnow(),
+                "completed_at": datetime.now(timezone.utc),
                 "metadata": {
                     **task_data.get("metadata", {}),
                     "cancellation_reason": cancel_data.reason,
@@ -223,7 +223,7 @@ async def retry_task(
                     "manual_retry": True,
                     "retry_notes": retry_data.notes,
                     "retried_by": current_user.get("id"),
-                    "retried_at": datetime.utcnow().isoformat(),
+                    "retried_at": datetime.now(timezone.utc).isoformat(),
                 },
             }
         )

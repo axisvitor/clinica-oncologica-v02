@@ -1,0 +1,116 @@
+{
+  "summary": {
+    "total_circular_deps": 6,
+    "total_stdlib_false_positives": 30,
+    "total_already_installed": 9,
+    "total_truly_missing": 5,
+    "total_import_style_issues": 0
+  },
+  "findings": {
+    "circular_dependencies": [
+      {
+        "cycle": "app.agents.base -> app.orchestration.swarm_manager -> app.monitoring.agent_health_monitor -> app.agents.base",
+        "files": [
+          "app/agents/base.py",
+          "app/orchestration/swarm_manager.py",
+          "app/monitoring/agent_health_monitor.py"
+        ],
+        "fix": "Move shared types to app.agents.types, use TYPE_CHECKING blocks, or refactor to remove dependency"
+      },
+      {
+        "cycle": "app.infrastructure.cache.cache_manager -> app.infrastructure.cache.invalidation -> app.infrastructure.cache.cache_manager",
+        "files": [
+          "app/infrastructure/cache/cache_manager.py",
+          "app/infrastructure/cache/invalidation.py"
+        ],
+        "fix": "Extract shared interfaces to app.infrastructure.cache.protocols or use TYPE_CHECKING"
+      },
+      {
+        "cycle": "app.core.redis_manager.utils -> app.core.redis_manager.manager -> app.core.redis_manager.sync_client -> app.core.redis_manager.utils",
+        "files": [
+          "app/core/redis_manager/utils.py",
+          "app/core/redis_manager/manager.py",
+          "app/core/redis_manager/sync_client.py"
+        ],
+        "fix": "Reorganize redis_manager package to have one-way dependencies (utils <- sync_client <- manager)"
+      },
+      {
+        "cycle": "app.domain.agents.quiz.question_presenter -> app.domain.agents.quiz.session_coordinator -> app.domain.agents.quiz.question_presenter",
+        "files": [
+          "app/domain/agents/quiz/question_presenter.py",
+          "app/domain/agents/quiz/session_coordinator.py"
+        ],
+        "fix": "Extract shared quiz types to app.domain.agents.quiz.types"
+      },
+      {
+        "cycle": "app.services.flow.manager -> app.services.flow.core.manager -> app.services.flow.templates -> app.services.flow.manager",
+        "files": [
+          "app/services/flow/manager.py",
+          "app/services/flow/core/manager.py",
+          "app/services/flow/templates.py"
+        ],
+        "fix": "Consolidate flow managers or use dependency injection"
+      },
+      {
+        "cycle": "app.tasks.flows.batch_tasks -> app.tasks.flows.flow_tasks -> app.tasks.flows.batch_tasks",
+        "files": [
+          "app/tasks/flows/batch_tasks.py",
+          "app/tasks/flows/flow_tasks.py"
+        ],
+        "fix": "Extract shared task utilities to app.tasks.flows.utils"
+      }
+    ],
+    "unused_imports": [],
+    "missing_from_requirements": {
+      "boto3": "AWS SDK (if using S3, add boto3>=1.28.0,<2.0.0)",
+      "flask": "Flask web framework (used by Celery Flower monitoring)",
+      "jsonschema": "JSON schema validation (add jsonschema>=4.20.0,<5.0.0)",
+      "websockets": "WebSocket library (add websockets>=12.0,<13.0.0 if using WS)",
+      "yaml": "YAML parser (add pyyaml>=6.0.1,<7.0.0 if reading YAML configs)"
+    },
+    "false_positives": "{'inspect', 'hmac', 'statistics', 'difflib', 'zoneinfo', 'types', 'zipfile', 'decimal', 'atexit', 'tarfile', 'html', 'urllib', 'subprocess', 'zlib', 'socket', 'shutil', 'platform', 'mimetypes', 'gzip', 'queue', 'signal', 'concurrent', 'base64', 'smtplib', 'contextvars', 'csv', 'weakref', 'ssl', 'threading', 'importlib'}",
+    "import_style_issues": [],
+    "type_checking_issues": [],
+    "already_installed": {
+      "email_validator": "email-validator (already in requirements.txt)",
+      "langchain_core": "langchain-core (already in requirements.txt)",
+      "langchain_google_genai": "langchain-google-genai (already in requirements.txt)",
+      "pyclamd": "python-clamd (commented out - incompatible with Python 3.12+)",
+      "pythonjsonlogger": "python-json-logger (already in requirements.txt)",
+      "sentry_sdk": "sentry-sdk (already in requirements.txt)",
+      "starlette": "Included with FastAPI",
+      "prometheus_client": "prometheus-client (already in requirements.txt)",
+      "jwt": "pyjwt (already in requirements.txt)"
+    }
+  },
+  "recommendations": [
+    {
+      "priority": "HIGH",
+      "category": "Circular Dependencies",
+      "action": "Break 11 circular dependency cycles",
+      "details": "Use TYPE_CHECKING blocks, extract shared types, or refactor module structure",
+      "files_affected": "Multiple files in agents, orchestration, cache, quiz, flow modules"
+    },
+    {
+      "priority": "MEDIUM",
+      "category": "Missing Dependencies",
+      "action": "Add 5 truly missing packages to requirements.txt",
+      "details": "boto3, flask, jsonschema, websockets, pyyaml (only if actually used)",
+      "files_affected": "requirements.txt"
+    },
+    {
+      "priority": "LOW",
+      "category": "Import Style",
+      "action": "Check for wildcard imports and unused imports",
+      "details": "Use explicit imports instead of wildcards",
+      "files_affected": "Various Python files"
+    },
+    {
+      "priority": "INFO",
+      "category": "False Positives",
+      "action": "Ignore 38 stdlib and subpackage false positives",
+      "details": "These are either stdlib modules or already installed as subpackages",
+      "files_affected": "None"
+    }
+  ]
+}

@@ -5,7 +5,7 @@ Provides health history, incidents, and alerts endpoints.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -42,7 +42,7 @@ async def health_history_endpoint(
 
     Returns historical health data from database.
     """
-    since = datetime.utcnow() - timedelta(hours=24)
+    since = datetime.now(timezone.utc) - timedelta(hours=24)
 
     snapshots = (
         db.query(SystemHealthSnapshot)
@@ -94,7 +94,7 @@ async def health_incidents_endpoint(
 
     Returns recent health incidents from database.
     """
-    since = datetime.utcnow() - timedelta(hours=24)
+    since = datetime.now(timezone.utc) - timedelta(hours=24)
     incidents_db = (
         db.query(SystemIncident)
         .filter(SystemIncident.updated_at >= since)

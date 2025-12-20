@@ -8,7 +8,7 @@ for the Clínica Oncológica backend system.
 import os
 import logging
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
@@ -141,7 +141,7 @@ class SentryConfig:
                 "id": user_id,
                 "email": email,
                 "role": role,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
         )
 
@@ -243,7 +243,7 @@ def monitor_quiz_session(session_id: str, user_id: str, quiz_type: str) -> None:
                 "session_id": session_id,
                 "user_id": user_id,
                 "quiz_type": quiz_type,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         )
 
@@ -260,7 +260,7 @@ def monitor_patient_interaction(
                 "patient_id": patient_id,
                 "interaction_type": interaction_type,
                 "metadata": metadata or {},
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         )
 

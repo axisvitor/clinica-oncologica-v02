@@ -102,7 +102,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 f"style-src 'self' 'nonce-{nonce}' https://fonts.googleapis.com; "
                 f"img-src 'self' data: https:; "
                 f"font-src 'self' data: https://fonts.gstatic.com; "
-                f"connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com wss://*.railway.app https://*.railway.app; "
+                # SECURITY: Using specific Railway domains instead of wildcards
+                # Update these if your Railway app domain changes
+                f"connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com wss://backend-hormonia-production.up.railway.app https://backend-hormonia-production.up.railway.app wss://frontend-clinica-production.up.railway.app https://frontend-clinica-production.up.railway.app; "
                 f"object-src 'none'; "
                 f"base-uri 'self'; "
                 f"form-action 'self'; "
@@ -112,13 +114,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             )
         else:
             # Fallback without nonce (less secure, for backwards compatibility)
+            # SECURITY: Using specific Railway domains instead of wildcards
             return (
                 "default-src 'self'; "
                 "script-src 'self' https://www.gstatic.com https://identitytoolkit.googleapis.com; "
                 "style-src 'self' https://fonts.googleapis.com; "
                 "img-src 'self' data: https:; "
                 "font-src 'self' data: https://fonts.gstatic.com; "
-                "connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com wss://*.railway.app https://*.railway.app; "
+                "connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com "
+                "wss://backend-hormonia-production.up.railway.app https://backend-hormonia-production.up.railway.app "
+                "wss://frontend-clinica-production.up.railway.app https://frontend-clinica-production.up.railway.app; "
                 "object-src 'none'; "
                 "base-uri 'self'; "
                 "form-action 'self'; "

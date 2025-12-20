@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict
 import json
 
@@ -32,7 +32,7 @@ class ConnectionStateRepository:
         data = {
             "instance": instance,
             "state": state,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         client = await self._get_client()
         key = f"connection_state:{instance}"

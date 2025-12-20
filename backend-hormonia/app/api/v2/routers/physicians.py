@@ -4,7 +4,7 @@ Features: Cursor pagination, Redis caching, rate limiting, field selection, RBAC
 """
 
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta, date, time
+from datetime import datetime, timedelta, date, time, timezone
 from uuid import UUID
 import json
 import logging
@@ -143,7 +143,7 @@ def _calculate_physician_statistics(
     )
 
     # New patients this month
-    start_of_month = datetime.utcnow().replace(
+    start_of_month = datetime.now(timezone.utc).replace(
         day=1, hour=0, minute=0, second=0, microsecond=0
     )
     new_patients_this_month = (
@@ -162,7 +162,7 @@ def _calculate_physician_statistics(
     # Message statistics
     today_start = datetime.combine(date.today(), time.min)
     today_end = datetime.combine(date.today(), time.max)
-    week_ago = datetime.utcnow() - timedelta(days=7)
+    week_ago = datetime.now(timezone.utc) - timedelta(days=7)
 
     patient_ids = (
         db.query(Patient.id)
@@ -295,7 +295,7 @@ def _calculate_physician_statistics(
 
         # Upcoming appointments (scheduled in the future)
         upcoming = appointments_base.filter(
-            Appointment.scheduled_at > datetime.utcnow(),
+            Appointment.scheduled_at > datetime.now(timezone.utc),
             Appointment.status.in_(
                 [AppointmentStatus.SCHEDULED.value, AppointmentStatus.CONFIRMED.value]
             ),
@@ -429,7 +429,7 @@ def _calculate_physician_statistics(
         alerts=alert_stats,
         patient_satisfaction_score=patient_satisfaction_score,
         avg_treatment_duration_days=avg_treatment_duration_days,
-        calculated_at=datetime.utcnow(),
+        calculated_at=datetime.now(timezone.utc),
     )
 
     # Cache in Redis

@@ -8,7 +8,7 @@ domain-based auto-provisioning, and fine-grained access control.
 import logging
 from typing import Dict, List, Set, Optional, Tuple, Union, Any
 from enum import Enum
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel, field_validator
 from functools import wraps
 import re
@@ -261,7 +261,7 @@ class SecureRoleDeterminer:
         domain = self._extract_domain(email)
 
         audit_entry = {
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
             "email": email,
             "domain": domain,
             "identity_claims": identity_claims or {},

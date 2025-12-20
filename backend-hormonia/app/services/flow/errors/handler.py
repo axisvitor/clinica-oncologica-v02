@@ -22,7 +22,7 @@ Migration Note:
 """
 
 from typing import Dict, Any, Optional, List, Callable, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 import logging
 import asyncio
@@ -148,7 +148,7 @@ class FlowError:
             recovery_strategy or self._determine_recovery_strategy()
         )
         self.metadata = metadata or {}
-        self.timestamp = datetime.utcnow()
+        self.timestamp = datetime.now(timezone.utc)
 
         # Error details
         self.error_type = type(error).__name__
@@ -408,7 +408,7 @@ class FlowErrorHandler:
         logger.error("Cancelling flow due to unrecoverable error")
 
         flow_error.context.status = FlowStatus.FAILED
-        flow_error.context.completed_at = datetime.utcnow()
+        flow_error.context.completed_at = datetime.now(timezone.utc)
         flow_error.context.metadata["cancellation_reason"] = flow_error.error_message
 
         return False, None
@@ -569,7 +569,7 @@ class FlowErrorHandler:
             breaker["state"] = "closed"
         else:
             breaker["failures"] += 1
-            breaker["last_failure"] = datetime.utcnow()
+            breaker["last_failure"] = datetime.now(timezone.utc)
 
             # Open circuit breaker after N failures
             if breaker["failures"] >= 5:

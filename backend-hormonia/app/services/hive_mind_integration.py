@@ -7,7 +7,7 @@ Provides seamless integration while maintaining backward compatibility.
 
 import asyncio
 from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from enum import Enum
 
@@ -305,7 +305,7 @@ class HiveMindIntegrationService:
             return (hash_value % 100) < self.migration_percentage
         elif self.integration_mode == IntegrationMode.GRADUAL_MIGRATION:
             # Gradually increase agent usage over time
-            days_since_enrollment = (datetime.utcnow() - patient.created_at).days
+            days_since_enrollment = (datetime.now(timezone.utc) - patient.created_at).days
 
             # Start with newer patients on agents
             if days_since_enrollment < 30:  # New patients
@@ -336,7 +336,7 @@ class HiveMindIntegrationService:
             for patient, flow_state in patients:
                 # Calculate current treatment day
                 enrollment_date = patient.enrollment_date or patient.created_at
-                current_day = (datetime.utcnow() - enrollment_date).days + 1
+                current_day = (datetime.now(timezone.utc) - enrollment_date).days + 1
 
                 # Submit flow processing task
                 task_id = await self.swarm_manager.submit_task(
@@ -356,11 +356,11 @@ class HiveMindIntegrationService:
             # Monitor task completion
             completed_tasks = 0
             timeout = 300  # 5 minutes timeout
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
 
             while (
                 completed_tasks < len(tasks)
-                and (datetime.utcnow() - start_time).seconds < timeout
+                and (datetime.now(timezone.utc) - start_time).seconds < timeout
             ):
                 for task_id in tasks:
                     status = await self.swarm_manager.get_task_status(task_id)
@@ -500,9 +500,9 @@ class HiveMindIntegrationService:
 
             # Wait for task completion
             timeout = 1800  # 30 minutes for quiz
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
 
-            while (datetime.utcnow() - start_time).seconds < timeout:
+            while (datetime.now(timezone.utc) - start_time).seconds < timeout:
                 status = await self.swarm_manager.get_task_status(task_id)
 
                 if status:
@@ -610,9 +610,9 @@ class HiveMindIntegrationService:
 
             # Wait for processing (shorter timeout for responses)
             timeout = 60  # 1 minute
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
 
-            while (datetime.utcnow() - start_time).seconds < timeout:
+            while (datetime.now(timezone.utc) - start_time).seconds < timeout:
                 status = await self.swarm_manager.get_task_status(task_id)
 
                 if status:

@@ -7,7 +7,7 @@ Provides Redis, worker, and external service health checks.
 import time
 import logging
 from typing import Any, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -98,7 +98,7 @@ async def check_worker_health(db: Any) -> WorkerHealth:
             db.query(Message)
             .filter(
                 Message.status == MessageStatus.FAILED,
-                Message.updated_at >= datetime.utcnow() - timedelta(hours=24),
+                Message.updated_at >= datetime.now(timezone.utc) - timedelta(hours=24),
             )
             .count()
         )
@@ -159,7 +159,7 @@ async def check_external_services() -> List[ExternalServiceHealth]:
                     name="Evolution API",
                     status=HealthStatus.HEALTHY,
                     latency_ms=round(latency_ms, 2),
-                    last_check=datetime.utcnow(),
+                    last_check=datetime.now(timezone.utc),
                     error_message=None,
                 )
             )
@@ -169,7 +169,7 @@ async def check_external_services() -> List[ExternalServiceHealth]:
                     name="Evolution API",
                     status=HealthStatus.DEGRADED,
                     latency_ms=None,
-                    last_check=datetime.utcnow(),
+                    last_check=datetime.now(timezone.utc),
                     error_message=str(e),
                 )
             )

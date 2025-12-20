@@ -8,7 +8,7 @@ Provides analytics and performance metrics including:
 """
 
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
@@ -66,8 +66,8 @@ async def get_message_performance(
 
         # Calculate performance metrics
         # In production, this would query the database
-        period_start = datetime.utcnow() - timedelta(days=days)
-        period_end = datetime.utcnow()
+        period_start = datetime.now(timezone.utc) - timedelta(days=days)
+        period_end = datetime.now(timezone.utc)
 
         performance = MessagePerformanceV2Response(
             period_start=period_start,

@@ -10,7 +10,7 @@ import logging
 import hashlib
 from typing import Dict, Optional, Any
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 from app.services.ab_testing_service import ABTestingService
@@ -171,7 +171,7 @@ class ABTestingIntegration:
                 "experiment_id": active_experiment["id"],
                 "variant": variant_type.value,
                 "ab_testing": True,
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
             }
 
             # Merge with existing metadata
@@ -405,7 +405,7 @@ class ABTestingIntegration:
                 description=f"A/B test for {template.value}: Static vs AI-humanized messages",
                 variants=variants,
                 conversion_goals=goals,
-                start_date=datetime.utcnow(),
+                start_date=datetime.now(timezone.utc),
                 end_date=None,  # Determined by duration_days logic if handled elsewhere, or None for open-ended
                 max_duration_days=duration_days,
                 statistical_config=StatisticalConfig(
@@ -475,7 +475,7 @@ class ABTestingIntegration:
                 "experiment_id": experiment_id,
                 "status": experiment.get("status"),
                 "results": results_dict,
-                "last_updated": datetime.utcnow().isoformat(),
+                "last_updated": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
@@ -602,7 +602,7 @@ Contamos com você!"""
         # Refresh cache if needed
         if (
             self._last_cache_refresh is None
-            or datetime.utcnow() - self._last_cache_refresh > timedelta(minutes=5)
+            or datetime.now(timezone.utc) - self._last_cache_refresh > timedelta(minutes=5)
         ):
             self._refresh_active_experiments()
 
@@ -645,7 +645,7 @@ Contamos com você!"""
                 # Assuming we find it or it's not critical for this exact moment.
                 pass
 
-            self._last_cache_refresh = datetime.utcnow()
+            self._last_cache_refresh = datetime.now(timezone.utc)
 
         except Exception as e:
             logger.error(f"Error refreshing active experiments: {str(e)}")

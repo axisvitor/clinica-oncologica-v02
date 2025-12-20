@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Dict, Any
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 import psutil
 import sys
 
@@ -40,7 +40,7 @@ async def health_check() -> Dict[str, Any]:
     """
     return {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
         "version": "2.0.0",
         "uptime_seconds": round(time.time() - START_TIME, 2),
     }
@@ -59,7 +59,7 @@ async def liveness_check() -> Dict[str, Any]:
     """
     return {
         "status": "alive",
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
         "uptime_seconds": round(time.time() - START_TIME, 2),
     }
 
@@ -162,7 +162,7 @@ async def readiness_check(
 
     response = {
         "status": "ready" if all_healthy else "not_ready",
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
         "dependencies": dependencies,
         "total_check_time_ms": round(total_duration, 2),
     }
@@ -211,7 +211,7 @@ async def metrics_endpoint() -> Dict[str, Any]:
         uptime_seconds = time.time() - START_TIME
 
         metrics = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
             "application": {
                 "uptime_seconds": round(uptime_seconds, 2),
                 "python_version": sys.version,
@@ -347,7 +347,7 @@ async def startup_validation(
 
     response = {
         "status": "valid" if all_valid else "invalid",
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
         "validation_results": validation_results,
     }
 

@@ -6,7 +6,7 @@ Combines all integrity validation services for centralized monitoring.
 
 import logging
 from typing import Dict, List, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from dataclasses import dataclass
 from enum import Enum
@@ -88,7 +88,7 @@ class DataIntegrityMonitoringService:
             Comprehensive integrity scan results
         """
         try:
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
             self.detected_issues = []  # Reset issues list
 
             scan_results = {
@@ -155,7 +155,7 @@ class DataIntegrityMonitoringService:
             scan_results["issues_detected"]["by_entity_type"] = by_entity_type
 
             # Mark completion
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
             scan_results["completed_at"] = end_time.isoformat()
             scan_results["total_duration_seconds"] = (
                 end_time - start_time
@@ -180,7 +180,7 @@ class DataIntegrityMonitoringService:
     ) -> Dict[str, Any]:
         """Scan patient data integrity"""
         try:
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
 
             # Get patients to scan
             query = self.db.query(Patient)
@@ -213,7 +213,7 @@ class DataIntegrityMonitoringService:
             results["issues_found"] = len(
                 [i for i in self.detected_issues if i.entity_type == "patient"]
             )
-            results["completed_at"] = datetime.utcnow().isoformat()
+            results["completed_at"] = datetime.now(timezone.utc).isoformat()
 
             return results
 
@@ -224,7 +224,7 @@ class DataIntegrityMonitoringService:
     async def _scan_flow_integrity(self, limit: Optional[int] = None) -> Dict[str, Any]:
         """Scan flow data integrity"""
         try:
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
 
             # Get flows to scan
             query = self.db.query(PatientFlowState)
@@ -281,7 +281,7 @@ class DataIntegrityMonitoringService:
             results["issues_found"] = len(
                 [i for i in self.detected_issues if i.entity_type == "flow"]
             )
-            results["completed_at"] = datetime.utcnow().isoformat()
+            results["completed_at"] = datetime.now(timezone.utc).isoformat()
 
             return results
 
@@ -294,7 +294,7 @@ class DataIntegrityMonitoringService:
     ) -> Dict[str, Any]:
         """Scan message data integrity"""
         try:
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
 
             # Get unique patients to scan their conversations
             patient_query = self.db.query(Patient.id).distinct()
@@ -351,7 +351,7 @@ class DataIntegrityMonitoringService:
             results["issues_found"] = len(
                 [i for i in self.detected_issues if i.entity_type == "message"]
             )
-            results["completed_at"] = datetime.utcnow().isoformat()
+            results["completed_at"] = datetime.now(timezone.utc).isoformat()
 
             return results
 
@@ -471,13 +471,13 @@ class DataIntegrityMonitoringService:
     ) -> None:
         """Add integrity issue to detected issues list"""
         issue = IntegrityIssue(
-            id=f"{entity_type}_{entity_id}_{type.value}_{int(datetime.utcnow().timestamp())}",
+            id=f"{entity_type}_{entity_id}_{type.value}_{int(datetime.now(timezone.utc).timestamp())}",
             type=type,
             severity=severity,
             entity_type=entity_type,
             entity_id=entity_id,
             description=description,
-            detected_at=datetime.utcnow(),
+            detected_at=datetime.now(timezone.utc),
             metadata=metadata,
         )
         self.detected_issues.append(issue)
@@ -489,7 +489,7 @@ class DataIntegrityMonitoringService:
             recent_issues = [
                 i
                 for i in self.detected_issues
-                if i.detected_at > datetime.utcnow() - timedelta(days=7)
+                if i.detected_at > datetime.now(timezone.utc) - timedelta(days=7)
             ]
 
             # Severity distribution
@@ -517,7 +517,7 @@ class DataIntegrityMonitoringService:
                 health_score = 100
 
             return {
-                "last_updated": datetime.utcnow().isoformat(),
+                "last_updated": datetime.now(timezone.utc).isoformat(),
                 "health_score": round(health_score, 2),
                 "recent_issues": {
                     "total": len(recent_issues),
@@ -539,7 +539,7 @@ class DataIntegrityMonitoringService:
             logger.error(f"Error generating integrity dashboard: {e}")
             return {
                 "error": str(e),
-                "last_updated": datetime.utcnow().isoformat(),
+                "last_updated": datetime.now(timezone.utc).isoformat(),
                 "health_score": 0,
             }
 

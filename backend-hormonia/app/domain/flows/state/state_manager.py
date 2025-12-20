@@ -6,7 +6,7 @@ Provides centralized state management for the FlowOrchestrator.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional
 from uuid import UUID
 
@@ -45,7 +45,7 @@ class FlowStateManager:
         # Flow state cache for performance
         self._flow_state_cache: Dict[UUID, PatientFlowState] = {}
         self._cache_ttl = timedelta(minutes=10)
-        self._last_cache_clear = datetime.utcnow()
+        self._last_cache_clear = datetime.now(timezone.utc)
 
         logger.info("FlowStateManager initialized")
 
@@ -60,9 +60,9 @@ class FlowStateManager:
             PatientFlowState or None if not found
         """
         # Clean expired cache entries
-        if datetime.utcnow() - self._last_cache_clear > self._cache_ttl:
+        if datetime.now(timezone.utc) - self._last_cache_clear > self._cache_ttl:
             self._flow_state_cache.clear()
-            self._last_cache_clear = datetime.utcnow()
+            self._last_cache_clear = datetime.now(timezone.utc)
             logger.debug("Flow state cache cleared due to TTL expiration")
 
         # Check cache first
@@ -116,13 +116,13 @@ class FlowStateManager:
             patient_id=patient.id,
             flow_type=flow_type,
             current_step=current_day,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
             state_data={
                 "status": "active",
                 "created_by": "flow_orchestrator",
                 "operation": operation,
                 "metadata": metadata or {},
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
             },
         )
 
@@ -169,7 +169,7 @@ class FlowStateManager:
                 {
                     "transitioned_from": old_flow_type,
                     "transitioned_to": new_flow_type,
-                    "transition_date": datetime.utcnow().isoformat(),
+                    "transition_date": datetime.now(timezone.utc).isoformat(),
                     "status": "active",
                 }
             )
@@ -228,7 +228,7 @@ class FlowStateManager:
             flow_state.state_data.update(
                 {
                     "status": status,
-                    f"{status}_at": datetime.utcnow().isoformat(),
+                    f"{status}_at": datetime.now(timezone.utc).isoformat(),
                     f"{status}_reason": reason,
                     f"{status}_metadata": metadata or {},
                 }

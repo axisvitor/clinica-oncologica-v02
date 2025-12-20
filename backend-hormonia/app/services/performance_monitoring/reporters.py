@@ -5,7 +5,7 @@ Generates reports, summaries, and real-time dashboard data.
 
 import logging
 from typing import Any, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.services.performance_monitoring.models import (
     PerformanceMetric,
@@ -29,7 +29,7 @@ class PerformanceReporter:
     ) -> dict[str, Any]:
         """Generate comprehensive performance report."""
         try:
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
             start_time = end_time - time_range
 
             # Get metrics for time range
@@ -47,7 +47,7 @@ class PerformanceReporter:
             )
 
             return {
-                "report_generated_at": datetime.utcnow().isoformat(),
+                "report_generated_at": datetime.now(timezone.utc).isoformat(),
                 "time_range": {
                     "start": start_time.isoformat(),
                     "end": end_time.isoformat(),
@@ -82,14 +82,14 @@ class PerformanceReporter:
         """Get real-time performance dashboard data."""
         try:
             # Get recent trends (last hour)
-            one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+            one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
             recent_metrics = await self.collector.get_metrics_for_range(
-                one_hour_ago, datetime.utcnow()
+                one_hour_ago, datetime.now(timezone.utc)
             )
 
             # Calculate dashboard data
             dashboard_data = {
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "current_metrics": {
                     metric.metric_type.value: {
                         "value": metric.value,

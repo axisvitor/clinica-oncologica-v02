@@ -12,7 +12,7 @@ Migration Note:
 """
 
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 import logging
 
@@ -91,8 +91,8 @@ class QuizFlowIntegration:
             "quiz_type": quiz_type,
             "flow_type": flow_type.value,
             "status": "pending",
-            "created_at": datetime.utcnow(),
-            "expires_at": datetime.utcnow()
+            "created_at": datetime.now(timezone.utc),
+            "expires_at": datetime.now(timezone.utc)
             + timedelta(hours=self.config.quiz_timeout_hours),
             "data": quiz_data or {},
         }
@@ -127,7 +127,7 @@ class QuizFlowIntegration:
             return False
 
         quiz_flow["status"] = "active"
-        quiz_flow["started_at"] = datetime.utcnow()
+        quiz_flow["started_at"] = datetime.now(timezone.utc)
 
         # In production: Call quiz service to start quiz
         # quiz_service.start_quiz(quiz_flow["quiz_id"])
@@ -173,7 +173,7 @@ class QuizFlowIntegration:
         if not expires_at:
             return False
 
-        return datetime.utcnow() > expires_at
+        return datetime.now(timezone.utc) > expires_at
 
     def check_quiz_completion(self, flow_instance_id: UUID) -> bool:
         """
@@ -226,7 +226,7 @@ class QuizFlowIntegration:
 
         quiz_flow["data"]["responses"][question_id] = {
             "value": response,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         # In production: Send to quiz service
@@ -283,7 +283,7 @@ class QuizFlowIntegration:
             return False
 
         quiz_flow["status"] = "completed"
-        quiz_flow["completed_at"] = datetime.utcnow()
+        quiz_flow["completed_at"] = datetime.now(timezone.utc)
 
         if final_data:
             quiz_flow["data"].update(final_data)
@@ -315,7 +315,7 @@ class QuizFlowIntegration:
             return False
 
         quiz_flow["status"] = "cancelled"
-        quiz_flow["cancelled_at"] = datetime.utcnow()
+        quiz_flow["cancelled_at"] = datetime.now(timezone.utc)
         quiz_flow["cancellation_reason"] = reason
 
         # In production: Notify quiz service
@@ -350,7 +350,7 @@ class QuizFlowIntegration:
         last_reminder = quiz_flow["data"].get("last_reminder_at")
         if last_reminder:
             last_reminder_dt = datetime.fromisoformat(last_reminder)
-            time_since_reminder = datetime.utcnow() - last_reminder_dt
+            time_since_reminder = datetime.now(timezone.utc) - last_reminder_dt
             if time_since_reminder < timedelta(
                 hours=self.config.quiz_reminder_interval_hours
             ):
@@ -367,7 +367,7 @@ class QuizFlowIntegration:
         """
         quiz_flow = self._quiz_flows.get(flow_instance_id)
         if quiz_flow:
-            quiz_flow["data"]["last_reminder_at"] = datetime.utcnow().isoformat()
+            quiz_flow["data"]["last_reminder_at"] = datetime.now(timezone.utc).isoformat()
             reminder_count = quiz_flow["data"].get("reminder_count", 0)
             quiz_flow["data"]["reminder_count"] = reminder_count + 1
 
@@ -528,7 +528,7 @@ class QuizFlowIntegration:
         Returns:
             Number of flows cleaned up.
         """
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
         old_flows = []
 
         for flow_id, quiz_flow in self._quiz_flows.items():

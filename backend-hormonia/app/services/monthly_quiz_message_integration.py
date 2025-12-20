@@ -8,7 +8,7 @@ Updated to use UnifiedWhatsAppService for improved reliability and performance.
 import asyncio
 from typing import Optional, Dict, Any
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 from app.domain.messaging.core import MessageFactory, MessageTemplate
@@ -224,7 +224,7 @@ class MonthlyQuizMessageIntegration:
 
         # Calculate hours remaining
         hours_remaining = int(
-            (quiz_link.expires_at - datetime.utcnow()).total_seconds() / 3600
+            (quiz_link.expires_at - datetime.now(timezone.utc)).total_seconds() / 3600
         )
 
         if hours_remaining > hours_before_expiry:
@@ -246,7 +246,7 @@ class MonthlyQuizMessageIntegration:
             link_url = link_data.link_url
             # Recalculate hours remaining with new expiry time
             hours_remaining = int(
-                (link_data.expires_at - datetime.utcnow()).total_seconds() / 3600
+                (link_data.expires_at - datetime.now(timezone.utc)).total_seconds() / 3600
             )
         except Exception as e:
             # If regeneration fails, return error

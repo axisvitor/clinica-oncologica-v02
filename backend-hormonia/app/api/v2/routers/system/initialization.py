@@ -11,7 +11,7 @@ Security:
 """
 
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import time
 
 from fastapi import APIRouter, HTTPException, status, Depends, Request
@@ -130,7 +130,7 @@ async def initialize_system(
     # Start initialization
     start_time = time.time()
     _initialization_state = {
-        "started_at": datetime.utcnow(),
+        "started_at": datetime.now(timezone.utc),
         "completed_at": None,
         "status": "in_progress",
         "components": {},
@@ -182,7 +182,7 @@ async def initialize_system(
                     {
                         "component": component,
                         "error_message": str(e),
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                         "recoverable": True,
                     }
                 )
@@ -200,7 +200,7 @@ async def initialize_system(
         else:
             _initialization_state["status"] = "completed"
 
-        _initialization_state["completed_at"] = datetime.utcnow()
+        _initialization_state["completed_at"] = datetime.now(timezone.utc)
         duration_ms = (time.time() - start_time) * 1000
         _initialization_state["duration_ms"] = duration_ms
 
@@ -213,12 +213,12 @@ async def initialize_system(
     except Exception as e:
         logger.error(f"System initialization failed: {e}", exc_info=True)
         _initialization_state["status"] = "failed"
-        _initialization_state["completed_at"] = datetime.utcnow()
+        _initialization_state["completed_at"] = datetime.now(timezone.utc)
         _initialization_state["errors"].append(
             {
                 "component": "system",
                 "error_message": str(e),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "recoverable": False,
             }
         )

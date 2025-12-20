@@ -3,7 +3,7 @@ Manual correction service for fixing corrupted flow data.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 from uuid import UUID
 import json
@@ -297,7 +297,7 @@ class ManualCorrectionService:
 
             # Calculate correct day
             days_since_enrollment = (
-                datetime.utcnow() - flow_state.enrollment_date
+                datetime.now(timezone.utc) - flow_state.enrollment_date
             ).days + 1
 
             # Determine correct flow type and day
@@ -320,7 +320,7 @@ class ManualCorrectionService:
 
             flow_state.current_day = new_day
             flow_state.flow_type = new_flow_type
-            flow_state.updated_at = datetime.utcnow()
+            flow_state.updated_at = datetime.now(timezone.utc)
 
             self.db.commit()
 
@@ -351,7 +351,7 @@ class ManualCorrectionService:
 
             old_flow_type = flow_state.flow_type
             flow_state.flow_type = new_flow_type
-            flow_state.updated_at = datetime.utcnow()
+            flow_state.updated_at = datetime.now(timezone.utc)
 
             self.db.commit()
 
@@ -381,13 +381,13 @@ class ManualCorrectionService:
                     new_enrollment_date = datetime.fromisoformat(new_enrollment_date)
             else:
                 # Default to current date minus current day
-                new_enrollment_date = datetime.utcnow() - timedelta(
+                new_enrollment_date = datetime.now(timezone.utc) - timedelta(
                     days=flow_state.current_day - 1
                 )
 
             old_enrollment_date = flow_state.enrollment_date
             flow_state.enrollment_date = new_enrollment_date
-            flow_state.updated_at = datetime.utcnow()
+            flow_state.updated_at = datetime.now(timezone.utc)
 
             self.db.commit()
 
@@ -440,7 +440,7 @@ class ManualCorrectionService:
                 elif flow_state.state_data["monthly_cycle"] < 1:
                     flow_state.state_data["monthly_cycle"] = 1
 
-            flow_state.updated_at = datetime.utcnow()
+            flow_state.updated_at = datetime.now(timezone.utc)
             self.db.commit()
 
             return {
@@ -472,7 +472,7 @@ class ManualCorrectionService:
                 "flow_state_id": str(flow_state.id),
                 "current_day": flow_state.current_day,
                 "flow_type": flow_state.flow_type,
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
                 "status": "pending_manual_review",
             }
 
@@ -499,12 +499,12 @@ class ManualCorrectionService:
             # Reset last_message_sent if it's in the future
             if (
                 flow_state.last_message_sent
-                and flow_state.last_message_sent > datetime.utcnow()
+                and flow_state.last_message_sent > datetime.now(timezone.utc)
             ):
                 changes["old_last_message_sent"] = (
                     flow_state.last_message_sent.isoformat()
                 )
-                flow_state.last_message_sent = datetime.utcnow() - timedelta(hours=1)
+                flow_state.last_message_sent = datetime.now(timezone.utc) - timedelta(hours=1)
                 changes["new_last_message_sent"] = (
                     flow_state.last_message_sent.isoformat()
                 )
@@ -512,17 +512,17 @@ class ManualCorrectionService:
             # Reset next_message_due if it's too far overdue
             if (
                 flow_state.next_message_due
-                and flow_state.next_message_due < datetime.utcnow() - timedelta(days=2)
+                and flow_state.next_message_due < datetime.now(timezone.utc) - timedelta(days=2)
             ):
                 changes["old_next_message_due"] = (
                     flow_state.next_message_due.isoformat()
                 )
-                flow_state.next_message_due = datetime.utcnow() + timedelta(hours=1)
+                flow_state.next_message_due = datetime.now(timezone.utc) + timedelta(hours=1)
                 changes["new_next_message_due"] = (
                     flow_state.next_message_due.isoformat()
                 )
 
-            flow_state.updated_at = datetime.utcnow()
+            flow_state.updated_at = datetime.now(timezone.utc)
             self.db.commit()
 
             return {
@@ -546,7 +546,7 @@ class ManualCorrectionService:
 
             flow_state.is_paused = True
             flow_state.pause_reason = reason
-            flow_state.updated_at = datetime.utcnow()
+            flow_state.updated_at = datetime.now(timezone.utc)
 
             self.db.commit()
 
@@ -555,7 +555,7 @@ class ManualCorrectionService:
                 "task_type": "flow_investigation",
                 "patient_id": str(patient_id),
                 "reason": reason,
-                "paused_at": datetime.utcnow().isoformat(),
+                "paused_at": datetime.now(timezone.utc).isoformat(),
                 "status": "requires_investigation",
             }
 
@@ -604,14 +604,14 @@ class ManualCorrectionService:
             # Reset to initial state
             flow_state.flow_type = FlowType.INITIAL_15_DAYS.value
             flow_state.current_day = 1
-            flow_state.enrollment_date = datetime.utcnow()
+            flow_state.enrollment_date = datetime.now(timezone.utc)
             flow_state.last_message_sent = None
             flow_state.next_message_due = None
             flow_state.state_data = {"message_count": 0, "last_template_used": None}
             flow_state.is_paused = False
             flow_state.pause_reason = None
             flow_state.monthly_cycle = None
-            flow_state.updated_at = datetime.utcnow()
+            flow_state.updated_at = datetime.now(timezone.utc)
 
             self.db.commit()
 
@@ -632,7 +632,7 @@ class ManualCorrectionService:
         """Create backup before applying correction."""
         backup_data = {
             "patient_id": str(patient_id),
-            "backup_created_at": datetime.utcnow().isoformat(),
+            "backup_created_at": datetime.now(timezone.utc).isoformat(),
             "flow_state": {
                 "id": str(flow_state.id),
                 "flow_type": flow_state.flow_type,
@@ -653,7 +653,7 @@ class ManualCorrectionService:
             },
         }
 
-        backup_key = f"correction_backup:{patient_id}:{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+        backup_key = f"correction_backup:{patient_id}:{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
         await self.redis.setex(
             backup_key, 86400 * 30, json.dumps(backup_data)
         )  # Keep for 30 days
@@ -675,15 +675,15 @@ class ManualCorrectionService:
             "parameters": parameters,
             "result": result,
             "backup_key": backup_key,
-            "applied_at": datetime.utcnow().isoformat(),
+            "applied_at": datetime.now(timezone.utc).isoformat(),
         }
 
         try:
-            log_key = f"correction_log:{patient_id}:{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+            log_key = f"correction_log:{patient_id}:{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
             await self.redis.setex(log_key, 86400 * 30, json.dumps(log_data))
 
             # Also add to daily summary
-            daily_key = f"corrections_applied:{datetime.utcnow().strftime('%Y-%m-%d')}"
+            daily_key = f"corrections_applied:{datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
             await self.redis.lpush(daily_key, json.dumps(log_data))
             await self.redis.expire(daily_key, 86400 * 30)
 
@@ -732,7 +732,7 @@ class ManualCorrectionService:
             flow_state.is_paused = backup_flow_state["is_paused"]
             flow_state.pause_reason = backup_flow_state["pause_reason"]
             flow_state.monthly_cycle = backup_flow_state["monthly_cycle"]
-            flow_state.updated_at = datetime.utcnow()
+            flow_state.updated_at = datetime.now(timezone.utc)
 
             self.db.commit()
 
@@ -740,7 +740,7 @@ class ManualCorrectionService:
                 "success": True,
                 "message": "Flow state restored from backup",
                 "backup_key": backup_key,
-                "restored_at": datetime.utcnow().isoformat(),
+                "restored_at": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:

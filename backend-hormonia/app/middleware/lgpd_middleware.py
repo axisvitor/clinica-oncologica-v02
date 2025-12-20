@@ -23,7 +23,7 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +150,7 @@ class LGPDMiddleware(BaseHTTPMiddleware):
             "query_params": dict(request.query_params)
             if request.query_params
             else None,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "user_agent": user_agent[:200],  # Truncate long user agents
         }
 

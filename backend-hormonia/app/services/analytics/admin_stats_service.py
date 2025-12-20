@@ -5,7 +5,7 @@ Provides real-time metrics for CPU, memory, disk, users, and database.
 
 import psutil
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, text
 from typing import Dict, Any
 
@@ -85,7 +85,7 @@ class AdminStatsService:
 
             # Active users (users with recent activity - last 24 hours)
             # Since we don't have last_login field, we'll use last_firebase_sync as proxy
-            yesterday = datetime.utcnow() - timedelta(days=1)
+            yesterday = datetime.now(timezone.utc) - timedelta(days=1)
             active_now = (
                 self.db.query(User)
                 .filter(User.firebase_last_sign_in >= yesterday)
@@ -164,5 +164,5 @@ class AdminStatsService:
             "system": self.get_system_metrics(),
             "users": self.get_user_metrics(),
             "database": self.get_database_metrics(),
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
         }

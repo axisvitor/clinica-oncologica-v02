@@ -24,7 +24,7 @@ Total: 5 alert endpoints
 """
 
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 import logging
 from collections import defaultdict
@@ -268,7 +268,7 @@ async def acknowledge_quiz_alert(
 
     # Update alert
     alert.status = AlertStatus.ACKNOWLEDGED
-    alert.acknowledged_at = datetime.utcnow()
+    alert.acknowledged_at = datetime.now(timezone.utc)
     alert.acknowledged_by = current_user.id
 
     # Add notes to data field if provided

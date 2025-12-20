@@ -5,7 +5,7 @@ Handles flow scheduling, optimal send time calculation, and daily flow processin
 
 import logging
 from typing import Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from sqlalchemy.orm import Session
 
@@ -87,7 +87,7 @@ class FlowScheduler:
                 preferred_hour = 10
 
             # Calculate send time for today
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             send_time = now.replace(
                 hour=preferred_hour, minute=0, second=0, microsecond=0
             )
@@ -121,7 +121,7 @@ class FlowScheduler:
                 exc_info=True,
             )
             # Fallback to 1 hour from now
-            return datetime.utcnow() + timedelta(hours=1)
+            return datetime.now(timezone.utc) + timedelta(hours=1)
 
     async def check_quiz_trigger(
         self, patient_id: UUID, current_day: int, flow_type: str
@@ -163,7 +163,7 @@ class FlowScheduler:
                 return {"triggered": False, "error": "Patient not found"}
 
             enrollment_date = patient.enrollment_date or patient.created_at
-            days_since_enrollment = (datetime.utcnow() - enrollment_date).days
+            days_since_enrollment = (datetime.now(timezone.utc) - enrollment_date).days
             days_in_monthly_phase = days_since_enrollment - 45
             monthly_cycle = (days_in_monthly_phase // 30) + 1
 
@@ -307,7 +307,7 @@ class FlowScheduler:
             Tuple of (is_valid, reason)
         """
         try:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
 
             # Check if time is in the past
             if send_time < now:
@@ -344,7 +344,7 @@ class FlowScheduler:
             New scheduled time
         """
         try:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
 
             # Get retry count from state data
             state_data = flow_state.state_data or {}
@@ -364,4 +364,4 @@ class FlowScheduler:
 
         except Exception as e:
             logger.error(f"Error calculating reschedule time: {e}")
-            return datetime.utcnow() + timedelta(hours=1)
+            return datetime.now(timezone.utc) + timedelta(hours=1)

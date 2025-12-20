@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from uuid import UUID
 
@@ -52,7 +52,7 @@ class MessageStatusHandler:
 
             # Update status
             message.status = new_status
-            message.updated_at = datetime.utcnow()
+            message.updated_at = datetime.now(timezone.utc)
 
             if error_message:
                 # Append to existing metadata or create new
@@ -60,7 +60,7 @@ class MessageStatusHandler:
                     message.message_metadata = {}
                 message.message_metadata["error"] = error_message
                 message.message_metadata["last_error_at"] = (
-                    datetime.utcnow().isoformat()
+                    datetime.now(timezone.utc).isoformat()
                 )
 
             if metadata:
@@ -69,7 +69,7 @@ class MessageStatusHandler:
                 message.message_metadata.update(metadata)
 
             # Update timestamps based on status
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             if new_status == MessageStatus.SENT:
                 message.sent_at = now
             elif new_status == MessageStatus.DELIVERED:

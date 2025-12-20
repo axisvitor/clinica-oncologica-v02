@@ -6,7 +6,7 @@ admin contracts. It focuses on password reset token creation so that the
 API contracts can generate realistic JWT tokens during integration tests.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from jose import jwt, JWTError
@@ -37,7 +37,7 @@ def create_password_reset_token(
     Returns:
         Encoded JWT string.
     """
-    expire = datetime.utcnow() + (
+    expire = datetime.now(timezone.utc) + (
         expires_delta or timedelta(hours=PASSWORD_RESET_TOKEN_EXPIRE_HOURS)
     )
     payload = {"sub": email, "exp": expire}

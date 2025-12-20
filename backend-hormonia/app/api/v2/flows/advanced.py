@@ -5,7 +5,7 @@ Handles rules engine, A/B testing, and utility operations
 
 import logging
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from fastapi import APIRouter, Depends, Query, HTTPException, status, Request
 from sqlalchemy.orm import Session, joinedload
@@ -432,7 +432,7 @@ async def get_ab_test_results(
             "success": True,
             "test_id": str(test_id),
             "results": results,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
     except FlowStateNotFoundError:
         raise flow_not_found_exception(f"ab_test_{test_id}")
@@ -470,7 +470,7 @@ async def preview_flow_message(
             "template_id": str(template_id),
             "day": day,
             "preview": preview,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
     except FlowStateNotFoundError:
         raise flow_not_found_exception(str(patient_id))
@@ -496,7 +496,7 @@ async def check_gemini_health(
             "service": "gemini",
             "status": "healthy" if gemini_status else "unhealthy",
             "details": health_status,
-            "checked_at": datetime.utcnow().isoformat(),
+            "checked_at": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
         logger.error(f"Gemini health check failed: {e}")
@@ -504,7 +504,7 @@ async def check_gemini_health(
             "service": "gemini",
             "status": "unhealthy",
             "error": str(e),
-            "checked_at": datetime.utcnow().isoformat(),
+            "checked_at": datetime.now(timezone.utc).isoformat(),
         }
 
 
@@ -527,7 +527,7 @@ async def check_redis_health(
             "service": "redis",
             "status": "healthy" if redis_status else "unhealthy",
             "details": health_status,
-            "checked_at": datetime.utcnow().isoformat(),
+            "checked_at": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
         logger.error(f"Redis health check failed: {e}")
@@ -535,7 +535,7 @@ async def check_redis_health(
             "service": "redis",
             "status": "unhealthy",
             "error": str(e),
-            "checked_at": datetime.utcnow().isoformat(),
+            "checked_at": datetime.now(timezone.utc).isoformat(),
         }
 
 

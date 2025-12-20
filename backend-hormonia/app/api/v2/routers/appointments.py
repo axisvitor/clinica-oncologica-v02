@@ -1,5 +1,5 @@
 from typing import Optional, List
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 import logging
 import json
@@ -484,7 +484,7 @@ async def cancel_appointment(
     _ensure_appointment_access(current_user, appt)
 
     appt.status = AppointmentStatus.CANCELLED.value
-    appt.cancelled_at = datetime.utcnow()
+    appt.cancelled_at = datetime.now(timezone.utc)
     db.commit()
     return _serialize_appointment(appt)
 
@@ -508,7 +508,7 @@ async def complete_appointment(
     _ensure_appointment_access(current_user, appt)
 
     appt.status = AppointmentStatus.COMPLETED.value
-    appt.completed_at = datetime.utcnow()
+    appt.completed_at = datetime.now(timezone.utc)
     if post_appointment_notes:
         appt.post_appointment_notes = post_appointment_notes
     db.commit()

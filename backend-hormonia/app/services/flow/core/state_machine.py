@@ -7,7 +7,7 @@ execution engine can remain stateless.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 import logging
 
@@ -90,12 +90,12 @@ class FlowStateMachine:
             "from": from_step,
             "to": to_step,
             "type": transition_type.value,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         if to_step is None:
             context.status = FlowStatus.COMPLETED
-            context.completed_at = datetime.utcnow()
+            context.completed_at = datetime.now(timezone.utc)
             logger.info("Flow %s completed", context.flow_instance_id)
 
         return context

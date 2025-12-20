@@ -12,7 +12,7 @@ Date: January 2025
 import json
 import logging
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Dict, List, Any, Optional
 from uuid import UUID, uuid4
 
@@ -134,7 +134,7 @@ class PatientSummaryService:
             start_date=request.start_date,
             end_date=request.end_date,
             content=summary_content,
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
             generated_by=generated_by,
             token_usage=token_usage,
             model_used=settings.AI_GEMINI_MODEL,
@@ -321,7 +321,7 @@ class PatientSummaryService:
         """Check for cached/saved summary within the last hour."""
         from datetime import timedelta
 
-        cache_threshold = datetime.utcnow() - timedelta(hours=1)
+        cache_threshold = datetime.now(timezone.utc) - timedelta(hours=1)
 
         result = await self.db.execute(
             select(PatientSummary)

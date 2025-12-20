@@ -5,7 +5,7 @@ Handles broadcasting of system events, alerts, and flow updates via WebSocket.
 
 import logging
 from typing import Any, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from redis import Redis
@@ -49,7 +49,7 @@ class WebSocketEventService:
                 current_day=flow_data.get("current_day", 0),
                 previous_day=flow_data.get("previous_day"),
                 is_paused=flow_data.get("is_paused", False),
-                enrollment_date=flow_data.get("enrollment_date", datetime.utcnow()),
+                enrollment_date=flow_data.get("enrollment_date", datetime.now(timezone.utc)),
                 last_message_sent=flow_data.get("last_message_sent"),
                 monthly_cycle=flow_data.get("monthly_cycle"),
                 changes=flow_data.get("changes"),

@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, Iterable, Optional, Set
 
@@ -57,7 +57,7 @@ class CacheEntry:
     def is_expired(self) -> bool:
         if self.ttl <= 0:
             return False
-        return datetime.utcnow() >= self.created_at + timedelta(seconds=self.ttl)
+        return datetime.now(timezone.utc) >= self.created_at + timedelta(seconds=self.ttl)
 
 
 @dataclass
@@ -87,7 +87,7 @@ class CacheMetrics:
 
     def reset(self) -> None:
         self.hits = self.misses = self.sets = self.deletes = self.invalidations = 0
-        self.last_reset = datetime.utcnow()
+        self.last_reset = datetime.now(timezone.utc)
 
     def as_dict(self) -> Dict[str, Any]:
         total_requests = self.hits + self.misses

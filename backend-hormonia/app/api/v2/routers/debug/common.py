@@ -10,7 +10,7 @@ Shared functions:
 
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any
 from uuid import uuid4
 
@@ -143,7 +143,7 @@ async def log_debug_operation(
             },
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent"),
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
         db.add(audit_log)
         db.commit()

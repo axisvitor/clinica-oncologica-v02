@@ -7,7 +7,7 @@ to reduce code duplication and improve maintainability.
 # Standard library imports
 import asyncio
 import logging
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Generator
 from uuid import UUID
@@ -98,7 +98,7 @@ def create_task_result(success: bool, **data) -> Dict[str, Any]:
     Returns:
         Standardized result dictionary
     """
-    result = {"success": success, "timestamp": datetime.utcnow().isoformat(), **data}
+    result = {"success": success, "timestamp": datetime.now(timezone.utc).isoformat(), **data}
 
     if not success and "error" not in result:
         result["error"] = "Unknown error occurred"

@@ -6,7 +6,7 @@ Handles state transitions, validation, and referential integrity for patient flo
 import hashlib
 import logging
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from sqlalchemy.orm import Session
 
@@ -173,7 +173,7 @@ class FlowIntegrityService:
             if "last_updated" in state_data:
                 try:
                     last_updated = datetime.fromisoformat(state_data["last_updated"])
-                    if last_updated > datetime.utcnow():
+                    if last_updated > datetime.now(timezone.utc):
                         raise ValidationError(
                             "Flow last_updated cannot be in the future"
                         )
@@ -205,7 +205,7 @@ class FlowIntegrityService:
                 )
                 # Update with correct checksum
                 state_data["integrity_checksum"] = expected_checksum
-                state_data["checksum_updated"] = datetime.utcnow().isoformat()
+                state_data["checksum_updated"] = datetime.now(timezone.utc).isoformat()
                 self.db.commit()
 
         except ValidationError:

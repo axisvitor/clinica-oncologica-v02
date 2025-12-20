@@ -7,7 +7,7 @@ import asyncio
 import json
 import time
 from typing import Dict, List, Optional, Set, Any, Callable
-from datetime import datetime
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from enum import Enum
 from fastapi import WebSocket, WebSocketDisconnect
@@ -64,7 +64,7 @@ class WebSocketEvent:
 
     def __post_init__(self):
         if self.timestamp is None:
-            self.timestamp = datetime.utcnow()
+            self.timestamp = datetime.now(timezone.utc)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert event to dictionary for JSON serialization"""
@@ -195,8 +195,8 @@ class WebSocketCoordinator:
             connection_info = ConnectionInfo(
                 user_id=user_id,
                 websocket=websocket,
-                connected_at=datetime.utcnow(),
-                last_ping=datetime.utcnow(),
+                connected_at=datetime.now(timezone.utc),
+                last_ping=datetime.now(timezone.utc),
                 metadata=metadata or {},
             )
 
@@ -216,7 +216,7 @@ class WebSocketCoordinator:
                     data={
                         "connection_id": connection_id,
                         "user_id": user_id,
-                        "server_time": datetime.utcnow().isoformat(),
+                        "server_time": datetime.now(timezone.utc).isoformat(),
                     },
                     user_id=user_id,
                 ),
@@ -409,7 +409,7 @@ class WebSocketCoordinator:
             if data.get("type") == "ping":
                 connection_info = self.connections.get(connection_id)
                 if connection_info:
-                    connection_info.last_ping = datetime.utcnow()
+                    connection_info.last_ping = datetime.now(timezone.utc)
                     await connection_info.websocket.send_text(
                         json.dumps({"type": "pong"})
                     )
@@ -462,7 +462,7 @@ class WebSocketCoordinator:
             try:
                 await asyncio.sleep(self.ping_interval)
 
-                current_time = datetime.utcnow()
+                current_time = datetime.now(timezone.utc)
                 ping_tasks = []
 
                 for connection_id, connection_info in self.connections.items():
@@ -496,7 +496,7 @@ class WebSocketCoordinator:
             try:
                 await asyncio.sleep(60)  # Check every minute
 
-                current_time = datetime.utcnow()
+                current_time = datetime.now(timezone.utc)
                 stale_connections = []
 
                 for connection_id, connection_info in self.connections.items():

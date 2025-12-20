@@ -6,7 +6,7 @@ FastAPI endpoints for monitoring and health checks.
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from app.database import get_db
@@ -35,7 +35,7 @@ async def health_check() -> Dict[str, Any]:
             "status": "healthy"
             if health_summary["status"] == "healthy"
             else "degraded",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "service": "oncology-platform",
             "version": "1.0.0",
         }
@@ -76,7 +76,7 @@ async def detailed_health_check(db: AsyncSession = Depends(get_db)) -> Dict[str,
 
         return {
             "status": infrastructure_health["status"],
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "infrastructure": {
                 "cpu": infrastructure_health["resources"]["cpu"],
                 "memory": infrastructure_health["resources"]["memory"],
@@ -157,7 +157,7 @@ async def get_resource_trends(minutes: int = 30) -> Dict[str, Any]:
 
         return {
             "period_minutes": minutes,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "trends": trends,
         }
 
@@ -325,7 +325,7 @@ async def acknowledge_alert(alert_id: str, acknowledged_by: str) -> Dict[str, An
             "success": True,
             "alert_id": alert_id,
             "acknowledged_by": acknowledged_by,
-            "acknowledged_at": datetime.utcnow().isoformat(),
+            "acknowledged_at": datetime.now(timezone.utc).isoformat(),
         }
 
     except HTTPException:
@@ -359,7 +359,7 @@ async def resolve_alert(
             "success": True,
             "alert_id": alert_id,
             "resolved_by": resolved_by,
-            "resolved_at": datetime.utcnow().isoformat(),
+            "resolved_at": datetime.now(timezone.utc).isoformat(),
             "resolution_note": resolution_note,
         }
 
@@ -382,7 +382,7 @@ async def get_service_uptime(hours: int = 24) -> Dict[str, Any]:
 
         return {
             "period_hours": hours,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "services": uptime_report,
         }
 
@@ -469,7 +469,7 @@ async def reset_database_circuit_breaker() -> Dict[str, Any]:
             "previous_state": current_state,
             "previous_failure_count": failure_count,
             "current_state": "closed",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as e:
@@ -492,7 +492,7 @@ async def get_circuit_breaker_status() -> Dict[str, Any]:
             "recovery_timeout": db_circuit_breaker.recovery_timeout,
             "last_failure_time": db_circuit_breaker.last_failure_time,
             "is_healthy": db_circuit_breaker.state == "closed",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as e:

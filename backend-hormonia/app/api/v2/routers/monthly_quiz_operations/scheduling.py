@@ -117,7 +117,7 @@ async def send_monthly_quiz_reminder(
     # In production, send actual reminders here via WhatsApp/Email/SMS
     # For now, just log and update metadata
     reminder_entry = {
-        "sent_at": datetime.utcnow().isoformat(),
+        "sent_at": datetime.now(timezone.utc).isoformat(),
         "sent_by": str(current_user.id),
         "recipient_count": len(non_completers),
         "delivery_method": reminder_request.delivery_method.value,
@@ -302,7 +302,7 @@ async def generate_monthly_quiz(
     )
 
     if generate_request.auto_publish:
-        monthly_quiz.tags["published_at"] = datetime.utcnow().isoformat()
+        monthly_quiz.tags["published_at"] = datetime.now(timezone.utc).isoformat()
 
     db.add(monthly_quiz)
     db.commit()

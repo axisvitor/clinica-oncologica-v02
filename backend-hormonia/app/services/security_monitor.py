@@ -7,7 +7,7 @@ unauthorized access attempts, phone blocking, and security analytics.
 
 import logging
 from typing import Optional, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 from sqlalchemy import text
 import redis.asyncio as redis
@@ -79,7 +79,7 @@ class SecurityMonitor:
                 "phone": phone,
                 "message_content": message_content[:500],  # Limit content length
                 "source_metadata": source_metadata or {},
-                "timestamp": datetime.utcnow(),
+                "timestamp": datetime.now(timezone.utc),
                 "risk_score": self._calculate_risk_score(
                     phone, message_content, source_metadata
                 ),
@@ -188,7 +188,7 @@ class SecurityMonitor:
                     "patient_id": str(patient_id),
                     "source_metadata": json.dumps(source_metadata or {}),
                     "risk_score": 0,  # Authorized access has 0 risk
-                    "created_at": datetime.utcnow(),
+                    "created_at": datetime.now(timezone.utc),
                     "additional_data": json.dumps({"access_granted": True}),
                 },
             )
@@ -233,7 +233,7 @@ class SecurityMonitor:
                 return int(cached_count)
 
             # Fallback to database
-            since_time = datetime.utcnow() - timedelta(hours=time_window_hours)
+            since_time = datetime.now(timezone.utc) - timedelta(hours=time_window_hours)
 
             count_stmt = text("""
                 SELECT COUNT(*)
@@ -348,9 +348,9 @@ class SecurityMonitor:
             block_data = {
                 "phone": phone,
                 "reason": reason,
-                "blocked_at": datetime.utcnow().isoformat(),
+                "blocked_at": datetime.now(timezone.utc).isoformat(),
                 "expires_at": (
-                    datetime.utcnow() + timedelta(hours=duration_hours)
+                    datetime.now(timezone.utc) + timedelta(hours=duration_hours)
                 ).isoformat(),
                 "duration_hours": str(duration_hours),
                 "metadata": json.dumps(additional_metadata or {}),
@@ -430,7 +430,7 @@ class SecurityMonitor:
             Dictionary with security statistics
         """
         try:
-            since_time = datetime.utcnow() - timedelta(hours=time_window_hours)
+            since_time = datetime.now(timezone.utc) - timedelta(hours=time_window_hours)
 
             # Query database for stats
             stats_stmt = text("""
@@ -539,7 +539,7 @@ class SecurityMonitor:
                 risk_score += 1
 
         # Time-based risk factors
-        current_hour = datetime.utcnow().hour
+        current_hour = datetime.now(timezone.utc).hour
         if current_hour < 6 or current_hour > 22:  # Outside business hours
             risk_score += 1
 
@@ -555,7 +555,7 @@ class SecurityMonitor:
                 msg_time = datetime.fromtimestamp(
                     timestamp / 1000
                 )  # WhatsApp uses milliseconds
-                time_diff = datetime.utcnow() - msg_time
+                time_diff = datetime.now(timezone.utc) - msg_time
                 if time_diff.total_seconds() < 5:  # Very recent
                     risk_score += 1
 
@@ -584,7 +584,7 @@ class SecurityMonitor:
     def _generate_session_id(self, phone: str) -> str:
         """Generate session ID for grouping related events."""
         # Create deterministic session ID based on phone and hour
-        current_hour = datetime.utcnow().strftime("%Y%m%d%H")
+        current_hour = datetime.now(timezone.utc).strftime("%Y%m%d%H")
         session_data = f"{phone}:{current_hour}"
         return hashlib.md5(session_data.encode()).hexdigest()[:16]
 
@@ -667,7 +667,7 @@ class SecurityMonitor:
                     if duration_hours > 0
                     else "phone_unblocked",
                     "phone_number": phone,
-                    "created_at": datetime.utcnow(),
+                    "created_at": datetime.now(timezone.utc),
                     "additional_data": json.dumps(
                         {
                             "reason": reason,
@@ -691,7 +691,7 @@ class SecurityMonitor:
         try:
             alert_data = {
                 "type": alert_type,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "details": details,
                 "severity": self._determine_alert_severity(alert_type, details),
             }

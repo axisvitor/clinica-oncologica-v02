@@ -9,7 +9,7 @@ import logging
 import smtplib
 import asyncio
 from typing import Dict, Any, Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from uuid import UUID

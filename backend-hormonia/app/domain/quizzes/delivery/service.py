@@ -1,7 +1,7 @@
 """Delivery service for sending quiz links to patients."""
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
 from app.models.patient import Patient
@@ -141,7 +141,7 @@ class DeliveryService:
             metadata["delivery_attempts"] = []
 
         attempt_record = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "action": action,
             "delivery_method": delivery_method.value,
             "status": status,

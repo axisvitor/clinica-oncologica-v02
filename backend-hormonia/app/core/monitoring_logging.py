@@ -8,7 +8,7 @@ systems, with proper formatting, context injection, and alert correlation.
 import json
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 from contextlib import contextmanager
 from functools import wraps
@@ -63,7 +63,7 @@ class MonitoringLogger:
             Structured log entry dictionary
         """
         log_entry = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
             "level": level,
             "message": message,
             "event_type": event_type,

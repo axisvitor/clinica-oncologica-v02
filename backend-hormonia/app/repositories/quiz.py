@@ -1,6 +1,6 @@
 from typing import List, Optional
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -381,7 +381,7 @@ class QuizSessionRepository(BaseRepository[QuizSession]):
             session and session.status != "completed"
         ):  # FIX: Check status instead of is_completed
             session.status = "completed"  # FIX: Set status to completed
-            session.completed_at = datetime.utcnow()
+            session.completed_at = datetime.now(timezone.utc)
             self.db.commit()
         return session
 

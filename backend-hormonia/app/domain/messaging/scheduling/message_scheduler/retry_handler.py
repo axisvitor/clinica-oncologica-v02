@@ -4,7 +4,7 @@ Retry logic and Dead Letter Queue (DLQ) handling for failed message deliveries.
 
 import logging
 from typing import Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.models.message import Message
@@ -75,7 +75,7 @@ class RetryHandler:
             # Update message metadata with retry task ID
             message.message_metadata["retry_task_id"] = task_result.id
             message.message_metadata["retry_scheduled_at"] = (
-                datetime.utcnow().isoformat()
+                datetime.now(timezone.utc).isoformat()
             )
 
             logger.info(
@@ -121,7 +121,7 @@ class RetryHandler:
                 "last_retry_at": message.last_retry_at.isoformat()
                 if message.last_retry_at
                 else None,
-                "routed_at": datetime.utcnow().isoformat(),
+                "routed_at": datetime.now(timezone.utc).isoformat(),
             }
 
             # Route to DLQ
@@ -232,7 +232,7 @@ class RetryHandler:
             flow_state_data["delivery_failures"].append(
                 {
                     "message_id": str(message.id),
-                    "failure_timestamp": datetime.utcnow().isoformat(),
+                    "failure_timestamp": datetime.now(timezone.utc).isoformat(),
                     "failure_reason": message.failure_reason,
                     "retry_count": message.retry_count,
                     "step": active_flow.current_step,
@@ -241,7 +241,7 @@ class RetryHandler:
 
             # Mark that flow should not wait for this message
             flow_state_data["skip_waiting_for_message"] = str(message.id)
-            flow_state_data["last_delivery_failure"] = datetime.utcnow().isoformat()
+            flow_state_data["last_delivery_failure"] = datetime.now(timezone.utc).isoformat()
 
             active_flow.state_data = flow_state_data
             self.db.commit()

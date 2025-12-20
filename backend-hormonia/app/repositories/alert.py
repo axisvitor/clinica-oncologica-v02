@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import UUID
 
@@ -224,7 +224,7 @@ class AlertRepository(BaseRepository[Alert]):
             raise ValidationError("Hours cannot exceed 8760 (1 year)")
 
         try:
-            cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
             return (
                 self.db.query(Alert)
                 .filter(
@@ -383,12 +383,12 @@ class AlertRepository(BaseRepository[Alert]):
 
             update_data = {
                 "acknowledged": acknowledged,
-                "updated_at": datetime.utcnow(),
+                "updated_at": datetime.now(timezone.utc),
             }
 
             if acknowledged_by and acknowledged:
                 update_data["acknowledged_by"] = acknowledged_by
-                update_data["acknowledged_at"] = datetime.utcnow()
+                update_data["acknowledged_at"] = datetime.now(timezone.utc)
 
             result = (
                 self.db.query(Alert)
@@ -420,7 +420,7 @@ class AlertRepository(BaseRepository[Alert]):
             raise ValidationError("Days old must be positive")
 
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days_old)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
 
             # Note: Using acknowledged field since status is virtual property
             result = (
@@ -605,12 +605,12 @@ class AlertRepository(BaseRepository[Alert]):
 
             update_data = {
                 "acknowledged": acknowledged,
-                "updated_at": datetime.utcnow(),
+                "updated_at": datetime.now(timezone.utc),
             }
 
             if acknowledged_by and acknowledged:
                 update_data["acknowledged_by"] = acknowledged_by
-                update_data["acknowledged_at"] = datetime.utcnow()
+                update_data["acknowledged_at"] = datetime.now(timezone.utc)
 
             result = (
                 self.db.query(Alert)

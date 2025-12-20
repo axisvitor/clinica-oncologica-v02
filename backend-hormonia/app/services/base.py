@@ -5,7 +5,7 @@ Provides common functionality for all services to reduce code duplication.
 
 import logging
 from typing import Optional, Any, Dict, List, TypeVar, Generic
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from abc import ABC
 
@@ -161,7 +161,7 @@ class BaseService(ABC):
             "operation": operation,
             "entity_type": entity_type,
             "entity_id": str(entity_id) if entity_id else None,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "service": self.__class__.__name__,
         }
 
@@ -479,8 +479,8 @@ class BaseFlowService(BaseService):
         # Implement trigger logic based on type
         trigger_rules = {
             "daily_message": lambda ctx: True,  # Always trigger daily
-            "weekly_quiz": lambda ctx: datetime.utcnow().weekday() == 0,  # Monday
-            "monthly_report": lambda ctx: datetime.utcnow().day == 1,  # First of month
+            "weekly_quiz": lambda ctx: datetime.now(timezone.utc).weekday() == 0,  # Monday
+            "monthly_report": lambda ctx: datetime.now(timezone.utc).day == 1,  # First of month
         }
 
         rule = trigger_rules.get(trigger_type)

@@ -7,7 +7,7 @@ where multiple workers increment the same message's retry count.
 
 import logging
 from typing import Optional, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from redis.asyncio import Redis
 from sqlalchemy.orm import Session
@@ -216,7 +216,7 @@ class AtomicRetryCounter:
             stmt,
             {
                 "status": DLQStatus.MAX_RETRIES_EXCEEDED.value,
-                "now": datetime.utcnow(),
+                "now": datetime.now(timezone.utc),
                 "message_id": message_id,
             },
         )
@@ -302,7 +302,7 @@ class AtomicRetryScheduler:
         await self._ensure_scripts_loaded()
 
         schedule_time = (
-            datetime.utcnow() + timedelta(seconds=delay_seconds)
+            datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
         ).isoformat()
         key = self._schedule_key(message_id)
 
@@ -329,7 +329,7 @@ class AtomicRetryScheduler:
         Returns:
             List of message IDs with due retries
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         due_messages = []
 
         async for key in self.redis.scan_iter(match="retry:schedule:*"):

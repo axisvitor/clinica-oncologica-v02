@@ -5,7 +5,7 @@ Coordinates quiz flow with adaptive intelligence and multi-agent collaboration.
 """
 
 from typing import Dict, List, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -43,7 +43,7 @@ class QuizConductor(BaseAgent):
     def __init__(self, db_session: Session, **kwargs):
         """Initialize QuizConductor."""
         super().__init__(
-            agent_id=f"quiz_conductor_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            agent_id=f"quiz_conductor_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}",
             agent_type="communication",
             specialization="quiz_conductor",
             db_session=db_session,
@@ -274,7 +274,7 @@ class QuizConductor(BaseAgent):
                             "reason": self.notification_manager.get_adaptation_reason(
                                 context, adaptation
                             ),
-                            "timestamp": datetime.utcnow().isoformat(),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
                         }
                     )
                     completion_status["adaptations_made"] += 1

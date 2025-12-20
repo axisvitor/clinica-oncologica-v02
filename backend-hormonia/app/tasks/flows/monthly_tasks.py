@@ -8,7 +8,7 @@ quiz reports for patients.
 import asyncio
 import logging
 from typing import Any
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from celery.exceptions import MaxRetriesExceededError
 
@@ -190,7 +190,7 @@ def generate_quiz_report(self, session_id: str) -> dict[str, Any]:
                 "status": "success",
                 "session_id": session_id,
                 "report_id": str(report_id),
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
             }
 
             logger.info(f"Quiz report generated successfully: {result}")
@@ -221,5 +221,5 @@ def generate_quiz_report(self, session_id: str) -> dict[str, Any]:
                 "status": "failed",
                 "session_id": session_id,
                 "error": str(e),
-                "failed_at": datetime.utcnow().isoformat(),
+                "failed_at": datetime.now(timezone.utc).isoformat(),
             }

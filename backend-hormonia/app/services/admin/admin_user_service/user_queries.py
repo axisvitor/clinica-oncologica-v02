@@ -7,7 +7,7 @@ Handles user search, filtering, summaries, and statistics generation.
 import logging
 from typing import Optional
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import desc
 
 from app.models.user import User, UserRole
@@ -151,7 +151,7 @@ class UserQueriesMixin:
             users_by_role[role.value] = count
 
         # Recent registrations (last 30 days)
-        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
         recent_registrations = (
             self.db.query(User).filter(User.created_at >= thirty_days_ago).count()
         )

@@ -5,7 +5,7 @@ Handles flow state management: get, advance, pause, resume, history
 
 import logging
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
@@ -203,7 +203,7 @@ async def pause_patient_flow(
         return FlowPauseV2Response(
             success=True,
             patient_id=str(patient_id),
-            paused_at=pause_result.get("paused_at", datetime.utcnow()),
+            paused_at=pause_result.get("paused_at", datetime.now(timezone.utc)),
             reason=reason,
             auto_resume_at=pause_result.get("auto_resume_at"),
             message=pause_result.get("message", "Flow paused successfully"),
@@ -251,7 +251,7 @@ async def resume_patient_flow(
         return FlowResumeV2Response(
             success=True,
             patient_id=str(patient_id),
-            resumed_at=resume_result.get("resumed_at", datetime.utcnow()),
+            resumed_at=resume_result.get("resumed_at", datetime.now(timezone.utc)),
             paused_duration_hours=resume_result.get("paused_duration_hours", 0.0),
             next_message_at=resume_result.get("next_message_at"),
             message=resume_result.get("message", "Flow resumed successfully"),

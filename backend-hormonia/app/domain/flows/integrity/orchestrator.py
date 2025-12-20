@@ -3,7 +3,7 @@ Data integrity orchestrator - main coordinator for checks and corrections.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import UUID
 
@@ -61,7 +61,7 @@ class FlowDataIntegrityChecker:
         Returns:
             Integrity check result
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         issues = []
         total_records = 0
 
@@ -95,7 +95,7 @@ class FlowDataIntegrityChecker:
             corruption_score = self._calculate_corruption_score(issues, total_records)
             recommendations = self._generate_recommendations(issues)
 
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
             duration = (end_time - start_time).total_seconds()
 
             result = IntegrityCheckResult(

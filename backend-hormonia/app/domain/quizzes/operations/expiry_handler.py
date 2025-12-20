@@ -1,6 +1,6 @@
 """Handle expired tokens and regeneration limits."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from uuid import UUID
 from sqlalchemy.orm import Session
@@ -105,7 +105,7 @@ class ExpiryHandler:
 
         # Add failure record
         failure_record = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "reason": failure_reason,
             "details": failure_details or {},
         }

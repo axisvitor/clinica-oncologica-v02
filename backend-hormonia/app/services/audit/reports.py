@@ -5,7 +5,7 @@ Contains all query and reporting methods for compliance and analytics.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -148,7 +148,7 @@ class AuditReportsMixin:
 
         export_data = {
             "patient_id": str(patient_id),
-            "export_date": datetime.utcnow().isoformat(),
+            "export_date": datetime.now(timezone.utc).isoformat(),
             "total_logs": len(logs),
             "logs": [
                 {

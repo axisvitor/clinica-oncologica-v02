@@ -7,7 +7,7 @@ Provides real-time metrics, alerts, and automatic recovery mechanisms.
 
 import asyncio
 from typing import Dict, List, Optional, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from enum import Enum
 from dataclasses import dataclass, asdict
@@ -109,7 +109,7 @@ class AgentHealthMonitor:
         }
 
         # State
-        self.start_time = datetime.utcnow()
+        self.start_time = datetime.now(timezone.utc)
         self.last_task_count = 0
         self.last_error_count = 0
 
@@ -125,7 +125,7 @@ class AgentHealthMonitor:
     ):
         """Update agent health metrics."""
         try:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             uptime = int((now - self.start_time).total_seconds())
 
             # Calculate error rate
@@ -192,7 +192,7 @@ class AgentHealthMonitor:
         # Check if offline
         if self.current_metrics:
             time_since_heartbeat = (
-                datetime.utcnow() - self.current_metrics.last_heartbeat
+                datetime.now(timezone.utc) - self.current_metrics.last_heartbeat
             ).total_seconds()
             if time_since_heartbeat > self.config["offline_threshold"]:
                 return HealthStatus.OFFLINE
@@ -276,7 +276,7 @@ class AgentHealthMonitor:
             severity=severity,
             title=title,
             description=description,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
             metadata=metadata or {},
         )
 
@@ -287,7 +287,7 @@ class AgentHealthMonitor:
         """Resolve an active alert."""
         for alert in self.active_alerts:
             if alert.id == alert_id and alert.resolved_at is None:
-                alert.resolved_at = datetime.utcnow()
+                alert.resolved_at = datetime.now(timezone.utc)
                 self.logger.info(f"Health alert resolved: {alert.title}")
                 return True
 
@@ -327,7 +327,7 @@ class SystemHealthMonitor:
         self.agent_monitors: Dict[str, AgentHealthMonitor] = {}
 
         # System-level metrics
-        self.system_start_time = datetime.utcnow()
+        self.system_start_time = datetime.now(timezone.utc)
         self.system_alerts: List[HealthAlert] = []
 
         # Monitoring task
@@ -529,7 +529,7 @@ class SystemHealthMonitor:
             severity=severity,
             title=title,
             description=description,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
             metadata=metadata or {},
         )
 
@@ -539,7 +539,7 @@ class SystemHealthMonitor:
     async def _cleanup_old_alerts(self):
         """Clean up old resolved alerts."""
         try:
-            cutoff_time = datetime.utcnow() - timedelta(
+            cutoff_time = datetime.now(timezone.utc) - timedelta(
                 hours=self.config["alert_retention_hours"]
             )
 
@@ -598,7 +598,7 @@ class SystemHealthMonitor:
         """Get system health overview."""
         overview = {
             "system_uptime_seconds": int(
-                (datetime.utcnow() - self.system_start_time).total_seconds()
+                (datetime.now(timezone.utc) - self.system_start_time).total_seconds()
             ),
             "total_agents": len(self.agent_monitors),
             "agents_by_status": {

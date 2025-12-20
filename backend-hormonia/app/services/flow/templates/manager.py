@@ -11,7 +11,7 @@ Migration Note:
 """
 
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from ..types import (
@@ -123,7 +123,7 @@ class FlowTemplateManager:
         # Apply updates
         template_dict = template.model_dump()
         template_dict.update(updates)
-        template_dict["updated_at"] = datetime.utcnow()
+        template_dict["updated_at"] = datetime.now(timezone.utc)
 
         # Create updated template
         updated_template = FlowTemplate(**template_dict)
@@ -559,7 +559,7 @@ class FlowTemplateManager:
             "total_templates": len(templates),
             "templates_with_issues": len(issues),
             "issues": issues,
-            "checked_at": datetime.utcnow().isoformat(),
+            "checked_at": datetime.now(timezone.utc).isoformat(),
         }
 
 

@@ -5,7 +5,7 @@ Celery tasks for automatic flow management and patient engagement
 
 from celery import shared_task
 from celery.schedules import crontab
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import logging
 import asyncio
@@ -92,7 +92,7 @@ def check_and_start_pending_flows() -> dict:
         return {
             "flows_started": flows_started,
             "errors": errors,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     # Run async function
@@ -209,7 +209,7 @@ def send_daily_reminders() -> dict:
         return {
             "reminders_sent": reminders_sent,
             "errors": errors,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     # Run async function
@@ -275,7 +275,7 @@ def resume_paused_flows() -> dict:
         return {
             "flows_resumed": flows_resumed,
             "errors": errors,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     # Run async function
@@ -329,7 +329,7 @@ def cleanup_expired_quiz_links() -> dict:
         return {
             "links_cleaned": links_cleaned,
             "errors": errors,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     # Run async function

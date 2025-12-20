@@ -7,7 +7,7 @@ resume, cancel, complete) so FlowManager stays focused on orchestration.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from typing import Optional, Dict, Any
 import logging
@@ -31,7 +31,7 @@ class FlowLifecycleManager:
         expires_at: Optional[datetime],
     ) -> FlowContext:
         context.status = FlowStatus.ACTIVE
-        context.started_at = context.started_at or datetime.utcnow()
+        context.started_at = context.started_at or datetime.now(timezone.utc)
         context.expires_at = expires_at
         await self.repository.save(context, template)
         return context
@@ -39,13 +39,13 @@ class FlowLifecycleManager:
     async def pause(self, context: FlowContext, reason: Optional[str]) -> FlowContext:
         context.status = FlowStatus.PAUSED
         context.metadata["pause_reason"] = reason or "manual"
-        context.metadata["paused_at"] = datetime.utcnow().isoformat()
+        context.metadata["paused_at"] = datetime.now(timezone.utc).isoformat()
         await self.repository.save(context)
         return context
 
     async def resume(self, context: FlowContext) -> FlowContext:
         context.status = FlowStatus.ACTIVE
-        context.metadata["resumed_at"] = datetime.utcnow().isoformat()
+        context.metadata["resumed_at"] = datetime.now(timezone.utc).isoformat()
         await self.repository.save(context)
         return context
 
@@ -55,14 +55,14 @@ class FlowLifecycleManager:
         reason: Optional[str],
     ) -> FlowContext:
         context.status = FlowStatus.CANCELLED
-        context.completed_at = datetime.utcnow()
+        context.completed_at = datetime.now(timezone.utc)
         context.metadata["cancel_reason"] = reason or "manual"
         await self.repository.save(context)
         return context
 
     async def complete(self, context: FlowContext) -> FlowContext:
         context.status = FlowStatus.COMPLETED
-        context.completed_at = datetime.utcnow()
+        context.completed_at = datetime.now(timezone.utc)
         await self.repository.save(context)
         return context
 

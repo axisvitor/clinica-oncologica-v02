@@ -8,7 +8,7 @@ and persistence.
 
 import logging
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ..types import Alert, AlertStatus
 

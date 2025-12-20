@@ -7,7 +7,7 @@ among agents in the swarm.
 
 import asyncio
 from typing import Dict, List, Set, Optional, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from dataclasses import dataclass, asdict
 from enum import Enum
@@ -47,7 +47,7 @@ class Vote:
 
     def __post_init__(self):
         if self.timestamp is None:
-            self.timestamp = datetime.utcnow()
+            self.timestamp = datetime.now(timezone.utc)
 
 
 @dataclass
@@ -174,7 +174,7 @@ class ConsensusManager:
             required_consensus=consensus_type,
             min_participants=min_participants,
             timeout_seconds=timeout_seconds,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
             critical_decision=critical_decision,
         )
 
@@ -319,7 +319,7 @@ class ConsensusManager:
             confidence_score=confidence_score,
             participants=len(votes),
             consensus_method=ConsensusType.SIMPLE_MAJORITY,
-            completed_at=datetime.utcnow(),
+            completed_at=datetime.now(timezone.utc),
             reasoning=f"Simple majority: {vote_counts[decision]}/{total_votes}"
             if consensus_reached
             else "No majority reached",
@@ -364,7 +364,7 @@ class ConsensusManager:
             confidence_score=winning_score,
             participants=len(votes),
             consensus_method=ConsensusType.WEIGHTED_VOTING,
-            completed_at=datetime.utcnow(),
+            completed_at=datetime.now(timezone.utc),
             reasoning=f"Weighted voting: {decision.value} with score {winning_score:.2f}",
         )
 
@@ -405,7 +405,7 @@ class ConsensusManager:
             confidence_score=confidence_score,
             participants=n,
             consensus_method=ConsensusType.BYZANTINE_FAULT_TOLERANT,
-            completed_at=datetime.utcnow(),
+            completed_at=datetime.now(timezone.utc),
             reasoning=f"Byzantine consensus: {vote_counts[decision]}/{n} agree (required: {required_agreement})"
             if consensus_reached
             else "Insufficient agreement for Byzantine consensus",
@@ -428,7 +428,7 @@ class ConsensusManager:
                 confidence_score=0.0,
                 participants=n,
                 consensus_method=ConsensusType.QUORUM_BASED,
-                completed_at=datetime.utcnow(),
+                completed_at=datetime.now(timezone.utc),
                 reasoning=f"Quorum not reached: {n}/{quorum_size}",
             )
 
@@ -467,7 +467,7 @@ class ConsensusManager:
                 confidence_score=0.0,
                 participants=len(votes),
                 consensus_method=proposal.required_consensus,
-                completed_at=datetime.utcnow(),
+                completed_at=datetime.now(timezone.utc),
                 reasoning=f"Consensus timed out after {timeout_seconds} seconds",
             )
 
@@ -516,7 +516,7 @@ class ConsensusManager:
 
     def cleanup_old_consensus(self, days_old: int = 7):
         """Clean up old completed consensus records."""
-        cutoff_date = datetime.utcnow() - timedelta(days=days_old)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
 
         to_remove = [
             proposal_id

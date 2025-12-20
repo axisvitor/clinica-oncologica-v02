@@ -150,7 +150,7 @@ class ReportBuilder:
                 date_filter = None
             else:
                 days = int(period.rstrip("d"))
-                date_filter = datetime.utcnow() - timedelta(days=days)
+                date_filter = datetime.now(timezone.utc) - timedelta(days=days)
 
             # Build base query for treatment type counts
             query = self.db.query(
@@ -178,7 +178,7 @@ class ReportBuilder:
                     "data": [],
                     "period": period,
                     "total_patients": 0,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
             # Build distribution list with percentages and colors
@@ -225,7 +225,7 @@ class ReportBuilder:
                 "data": distribution,
                 "period": period,
                 "total_patients": total,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
@@ -251,7 +251,7 @@ class ReportBuilder:
                 f"Detecting patterns for {'all patients' if not patient_id else f'patient {patient_id}'}"
             )
 
-            end_date = datetime.utcnow().date()
+            end_date = datetime.now(timezone.utc).date()
             start_date = end_date - timedelta(days=days_back)
 
             patterns = {

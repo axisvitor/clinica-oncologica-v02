@@ -7,7 +7,7 @@ for monitoring, reporting, and dashboard purposes.
 
 import logging
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 
 from .types import (
@@ -274,7 +274,7 @@ class MetricsCollector:
         Returns:
             List of hourly buckets with counts
         """
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         timeline = []
 
         for hour_offset in range(hours):

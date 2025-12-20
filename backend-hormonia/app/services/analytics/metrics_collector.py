@@ -3,7 +3,7 @@ Metrics Collection Service - Healthcare KPIs, AI tracking, system performance.
 Features: Real-time aggregation, Redis caching, anomaly detection.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 from uuid import UUID
 from sqlalchemy import and_
@@ -68,7 +68,7 @@ class MetricsCollectorService:
 
         try:
             # Get current date ranges
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             last_24h = now - timedelta(hours=24)
             last_30d = now - timedelta(days=30)
 
@@ -185,7 +185,7 @@ class MetricsCollectorService:
                 "active_patients": 0,
                 "daily_messages": 0,
                 "system_health_score": 0.0,
-                "timestamp": datetime.utcnow(),
+                "timestamp": datetime.now(timezone.utc),
             }
 
     async def get_engagement_metrics(self) -> Dict[str, Any]:
@@ -196,7 +196,7 @@ class MetricsCollectorService:
             return cached
 
         try:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             last_24h = now - timedelta(hours=24)
             last_7d = now - timedelta(days=7)
             last_30d = now - timedelta(days=30)
@@ -325,7 +325,7 @@ class MetricsCollectorService:
             return cached
 
         try:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             last_30d = now - timedelta(days=30)
 
             # Basic quiz statistics
@@ -397,7 +397,7 @@ class MetricsCollectorService:
             return cached
 
         try:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             last_30d = now - timedelta(days=30)
 
             # Total messages processed
@@ -493,8 +493,8 @@ class MetricsCollectorService:
 
             # System uptime
             uptime_seconds = (
-                datetime.utcnow()
-                - datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+                datetime.now(timezone.utc)
+                - datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
             ).total_seconds()
 
             # Throughput (requests per second)
@@ -591,7 +591,7 @@ class MetricsCollectorService:
             alert = json.loads(alert_data)
             alert["acknowledged"] = True
             alert["acknowledged_by"] = str(user_id)
-            alert["acknowledged_at"] = datetime.utcnow().isoformat()
+            alert["acknowledged_at"] = datetime.now(timezone.utc).isoformat()
             alert["acknowledged_from_ip"] = ip_address
 
             # Move to acknowledged alerts
@@ -622,7 +622,7 @@ class MetricsCollectorService:
                     "start_date": start_date.isoformat(),
                     "end_date": end_date.isoformat(),
                     "format": format,
-                    "generated_at": datetime.utcnow().isoformat(),
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
                 },
                 "engagement": await self._get_historical_engagement_metrics(
                     start_date, end_date
@@ -671,7 +671,7 @@ class MetricsCollectorService:
         """Get engagement trend data for specified days."""
         try:
             trend_data = []
-            end_date = datetime.utcnow()
+            end_date = datetime.now(timezone.utc)
 
             for i in range(days):
                 date = end_date - timedelta(days=i)
@@ -711,7 +711,7 @@ class MetricsCollectorService:
                         QuizSession.status == "completed",
                         QuizSession.completed_at.isnot(None),
                         QuizSession.created_at
-                        >= datetime.utcnow() - timedelta(days=30),
+                        >= datetime.now(timezone.utc) - timedelta(days=30),
                     )
                 )
                 .all()
@@ -743,7 +743,7 @@ class MetricsCollectorService:
                         and_(
                             QuizSession.template_id == template.id,
                             QuizSession.created_at
-                            >= datetime.utcnow() - timedelta(days=30),
+                            >= datetime.now(timezone.utc) - timedelta(days=30),
                         )
                     )
                     .all()
@@ -771,7 +771,7 @@ class MetricsCollectorService:
                 .filter(
                     and_(
                         QuizSession.created_at
-                        >= datetime.utcnow() - timedelta(days=30),
+                        >= datetime.now(timezone.utc) - timedelta(days=30),
                         QuizSession.metadata.isnot(
                             None
                         ),  # Assuming monthly quizzes have metadata
@@ -797,7 +797,7 @@ class MetricsCollectorService:
         """Get quiz completion trend data."""
         try:
             trend_data = []
-            end_date = datetime.utcnow()
+            end_date = datetime.now(timezone.utc)
 
             for i in range(min(days, 30)):  # Limit to 30 days
                 date = end_date - timedelta(days=i)

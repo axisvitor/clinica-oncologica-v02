@@ -11,7 +11,7 @@ SECURITY:
 """
 
 from typing import Optional, Dict, Any, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from app.models.user import User, UserRole, AuthProvider
@@ -641,7 +641,7 @@ class FirebaseUserSyncService:
             "reason": reason,
             "firebase_uid": firebase_uid,
             "email": email,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         if error:
@@ -685,7 +685,7 @@ class FirebaseUserSyncService:
                 {
                     "event_type": "firebase_user_provisioning",
                     "event_data": event_data,
-                    "created_at": datetime.utcnow(),
+                    "created_at": datetime.now(timezone.utc),
                 },
             )
             self.db.commit()

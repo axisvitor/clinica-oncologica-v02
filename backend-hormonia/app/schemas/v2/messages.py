@@ -4,7 +4,7 @@ Enhanced message models with cursor pagination, field selection, and eager loadi
 """
 
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
@@ -371,7 +371,7 @@ class ScheduleMessageV2Request(BaseModel):
     @classmethod
     def validate_scheduled_for(cls, v):
         """Validate scheduled time is in the future"""
-        if v <= datetime.utcnow():
+        if v <= datetime.now(timezone.utc):
             raise ValueError("Scheduled time must be in the future")
         return v
 

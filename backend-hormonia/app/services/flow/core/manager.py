@@ -21,7 +21,7 @@ Migration Note:
 """
 
 from typing import Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 import logging
 import re
@@ -164,7 +164,7 @@ class FlowManager:
         if not validation.is_valid:
             raise ValueError(f"Flow validation failed: {validation.errors}")
 
-        expires_at = datetime.utcnow() + timedelta(
+        expires_at = datetime.now(timezone.utc) + timedelta(
             minutes=template.default_timeout_minutes
         )
         context = FlowContext(
@@ -176,7 +176,7 @@ class FlowManager:
             variables={},
             steps_completed=[],
             steps_history=[],
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
             expires_at=expires_at,
             metadata=metadata or {},
             priority=priority,
@@ -633,7 +633,7 @@ class FlowManager:
                 FlowEvent(
                     event_type=FlowEventType.FLOW_COMPLETED,
                     flow_instance_id=flow_id,
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     data=kwargs,
                 )
             )
@@ -687,7 +687,7 @@ class FlowManager:
                 FlowEvent(
                     event_type=FlowEventType.FLOW_CANCELLED,
                     flow_instance_id=flow_id,
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     data={"reason": reason} if reason else {},
                 )
             )

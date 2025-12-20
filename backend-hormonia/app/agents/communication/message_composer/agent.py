@@ -4,7 +4,7 @@ Message Composer Agent
 Main agent class responsible for orchestrating message composition.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 from uuid import UUID
 
@@ -199,7 +199,7 @@ class MessageComposerAgent(BaseAgent):
                         "personalization_level"
                     ],
                     "context_tokens": len(str(composition_context)),
-                    "generated_at": datetime.utcnow().isoformat(),
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
                 },
             }
 
@@ -340,7 +340,7 @@ class MessageComposerAgent(BaseAgent):
                 data={
                     "content": message_content,
                     "type": message_type,
-                    "composed_at": datetime.utcnow().isoformat(),
+                    "composed_at": datetime.now(timezone.utc).isoformat(),
                     "method": "ai_generated",
                 },
             )

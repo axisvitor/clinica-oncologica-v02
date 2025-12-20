@@ -17,7 +17,7 @@ Key patterns:
 import json
 import logging
 from typing import Any, Dict, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from app.core.redis_unified import get_async_redis
@@ -163,7 +163,7 @@ class FollowUpRedisStore:
         """
         try:
             if before is None:
-                before = datetime.utcnow()
+                before = datetime.now(timezone.utc)
 
             redis = await self._get_redis()
             if redis:
@@ -504,7 +504,7 @@ class FollowUpRedisStore:
             else:
                 self._fallback_storage["contexts"][str(context.patient_id)] = {
                     "data": context_data,
-                    "expires_at": datetime.utcnow()
+                    "expires_at": datetime.now(timezone.utc)
                     + timedelta(seconds=CONTEXT_TTL_SECONDS),
                 }
                 return True
@@ -535,7 +535,7 @@ class FollowUpRedisStore:
                 # Fallback with manual TTL check
                 stored = self._fallback_storage["contexts"].get(str(patient_id))
                 if stored:
-                    if datetime.utcnow() < stored["expires_at"]:
+                    if datetime.now(timezone.utc) < stored["expires_at"]:
                         return stored["data"]
                     else:
                         # Expired - remove it
@@ -573,7 +573,7 @@ class FollowUpRedisStore:
                         "pending_actions": pending_count,
                         "active_alerts": active_alerts_count,
                     },
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             else:
                 return {
@@ -596,7 +596,7 @@ class FollowUpRedisStore:
                             ]
                         ),
                     },
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
         except Exception as e:
@@ -604,7 +604,7 @@ class FollowUpRedisStore:
             return {
                 "healthy": False,
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
     async def cleanup_expired(self) -> Dict[str, int]:
@@ -616,7 +616,7 @@ class FollowUpRedisStore:
             Counts of cleaned items
         """
         try:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             cleaned = {"contexts": 0}
 
             # Clean expired contexts from fallback storage

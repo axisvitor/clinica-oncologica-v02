@@ -5,7 +5,7 @@ PERFORMANCE OPTIMIZATION: All methods support eager loading by default to elimin
 Achieves 60-80% query reduction for read operations.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
@@ -162,7 +162,7 @@ class SessionRepository(BaseRepository[Session]):
         Returns:
             List of active sessions with relationships pre-loaded
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         filters = [Session.is_active, Session.expires_at > now]
 
         if user_id:
@@ -232,7 +232,7 @@ class SessionRepository(BaseRepository[Session]):
         Returns:
             List of expired sessions
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         query = self.db.query(Session).filter(
             or_(
                 Session.expires_at <= now,
@@ -262,7 +262,7 @@ class SessionRepository(BaseRepository[Session]):
 
         if session:
             session.is_active = False
-            session.revoked_at = datetime.utcnow()
+            session.revoked_at = datetime.now(timezone.utc)
             if reason:
                 session.revocation_reason = reason
             self.db.commit()
@@ -283,7 +283,7 @@ class SessionRepository(BaseRepository[Session]):
         Returns:
             Number of sessions revoked
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         update_data = {"is_active": False, "revoked_at": now}
 
         if reason:
@@ -311,7 +311,7 @@ class SessionRepository(BaseRepository[Session]):
         session = self.get_by_id(session_id, eager_load=False)
 
         if session:
-            session.last_activity = datetime.utcnow()
+            session.last_activity = datetime.now(timezone.utc)
             self.db.commit()
             self.db.refresh(session)
 

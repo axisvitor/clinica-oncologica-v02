@@ -8,7 +8,7 @@ Provides system performance metrics endpoints:
 Security: Admin role required for all endpoints.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 import sys
 import json
 
@@ -172,7 +172,7 @@ async def get_system_metrics(
                 pass
 
         return SystemMetrics(
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             cpu_percent=cpu_percent,
             cpu_count=cpu_count,
             memory_total_mb=memory_total_mb,

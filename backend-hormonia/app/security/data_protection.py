@@ -6,7 +6,7 @@ Advanced Data Protection and Sanitization Service
 import re
 import logging
 from typing import Dict, List, Any, Union
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from enum import Enum
 import json
@@ -189,7 +189,7 @@ class DataProtectionService:
         """Log access to sensitive data for audit trail."""
         try:
             audit_entry = {
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "user_id": str(user_id),
                 "data_type": data_type.value,
                 "entity_id": str(entity_id),

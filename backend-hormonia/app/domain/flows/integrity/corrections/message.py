@@ -3,7 +3,7 @@ Message corrections.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -49,12 +49,12 @@ class MessageCorrector:
                     "original_sent_at": message.sent_at.isoformat()
                     if message.sent_at
                     else None,
-                    "backup_timestamp": datetime.utcnow().isoformat(),
+                    "backup_timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
             # Add sent_at timestamp if marked as sent but missing
             if message.status == MessageStatus.SENT and not message.sent_at:
-                message.sent_at = message.created_at or datetime.utcnow()
+                message.sent_at = message.created_at or datetime.now(timezone.utc)
 
                 if backup_data:
                     self.backup_manager.store_backup_in_state_data(message, backup_data)
@@ -154,7 +154,7 @@ class MessageCorrector:
             if create_backup:
                 backup_data = {
                     "original_metadata": str(message.message_metadata),
-                    "backup_timestamp": datetime.utcnow().isoformat(),
+                    "backup_timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
             # Reset metadata to empty dict

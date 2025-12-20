@@ -5,7 +5,7 @@ Handles building comprehensive context for message composition.
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any
 from uuid import UUID
 
@@ -54,13 +54,13 @@ class MessageContextBuilder:
 
             # Calculate treatment timeline
             enrollment_date = patient.enrollment_date or patient.created_at
-            days_since_enrollment = (datetime.utcnow() - enrollment_date).days
+            days_since_enrollment = (datetime.now(timezone.utc) - enrollment_date).days
 
             # Get patient emotional state
             emotional_context = await self.analyze_patient_emotional_state(patient.id)  # type: ignore[arg-type]
 
             # Get time-based context
-            current_time = datetime.utcnow()
+            current_time = datetime.now(timezone.utc)
             time_context = {
                 "hour": current_time.hour,
                 "day_of_week": current_time.weekday(),

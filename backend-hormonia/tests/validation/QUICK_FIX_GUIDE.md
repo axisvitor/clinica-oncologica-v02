@@ -1,0 +1,183 @@
+# Quick Fix Guide - Import Validation Issues
+
+## Immediate Actions Required
+
+### 1️⃣ Add Missing Dependencies (5 minutes)
+
+Add to `/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/requirements.txt` after line 166:
+
+```txt
+# Additional dependencies (identified 2025-12-20)
+flask>=3.0.0,<4.0.0  # Used by resilience/health endpoints
+pyyaml>=6.0.1,<7.0.0  # YAML config loading
+jsonschema>=4.20.0,<5.0.0  # JSON schema validation
+websockets>=12.0,<13.0.0  # WebSocket support
+# boto3>=1.28.0,<2.0.0  # Uncomment if using AWS KMS encryption
+```
+
+Then install:
+```bash
+pip install flask pyyaml jsonschema websockets
+```
+
+---
+
+### 2️⃣ Fix Circular Dependencies (Priority Order)
+
+#### Fix #1: Redis Manager (EASIEST - 15 minutes)
+**File:** `/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/app/core/redis_manager/utils.py`
+
+Remove any imports from `manager.py` or `sync_client.py`. Move shared utilities here.
+
+#### Fix #2: Cache Manager (30 minutes)
+**Create:** `/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/app/infrastructure/cache/protocols.py`
+
+```python
+from typing import Protocol, Any, Optional
+
+class CacheProtocol(Protocol):
+    async def get(self, key: str) -> Optional[Any]: ...
+    async def set(self, key: str, value: Any, ttl: int = None) -> None: ...
+    async def delete(self, key: str) -> None: ...
+    async def invalidate(self, pattern: str) -> int: ...
+```
+
+Update both files to import from `protocols.py` and use TYPE_CHECKING:
+
+```python
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .invalidation import CacheInvalidator
+
+# Use string annotations in function signatures
+async def setup_invalidation(self, invalidator: "CacheInvalidator") -> None:
+    ...
+```
+
+#### Fix #3: Quiz Components (30 minutes)
+**Create:** `/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/app/domain/agents/quiz/types.py`
+
+```python
+from dataclasses import dataclass
+from typing import List, Optional
+from datetime import datetime
+
+@dataclass
+class QuizQuestion:
+    question_id: str
+    text: str
+    options: List[str]
+
+@dataclass
+class QuizSession:
+    session_id: str
+    patient_id: str
+    questions: List[QuizQuestion]
+    current_index: int
+    started_at: datetime
+```
+
+Update both `question_presenter.py` and `session_coordinator.py`:
+
+```python
+from .types import QuizSession, QuizQuestion
+# Remove cross-imports between the two files
+```
+
+#### Fix #4: Flow Managers (1 hour)
+Consider consolidating `manager.py` and `core/manager.py` into a single module, or use dependency injection.
+
+#### Fix #5: Agent Base (1 hour)
+**Create:** `/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/app/agents/types.py`
+
+Extract shared agent types and use TYPE_CHECKING blocks.
+
+#### Fix #6: Batch Tasks (30 minutes)
+**Create:** `/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/app/tasks/flows/utils.py`
+
+Move shared utilities here.
+
+---
+
+## Validation Commands
+
+### Run Full Validation
+```bash
+cd /mnt/c/Meu\ Projetos/clinica-oncologica-v02-1/backend-hormonia
+python3 tests/validation/import_validator.py
+```
+
+### Check Specific Circular Dependency
+```bash
+# Check if a file has circular imports
+python3 -m py_compile app/core/redis_manager/utils.py
+python3 -c "import app.core.redis_manager.utils; print('OK')"
+```
+
+### Verify Requirements
+```bash
+pip install -r requirements.txt --dry-run
+```
+
+---
+
+## Testing After Fixes
+
+1. **Run Import Validator**
+   ```bash
+   python3 tests/validation/import_validator.py
+   ```
+   Expected: 0 circular dependencies
+
+2. **Run Unit Tests**
+   ```bash
+   pytest tests/ -v
+   ```
+
+3. **Check Import Resolution**
+   ```bash
+   python3 -c "
+   import app.agents.base
+   import app.infrastructure.cache.cache_manager
+   import app.core.redis_manager.utils
+   print('All imports successful!')
+   "
+   ```
+
+---
+
+## Priority Matrix
+
+| Issue | Priority | Effort | Impact | Files Affected |
+|-------|----------|--------|--------|----------------|
+| Missing deps | 🔴 HIGH | 5 min | High | requirements.txt |
+| Redis circular | 🔴 HIGH | 15 min | High | 3 files |
+| Cache circular | 🟡 MEDIUM | 30 min | Medium | 2 files |
+| Quiz circular | 🟡 MEDIUM | 30 min | Medium | 2 files |
+| Batch tasks | 🟡 MEDIUM | 30 min | Low | 2 files |
+| Flow managers | 🟢 LOW | 1 hour | Medium | 3 files |
+| Agent base | 🟢 LOW | 1 hour | Low | 3 files |
+
+**Total Estimated Time:** 4-5 hours
+
+---
+
+## Success Criteria
+
+✅ All dependencies in requirements.txt
+✅ Zero circular dependency cycles
+✅ All unit tests passing
+✅ No import errors when running app
+
+---
+
+## Support Files
+
+- **Full Report:** `/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/tests/validation/IMPORT_VALIDATION_REPORT.md`
+- **JSON Data:** `/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/tests/validation/import_analysis_report.json`
+- **Validation Script:** `/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/tests/validation/import_validator.py`
+
+---
+
+*Generated by Tester Agent - Hive Mind Swarm*

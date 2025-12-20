@@ -3,7 +3,7 @@ AI Services - Usage Statistics and Cache Stats Endpoints
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -75,7 +75,7 @@ async def get_usage_statistics(
             },
             cache_hit_rate=0.68,
             cost_savings_usd=12.30,
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
         )
 
     except HTTPException:

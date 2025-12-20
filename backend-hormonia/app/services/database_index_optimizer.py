@@ -6,7 +6,7 @@ Analyzes queries and suggests/creates optimal database indexes for analytics per
 import logging
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import text, inspect
 
@@ -298,7 +298,7 @@ class DatabaseIndexOptimizer:
 
             return {
                 "usage_stats": usage_stats,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
@@ -434,7 +434,7 @@ class DatabaseIndexOptimizer:
 
             return {
                 "table_sizes": table_sizes,
-                "analysis_timestamp": datetime.utcnow().isoformat(),
+                "analysis_timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:

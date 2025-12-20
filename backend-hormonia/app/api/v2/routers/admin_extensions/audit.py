@@ -7,7 +7,7 @@ import logging
 import csv
 import io
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -391,7 +391,7 @@ async def export_audit_logs(
                 iter([output.getvalue()]),
                 media_type="text/csv",
                 headers={
-                    "Content-Disposition": f"attachment; filename=audit_logs_export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+                    "Content-Disposition": f"attachment; filename=audit_logs_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
                 },
             )
 
@@ -417,7 +417,7 @@ async def export_audit_logs(
                 content=json.dumps(data, indent=2),
                 media_type="application/json",
                 headers={
-                    "Content-Disposition": f"attachment; filename=audit_logs_export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
+                    "Content-Disposition": f"attachment; filename=audit_logs_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
                 },
             )
 

@@ -13,7 +13,7 @@ from starlette.types import ASGIApp
 import uuid
 import psutil
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.utils.structured_logger import (
     StructuredLogger,
@@ -121,7 +121,7 @@ class MetricsCollector:
         memory_info = process.memory_info()
 
         return {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             "requests": {
                 "total": self.request_count,
                 "avg_duration_ms": round(avg_duration, 2),

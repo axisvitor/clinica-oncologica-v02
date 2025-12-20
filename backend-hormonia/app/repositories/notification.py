@@ -5,7 +5,7 @@ PERFORMANCE OPTIMIZATION: All methods support eager loading by default to elimin
 Achieves 60-80% query reduction for read operations.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
@@ -290,7 +290,7 @@ class NotificationRepository(BaseRepository[Notification]):
 
         if notification:
             notification.is_read = True
-            notification.read_at = datetime.utcnow()
+            notification.read_at = datetime.now(timezone.utc)
             self.db.commit()
             self.db.refresh(notification)
 
@@ -306,7 +306,7 @@ class NotificationRepository(BaseRepository[Notification]):
         Returns:
             Number of notifications updated
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         count = (
             self.db.query(Notification)
             .filter(and_(Notification.user_id == user_id, not Notification.is_read))
@@ -330,7 +330,7 @@ class NotificationRepository(BaseRepository[Notification]):
 
         if notification:
             notification.is_archived = True
-            notification.archived_at = datetime.utcnow()
+            notification.archived_at = datetime.now(timezone.utc)
             self.db.commit()
             self.db.refresh(notification)
 
@@ -346,7 +346,7 @@ class NotificationRepository(BaseRepository[Notification]):
         Returns:
             List of expired notifications
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         query = self.db.query(Notification).filter(
             and_(Notification.expires_at.isnot(None), Notification.expires_at <= now)
         )

@@ -6,7 +6,7 @@ Provides Prometheus-compatible metrics and system/application metrics.
 
 import logging
 import psutil
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import PlainTextResponse
@@ -161,19 +161,19 @@ async def custom_metrics_endpoint(
 
     messages_24h = (
         db.query(Message)
-        .filter(Message.created_at >= datetime.utcnow() - timedelta(hours=24))
+        .filter(Message.created_at >= datetime.now(timezone.utc) - timedelta(hours=24))
         .count()
     )
 
     quizzes_24h = (
         db.query(QuizSession)
-        .filter(QuizSession.created_at >= datetime.utcnow() - timedelta(hours=24))
+        .filter(QuizSession.created_at >= datetime.now(timezone.utc) - timedelta(hours=24))
         .count()
     )
 
     alerts_24h = (
         db.query(Alert)
-        .filter(Alert.created_at >= datetime.utcnow() - timedelta(hours=24))
+        .filter(Alert.created_at >= datetime.now(timezone.utc) - timedelta(hours=24))
         .count()
     )
 

@@ -6,7 +6,7 @@ import logging
 import hashlib
 import json
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
@@ -124,7 +124,7 @@ def create_fallback_response(
         "fallback_used": True,
         "error_type": error_type,
         "message": message,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -140,7 +140,7 @@ async def track_token_usage(
 
     try:
         # Daily usage key
-        today = datetime.utcnow().date().isoformat()
+        today = datetime.now(timezone.utc).date().isoformat()
         usage_key = f"ai:usage:{today}:{endpoint}:{user_id}"
 
         # Increment counters

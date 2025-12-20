@@ -6,7 +6,7 @@ Implements circuit breaker pattern for AI service resilience.
 import asyncio
 import logging
 from typing import Callable, Any, Optional, Dict, List
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from dataclasses import dataclass, field
 import functools
@@ -112,7 +112,7 @@ class CircuitBreaker:
             if self.stats.consecutive_successes >= self.success_threshold:
                 self.state = CircuitState.CLOSED
                 self.stats.state_changes.append(
-                    (CircuitState.CLOSED, datetime.utcnow())
+                    (CircuitState.CLOSED, datetime.now(timezone.utc))
                 )
                 logger.info(f"Circuit {self.name} closed after recovery")
 
@@ -120,18 +120,18 @@ class CircuitBreaker:
         """Record failed execution (sync version)."""
         self.stats.total_requests += 1
         self.stats.failed_requests += 1
-        self.stats.last_failure_time = datetime.utcnow()
+        self.stats.last_failure_time = datetime.now(timezone.utc)
         self.stats.consecutive_failures += 1
         self.stats.consecutive_successes = 0
 
         if self.state == CircuitState.HALF_OPEN:
             self.state = CircuitState.OPEN
-            self.stats.state_changes.append((CircuitState.OPEN, datetime.utcnow()))
+            self.stats.state_changes.append((CircuitState.OPEN, datetime.now(timezone.utc)))
             logger.warning(f"Circuit {self.name} reopened after test failure")
         elif self.state == CircuitState.CLOSED:
             if self.stats.consecutive_failures >= self.failure_threshold:
                 self.state = CircuitState.OPEN
-                self.stats.state_changes.append((CircuitState.OPEN, datetime.utcnow()))
+                self.stats.state_changes.append((CircuitState.OPEN, datetime.now(timezone.utc)))
                 logger.error(
                     f"Circuit {self.name} opened after {self.failure_threshold} failures"
                 )
@@ -160,7 +160,7 @@ class CircuitBreaker:
                 if self._should_attempt_reset():
                     self.state = CircuitState.HALF_OPEN
                     self.stats.state_changes.append(
-                        (CircuitState.HALF_OPEN, datetime.utcnow())
+                        (CircuitState.HALF_OPEN, datetime.now(timezone.utc))
                     )
                     logger.info(f"Circuit {self.name} half-opened for testing")
                 else:
@@ -197,7 +197,7 @@ class CircuitBreaker:
                 if self.stats.consecutive_successes >= self.success_threshold:
                     self.state = CircuitState.CLOSED
                     self.stats.state_changes.append(
-                        (CircuitState.CLOSED, datetime.utcnow())
+                        (CircuitState.CLOSED, datetime.now(timezone.utc))
                     )
                     logger.info(f"Circuit {self.name} closed after recovery")
 
@@ -206,21 +206,21 @@ class CircuitBreaker:
         async with self._lock:
             self.stats.total_requests += 1
             self.stats.failed_requests += 1
-            self.stats.last_failure_time = datetime.utcnow()
+            self.stats.last_failure_time = datetime.now(timezone.utc)
             self.stats.consecutive_failures += 1
             self.stats.consecutive_successes = 0
 
             if self.state == CircuitState.HALF_OPEN:
                 # Failed during recovery test, reopen
                 self.state = CircuitState.OPEN
-                self.stats.state_changes.append((CircuitState.OPEN, datetime.utcnow()))
+                self.stats.state_changes.append((CircuitState.OPEN, datetime.now(timezone.utc)))
                 logger.warning(f"Circuit {self.name} reopened after test failure")
 
             elif self.state == CircuitState.CLOSED:
                 if self.stats.consecutive_failures >= self.failure_threshold:
                     self.state = CircuitState.OPEN
                     self.stats.state_changes.append(
-                        (CircuitState.OPEN, datetime.utcnow())
+                        (CircuitState.OPEN, datetime.now(timezone.utc))
                     )
                     logger.error(
                         f"Circuit {self.name} opened after {self.failure_threshold} failures"
@@ -231,7 +231,7 @@ class CircuitBreaker:
         if not self.stats.last_failure_time:
             return True
 
-        time_since_failure = datetime.utcnow() - self.stats.last_failure_time
+        time_since_failure = datetime.now(timezone.utc) - self.stats.last_failure_time
         return time_since_failure.total_seconds() >= self.recovery_timeout
 
     async def _execute_fallback(self, fallback: Callable, *args, **kwargs) -> Any:

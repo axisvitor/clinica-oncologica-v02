@@ -6,7 +6,7 @@ Business logic for A/B testing, experiment management, and statistical analysis.
 import json
 import hashlib
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from uuid import UUID, uuid4
 
@@ -337,7 +337,7 @@ class ABTestingService:
             elif hasattr(experiment, field):
                 setattr(experiment, field, value)
 
-        experiment.updated_at = datetime.utcnow()
+        experiment.updated_at = datetime.now(timezone.utc)
         self.db.commit()
         self.db.refresh(experiment)
         await self._invalidate_cache_pattern(
@@ -404,7 +404,7 @@ class ABTestingService:
                 f"{experiment_id}{user_identifier}{assigned_variant}".encode()
             ).hexdigest(),
             assignment_reason="weighted_randomization",
-            assigned_at=datetime.utcnow(),
+            assigned_at=datetime.now(timezone.utc),
         )
         self.db.add(assignment)
 
@@ -422,7 +422,7 @@ class ABTestingService:
             variant_type=VariantType(assigned_variant),
             variant_name=variant_data.get("name", assigned_variant),
             variant_configuration=variant_data.get("configuration", {}),
-            assigned_at=datetime.utcnow(),
+            assigned_at=datetime.now(timezone.utc),
             is_eligible=True,
             assignment_reason="weighted_randomization",
         )
@@ -444,7 +444,7 @@ class ABTestingService:
                 "value": data.value,
                 "metadata": data.metadata,
             },
-            event_timestamp=data.timestamp or datetime.utcnow(),
+            event_timestamp=data.timestamp or datetime.now(timezone.utc),
             processed=False,
             included_in_analysis=True,
         )
@@ -556,7 +556,7 @@ class ABTestingService:
                 winner_conf = 1 - test_result.p_value
 
         start = experiment.start_date or experiment.created_at
-        end = experiment.end_date or datetime.utcnow()
+        end = experiment.end_date or datetime.now(timezone.utc)
 
         result = ExperimentResults(
             experiment_id=experiment_id,
@@ -576,7 +576,7 @@ class ABTestingService:
             ),
             variant_details=variant_performances,
             goals_performance={},
-            analyzed_at=datetime.utcnow(),
+            analyzed_at=datetime.now(timezone.utc),
             recommendations=[],
             confidence_level=float(confidence_level.value) / 100,
             is_conclusive=test_result.is_significant if test_result else False,
@@ -604,12 +604,12 @@ class ABTestingService:
 
         experiment.winner = data.winner_variant.value
         experiment.status = ModelExperimentStatus.COMPLETED
-        experiment.end_date = datetime.utcnow()
+        experiment.end_date = datetime.now(timezone.utc)
 
         config = experiment.statistical_config or {}
         config.update(
             {
-                "winner_declared_at": datetime.utcnow().isoformat(),
+                "winner_declared_at": datetime.now(timezone.utc).isoformat(),
                 "winner_declared_by": str(user_id) if user_id else "system",
                 "winner_confidence": data.confidence,
                 "winner_notes": data.notes,
@@ -624,7 +624,7 @@ class ABTestingService:
             experiment_id=experiment_id,
             winner_variant=data.winner_variant,
             confidence=data.confidence,
-            declared_at=datetime.utcnow(),
+            declared_at=datetime.now(timezone.utc),
             declared_by=user_id or UUID("00000000-0000-0000-0000-000000000000"),
             status_change=ExperimentStatus.COMPLETED,
             rollout_recommendation=f"Rollout {data.winner_variant.value}",

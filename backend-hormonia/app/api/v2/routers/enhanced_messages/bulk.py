@@ -7,7 +7,7 @@ Handles bulk message operations including:
 - Managing batch processing and rate limiting
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 import json
 import logging
@@ -70,7 +70,7 @@ async def send_bulk_messages(
 
         # Create bulk job
         job_id = f"bulk_{uuid4().hex[:12]}"
-        estimated_completion = datetime.utcnow() + timedelta(
+        estimated_completion = datetime.now(timezone.utc) + timedelta(
             seconds=len(valid_patient_ids)
             * bulk_data.delay_between_batches_seconds
             / bulk_data.batch_size
@@ -154,7 +154,7 @@ async def get_bulk_job_status(
                 / max(job_dict.get("total_patients", 1), 1)
             )
             * 100,
-            started_at=datetime.utcnow() - timedelta(minutes=5),
+            started_at=datetime.now(timezone.utc) - timedelta(minutes=5),
             completed_at=None,
             estimated_completion=job_dict.get("estimated_completion"),
             error_message=None,

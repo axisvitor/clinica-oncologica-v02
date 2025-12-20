@@ -5,7 +5,7 @@ Processes connection state and QR code updates.
 
 import logging
 from typing import Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.config.settings.cache import cache_settings
 from app.repositories.connection_state import ConnectionStateRepository
@@ -143,7 +143,7 @@ class ConnectionWebhookHandler:
             qr_data = {
                 "instance": instance,
                 "qrcode": qr_code,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "status": "pending",
             }
 

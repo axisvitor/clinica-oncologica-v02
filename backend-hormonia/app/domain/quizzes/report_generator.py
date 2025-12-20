@@ -7,7 +7,7 @@ and data formatting for analytics.
 """
 
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
@@ -57,10 +57,10 @@ class ReportGenerator:
                 s
                 for s in sessions
                 if s.status != "completed"
-                and datetime.utcnow()
+                and datetime.now(timezone.utc)
                 <= datetime.fromisoformat(
                     (s.session_metadata or {}).get(
-                        "expires_at", datetime.utcnow().isoformat()
+                        "expires_at", datetime.now(timezone.utc).isoformat()
                     )
                 )
             ]
@@ -70,10 +70,10 @@ class ReportGenerator:
                 s
                 for s in sessions
                 if s.status != "completed"
-                and datetime.utcnow()
+                and datetime.now(timezone.utc)
                 > datetime.fromisoformat(
                     (s.session_metadata or {}).get(
-                        "expires_at", datetime.utcnow().isoformat()
+                        "expires_at", datetime.now(timezone.utc).isoformat()
                     )
                 )
             ]
@@ -135,7 +135,7 @@ class ReportGenerator:
         completed = query.filter(QuizSession.status == "completed").count()
 
         # Calculate expired links and average score
-        current_time = datetime.utcnow()
+        current_time = datetime.now(timezone.utc)
         sessions = query.all()
         expired = 0
         active = 0

@@ -56,7 +56,7 @@ class FollowUpScheduler:
         except Exception as e:
             logger.error(f"Error calculating next follow-up: {e}")
             # Default to tomorrow
-            return datetime.utcnow() + timedelta(days=1)
+            return datetime.now(timezone.utc) + timedelta(days=1)
 
     def should_send_follow_up(
         self, last_message_time: Optional[datetime], follow_up_interval_hours: int = 24
@@ -74,7 +74,7 @@ class FollowUpScheduler:
         if not last_message_time:
             return True
 
-        time_since_last = datetime.utcnow() - last_message_time
+        time_since_last = datetime.now(timezone.utc) - last_message_time
         hours_since_last = time_since_last.total_seconds() / 3600
 
         should_send = hours_since_last >= follow_up_interval_hours

@@ -11,7 +11,7 @@ from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 import statistics
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import threading
 import redis.asyncio as redis
 
@@ -43,7 +43,7 @@ class EndpointStats:
     response_times: deque = field(default_factory=lambda: deque(maxlen=1000))
     status_codes: Dict[int, int] = field(default_factory=lambda: defaultdict(int))
     hourly_requests: deque = field(default_factory=lambda: deque(maxlen=24))
-    last_hour_start: datetime = field(default_factory=datetime.utcnow)
+    last_hour_start: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class APMCollector:
@@ -188,7 +188,7 @@ class APMCollector:
         response_times = list(self.global_stats.response_times)
 
         # Calculate throughput (requests per minute)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         minute_ago = now - timedelta(minutes=1)
         recent_requests = sum(
             1
@@ -306,7 +306,7 @@ async def track_request(
             method=method,
             status_code=status_code,
             response_time=response_time,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             user_id=user_id,
             error_type=error_type,
             db_queries=db_queries,
@@ -342,7 +342,7 @@ class APMMiddleware:
             method=request.method,
             status_code=response.status_code,
             response_time=response_time,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             user_id=user_id,
         )
 

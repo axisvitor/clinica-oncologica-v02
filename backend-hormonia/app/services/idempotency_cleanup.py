@@ -6,7 +6,7 @@ Runs periodically to prevent unbounded table growth.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any
 from sqlalchemy import func
 
@@ -38,14 +38,14 @@ class IdempotencyCleanupService:
         Returns:
             Dictionary with cleanup statistics
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         try:
             # Get statistics before cleanup
             total_events = db.query(func.count(WebhookEvent.event_id)).scalar()
             expired_count = (
                 db.query(func.count(WebhookEvent.event_id))
-                .filter(WebhookEvent.expires_at < datetime.utcnow())
+                .filter(WebhookEvent.expires_at < datetime.now(timezone.utc))
                 .scalar()
             )
 
@@ -66,7 +66,7 @@ class IdempotencyCleanupService:
             # Get statistics after cleanup
             remaining_events = db.query(func.count(WebhookEvent.event_id)).scalar()
 
-            execution_time = (datetime.utcnow() - start_time).total_seconds()
+            execution_time = (datetime.now(timezone.utc) - start_time).total_seconds()
 
             result = {
                 "status": "success",
@@ -103,13 +103,13 @@ class IdempotencyCleanupService:
 
             expired_events = (
                 db.query(func.count(WebhookEvent.event_id))
-                .filter(WebhookEvent.expires_at < datetime.utcnow())
+                .filter(WebhookEvent.expires_at < datetime.now(timezone.utc))
                 .scalar()
             )
 
             active_events = (
                 db.query(func.count(WebhookEvent.event_id))
-                .filter(WebhookEvent.expires_at >= datetime.utcnow())
+                .filter(WebhookEvent.expires_at >= datetime.now(timezone.utc))
                 .scalar()
             )
 
@@ -163,7 +163,7 @@ class IdempotencyCleanupService:
                 "provider_breakdown": {
                     provider: count for provider, count in provider_stats
                 },
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:

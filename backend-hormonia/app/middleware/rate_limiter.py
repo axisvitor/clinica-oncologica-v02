@@ -17,7 +17,16 @@ logger = logging.getLogger(__name__)
 class RateLimiter:
     """
     Token bucket rate limiter implementation.
+
+    NOTE: This in-memory rate limiter has a memory leak potential
+    as it stores all unique keys indefinitely. Use DistributedRateLimiter
+    with Redis for production deployments.
     """
+
+    # Maximum number of tracked keys before cleanup
+    MAX_KEYS = 10000
+    # Keys older than this (seconds) are eligible for cleanup
+    KEY_EXPIRY = 3600  # 1 hour
 
     def __init__(self, rate: int = 10, per: int = 60):
         """
@@ -31,6 +40,34 @@ class RateLimiter:
         self.per = per
         self.allowance = defaultdict(lambda: rate)
         self.last_check = defaultdict(time.time)
+        self._last_cleanup = time.time()
+
+    def _cleanup_old_keys(self) -> None:
+        """
+        Remove old keys to prevent memory leak.
+        Called periodically when checking rate limits.
+        """
+        current = time.time()
+        # Only cleanup every 5 minutes or when we have too many keys
+        if current - self._last_cleanup < 300 and len(self.last_check) < self.MAX_KEYS:
+            return
+
+        self._last_cleanup = current
+        expiry_threshold = current - self.KEY_EXPIRY
+
+        # Find keys to remove (older than expiry threshold)
+        keys_to_remove = [
+            key for key, last_time in self.last_check.items()
+            if last_time < expiry_threshold
+        ]
+
+        # Remove old keys
+        for key in keys_to_remove:
+            del self.last_check[key]
+            del self.allowance[key]
+
+        if keys_to_remove:
+            logger.debug(f"Rate limiter cleanup: removed {len(keys_to_remove)} old keys")
 
     def is_allowed(self, key: str) -> Tuple[bool, Optional[int]]:
         """
@@ -42,6 +79,9 @@ class RateLimiter:
         Returns:
             Tuple of (is_allowed, retry_after_seconds)
         """
+        # Periodic cleanup to prevent memory leak
+        self._cleanup_old_keys()
+
         current = time.time()
         time_passed = current - self.last_check[key]
         self.last_check[key] = current
@@ -155,11 +195,42 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         client_ip = request.client.host if request.client else "unknown"
 
         # Check for proxy headers
+        # SECURITY: Only trust X-Forwarded-For if we're behind a trusted proxy
+        # Railway/Heroku/AWS add this header - we trust the first IP in the chain
+        # when running behind known load balancers
         forwarded_for = request.headers.get("X-Forwarded-For")
         if forwarded_for:
-            client_ip = forwarded_for.split(",")[0].strip()
+            # Get the leftmost IP (original client)
+            forwarded_ip = forwarded_for.split(",")[0].strip()
+            # Basic validation: ensure it looks like an IP address
+            if self._is_valid_ip(forwarded_ip):
+                client_ip = forwarded_ip
+            else:
+                logger.warning(f"Invalid X-Forwarded-For IP format: {forwarded_ip}")
 
         return f"ip:{client_ip}"
+
+    def _is_valid_ip(self, ip: str) -> bool:
+        """
+        Basic IP address format validation.
+        Returns True if the string looks like a valid IPv4 or IPv6 address.
+        """
+        import re
+        # IPv4 pattern
+        ipv4_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
+        # IPv6 pattern (simplified)
+        ipv6_pattern = r'^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$'
+
+        if re.match(ipv4_pattern, ip):
+            # Validate each octet is 0-255
+            try:
+                octets = [int(x) for x in ip.split('.')]
+                return all(0 <= o <= 255 for o in octets)
+            except ValueError:
+                return False
+        elif re.match(ipv6_pattern, ip):
+            return True
+        return False
 
     def _get_limiter_for_path(self, path: str) -> RateLimiter:
         """

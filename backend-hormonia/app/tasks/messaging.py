@@ -103,7 +103,7 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
                 "success": True,
                 "message_id": message_id,
                 "patient_id": str(message.patient_id),
-                "sent_at": datetime.utcnow().isoformat(),
+                "sent_at": datetime.now(timezone.utc).isoformat(),
             }
 
     except Exception as exc:
@@ -124,7 +124,7 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
                         {
                             "error": "Max retries exceeded",
                             "last_error": str(exc),
-                            "failed_at": datetime.utcnow().isoformat(),
+                            "failed_at": datetime.now(timezone.utc).isoformat(),
                         },
                     )
             except Exception as mark_error:
@@ -159,7 +159,7 @@ def process_scheduled_messages(self, limit: int = 100) -> dict[str, Any]:
 
             # Get due messages
             due_messages = message_service.get_scheduled_messages(
-                before_time=datetime.utcnow(), limit=limit
+                before_time=datetime.now(timezone.utc), limit=limit
             )
 
             processed_count = 0
@@ -171,7 +171,7 @@ def process_scheduled_messages(self, limit: int = 100) -> dict[str, Any]:
 
             result = self.create_success_result(
                 processed_count=processed_count,
-                processed_at=datetime.utcnow().isoformat(),
+                processed_at=datetime.now(timezone.utc).isoformat(),
             )
 
             self.log_task_success(result, limit=limit)
@@ -242,7 +242,7 @@ def retry_failed_messages(
                                 message_metadata={
                                     **(message.message_metadata or {}),
                                     "retry_trigger": "auto_retry_task",
-                                    "last_retry_at": datetime.utcnow().isoformat(),
+                                    "last_retry_at": datetime.now(timezone.utc).isoformat(),
                                 },
                             ),
                         )
@@ -259,7 +259,7 @@ def retry_failed_messages(
                         )
 
             result = self.create_success_result(
-                retry_count=retry_count, retried_at=datetime.utcnow().isoformat()
+                retry_count=retry_count, retried_at=datetime.now(timezone.utc).isoformat()
             )
 
             self.log_task_success(result, limit=limit, max_retries=max_retries)
@@ -302,7 +302,7 @@ def send_bulk_messages(message_data_list: List[dict[str, Any]]) -> dict[str, Any
                 if scheduled_for:
                     scheduled_for = datetime.fromisoformat(scheduled_for)
                 else:
-                    scheduled_for = datetime.utcnow()
+                    scheduled_for = datetime.now(timezone.utc)
 
                 message = message_service.schedule_message(
                     patient_id=UUID(message_data["patient_id"]),
@@ -324,7 +324,7 @@ def send_bulk_messages(message_data_list: List[dict[str, Any]]) -> dict[str, Any
         scheduled_tasks = []
         for message in created_messages:
             # Schedule the send task
-            eta = message.scheduled_for if message.scheduled_for else datetime.utcnow()
+            eta = message.scheduled_for if message.scheduled_for else datetime.now(timezone.utc)
             task = send_scheduled_message.apply_async(args=[str(message.id)], eta=eta)
             scheduled_tasks.append(
                 {
@@ -341,7 +341,7 @@ def send_bulk_messages(message_data_list: List[dict[str, Any]]) -> dict[str, Any
             "creation_failures": len(failed_creations),
             "scheduled_tasks": scheduled_tasks,
             "failed_creations": failed_creations,
-            "processed_at": datetime.utcnow().isoformat(),
+            "processed_at": datetime.now(timezone.utc).isoformat(),
         }
 
         logger.info(
@@ -374,7 +374,7 @@ def cleanup_old_messages(days_old: int = 90) -> dict[str, Any]:
         db = next(get_db())
 
         # Calculate cutoff date
-        cutoff_date = datetime.utcnow() - timedelta(days=days_old)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
 
         # Query old messages (keep failed messages for longer analysis)
         from app.models.message import Message
@@ -393,7 +393,7 @@ def cleanup_old_messages(days_old: int = 90) -> dict[str, Any]:
             # In production, you might want to move them to an archive table
             metadata = message.message_metadata or {}
             metadata["archived"] = True
-            metadata["archived_at"] = datetime.utcnow().isoformat()
+            metadata["archived_at"] = datetime.now(timezone.utc).isoformat()
 
             message.message_metadata = metadata
             archived_count += 1
@@ -404,7 +404,7 @@ def cleanup_old_messages(days_old: int = 90) -> dict[str, Any]:
             "success": True,
             "archived_count": archived_count,
             "cutoff_date": cutoff_date.isoformat(),
-            "cleaned_at": datetime.utcnow().isoformat(),
+            "cleaned_at": datetime.now(timezone.utc).isoformat(),
         }
 
         logger.info(
@@ -436,7 +436,7 @@ def generate_message_analytics(
         message_service = MessageService(db)
 
         # Calculate date range
-        end_date = datetime.utcnow()
+        end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=days_back)
 
         # Get message statistics
@@ -506,7 +506,7 @@ def generate_message_analytics(
                     "total_messages": sum(statistics.values()),
                 },
             },
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
         logger.info(
@@ -635,7 +635,7 @@ def retry_pending_welcome_messages(
             from app.models.message import Message
 
             # Calculate time window
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             min_created_at = now - timedelta(hours=max_age_hours)
             max_created_at = now - timedelta(minutes=min_age_minutes)
 

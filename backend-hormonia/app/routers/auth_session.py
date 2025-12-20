@@ -34,7 +34,7 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 import logging
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.user import User, UserRole
 from app.services import ServiceProvider
@@ -350,7 +350,7 @@ async def create_session(
         from app.config import settings
 
         ttl = getattr(settings, "FIREBASE_SESSION_TTL", 86400)
-        expires_at = datetime.utcnow() + timedelta(seconds=ttl)
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl)
 
         logger.info(f"✅ Session created: {session_id[:8]}... for {email}")
 

@@ -11,7 +11,7 @@ Features:
 - Interactive report dashboards
 """
 
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional, List, Dict, Any, Literal
 from uuid import UUID
 from enum import Enum
@@ -370,7 +370,7 @@ class ReportShareCreate(BaseModel):
     @classmethod
     def validate_expiration(cls, v):
         """Ensure expiration is in the future."""
-        if v and v <= datetime.utcnow():
+        if v and v <= datetime.now(timezone.utc):
             raise ValueError("expires_at must be in the future")
         return v
 

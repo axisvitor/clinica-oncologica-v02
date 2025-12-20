@@ -5,7 +5,7 @@ Replaces YAML-based QuizTemplateLoader with database-backed service.
 
 import logging
 from typing import Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
@@ -60,7 +60,7 @@ class QuizTemplateService:
         cache_key = f"quiz:{template_name}"
         if cache_key in self._templates_cache:
             cached_template, cached_time = self._templates_cache[cache_key]
-            if datetime.utcnow() - cached_time < self._cache_ttl:
+            if datetime.now(timezone.utc) - cached_time < self._cache_ttl:
                 logger.debug(f"Returning cached quiz template: {template_name}")
                 return cached_template
             else:
@@ -311,7 +311,7 @@ class QuizTemplateService:
 
     def _cache_template(self, cache_key: str, template_data: Dict[str, Any]) -> None:
         """Cache template with TTL management."""
-        self._templates_cache[cache_key] = (template_data, datetime.utcnow())
+        self._templates_cache[cache_key] = (template_data, datetime.now(timezone.utc))
         logger.debug(f"Cached quiz template: {cache_key}")
 
     def refresh_cache(self):
@@ -321,7 +321,7 @@ class QuizTemplateService:
 
     def get_cache_stats(self) -> Dict[str, Any]:
         """Get cache statistics for monitoring."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         expired_count = sum(
             1
             for _, cached_time in self._templates_cache.values()

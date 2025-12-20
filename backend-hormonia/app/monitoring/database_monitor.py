@@ -11,7 +11,7 @@ import logging
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from collections import defaultdict, deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import threading
 import redis.asyncio as redis
 from sqlalchemy import event
@@ -139,7 +139,7 @@ class DatabasePerformanceMonitor:
                 query_hash=query_hash,
                 query_text=statement[:500],  # Truncate for storage
                 execution_time=execution_time,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 table_names=table_names,
                 operation_type=operation_type,
                 rows_affected=rows_affected,
@@ -160,7 +160,7 @@ class DatabasePerformanceMonitor:
                 query_hash=query_hash,
                 query_text=statement[:500],
                 execution_time=0.0,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 table_names=table_names,
                 operation_type=operation_type,
                 error=error,
@@ -348,7 +348,7 @@ class DatabasePerformanceMonitor:
 
     def _calculate_qps(self) -> float:
         """Calculate queries per second over the last minute."""
-        minute_ago = datetime.utcnow() - timedelta(minutes=1)
+        minute_ago = datetime.now(timezone.utc) - timedelta(minutes=1)
 
         recent_queries = 0
         with self._lock:

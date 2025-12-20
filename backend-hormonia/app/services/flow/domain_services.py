@@ -2,7 +2,7 @@
 
 from typing import Protocol, Dict, List, Optional, Any, TYPE_CHECKING
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 if TYPE_CHECKING:
     from app.services.template_loader import MessageTemplate
@@ -81,7 +81,7 @@ class FlowEvent:
         self.flow_type = flow_type
         self.day = day
         self.metadata = metadata or {}
-        self.timestamp = datetime.utcnow()
+        self.timestamp = datetime.now(timezone.utc)
 
 
 # =============================================================================

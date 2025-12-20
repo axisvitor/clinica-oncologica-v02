@@ -5,7 +5,7 @@ Data integrity helpers for Flow Services.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 
 from ..types import FlowContext
@@ -32,7 +32,7 @@ class FlowIntegrityChecker:
 
         ttl = context.metadata.get("max_duration_minutes")
         if ttl and context.started_at:
-            elapsed = (datetime.utcnow() - context.started_at).total_seconds() / 60
+            elapsed = (datetime.now(timezone.utc) - context.started_at).total_seconds() / 60
             if elapsed > ttl:
                 errors.append("Flow exceeded max_duration_minutes")
 

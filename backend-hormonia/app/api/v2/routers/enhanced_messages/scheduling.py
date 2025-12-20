@@ -9,7 +9,7 @@ Handles scheduling of messages including:
 """
 
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 import json
 import logging
@@ -111,8 +111,8 @@ async def schedule_message(
             "status": "pending",
             "occurrences_sent": 0,
             "next_occurrence": schedule_data.scheduled_for,
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
         }
 
         # Store in cache (5 min TTL for scheduled messages)

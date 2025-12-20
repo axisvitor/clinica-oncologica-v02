@@ -8,7 +8,7 @@ import logging
 import time
 from typing import Dict, Any, Optional
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ class RedisMetricsCollector:
         metrics.hits += 1
         metrics.total_requests += 1
         metrics.calculate_hit_rate()
-        metrics.last_updated = datetime.utcnow().isoformat()
+        metrics.last_updated = datetime.now(timezone.utc).isoformat()
 
     def record_miss(self, cache_name: str):
         """
@@ -79,7 +79,7 @@ class RedisMetricsCollector:
         metrics.misses += 1
         metrics.total_requests += 1
         metrics.calculate_hit_rate()
-        metrics.last_updated = datetime.utcnow().isoformat()
+        metrics.last_updated = datetime.now(timezone.utc).isoformat()
 
     def record_error(self, cache_name: str):
         """
@@ -93,7 +93,7 @@ class RedisMetricsCollector:
 
         metrics = self._metrics[cache_name]
         metrics.errors += 1
-        metrics.last_updated = datetime.utcnow().isoformat()
+        metrics.last_updated = datetime.now(timezone.utc).isoformat()
 
     def get_metrics(self, cache_name: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -140,7 +140,7 @@ class RedisMetricsCollector:
                 "cache_count": len(self._metrics),
             },
             "caches": self.get_metrics(),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     def reset_metrics(self, cache_name: Optional[str] = None):

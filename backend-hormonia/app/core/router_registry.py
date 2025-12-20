@@ -6,7 +6,7 @@ V2 VERSIONING SYSTEM:
 - Essential health/monitoring endpoints
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import FastAPI
 from app.config import settings
 from app.utils.logging import get_logger
@@ -69,7 +69,7 @@ def register_routers(app: FastAPI) -> None:
     async def redis_health():
         redis_url = get_redis_url_with_ssl()
         health_data = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             "redis_url": mask_sensitive_url(redis_url),
             "status": "unknown",
         }

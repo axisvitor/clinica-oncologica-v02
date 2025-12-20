@@ -3,7 +3,7 @@ AI Services - Insights Generation Endpoints
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, Query, status
@@ -119,15 +119,15 @@ async def generate_patient_insights(
                 "total_messages": 45,
                 "avg_response_time_hours": 2.5,
             },
-            last_contact=datetime.utcnow() - timedelta(hours=3),
+            last_contact=datetime.now(timezone.utc) - timedelta(hours=3),
             token_usage=token_usage,
             cache_info=CacheInfo(
                 hit=False,
                 key=cache_key,
                 ttl_seconds=CACHE_TTL_INSIGHTS,
-                cached_at=datetime.utcnow(),
+                cached_at=datetime.now(timezone.utc),
             ),
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
         )
 
         # Cache response

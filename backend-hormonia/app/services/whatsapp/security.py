@@ -6,7 +6,7 @@ import hmac
 import hashlib
 import logging
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,7 @@ class WhatsAppSecurity:
             if timestamp_header:
                 try:
                     webhook_time = int(timestamp_header)
-                    current_time = int(datetime.utcnow().timestamp())
+                    current_time = int(datetime.now(timezone.utc).timestamp())
                     time_diff = abs(current_time - webhook_time)
 
                     # Reject webhooks older than 5 minutes

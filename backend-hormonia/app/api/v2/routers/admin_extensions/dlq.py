@@ -4,7 +4,7 @@ Comprehensive admin endpoints for DLQ monitoring and troubleshooting.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -554,7 +554,7 @@ async def purge_old_dlq_items(
         Purge operation results
     """
     try:
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
 
         # Query old items (only safe statuses)
         safe_statuses = ["resolved", "discarded", "max_retries_exceeded"]

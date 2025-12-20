@@ -21,7 +21,7 @@ import logging
 import hashlib
 import uuid
 from typing import Optional, Dict, Any, Callable
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 
 from redis import Redis
@@ -178,7 +178,7 @@ class WhatsAppService:
             # Update message status
             message.status = MessageStatus.SENT
             message.whatsapp_id = result.get("key", {}).get("id")
-            message.sent_at = datetime.utcnow()
+            message.sent_at = datetime.now(timezone.utc)
 
             self.db.commit()
             self.db.refresh(message)
@@ -359,7 +359,7 @@ class WhatsAppService:
         policy = self.retry_policies.get("default")
         delay = policy["base_delay"] * (policy["backoff_factor"] ** (retry_count - 1))
 
-        scheduled_for = datetime.utcnow() + timedelta(seconds=delay)
+        scheduled_for = datetime.now(timezone.utc) + timedelta(seconds=delay)
 
         message.status = MessageStatus.PENDING
         message.scheduled_for = scheduled_for

@@ -14,7 +14,7 @@ import logging
 from typing import Any, Dict
 
 from celery import shared_task
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.database import get_db
 from app.utils.async_helpers import run_async
@@ -50,7 +50,7 @@ def process_webhook_dlq(self, batch_size: int = QUIZ_DLQ_BATCH_SIZE) -> Dict[str
     Returns:
         Dictionary with processing statistics
     """
-    start_time = datetime.utcnow()
+    start_time = datetime.now(timezone.utc)
 
     try:
         logger.info(f"Starting DLQ processing (batch_size={batch_size})")
@@ -65,14 +65,14 @@ def process_webhook_dlq(self, batch_size: int = QUIZ_DLQ_BATCH_SIZE) -> Dict[str
             # Process DLQ using run_async for efficient event loop reuse
             processed_count = run_async(dlq_service.process_dlq(batch_size=batch_size))
 
-            execution_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+            execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
             result = {
                 "success": True,
                 "processed_count": processed_count,
                 "batch_size": batch_size,
                 "execution_time_ms": int(execution_time),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             logger.info(
@@ -85,7 +85,7 @@ def process_webhook_dlq(self, batch_size: int = QUIZ_DLQ_BATCH_SIZE) -> Dict[str
             db.close()
 
     except Exception as e:
-        execution_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+        execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
         logger.error(f"DLQ processing failed: {e}", exc_info=True)
 
@@ -95,7 +95,7 @@ def process_webhook_dlq(self, batch_size: int = QUIZ_DLQ_BATCH_SIZE) -> Dict[str
             "error": str(e),
             "error_type": type(e).__name__,
             "execution_time_ms": int(execution_time),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
 
@@ -120,7 +120,7 @@ def cleanup_old_dlq_events(self, days_old: int = 7) -> Dict[str, Any]:
     Returns:
         Dictionary with cleanup statistics
     """
-    start_time = datetime.utcnow()
+    start_time = datetime.now(timezone.utc)
 
     try:
         logger.info(f"Starting DLQ cleanup (days_old={days_old})")
@@ -144,7 +144,7 @@ def cleanup_old_dlq_events(self, days_old: int = 7) -> Dict[str, Any]:
                 dlq_keys = await redis_client.keys(pattern)
 
                 cleaned = 0
-                cutoff = datetime.utcnow() - timedelta(days=days_old)
+                cutoff = datetime.now(timezone.utc) - timedelta(days=days_old)
 
                 for dlq_key in dlq_keys:
                     # Get all events in queue
@@ -172,7 +172,7 @@ def cleanup_old_dlq_events(self, days_old: int = 7) -> Dict[str, Any]:
 
             cleaned_count, cutoff_date = run_async(_run_cleanup())
 
-            execution_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+            execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
             result = {
                 "success": True,
@@ -180,7 +180,7 @@ def cleanup_old_dlq_events(self, days_old: int = 7) -> Dict[str, Any]:
                 "days_old": days_old,
                 "cutoff_date": cutoff_date.isoformat(),
                 "execution_time_ms": int(execution_time),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             logger.info(
@@ -193,7 +193,7 @@ def cleanup_old_dlq_events(self, days_old: int = 7) -> Dict[str, Any]:
             db.close()
 
     except Exception as e:
-        execution_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+        execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
         logger.error(f"DLQ cleanup failed: {e}", exc_info=True)
 
@@ -202,7 +202,7 @@ def cleanup_old_dlq_events(self, days_old: int = 7) -> Dict[str, Any]:
             "error": str(e),
             "error_type": type(e).__name__,
             "execution_time_ms": int(execution_time),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
 
@@ -225,7 +225,7 @@ def monitor_dlq_health(self) -> Dict[str, Any]:
     Returns:
         Dictionary with health metrics
     """
-    start_time = datetime.utcnow()
+    start_time = datetime.now(timezone.utc)
 
     try:
         logger.info("Starting DLQ health monitoring")
@@ -274,7 +274,7 @@ def monitor_dlq_health(self) -> Dict[str, Any]:
                             }
                         )
 
-            execution_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+            execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
             result = {
                 "success": True,
@@ -282,7 +282,7 @@ def monitor_dlq_health(self) -> Dict[str, Any]:
                 "alerts": alerts,
                 "alert_count": len(alerts),
                 "execution_time_ms": int(execution_time),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             # Log alerts
@@ -300,7 +300,7 @@ def monitor_dlq_health(self) -> Dict[str, Any]:
             db.close()
 
     except Exception as e:
-        execution_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+        execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
         logger.error(f"DLQ health monitoring failed: {e}", exc_info=True)
 
@@ -309,7 +309,7 @@ def monitor_dlq_health(self) -> Dict[str, Any]:
             "error": str(e),
             "error_type": type(e).__name__,
             "execution_time_ms": int(execution_time),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
 

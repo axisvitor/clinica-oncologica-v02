@@ -6,7 +6,7 @@ Main service for generating comprehensive medical reports from quiz analysis.
 import logging
 from typing import Any
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.report import Report, ReportType, ReportStatus
 from app.repositories.report import ReportRepository
@@ -74,7 +74,7 @@ class QuizReportGenerator:
                 content=report_content,
                 pdf_data=pdf_data,
                 status=ReportStatus.COMPLETED,
-                generated_at=datetime.utcnow(),
+                generated_at=datetime.now(timezone.utc),
                 metadata={
                     "quiz_session_id": str(session_id),
                     "analysis_timestamp": analysis_result.analysis_timestamp.isoformat(),

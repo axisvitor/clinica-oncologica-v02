@@ -5,7 +5,7 @@ Enhanced repository with cursor-based pagination support.
 
 from typing import Any, Dict, Generic, List, Optional, Tuple, Type, TypeVar
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from sqlalchemy.orm import Session

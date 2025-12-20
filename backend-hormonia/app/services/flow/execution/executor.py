@@ -9,7 +9,7 @@ state machine together.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Callable, Awaitable, Optional
 import logging
 
@@ -84,7 +84,7 @@ class FlowStepExecutor:
             step_name=step_definition.get("name", step_id),
             status=FlowStepStatus.IN_PROGRESS,
             input_data=step_definition.get("input_data", {}),
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
             metadata=step_definition.get("metadata", {}),
         )
 
@@ -94,7 +94,7 @@ class FlowStepExecutor:
             output = await handler(context, step_definition)
             step_data.status = FlowStepStatus.COMPLETED
             step_data.output_data = output
-            step_data.completed_at = datetime.utcnow()
+            step_data.completed_at = datetime.now(timezone.utc)
 
             context.steps_completed.append(step_id)
             context.steps_history.append(step_data)
@@ -106,7 +106,7 @@ class FlowStepExecutor:
         except Exception as exc:
             step_data.status = FlowStepStatus.FAILED
             step_data.error = str(exc)
-            step_data.completed_at = datetime.utcnow()
+            step_data.completed_at = datetime.now(timezone.utc)
             context.steps_history.append(step_data)
             logger.exception("Step %s failed: %s", step_id, exc)
             raise
@@ -124,7 +124,7 @@ class FlowStepExecutor:
         return {
             "message_sent": True,
             "message_content": message_content,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "flow_data_updates": {},
             "variables_updates": {"last_message_sent": message_content},
         }
@@ -192,7 +192,7 @@ class FlowStepExecutor:
         wait_until = self.scheduler.compute_wait_until(context, step_def)
         if not wait_until:
             duration_seconds = step_def.get("duration_seconds", 0)
-            wait_until = datetime.utcnow() + timedelta(seconds=duration_seconds)
+            wait_until = datetime.now(timezone.utc) + timedelta(seconds=duration_seconds)
 
         return {
             "wait_started": True,
@@ -254,7 +254,7 @@ class FlowStepExecutor:
             "flow_ended": True,
             "end_reason": end_reason,
             "final_message": final_message,
-            "flow_data_updates": {"ended_at": datetime.utcnow().isoformat()},
+            "flow_data_updates": {"ended_at": datetime.now(timezone.utc).isoformat()},
             "variables_updates": {},
         }
 

@@ -6,7 +6,7 @@ Manages data consistency between database, cache, and real-time updates
 import asyncio
 import json
 from typing import Dict, List, Optional, Any, Callable
-from datetime import datetime
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -50,7 +50,7 @@ class SyncEvent:
     operation: SyncOperation
     data: Dict[str, Any]
     user_id: Optional[str] = None
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     correlation_id: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -89,18 +89,18 @@ class CacheEntry:
     key: str
     value: Any
     ttl: int  # seconds
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     access_count: int = 0
-    last_accessed: datetime = field(default_factory=datetime.utcnow)
+    last_accessed: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def is_expired(self) -> bool:
         """Check if cache entry is expired"""
-        return (datetime.utcnow() - self.created_at).total_seconds() > self.ttl
+        return (datetime.now(timezone.utc) - self.created_at).total_seconds() > self.ttl
 
     def update_access(self):
         """Update access statistics"""
         self.access_count += 1
-        self.last_accessed = datetime.utcnow()
+        self.last_accessed = datetime.now(timezone.utc)
 
 
 class DataSyncCoordinator:
@@ -164,7 +164,7 @@ class DataSyncCoordinator:
         """Queue data synchronization event"""
         try:
             # Generate sync ID
-            sync_id = f"{sync_event.entity_type}_{sync_event.entity_id}_{int(datetime.utcnow().timestamp() * 1000)}"
+            sync_id = f"{sync_event.entity_type}_{sync_event.entity_id}_{int(datetime.now(timezone.utc).timestamp() * 1000)}"
 
             # Mark as pending
             self.active_syncs[sync_id] = SyncStatus.PENDING
@@ -447,9 +447,9 @@ class DataSyncCoordinator:
         self, sync_id: str, timeout: int = 30
     ) -> SyncStatus:
         """Wait for sync completion with timeout"""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
-        while (datetime.utcnow() - start_time).total_seconds() < timeout:
+        while (datetime.now(timezone.utc) - start_time).total_seconds() < timeout:
             status = self.active_syncs.get(sync_id, SyncStatus.PENDING)
 
             if status in [
@@ -540,14 +540,14 @@ class DataSyncCoordinator:
             logger.debug(
                 f"Processing patient sync: {sync_event.operation} for {sync_event.entity_id}"
             )
-            return {"status": "processed", "timestamp": datetime.utcnow().isoformat()}
+            return {"status": "processed", "timestamp": datetime.now(timezone.utc).isoformat()}
 
         async def default_message_handler(sync_event: SyncEvent) -> Dict[str, Any]:
             """Default message sync handler"""
             logger.debug(
                 f"Processing message sync: {sync_event.operation} for {sync_event.entity_id}"
             )
-            return {"status": "processed", "timestamp": datetime.utcnow().isoformat()}
+            return {"status": "processed", "timestamp": datetime.now(timezone.utc).isoformat()}
 
         self.register_sync_handler("patient", default_patient_handler)
         self.register_sync_handler("message", default_message_handler)

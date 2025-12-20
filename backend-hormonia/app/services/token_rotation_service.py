@@ -5,7 +5,7 @@ Implements token rotation, blacklisting, and session management
 
 import logging
 from typing import Optional, Dict, Any, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 import json
 from jose import jwt, JWTError
@@ -58,14 +58,14 @@ class TokenRotationService:
             JWT access token
         """
         to_encode = data.copy()
-        expire = datetime.utcnow() + self.access_token_expire
+        expire = datetime.now(timezone.utc) + self.access_token_expire
 
         # Add token metadata
         token_id = str(uuid4())
         to_encode.update(
             {
                 "exp": expire,
-                "iat": datetime.utcnow(),
+                "iat": datetime.now(timezone.utc),
                 "jti": token_id,  # JWT ID for tracking
                 "type": "access",
                 "rotation_count": 0,
@@ -91,13 +91,13 @@ class TokenRotationService:
         Returns:
             JWT refresh token
         """
-        expire = datetime.utcnow() + self.refresh_token_expire
+        expire = datetime.now(timezone.utc) + self.refresh_token_expire
         token_id = str(uuid4())
 
         to_encode = {
             "sub": user_id,
             "exp": expire,
-            "iat": datetime.utcnow(),
+            "iat": datetime.now(timezone.utc),
             "jti": token_id,
             "type": "refresh",
         }
@@ -336,13 +336,13 @@ class TokenRotationService:
             value = {
                 "jti": token_id,
                 "type": token_type,
-                "iat": datetime.utcnow().isoformat(),
+                "iat": datetime.now(timezone.utc).isoformat(),
                 "exp": expire.isoformat(),
                 "user_id": user_id,
             }
 
             # Calculate TTL
-            ttl = int((expire - datetime.utcnow()).total_seconds())
+            ttl = int((expire - datetime.now(timezone.utc)).total_seconds())
 
             # Store in Redis with TTL
             redis_client.setex(key, ttl, json.dumps(value))
@@ -367,7 +367,7 @@ class TokenRotationService:
             else:
                 expire_dt = expire
 
-            ttl = int((expire_dt - datetime.utcnow()).total_seconds())
+            ttl = int((expire_dt - datetime.now(timezone.utc)).total_seconds())
 
             if ttl > 0:
                 redis_client.setex(key, ttl, "1")
@@ -412,7 +412,7 @@ class TokenRotationService:
         exp = payload.get("exp")
 
         if iat and exp:
-            now = datetime.utcnow().timestamp()
+            now = datetime.now(timezone.utc).timestamp()
             token_lifetime = exp - iat
             token_age = now - iat
 

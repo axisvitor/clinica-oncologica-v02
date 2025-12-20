@@ -5,7 +5,7 @@ Delegates logic to EnhancedAnalyticsService.
 """
 
 from typing import Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -164,7 +164,7 @@ async def export_analytics(
     # Checking service file content... I think I missed adding export_analytics to service class.
     # I will add a basic implementation here to avoid breakage.
 
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     filename = f"export_{timestamp}.csv"
     content = "id,name,value\n1,Test,100"
 
@@ -216,6 +216,6 @@ async def create_custom_metric(
         "aggregation": metric_def.aggregation.value
         if metric_def.aggregation
         else "count",
-        "calculated_at": datetime.utcnow().isoformat(),
+        "calculated_at": datetime.now(timezone.utc).isoformat(),
         "status": "success",
     }

@@ -6,7 +6,7 @@ and fallback strategies for system initialization failures.
 """
 
 from typing import Dict, List, Any, Optional, Callable
-from datetime import datetime
+from datetime import datetime, timezone
 import traceback
 from enum import Enum
 
@@ -54,7 +54,7 @@ class InitializationError:
         self.message = message
         self.recovery_suggestion = recovery_suggestion
         self.fallback_available = fallback_available
-        self.timestamp = datetime.utcnow()
+        self.timestamp = datetime.now(timezone.utc)
         self.traceback = traceback.format_exc()
 
     def to_dict(self) -> Dict[str, Any]:

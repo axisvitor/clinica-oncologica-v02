@@ -9,7 +9,7 @@ Sprint 2 - Week 1, Task 3: Automatic Alert Evaluation
 
 from typing import Dict, Any, List, Tuple
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from sqlalchemy.orm import Session
@@ -224,7 +224,7 @@ class QuizResponseEvaluator:
                     "relevant_responses": self._extract_relevant_responses(
                         responses, rule
                     ),
-                    "evaluated_at": datetime.utcnow().isoformat(),
+                    "evaluated_at": datetime.now(timezone.utc).isoformat(),
                 },
             )
 
@@ -352,7 +352,7 @@ class QuizResponseEvaluator:
                 "message": alert.description,
                 "rule_id": rule.rule_id,
                 "recommendation": rule.recommendation,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "requires_action": alert.severity
                 in (ModelAlertSeverity.CRITICAL, ModelAlertSeverity.HIGH),
             }
@@ -447,7 +447,7 @@ Recomendação:
 Este alerta foi gerado automaticamente pelo sistema de avaliação de respostas.
 Por favor, revise o caso e tome as medidas apropriadas.
 
-Data/Hora: {datetime.utcnow().strftime("%d/%m/%Y %H:%M UTC")}
+Data/Hora: {datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M UTC")}
 ID do Alerta: {alert.id}
             """
 

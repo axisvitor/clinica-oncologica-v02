@@ -5,7 +5,7 @@ PERFORMANCE OPTIMIZATION: All methods support eager loading by default to elimin
 Achieves 60-80% query reduction for read operations.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import UUID
 
@@ -172,7 +172,7 @@ class AppointmentRepository(BaseRepository[Appointment]):
         Returns:
             List of upcoming appointments with relationships pre-loaded
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         filters = [
             Appointment.scheduled_start >= now,
             Appointment.status.in_(
@@ -291,7 +291,7 @@ class AppointmentRepository(BaseRepository[Appointment]):
         Returns:
             List of appointments needing reminders with relationships pre-loaded
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         query = self.db.query(Appointment).filter(
             and_(
                 Appointment.scheduled_start >= now,

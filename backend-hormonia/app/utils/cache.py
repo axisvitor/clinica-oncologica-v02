@@ -7,7 +7,7 @@ import json
 import logging
 import functools
 from typing import Any, Callable, Optional, Union, Dict
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 from uuid import UUID
 from decimal import Decimal
 import hashlib
@@ -564,16 +564,16 @@ def test_redis_connectivity() -> Dict[str, Any]:
     test_results = {
         "status": "unknown",
         "tests": {},
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
     try:
         redis_client = get_redis_client()
 
         # Test 1: Basic ping
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         ping_result = redis_client.ping()
-        ping_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+        ping_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
         test_results["tests"]["ping"] = {
             "status": "success" if ping_result else "failed",
@@ -584,10 +584,10 @@ def test_redis_connectivity() -> Dict[str, Any]:
         test_key = "connectivity_test"
         test_value = "test_value_123"
 
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         redis_client.set(test_key, test_value, ex=60)  # 60 second expiry
         retrieved_value = redis_client.get(test_key)
-        operation_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+        operation_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
         test_results["tests"]["set_get"] = {
             "status": "success" if retrieved_value.decode() == test_value else "failed",

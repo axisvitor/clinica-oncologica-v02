@@ -3,7 +3,7 @@ Messages API v2 - Statistics and Analytics
 Handles statistics and analytics: get message statistics, get delivery stats.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -134,7 +134,7 @@ async def get_statistics(
     cache_key = f"message_stats:overall:{user_id}:{days}"
 
     def compute_stats():
-        start_date = datetime.utcnow() - timedelta(days=days)
+        start_date = datetime.now(timezone.utc) - timedelta(days=days)
 
         query = db.query(Message).filter(Message.created_at >= start_date)
 
@@ -165,7 +165,7 @@ async def get_statistics(
 
         return {
             "period_start": start_date.isoformat(),
-            "period_end": datetime.utcnow().isoformat(),
+            "period_end": datetime.now(timezone.utc).isoformat(),
             "total_messages": total_messages,
             "status_counts": status_counts,
             "success_rate": round(success_rate, 2),

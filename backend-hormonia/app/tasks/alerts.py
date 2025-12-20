@@ -11,7 +11,7 @@ Tasks for:
 import logging
 from typing import Dict, Any
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 from app.celery_app import celery_app
@@ -48,7 +48,7 @@ def check_patient_alerts(self) -> Dict[str, Any]:
         - alerts_triggered: Number of alerts triggered
         - execution_time: Task execution time
     """
-    start_time = datetime.utcnow()
+    start_time = datetime.now(timezone.utc)
     alerts_checked = 0
     alerts_triggered = 0
 
@@ -78,7 +78,7 @@ def check_patient_alerts(self) -> Dict[str, Any]:
                     )
                     continue
 
-            execution_time = (datetime.utcnow() - start_time).total_seconds()
+            execution_time = (datetime.now(timezone.utc) - start_time).total_seconds()
 
             logger.info(
                 f"Alert check completed: checked={alerts_checked}, "
@@ -178,7 +178,7 @@ def process_alert_notification(self, alert_data: Dict[str, Any]) -> Dict[str, An
                     "message": message,
                     "metadata": alert_data,
                     "status": "pending",
-                    "created_at": datetime.utcnow(),
+                    "created_at": datetime.now(timezone.utc),
                 }
             )
 
@@ -193,7 +193,7 @@ def process_alert_notification(self, alert_data: Dict[str, Any]) -> Dict[str, An
                 "alert_type": alert_type,
                 "priority": priority,
                 "message": message,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             # Send to doctor's dashboard if doctor_id exists
@@ -266,7 +266,7 @@ def process_alert_escalation(
                 UUID(alert_id),
                 {
                     "severity": escalation_level,
-                    "escalated_at": datetime.utcnow(),
+                    "escalated_at": datetime.now(timezone.utc),
                     "status": "escalated",
                 },
             )
@@ -280,7 +280,7 @@ def process_alert_escalation(
                 data={
                     "alert_id": alert_id,
                     "escalation_level": escalation_level,
-                    "escalated_at": datetime.utcnow().isoformat(),
+                    "escalated_at": datetime.now(timezone.utc).isoformat(),
                 },
                 target_role="admin",
             )
@@ -319,7 +319,7 @@ def periodic_escalation_check(self) -> Dict[str, Any]:
 
             # Find pending alerts older than threshold
             threshold_minutes = 30
-            threshold_time = datetime.utcnow() - timedelta(minutes=threshold_minutes)
+            threshold_time = datetime.now(timezone.utc) - timedelta(minutes=threshold_minutes)
 
             pending_alerts = alert_repo.get_pending_alerts_before(threshold_time)
 
@@ -368,7 +368,7 @@ def cleanup_resolved_alerts(self, days_old: int = 30) -> Dict[str, Any]:
 
             alert_repo = AlertRepository(db)
 
-            cutoff_date = datetime.utcnow() - timedelta(days=days_old)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
             cleaned_count = alert_repo.archive_resolved_before(cutoff_date)
 
             logger.info(
@@ -408,7 +408,7 @@ def generate_alert_metrics(self, time_range_hours: int = 24) -> Dict[str, Any]:
 
             alert_repo = AlertRepository(db)
 
-            since = datetime.utcnow() - timedelta(hours=time_range_hours)
+            since = datetime.now(timezone.utc) - timedelta(hours=time_range_hours)
 
             metrics = {
                 "total_alerts": alert_repo.count_since(since),
@@ -419,7 +419,7 @@ def generate_alert_metrics(self, time_range_hours: int = 24) -> Dict[str, Any]:
                 "alerts_by_type": alert_repo.count_by_type_since(since),
                 "alerts_by_severity": alert_repo.count_by_severity_since(since),
                 "time_range_hours": time_range_hours,
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
             }
 
             logger.info(
@@ -484,14 +484,14 @@ def _build_patient_context(db, patient_id: UUID) -> Dict[str, Any]:
                 }
                 for q in (recent_quizzes or [])
             ],
-            "evaluation_time": datetime.utcnow().isoformat(),
+            "evaluation_time": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as e:
         logger.warning(f"Failed to build patient context: {e}")
         return {
             "patient_id": str(patient_id),
-            "evaluation_time": datetime.utcnow().isoformat(),
+            "evaluation_time": datetime.now(timezone.utc).isoformat(),
             "error": str(e),
         }
 

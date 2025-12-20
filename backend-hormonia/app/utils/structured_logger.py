@@ -10,7 +10,7 @@ import json
 import uuid
 import traceback
 from contextvars import ContextVar
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from functools import wraps
 import time
@@ -54,7 +54,7 @@ class StructuredLogger:
             JSON-formatted log string
         """
         log_data: Dict[str, Any] = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
             "level": level,
             "logger": self.name,
             "message": message,

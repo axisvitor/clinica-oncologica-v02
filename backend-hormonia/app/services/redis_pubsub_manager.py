@@ -38,7 +38,7 @@ import asyncio
 import json
 import logging
 from typing import Dict, Any, Callable, Optional, Set
-from datetime import datetime
+from datetime import datetime, timezone
 import redis.asyncio as redis
 from app.services.websocket import UnifiedWebSocketConnectionManager
 
@@ -333,7 +333,7 @@ class RedisPubSubManager:
         """
         message = {
             "instance_id": self.instance_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "payload": payload,
         }
 
@@ -351,7 +351,7 @@ class RedisPubSubManager:
         """
         message = {
             "instance_id": self.instance_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "payload": payload,
         }
 
@@ -370,7 +370,7 @@ class RedisPubSubManager:
         """
         message = {
             "instance_id": self.instance_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "payload": payload,
         }
 
@@ -385,7 +385,7 @@ class RedisPubSubManager:
         """
         message = {
             "instance_id": self.instance_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "connections": len(self.connection_manager.connections),
         }
 

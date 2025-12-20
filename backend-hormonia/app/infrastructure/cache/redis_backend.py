@@ -7,7 +7,7 @@ This module handles all Redis operations, serialization, and local cache fallbac
 import json
 import pickle
 from typing import Any, Optional, Union, Dict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 from enum import Enum
@@ -139,7 +139,7 @@ class RedisBackend:
             return None
 
         cache_entry = self._local_cache[cache_key]
-        if datetime.utcnow() < cache_entry["expires_at"]:
+        if datetime.now(timezone.utc) < cache_entry["expires_at"]:
             return cache_entry["data"]
         else:
             # Expired, remove from local cache
@@ -153,7 +153,7 @@ class RedisBackend:
 
         self._local_cache[cache_key] = {
             "data": value,
-            "expires_at": datetime.utcnow() + timedelta(seconds=ttl),
+            "expires_at": datetime.now(timezone.utc) + timedelta(seconds=ttl),
         }
 
     def remove_from_local_cache(self, cache_key: str):

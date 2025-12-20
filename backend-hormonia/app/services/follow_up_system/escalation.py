@@ -5,7 +5,7 @@ Handles creation and management of escalation alerts for healthcare providers.
 
 import logging
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 from .enums import EscalationLevel, NotificationChannel, FollowUpType
@@ -89,7 +89,7 @@ class EscalationManager:
                 priority="critical"
                 if escalation_level == EscalationLevel.EMERGENCY
                 else "high",
-                scheduled_for=datetime.utcnow(),  # Immediate
+                scheduled_for=datetime.now(timezone.utc),  # Immediate
                 parameters={
                     "alert_id": str(alert.alert_id),
                     "escalation_level": escalation_level.value,

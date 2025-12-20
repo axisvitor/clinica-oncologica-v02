@@ -3,7 +3,7 @@
 import secrets
 import hashlib
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional
 from uuid import UUID
 
@@ -42,7 +42,7 @@ class TokenManager:
             "patient_id": str(patient_id),
             "quiz_template_id": str(quiz_template_id),
             "exp": int(expires_at.timestamp()),
-            "iat": int(datetime.utcnow().timestamp()),
+            "iat": int(datetime.now(timezone.utc).timestamp()),
             "rotation": rotation_count,
             "jti": secrets.token_urlsafe(16),  # Unique token ID
         }
@@ -99,4 +99,4 @@ class TokenManager:
             Expiration datetime
         """
         expiry_hours = hours or self.config.MONTHLY_QUIZ_TOKEN_EXPIRY_HOURS
-        return datetime.utcnow() + timedelta(hours=expiry_hours)
+        return datetime.now(timezone.utc) + timedelta(hours=expiry_hours)

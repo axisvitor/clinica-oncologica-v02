@@ -3,7 +3,7 @@ AI Services - Analysis Endpoints (sentiment, risk, quality)
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, status
 
@@ -94,7 +94,7 @@ async def analyze_sentiment(
             if has_concerns
             else "Continue monitoring",
             token_usage=token_usage,
-            analyzed_at=datetime.utcnow(),
+            analyzed_at=datetime.now(timezone.utc),
         )
 
         # Track usage
@@ -161,7 +161,7 @@ async def analyze_risk(
             trend="stable",
             confidence=0.82,
             token_usage=token_usage,
-            analyzed_at=datetime.utcnow(),
+            analyzed_at=datetime.now(timezone.utc),
         )
 
         # Track usage
@@ -232,7 +232,7 @@ async def analyze_response_quality(
                 "Clear message",
             ],
             token_usage=token_usage,
-            analyzed_at=datetime.utcnow(),
+            analyzed_at=datetime.now(timezone.utc),
         )
 
         # Track usage

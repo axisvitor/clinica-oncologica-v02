@@ -63,7 +63,8 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 "user_agent": user_agent,
                 "content_type": request.headers.get("Content-Type"),
                 "content_length": request.headers.get("Content-Length"),
-                "request_body": request_data.get("body")
+                # SECURITY: Filter sensitive fields from request body
+                "request_body": self._filter_sensitive_body(request_data.get("body"))
                 if self.log_request_body
                 else None,
             },
@@ -92,7 +93,8 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                     "process_time_ms": round(process_time * 1000, 2),
                     "response_headers": self._filter_headers(dict(response.headers)),
                     "response_size": response.headers.get("Content-Length"),
-                    "response_body": response_data.get("body")
+                    # SECURITY: Filter sensitive fields from response body
+                    "response_body": self._filter_sensitive_body(response_data.get("body"))
                     if self.log_response_body
                     else None,
                 },
@@ -166,6 +168,30 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
         return request.client.host if request.client else "unknown"
 
+    # SECURITY: Sensitive field names that should never be logged
+    _SENSITIVE_FIELDS = {
+        "password",
+        "senha",
+        "token",
+        "access_token",
+        "refresh_token",
+        "id_token",
+        "api_key",
+        "apikey",
+        "secret",
+        "private_key",
+        "credit_card",
+        "card_number",
+        "cvv",
+        "ssn",
+        "cpf",
+        "rg",
+        "auth",
+        "authorization",
+        "session_id",
+        "session_token",
+    }
+
     def _filter_headers(self, headers: Dict[str, str]) -> Dict[str, str]:
         """Filter sensitive headers from logging."""
         sensitive_headers = {
@@ -185,6 +211,33 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 filtered[key] = value
 
         return filtered
+
+    def _filter_sensitive_body(self, body: Any) -> Any:
+        """
+        Filter sensitive fields from request/response body before logging.
+
+        SECURITY: Prevents passwords, tokens, and PII from being logged.
+        """
+        if body is None:
+            return None
+
+        if isinstance(body, dict):
+            filtered = {}
+            for key, value in body.items():
+                key_lower = key.lower()
+                # Check if field name contains sensitive keywords
+                if any(sensitive in key_lower for sensitive in self._SENSITIVE_FIELDS):
+                    filtered[key] = "[REDACTED]"
+                elif isinstance(value, (dict, list)):
+                    filtered[key] = self._filter_sensitive_body(value)
+                else:
+                    filtered[key] = value
+            return filtered
+
+        if isinstance(body, list):
+            return [self._filter_sensitive_body(item) for item in body]
+
+        return body
 
     async def _extract_request_data(self, request: Request) -> Dict[str, Any]:
         """Extract request data for logging."""

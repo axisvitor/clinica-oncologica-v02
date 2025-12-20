@@ -5,7 +5,7 @@ Handles report layout, styling, and content generation using ReportLab.
 
 import io
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 
 from reportlab.lib import colors
@@ -41,7 +41,7 @@ class PatientReportData(BaseModel):
     doctor_name: str = Field(..., description="Doctor's name")
     report_period: str = Field(..., description="Report period (e.g., 'Week 1-4')")
     generated_date: datetime = Field(
-        default_factory=datetime.utcnow, description="Report generation date"
+        default_factory=lambda: datetime.now(timezone.utc), description="Report generation date"
     )
 
     # Report sections
@@ -437,7 +437,7 @@ class MedicalReportGenerator:
 
         footer_text = f"""
         This report was generated automatically by the Hormonia Healthcare System.
-        Generated on {datetime.now().strftime("%B %d, %Y at %I:%M %p")}.
+        Generated on {datetime.now(timezone.utc).strftime("%B %d, %Y at %I:%M %p")}.
         For questions about this report, please contact your healthcare provider.
         """
 

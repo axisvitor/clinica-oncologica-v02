@@ -5,7 +5,7 @@ Business logic for advanced analytics, predictive modeling, and custom metrics.
 
 import json
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, Tuple
 from uuid import UUID
 
@@ -79,7 +79,7 @@ class EnhancedAnalyticsService:
         start_date: Optional[datetime],
         end_date: Optional[datetime],
     ) -> Tuple[datetime, datetime]:
-        end = end_date or datetime.utcnow()
+        end = end_date or datetime.now(timezone.utc)
         if time_range == TimeRange.CUSTOM:
             if not start_date:
                 raise HTTPException(
@@ -236,7 +236,7 @@ class EnhancedAnalyticsService:
             },
             "treatment_distribution": treatment_distribution,
             "alerts": {"critical": 0, "warning": 0, "info": 0},
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
         await self._set_cached_result(cache_key, result, REALTIME_CACHE_TTL)
         return result
@@ -360,7 +360,7 @@ class EnhancedAnalyticsService:
                 "next_cursor": next_cursor,
                 "has_more": len(cohort_patients) >= limit,
             },
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
         await self._set_cached_result(cache_key, result, AGGREGATED_CACHE_TTL)
         return result
@@ -518,7 +518,7 @@ class EnhancedAnalyticsService:
             "overall_conversion": round(overall_conversion, 2),
             "total_enrolled": enrolled_count,
             "total_converted": high_engagement,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
         await self._set_cached_result(cache_key, result, AGGREGATED_CACHE_TTL)
         return result
@@ -545,7 +545,7 @@ class EnhancedAnalyticsService:
 
         # Background logic here usually, simplified for synchronous execution
         lookback_days = 90
-        end_date = datetime.utcnow()
+        end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=lookback_days)
         historical_data = []
 
@@ -616,7 +616,7 @@ class EnhancedAnalyticsService:
             "predictions": filtered_predictions,
             "trend_direction": trend,
             "model_accuracy": 0.85,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "notes": "Predictions based on linear regression",
         }
         await self._set_cached_result(cache_key, result, HISTORICAL_CACHE_TTL)
@@ -629,7 +629,7 @@ class EnhancedAnalyticsService:
             func.count(func.distinct(QuizSession.patient_id))
         ).filter(
             QuizSession.status == "started",
-            QuizSession.created_at >= datetime.utcnow() - timedelta(hours=24),
+            QuizSession.created_at >= datetime.now(timezone.utc) - timedelta(hours=24),
         )
         if role != UserRole.ADMIN and user_uuid:
             active_sessions_query = active_sessions_query.join(
@@ -638,7 +638,7 @@ class EnhancedAnalyticsService:
         active_count = active_sessions_query.scalar() or 0
 
         recent_quizzes_query = self.db.query(func.count(QuizSession.id)).filter(
-            QuizSession.created_at >= datetime.utcnow() - timedelta(hours=1)
+            QuizSession.created_at >= datetime.now(timezone.utc) - timedelta(hours=1)
         )
         if role != UserRole.ADMIN and user_uuid:
             recent_quizzes_query = recent_quizzes_query.join(
@@ -647,7 +647,7 @@ class EnhancedAnalyticsService:
         recent_count = recent_quizzes_query.scalar() or 0
 
         return {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "active_sessions": active_count,
             "recent_activity_1h": recent_count,
             "system_health": {
@@ -728,7 +728,7 @@ class EnhancedAnalyticsService:
                 if absolute_change < 0
                 else "stable",
             },
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
         await self._set_cached_result(cache_key, result, AGGREGATED_CACHE_TTL)
         return result

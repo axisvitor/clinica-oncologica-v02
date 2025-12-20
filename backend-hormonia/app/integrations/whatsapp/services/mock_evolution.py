@@ -5,7 +5,7 @@ Implements the same interface as the real Evolution API client.
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from uuid import uuid4
 import random
@@ -113,7 +113,7 @@ class MockEvolutionAPIClient:
             "qr_code": qr_code,
             "webhook_url": webhook_url or self.global_webhook_url,
             "webhook_events": webhook_events or [],
-            "created_at": datetime.utcnow(),
+            "created_at": datetime.now(timezone.utc),
             "phone_number": None,
             "profile_name": None,
         }
@@ -138,7 +138,7 @@ class MockEvolutionAPIClient:
 
         # Simulate connection after some time
         created_at = instance["created_at"]
-        if datetime.utcnow() - created_at > timedelta(seconds=10):
+        if datetime.now(timezone.utc) - created_at > timedelta(seconds=10):
             if not instance["is_connected"]:
                 instance["status"] = "open"
                 instance["is_connected"] = True
@@ -196,7 +196,7 @@ class MockEvolutionAPIClient:
             "text": text,
             "type": "text",
             "status": MessageStatus.SENT,
-            "created_at": datetime.utcnow(),
+            "created_at": datetime.now(timezone.utc),
             "message_data": message_data or {},
         }
 
@@ -210,7 +210,7 @@ class MockEvolutionAPIClient:
             external_id=message_id,
             status=MessageStatus.SENT,
             message="Mock message sent successfully",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             message_data=message_data,
         )
 
@@ -246,7 +246,7 @@ class MockEvolutionAPIClient:
             "filename": filename,
             "type": "media",
             "status": MessageStatus.SENT,
-            "created_at": datetime.utcnow(),
+            "created_at": datetime.now(timezone.utc),
             "message_data": message_data or {},
         }
 
@@ -260,7 +260,7 @@ class MockEvolutionAPIClient:
             external_id=message_id,
             status=MessageStatus.SENT,
             message="Mock media message sent successfully",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             message_data=message_data,
         )
 

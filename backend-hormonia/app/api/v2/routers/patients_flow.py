@@ -16,7 +16,7 @@ Flow States:
 """
 
 from typing import Dict
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
@@ -254,7 +254,7 @@ async def archive_patient(
         patient.patient_data = {}
 
     patient.patient_data["archived"] = True
-    patient.patient_data["archived_at"] = datetime.utcnow().isoformat()
+    patient.patient_data["archived_at"] = datetime.now(timezone.utc).isoformat()
 
     # Get user info for metadata
     role_enum, user_id = _extract_user_context(current_user)
@@ -401,7 +401,7 @@ async def get_patient_stats(
         Patient.flow_state == FlowState.CANCELLED
     ).count()
 
-    start_of_month = datetime.utcnow().replace(
+    start_of_month = datetime.now(timezone.utc).replace(
         day=1, hour=0, minute=0, second=0, microsecond=0
     )
     new_this_month = base_query.filter(Patient.created_at >= start_of_month).count()

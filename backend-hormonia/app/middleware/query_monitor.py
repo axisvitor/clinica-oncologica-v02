@@ -20,7 +20,7 @@ from typing import Any, Dict, Optional
 from contextlib import contextmanager
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
@@ -37,7 +37,7 @@ class QueryEvent:
     statement: str
     parameters: Any
     execution_time_ms: float
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     correlation_id: Optional[str] = None
 
 

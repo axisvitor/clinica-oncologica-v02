@@ -7,7 +7,7 @@ date objects with proper error handling.
 """
 
 import re
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional, Union
 
 
@@ -164,7 +164,7 @@ def set_default_date_range(
     Returns:
         Tuple of (start_date, end_date) with defaults applied
     """
-    today = datetime.utcnow().date()
+    today = datetime.now(timezone.utc).date()
 
     if end_date is None:
         end_date = today

@@ -4,7 +4,7 @@ Supports: pt-BR, pt-PT, en-US, es-ES. Rate limit: 100 req/min.
 """
 
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 import logging
 import re
@@ -644,7 +644,7 @@ async def get_user_language_preference(
             user_id=UUID(user_id),
             language=language_pref,
             is_default=language_pref == DEFAULT_LANGUAGE,
-            updated_at=datetime.utcnow(),
+            updated_at=datetime.now(timezone.utc),
         )
 
         # Cache the result
@@ -705,7 +705,7 @@ async def set_user_language_preference(
             user_id=UUID(user_id),
             language=preference_data.language,
             is_default=preference_data.language == DEFAULT_LANGUAGE,
-            updated_at=datetime.utcnow(),
+            updated_at=datetime.now(timezone.utc),
         )
 
         return result

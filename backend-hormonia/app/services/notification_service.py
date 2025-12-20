@@ -20,7 +20,7 @@ import asyncio
 import json
 import smtplib
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from enum import Enum
@@ -214,7 +214,7 @@ class NotificationService:
         """
         for attempt in range(self.max_retries):
             try:
-                start_time = datetime.utcnow()
+                start_time = datetime.now(timezone.utc)
 
                 # Route to appropriate sender
                 if channel == NotificationChannel.EMAIL:
@@ -233,7 +233,7 @@ class NotificationService:
                     )
 
                 delivery_time_ms = int(
-                    (datetime.utcnow() - start_time).total_seconds() * 1000
+                    (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
                 )
 
                 logger.info(
@@ -325,7 +325,7 @@ class NotificationService:
             message_id = (
                 msg["Message-ID"]
                 if "Message-ID" in msg
-                else f"email-{datetime.utcnow().timestamp()}"
+                else f"email-{datetime.now(timezone.utc).timestamp()}"
             )
 
             logger.info(
@@ -375,7 +375,7 @@ class NotificationService:
                     "title": subject,
                     "text": message,
                     "footer": "Notification Service",
-                    "ts": int(datetime.utcnow().timestamp()),
+                    "ts": int(datetime.now(timezone.utc).timestamp()),
                 }
             ],
         }
@@ -391,7 +391,7 @@ class NotificationService:
 
         logger.info(f"Slack notification sent: {subject}")
 
-        return f"slack-{datetime.utcnow().timestamp()}"
+        return f"slack-{datetime.now(timezone.utc).timestamp()}"
 
     async def _send_pagerduty(
         self, subject: str, message: str, priority: NotificationPriority
@@ -422,7 +422,7 @@ class NotificationService:
         }
 
         # Build PagerDuty event
-        dedup_key = f"alert-{datetime.utcnow().timestamp()}"
+        dedup_key = f"alert-{datetime.now(timezone.utc).timestamp()}"
 
         event = {
             "routing_key": self.pagerduty_service_key,
@@ -434,7 +434,7 @@ class NotificationService:
                 "source": "notification-service",
                 "custom_details": {
                     "message": message,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 },
             },
         }
@@ -542,7 +542,7 @@ Severity: {severity.upper()}
 
 {description}
 
-Timestamp: {datetime.utcnow().isoformat()}
+Timestamp: {datetime.now(timezone.utc).isoformat()}
         """
 
         if context:

@@ -3,7 +3,7 @@ Flow state corrections.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -55,7 +55,7 @@ class FlowStateCorrector:
             patient = self.patient_repo.get(flow_state.patient_id)
             if patient and patient.enrollment_date:
                 days_since_enrollment = (
-                    datetime.utcnow() - patient.enrollment_date
+                    datetime.now(timezone.utc) - patient.enrollment_date
                 ).days
 
                 if days_since_enrollment <= 15:
@@ -154,7 +154,7 @@ class FlowStateCorrector:
             if create_backup:
                 backup_data = {
                     "original_state_data": str(flow_state.state_data),
-                    "backup_timestamp": datetime.utcnow().isoformat(),
+                    "backup_timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
             # Reset to empty dict with marker
@@ -214,7 +214,7 @@ class FlowStateCorrector:
 
             # Complete duplicate flows
             for flow in complete_flows:
-                flow.completed_at = datetime.utcnow()
+                flow.completed_at = datetime.now(timezone.utc)
                 flow.state_data = flow.state_data or {}
                 flow.state_data["completed_reason"] = "duplicate_resolution"
                 if backup_data:

@@ -7,9 +7,9 @@ coordinating alert evaluation, processing, notification, and lifecycle managemen
 
 import asyncio
 import logging
-from typing import Dict, Any, List, Optional, TYPE_CHECKING
+from typing import Dict, Any, List, Optional, Set, TYPE_CHECKING
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 if TYPE_CHECKING:
     from .rule_engine import RuleEngine
@@ -68,6 +68,7 @@ class AlertManager:
 
         self._alert_cache: Dict[UUID, Alert] = {}
         self._alert_history: List[Dict[str, Any]] = []
+        self._escalation_tasks: Set[asyncio.Task] = set()
 
         logger.info("AlertManager initialized")
 
@@ -204,7 +205,7 @@ class AlertManager:
                 total_sent=0,
                 total_failed=0,
                 results=[],
-                dispatched_at=datetime.now(),
+                dispatched_at=datetime.now(timezone.utc),
             )
 
         # Process through processor
@@ -266,7 +267,7 @@ class AlertManager:
 
         # Update alert
         alert.status = AlertStatus.ACKNOWLEDGED
-        alert.acknowledged_at = datetime.now()
+        alert.acknowledged_at = datetime.now(timezone.utc)
         alert.acknowledged_by = user_id
 
         if notes:
@@ -306,7 +307,7 @@ class AlertManager:
 
         # Update alert
         alert.status = AlertStatus.RESOLVED
-        alert.resolved_at = datetime.now()
+        alert.resolved_at = datetime.now(timezone.utc)
         alert.resolved_by = user_id
         alert.metadata["resolution"] = resolution
 
@@ -459,7 +460,7 @@ class AlertManager:
             message=evaluation.reason or "Alert triggered",
             context=evaluation.context,
             metadata=evaluation.metadata,
-            created_at=datetime.now(),
+            created_at=datetime.now(timezone.utc),
         )
 
         self._alert_cache[alert.id] = alert
@@ -468,7 +469,7 @@ class AlertManager:
     async def _should_debounce(self, alert: Alert) -> bool:
         """Check if alert should be debounced."""
         debounce_window = timedelta(minutes=self.config.debounce_minutes)
-        cutoff_time = datetime.now() - debounce_window
+        cutoff_time = datetime.now(timezone.utc) - debounce_window
 
         # Check for similar alerts within debounce window
         for existing_alert in self._alert_cache.values():
@@ -677,10 +678,14 @@ class AlertManager:
             )  # 30 minutes max
 
         # Schedule the escalation as a background task
-        asyncio.create_task(
+        task = asyncio.create_task(
             self._execute_escalation(alert.id, escalation_delay_seconds),
             name=f"escalation_{alert.id}",
         )
+
+        # Track the task to prevent garbage collection and enable cleanup
+        self._escalation_tasks.add(task)
+        task.add_done_callback(self._escalation_tasks.discard)
 
         logger.info(
             f"Escalation scheduled for alert {alert.id} in {escalation_delay_seconds} seconds"
@@ -719,7 +724,7 @@ class AlertManager:
             # Increment escalation level
             alert.escalation_level += 1
             alert.escalated = True
-            alert.metadata["last_escalation_at"] = datetime.now().isoformat()
+            alert.metadata["last_escalation_at"] = datetime.now(timezone.utc).isoformat()
 
             logger.warning(
                 f"Escalating alert {alert_id} to level {alert.escalation_level}",
@@ -879,7 +884,7 @@ class AlertManager:
 
     def _generate_alert_timeline(self, alerts: List[Alert]) -> List[Dict[str, Any]]:
         """Generate hourly alert timeline for last 24 hours."""
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         timeline = []
 
         for hour_offset in range(24):
@@ -903,6 +908,31 @@ class AlertManager:
 
         timeline.reverse()
         return timeline
+
+    async def cleanup(self) -> None:
+        """
+        Cleanup AlertManager resources on shutdown.
+
+        Cancels all pending escalation tasks to ensure graceful shutdown.
+        This should be called when the application is shutting down.
+        """
+        logger.info(
+            f"Cleaning up AlertManager: cancelling {len(self._escalation_tasks)} pending escalation tasks"
+        )
+
+        # Cancel all pending escalation tasks
+        for task in self._escalation_tasks:
+            if not task.done():
+                task.cancel()
+
+        # Wait for all tasks to complete cancellation
+        if self._escalation_tasks:
+            await asyncio.gather(*self._escalation_tasks, return_exceptions=True)
+
+        # Clear the task set
+        self._escalation_tasks.clear()
+
+        logger.info("AlertManager cleanup complete")
 
 
 # Singleton instance

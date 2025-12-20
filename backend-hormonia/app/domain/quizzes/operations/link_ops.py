@@ -1,6 +1,6 @@
 """Link operations: regenerate, cancel, resend."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 from sqlalchemy.orm import Session
@@ -75,7 +75,7 @@ class LinkOperations:
         metadata["token_hash"] = self.token_manager.hash_token(new_token)
         metadata["expires_at"] = new_expires_at.isoformat()
         metadata["regeneration_count"] = regeneration_count + 1
-        metadata["regenerated_at"] = datetime.utcnow().isoformat()
+        metadata["regenerated_at"] = datetime.now(timezone.utc).isoformat()
         metadata["link_status"] = QuizLinkStatus.ACTIVE.value
 
         session.session_metadata = metadata
@@ -121,7 +121,7 @@ class LinkOperations:
         # Update metadata to cancelled status
         metadata = session.session_metadata or {}
         metadata["link_status"] = QuizLinkStatus.CANCELLED.value
-        metadata["cancelled_at"] = datetime.utcnow().isoformat()
+        metadata["cancelled_at"] = datetime.now(timezone.utc).isoformat()
         metadata["cancelled_by"] = str(actor_id) if actor_id else None
 
         session.session_metadata = metadata
@@ -169,9 +169,9 @@ class LinkOperations:
 
         # Check if session is still valid
         expires_at = datetime.fromisoformat(
-            metadata.get("expires_at", datetime.utcnow().isoformat())
+            metadata.get("expires_at", datetime.now(timezone.utc).isoformat())
         )
-        if datetime.utcnow() > expires_at:
+        if datetime.now(timezone.utc) > expires_at:
             raise ValidationError("Cannot resend expired quiz link")
 
         if session.status == "completed":
@@ -196,7 +196,7 @@ class LinkOperations:
         # Update metadata
         metadata["token_hash"] = self.token_manager.hash_token(token)
         metadata["delivery_method"] = delivery_method.value
-        metadata["resent_at"] = datetime.utcnow().isoformat()
+        metadata["resent_at"] = datetime.now(timezone.utc).isoformat()
         session.session_metadata = metadata
         self.db.commit()
 
@@ -213,7 +213,7 @@ class LinkOperations:
             )
 
         remaining_hours = (
-            max(int((expires_at - datetime.utcnow()).total_seconds() // 3600), 0)
+            max(int((expires_at - datetime.now(timezone.utc)).total_seconds() // 3600), 0)
             if expires_at
             else self.config.MONTHLY_QUIZ_TOKEN_EXPIRY_HOURS
         )

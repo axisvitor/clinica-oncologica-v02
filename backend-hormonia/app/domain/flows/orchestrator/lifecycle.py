@@ -7,7 +7,7 @@ Handles flow lifecycle operations: start, pause, resume, stop, restart.
 import logging
 from typing import Dict, Any, Optional, Callable
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.repositories.patient import PatientRepository
 from ..state import FlowStateManager, FlowStateValidator
@@ -291,7 +291,7 @@ class FlowLifecycleManager:
             flow_state.state_data = flow_state.state_data or {}
             flow_state.state_data.update(
                 {
-                    "last_advanced": datetime.utcnow().isoformat(),
+                    "last_advanced": datetime.now(timezone.utc).isoformat(),
                     "advanced_to_day": target_day,
                     "status": "active",
                 }

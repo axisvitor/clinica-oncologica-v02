@@ -13,7 +13,7 @@ import time
 import json
 import hashlib
 from typing import Optional, Callable
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import Request, Response, HTTPException, status
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -338,7 +338,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             "query_params": dict(request.query_params),
             "headers": headers,
             "client_ip": request.client.host if request.client else "unknown",
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
         }
 
         # Add request body if enabled and appropriate
@@ -374,7 +374,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             "status_code": response.status_code,
             "process_time_seconds": round(process_time, 3),
             "response_size": response.headers.get("content-length", 0),
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
         }
 
         # Log response body if enabled and not too large
@@ -422,7 +422,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             "error_type": type(error).__name__,
             "error_message": str(error),
             "process_time_seconds": round(process_time, 3),
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
         }
 
         # Determine if we should include stack trace based on error type

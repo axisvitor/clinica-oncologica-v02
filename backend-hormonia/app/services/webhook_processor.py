@@ -19,7 +19,7 @@ This facade maintains backward compatibility while delegating to the new modules
 
 import logging
 from typing import Any, Optional, Dict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from sqlalchemy import text
 
@@ -419,7 +419,7 @@ class WebhookProcessor:
             scheduler = MessageScheduler(self.db)
 
             # Schedule the existing message (status: PENDING → SCHEDULED)
-            send_time = datetime.utcnow() + timedelta(
+            send_time = datetime.now(timezone.utc) + timedelta(
                 seconds=1
             )  # Send almost immediately
             scheduling_success = await scheduler.schedule_existing_message(
@@ -686,7 +686,7 @@ class WebhookProcessor:
                     else:
                         # Increment retry count and schedule next retry
                         next_retry_delay = 60 * (2**retry_count)  # 60s, 120s, 240s
-                        next_retry_at = datetime.utcnow() + timedelta(
+                        next_retry_at = datetime.now(timezone.utc) + timedelta(
                             seconds=next_retry_delay
                         )
 
@@ -717,7 +717,7 @@ class WebhookProcessor:
 
                     # Update retry count and schedule next retry
                     next_retry_delay = 60 * (2**retry_count)
-                    next_retry_at = datetime.utcnow() + timedelta(
+                    next_retry_at = datetime.now(timezone.utc) + timedelta(
                         seconds=next_retry_delay
                     )
 

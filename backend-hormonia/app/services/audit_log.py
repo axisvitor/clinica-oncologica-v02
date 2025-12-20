@@ -14,7 +14,7 @@ Features:
 
 import logging
 from typing import Optional, Dict, Any, List, Union
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from sqlalchemy import desc, func
 from fastapi import Request
@@ -408,7 +408,7 @@ class AuditLogService:
         Returns:
             List of failed login AuditLog entries
         """
-        start_date = datetime.utcnow() - timedelta(hours=hours)
+        start_date = datetime.now(timezone.utc) - timedelta(hours=hours)
 
         query = self.db.query(AuditLog).filter(
             AuditLog.event_type == AuditEventType.LOGIN_FAILURE,

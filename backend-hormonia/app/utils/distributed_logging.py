@@ -9,7 +9,7 @@ import json
 import logging
 import asyncio
 from typing import Dict, Any, Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 from dataclasses import dataclass, asdict
 from enum import Enum
@@ -142,7 +142,7 @@ class DistributedLogger:
             context = self._get_current_context()
 
         entry = DistributedLogEntry(
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             level=level,
             message=message,
             logger_name=self.name,

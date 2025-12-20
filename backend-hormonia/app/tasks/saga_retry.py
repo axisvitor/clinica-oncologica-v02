@@ -13,7 +13,7 @@ Features:
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List
 from uuid import UUID
 
@@ -93,7 +93,7 @@ def retry_patient_onboarding_saga(self, saga_id: str) -> dict:
         backoff_seconds = _calculate_exponential_backoff(saga.retry_count)
         if saga.last_retry_at:
             next_retry_time = saga.last_retry_at + timedelta(seconds=backoff_seconds)
-            if datetime.utcnow() < next_retry_time:
+            if datetime.now(timezone.utc) < next_retry_time:
                 logger.info(
                     f"Saga {saga_id} not ready for retry yet (backoff: {backoff_seconds}s)"
                 )
@@ -105,7 +105,7 @@ def retry_patient_onboarding_saga(self, saga_id: str) -> dict:
 
         # Increment retry count
         saga.retry_count += 1
-        saga.last_retry_at = datetime.utcnow()
+        saga.last_retry_at = datetime.now(timezone.utc)
         db.commit()
 
         logger.info(
@@ -250,7 +250,7 @@ def cleanup_old_completed_sagas() -> dict:
 
     try:
         retention_days = settings.get("SAGA_RETENTION_DAYS", 30)
-        cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
 
         logger.info(
             f"Starting cleanup of completed sagas older than {retention_days} days"
@@ -371,7 +371,7 @@ def _is_ready_for_retry(saga: PatientOnboardingSaga) -> bool:
     next_retry_time = saga.last_retry_at + timedelta(seconds=backoff_seconds)
 
     # Check if backoff period has elapsed
-    return datetime.utcnow() >= next_retry_time
+    return datetime.now(timezone.utc) >= next_retry_time
 
 
 def _calculate_exponential_backoff(retry_count: int) -> int:

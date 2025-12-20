@@ -7,7 +7,7 @@ Handles response validation, AI-enhanced processing, and swarm analysis coordina
 import logging
 import re
 from typing import Dict, Optional, Any, TYPE_CHECKING
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -149,7 +149,7 @@ class ResponseHandler:
                 "swarm_analysis": processing_result.get("swarm_analysis", {}),
                 "processed_by_agent": self.agent_id,
             },
-            responded_at=datetime.utcnow(),
+            responded_at=datetime.now(timezone.utc),
         )
 
         response = await self.quiz_response_service.create_response(response_data)

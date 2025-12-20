@@ -3,7 +3,7 @@ Timezone handling and optimal delivery time calculation.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import pytz
 
 from app.models.patient import Patient
@@ -68,7 +68,7 @@ class TimezoneHandler:
                 patient_tz = pytz.timezone(self.config.DEFAULT_TIMEZONE)
 
             # Get current time in patient timezone
-            utc_now = datetime.utcnow()
+            utc_now = datetime.now(timezone.utc)
             patient_now = pytz.UTC.localize(utc_now).astimezone(patient_tz)
 
             # Validate scheduling window
@@ -108,8 +108,8 @@ class TimezoneHandler:
             )
 
             # Ensure delivery time is not in the past
-            if delivery_time_utc <= datetime.utcnow():
-                delivery_time_utc = datetime.utcnow() + timedelta(
+            if delivery_time_utc <= datetime.now(timezone.utc):
+                delivery_time_utc = datetime.now(timezone.utc) + timedelta(
                     minutes=self.config.FALLBACK_DELAY_MINUTES
                 )
                 logger.warning(

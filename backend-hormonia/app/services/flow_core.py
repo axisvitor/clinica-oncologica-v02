@@ -5,7 +5,7 @@ Contains shared functionality extracted from EnhancedFlowEngine and FlowEngineIn
 
 import logging
 from typing import Optional, Any, Dict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from enum import Enum
 
@@ -180,9 +180,9 @@ class FlowCore:
             patient_id=patient_id,
             template_version_id=active_version.id,
             current_step=1,  # Start at day 1
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
             state_data={
-                "enrollment_date": datetime.utcnow().isoformat(),
+                "enrollment_date": datetime.now(timezone.utc).isoformat(),
                 "ai_enabled": True,
                 "personalization_level": "high",
             },
@@ -310,7 +310,7 @@ class FlowCore:
             previous_day = flow_state.current_step
             flow_state.current_step = current_day
             flow_state.state_data = flow_state.state_data or {}
-            flow_state.state_data["last_advancement"] = datetime.utcnow().isoformat()
+            flow_state.state_data["last_advancement"] = datetime.now(timezone.utc).isoformat()
 
             # Commit with optimistic locking to prevent race conditions
             self._commit_flow_state_with_lock(flow_state, expected_version)
@@ -346,7 +346,7 @@ class FlowCore:
                         "current_day": current_day,
                         "flow_type": required_flow_type.value,
                         "transitioned": current_flow_type != required_flow_type,
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 },
             )
@@ -396,7 +396,7 @@ class FlowCore:
             # Update state data
             flow_state.state_data = flow_state.state_data or {}
             flow_state.state_data["paused"] = {
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "reason": reason or "Manual pause",
                 "current_step": flow_state.current_step,
             }
@@ -416,7 +416,7 @@ class FlowCore:
                 "status": "paused",
                 "patient_id": str(patient_id),
                 "reason": reason,
-                "paused_at": datetime.utcnow().isoformat(),
+                "paused_at": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
@@ -453,7 +453,7 @@ class FlowCore:
             if flow_state.state_data and "paused" in flow_state.state_data:
                 paused_data = flow_state.state_data.pop("paused")
                 flow_state.state_data["resumed"] = {
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "was_paused_at": paused_data.get("timestamp"),
                     "pause_reason": paused_data.get("reason"),
                 }
@@ -472,7 +472,7 @@ class FlowCore:
             return {
                 "status": "resumed",
                 "patient_id": str(patient_id),
-                "resumed_at": datetime.utcnow().isoformat(),
+                "resumed_at": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
@@ -721,7 +721,7 @@ class FlowCore:
                 preferred_hour = 10
 
             # Calculate send time for today
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             send_time = now.replace(
                 hour=preferred_hour, minute=0, second=0, microsecond=0
             )
@@ -755,7 +755,7 @@ class FlowCore:
                 exc_info=True,
             )
             # Fallback to 1 hour from now
-            return datetime.utcnow() + timedelta(hours=1)
+            return datetime.now(timezone.utc) + timedelta(hours=1)
 
     def is_transient_error(self, error: Exception) -> bool:
         """
@@ -792,7 +792,7 @@ class FlowCore:
             "flow_core": True,
             "database": True,
             "template_cache": False,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         try:
@@ -835,7 +835,7 @@ class FlowCore:
         )
         flow_state.state_data["transitions"].append(
             {
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "from_flow": old_flow_type,
                 "to_flow": new_flow_type.value,
                 "at_day": current_day,

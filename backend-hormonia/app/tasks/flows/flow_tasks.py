@@ -8,7 +8,7 @@ sending flow messages, and managing patient flow advancement.
 import asyncio
 import logging
 from typing import Any
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from celery.exceptions import MaxRetriesExceededError
 
@@ -72,7 +72,7 @@ async def process_daily_flows_async(limit: int = 100) -> dict[str, Any]:
             "error_count": 0,
             "errors": [],
             "patients_processed": [],
-            "start_time": datetime.utcnow().isoformat(),
+            "start_time": datetime.now(timezone.utc).isoformat(),
         }
 
         # Filter out paused flows
@@ -165,7 +165,7 @@ async def process_daily_flows_async(limit: int = 100) -> dict[str, Any]:
                         }
                     )
 
-        results["end_time"] = datetime.utcnow().isoformat()
+        results["end_time"] = datetime.now(timezone.utc).isoformat()
         results["duration_seconds"] = (
             datetime.fromisoformat(results["end_time"])
             - datetime.fromisoformat(results["start_time"])
@@ -359,7 +359,7 @@ def send_flow_message(
                 # Update message status to SENDING
                 message.status = MessageStatus.SENDING
                 message.message_metadata["celery_execution_started"] = (
-                    datetime.utcnow().isoformat()
+                    datetime.now(timezone.utc).isoformat()
                 )
                 message.message_metadata["task_id"] = self.request.id
 
@@ -375,7 +375,7 @@ def send_flow_message(
                     content=message_data.get("content", ""),
                     message_metadata=message_data.get("metadata", {}),
                     status=MessageStatus.SENDING,
-                    scheduled_for=datetime.utcnow(),
+                    scheduled_for=datetime.now(timezone.utc),
                 )
 
                 # Add to database
@@ -429,7 +429,7 @@ def send_flow_message(
                 # MessageSender.send_message() already updates status to SENT
                 # Just update metadata with final status
                 message.message_metadata["celery_execution_completed"] = (
-                    datetime.utcnow().isoformat()
+                    datetime.now(timezone.utc).isoformat()
                 )
                 message.message_metadata["execution_status"] = "success"
                 db.commit()
@@ -441,7 +441,7 @@ def send_flow_message(
                 # Update status to FAILED
                 message.status = MessageStatus.FAILED
                 message.message_metadata["celery_execution_completed"] = (
-                    datetime.utcnow().isoformat()
+                    datetime.now(timezone.utc).isoformat()
                 )
                 message.message_metadata["execution_status"] = "failed"
                 message.message_metadata["failure_reason"] = "Message sending failed"
@@ -455,7 +455,7 @@ def send_flow_message(
                 "status": "success" if success else "failed",
                 "patient_id": patient_id,
                 "message_id": str(message.id),
-                "sent_at": datetime.utcnow().isoformat(),
+                "sent_at": datetime.now(timezone.utc).isoformat(),
                 "whatsapp_id": message.whatsapp_id,
                 "updated_existing": bool(message_id),
             }
@@ -482,7 +482,7 @@ def send_flow_message(
                         message.status = MessageStatus.FAILED
                         message.message_metadata["celery_execution_error"] = str(e)
                         message.message_metadata["celery_execution_failed_at"] = (
-                            datetime.utcnow().isoformat()
+                            datetime.now(timezone.utc).isoformat()
                         )
                         message.message_metadata["retry_count"] = self.request.retries
                         db.commit()

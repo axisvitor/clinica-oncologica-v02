@@ -4,7 +4,7 @@ Main response processor logic.
 
 import logging
 from typing import Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from app.models.message import Message, MessageDirection, MessageType, MessageStatus
@@ -207,7 +207,7 @@ class ResponseProcessor:
                         )
                         if structured_response
                         else None,
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 },
             )

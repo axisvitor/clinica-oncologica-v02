@@ -11,7 +11,7 @@ Contains:
 import hashlib
 import shutil
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Tuple
 from uuid import UUID
@@ -45,7 +45,7 @@ def generate_safe_filename(original_filename: str, content_type: str) -> str:
 
     # Generate unique filename
     unique_id = uuid.uuid4().hex[:12]
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     safe_filename = f"{timestamp}_{unique_id}{ext}"
 
     return safe_filename

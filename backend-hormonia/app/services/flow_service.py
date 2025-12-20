@@ -6,7 +6,7 @@ Business logic for patient flows and interactions.
 import logging
 import base64
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 
@@ -99,7 +99,7 @@ class FlowService(CoreFlowService):
         return FlowPauseV2Response(
             success=True,
             patient_id=str(patient_id),
-            paused_at=pause_result.get("paused_at", datetime.utcnow()),
+            paused_at=pause_result.get("paused_at", datetime.now(timezone.utc)),
             reason=reason,
             auto_resume_at=pause_result.get("auto_resume_at"),
             message=pause_result.get("message", "Flow paused successfully"),
@@ -114,7 +114,7 @@ class FlowService(CoreFlowService):
         return FlowResumeV2Response(
             success=True,
             patient_id=str(patient_id),
-            resumed_at=resume_result.get("resumed_at", datetime.utcnow()),
+            resumed_at=resume_result.get("resumed_at", datetime.now(timezone.utc)),
             paused_duration_hours=resume_result.get("paused_duration_hours", 0.0),
             next_message_at=resume_result.get("next_message_at"),
             message=resume_result.get("message", "Flow resumed successfully"),

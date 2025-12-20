@@ -5,7 +5,7 @@ Handles error persistence, statistics collection, and cleanup operations.
 
 import logging
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Any
 
 from app.services.websocket_events import websocket_events
@@ -167,7 +167,7 @@ class ErrorAuditLogger:
                 if cached_stats:
                     return cached_stats
 
-            cutoff_time = datetime.utcnow() - timedelta(hours=timeframe_hours)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=timeframe_hours)
 
             # Get all error keys
             error_keys = await self.redis.keys("flow_error:*")
@@ -189,7 +189,7 @@ class ErrorAuditLogger:
                 "pending_errors": 0,
                 "recovery_success_rate": 0.0,
                 "timeframe_hours": timeframe_hours,
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
             }
 
             resolved_count = 0
@@ -242,7 +242,7 @@ class ErrorAuditLogger:
 
         except Exception as e:
             logger.error(f"Failed to get error statistics: {e}")
-            return {"error": str(e), "generated_at": datetime.utcnow().isoformat()}
+            return {"error": str(e), "generated_at": datetime.now(timezone.utc).isoformat()}
 
     async def cleanup_old_errors(self, error_records: dict, days_old: int = 7) -> int:
         """
@@ -256,7 +256,7 @@ class ErrorAuditLogger:
             Number of cleaned records
         """
         try:
-            cutoff_time = datetime.utcnow() - timedelta(days=days_old)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(days=days_old)
             cleaned_count = 0
 
             # Clean from memory

@@ -8,7 +8,7 @@ through WebSocket connections, enabling real-time monitoring of patient flows.
 import logging
 from typing import Any, Optional, List
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.services.websocket import get_websocket_manager
 
@@ -296,7 +296,7 @@ class FlowEventBroadcaster:
                 file_path=file_path,
                 error_message=error_message,
                 metadata={
-                    "generated_at": datetime.utcnow().isoformat(),
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
                     "success": success,
                     "downloadable": success and file_path is not None,
                 },
@@ -432,7 +432,7 @@ class FlowEventBroadcaster:
                 },
                 metadata={
                     "flow_type": flow_type,
-                    "progression_date": datetime.utcnow().isoformat(),
+                    "progression_date": datetime.now(timezone.utc).isoformat(),
                     "milestone_reached": milestone_reached,
                     "days_progressed": to_day - from_day,
                 },
@@ -484,7 +484,7 @@ class FlowEventBroadcaster:
                 message=message,
                 level=level,
                 metadata={
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "source": "flow_system",
                     "affected_patients": [str(pid) for pid in affected_patients]
                     if affected_patients

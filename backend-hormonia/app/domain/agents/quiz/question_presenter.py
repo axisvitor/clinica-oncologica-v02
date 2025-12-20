@@ -6,7 +6,7 @@ Manages question presentation, personalization, and template management.
 
 import logging
 from typing import Dict, List, Optional, Any, TYPE_CHECKING
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -81,7 +81,7 @@ class QuestionPresenter:
                     "generated_by": self.agent_id,
                 },
                 status=MessageStatus.PENDING,
-                scheduled_for=datetime.utcnow(),
+                scheduled_for=datetime.now(timezone.utc),
             )
 
             self.db_session.add(message)

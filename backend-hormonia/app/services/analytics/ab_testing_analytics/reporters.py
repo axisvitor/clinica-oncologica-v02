@@ -6,7 +6,7 @@ comprehensive, executive, and clinical reports.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List
 
 from .models import EffectSizeMagnitude
@@ -22,7 +22,7 @@ class ReportGenerator:
         """Generate comprehensive analytical report."""
         return {
             "report_type": "comprehensive",
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "executive_summary": ReportGenerator._generate_executive_summary(results),
             "detailed_analysis": {
                 "sample_information": results.get("sample_sizes"),
@@ -50,7 +50,7 @@ class ReportGenerator:
         """Generate executive summary report."""
         return {
             "report_type": "executive",
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "key_findings": ReportGenerator._extract_key_findings(results),
             "primary_metrics": {
                 "control_response_rate": results.get("variant_statistics", {})
@@ -81,7 +81,7 @@ class ReportGenerator:
         """Generate clinical/regulatory report."""
         return {
             "report_type": "clinical",
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "study_overview": {
                 "experiment_id": results.get("experiment_id"),
                 "experiment_name": results.get("experiment_name"),

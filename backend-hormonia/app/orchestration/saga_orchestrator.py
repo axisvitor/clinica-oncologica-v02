@@ -3,7 +3,7 @@ import json
 import uuid
 import hashlib
 from typing import Optional, Dict, Any, List, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -122,7 +122,7 @@ class SagaOrchestrator:
                 patient_data=patient_data.model_dump(mode="json"),
                 status=SagaStatus.STARTED,
                 current_step=0,
-                started_at=datetime.utcnow(),
+                started_at=datetime.now(timezone.utc),
             )
             self.db.add(saga)
             self.db.commit()
@@ -148,7 +148,7 @@ class SagaOrchestrator:
 
                 # --- Complete Saga ---
                 saga.status = SagaStatus.COMPLETED
-                saga.completed_at = datetime.utcnow()
+                saga.completed_at = datetime.now(timezone.utc)
                 self.db.commit()
 
                 logger.info(f"Saga {saga_id} completed successfully")
@@ -163,7 +163,7 @@ class SagaOrchestrator:
                 saga.status = SagaStatus.FAILED
                 saga.error_message = str(e)
                 saga.error_type = type(e).__name__
-                saga.failed_at = datetime.utcnow()
+                saga.failed_at = datetime.now(timezone.utc)
                 self.db.commit()
 
                 # Trigger compensation
@@ -251,7 +251,7 @@ class SagaOrchestrator:
 
             # Complete
             saga.status = SagaStatus.COMPLETED
-            saga.completed_at = datetime.utcnow()
+            saga.completed_at = datetime.now(timezone.utc)
             self.db.commit()
 
             return {"status": "completed"}
@@ -367,8 +367,6 @@ class SagaOrchestrator:
                 )
 
             # Schedule Message with idempotência
-            from datetime import timezone
-
             scheduled_for = saga.started_at or datetime.now(timezone.utc)
             if scheduled_for.tzinfo is None:
                 scheduled_for = scheduled_for.replace(tzinfo=timezone.utc)
@@ -410,7 +408,7 @@ class SagaOrchestrator:
                         "welcome_send_error_type": type(send_error).__name__
                         if send_error
                         else None,
-                        "welcome_send_failed_at": datetime.utcnow().isoformat(),
+                        "welcome_send_failed_at": datetime.now(timezone.utc).isoformat(),
                     }
                     self.db.commit()
                 except Exception as update_exc:
@@ -466,7 +464,7 @@ class SagaOrchestrator:
                     "step": step,
                     "error": str(error),
                     "error_type": type(error).__name__,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
                 self.redis.setex(
                     failure_key, 86400 * 7, json.dumps(failure_data)
@@ -640,7 +638,7 @@ class SagaOrchestrator:
                 message.message_metadata = {
                     **(message.message_metadata or {}),
                     "cancelled_by": "saga_compensation",
-                    "cancelled_at": datetime.utcnow().isoformat(),
+                    "cancelled_at": datetime.now(timezone.utc).isoformat(),
                 }
 
             if messages:

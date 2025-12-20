@@ -24,7 +24,7 @@ Total: 7 CRUD endpoints for monthly quiz management
 """
 
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 import logging
 
@@ -317,7 +317,7 @@ async def update_monthly_quiz(
     if update_data.expires_at is not None:
         quiz.tags["expires_at"] = update_data.expires_at.isoformat()
 
-    quiz.updated_at = datetime.utcnow()
+    quiz.updated_at = datetime.now(timezone.utc)
 
     db.commit()
     db.refresh(quiz)
@@ -391,7 +391,7 @@ async def delete_monthly_quiz(
     # Soft delete by changing status
     quiz.tags["status"] = "archived"
     quiz.is_active = False
-    quiz.updated_at = datetime.utcnow()
+    quiz.updated_at = datetime.now(timezone.utc)
 
     db.commit()
 
@@ -449,7 +449,7 @@ async def publish_monthly_quiz(
 
     # Update status
     quiz.tags["status"] = "published"
-    quiz.tags["published_at"] = datetime.utcnow().isoformat()
+    quiz.tags["published_at"] = datetime.now(timezone.utc).isoformat()
 
     # Send to patients if requested
     if publish_request.send_immediately:
@@ -472,7 +472,7 @@ async def publish_monthly_quiz(
 
         logger.info(f"Monthly quiz {quiz_id} sent to {len(target_patients)} patients")
 
-    quiz.updated_at = datetime.utcnow()
+    quiz.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(quiz)
 
@@ -549,7 +549,7 @@ async def unpublish_monthly_quiz(
 
     # Revert to draft
     quiz.tags["status"] = "draft"
-    quiz.updated_at = datetime.utcnow()
+    quiz.updated_at = datetime.now(timezone.utc)
 
     db.commit()
     db.refresh(quiz)

@@ -8,7 +8,7 @@ including single patient processing and message template retrieval.
 import asyncio
 import logging
 from typing import Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -162,7 +162,7 @@ async def _process_single_patient_flow(
             "template_id": f"{flow_type_enum.value}_day_{current_day}",
             "personalized": True,
             "metadata": {
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
                 "template_intent": message_template.intent,
             },
         }
@@ -174,7 +174,7 @@ async def _process_single_patient_flow(
 
         # Update flow state
         flow_state.state_data = flow_state.state_data or {}
-        flow_state.state_data["last_message_sent"] = datetime.utcnow().isoformat()
+        flow_state.state_data["last_message_sent"] = datetime.now(timezone.utc).isoformat()
         flow_state.state_data["last_task_id"] = send_task.id
         db.commit()
 

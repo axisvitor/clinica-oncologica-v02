@@ -14,7 +14,7 @@ Features:
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any
 from uuid import UUID
 
@@ -224,7 +224,7 @@ async def assign_role_to_user(
 
         # Assign new role
         user.role = new_role
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(user)
 
@@ -321,7 +321,7 @@ async def revoke_user_role(
 
         # Reset to default role
         user.role = UserRole.DOCTOR
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(user)
 
@@ -436,7 +436,7 @@ async def bulk_assign_roles(
 
                 # Assign new role
                 user.role = new_role
-                user.updated_at = datetime.utcnow()
+                user.updated_at = datetime.now(timezone.utc)
                 db.commit()
                 db.refresh(user)
 
@@ -530,7 +530,7 @@ async def get_role_statistics(
             inactive_users_by_role[role.value] = inactive_count
 
         # Role changes in last 30 days
-        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
         role_changes_count = (
             db.query(AuditLog)
             .filter(

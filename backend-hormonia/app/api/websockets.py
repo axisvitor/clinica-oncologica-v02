@@ -6,7 +6,7 @@ import json
 import logging
 import uuid
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 
 from app.services.websocket import get_websocket_manager
@@ -463,8 +463,8 @@ async def patient_websocket(
         # Store the connection in manager
         get_connection_manager().active_connections[connection_id] = websocket
         get_connection_manager().connection_metadata[connection_id] = {
-            "connected_at": datetime.utcnow(),
-            "last_ping": datetime.utcnow(),
+            "connected_at": datetime.now(timezone.utc),
+            "last_ping": datetime.now(timezone.utc),
             "user_id": None,
             "patient_id": None,
             "authenticated": False,

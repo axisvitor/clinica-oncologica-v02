@@ -5,7 +5,7 @@ Handles quiz scheduling, triggering, and execution for patient assessments.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from uuid import UUID
 
@@ -122,7 +122,7 @@ class QuizScheduler:
 
             # Calculate monthly cycle for quiz
             enrollment_date = patient.enrollment_date or patient.created_at
-            days_since_enrollment = (datetime.utcnow() - enrollment_date).days
+            days_since_enrollment = (datetime.now(timezone.utc) - enrollment_date).days
 
             # Determine quiz type based on flow phase
             if days_since_enrollment <= 45:

@@ -11,7 +11,7 @@ Total: 3 files → 1 file
 
 from typing import Any
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.models.quiz import QuizTemplate, QuizSession, QuizResponse
 from app.repositories.quiz import (
@@ -143,7 +143,7 @@ class MonthlyQuizService:
             patient_id=patient_id,
             template_id=template_id,
             session_type="monthly",
-            expires_at=datetime.utcnow() + timedelta(days=7),
+            expires_at=datetime.now(timezone.utc) + timedelta(days=7),
         )
         return self.quiz_service.session_service.create_session(session_data)
 

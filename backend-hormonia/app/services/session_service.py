@@ -24,7 +24,7 @@ Performance:
 
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List
 from fastapi import HTTPException, status
 import redis.asyncio as redis
@@ -157,7 +157,7 @@ class SessionService:
         firebase_cache.cache_user(firebase_uid, user_dict)
 
         # Calculate expiration
-        expires_at = datetime.utcnow() + timedelta(seconds=ttl)
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl)
 
         logger.info(f"✅ Session created: {session_id[:8]}... for {email}")
 

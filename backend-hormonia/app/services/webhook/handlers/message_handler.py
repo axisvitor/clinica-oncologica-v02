@@ -5,7 +5,7 @@ Processes incoming WhatsApp messages through the flow engine.
 
 import logging
 from typing import Any, Optional, Dict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from app.config.settings.cache import cache_settings
@@ -491,7 +491,7 @@ class MessageWebhookHandler:
 
             scheduler = MessageScheduler(self.db)
 
-            send_time = datetime.utcnow() + timedelta(seconds=1)
+            send_time = datetime.now(timezone.utc) + timedelta(seconds=1)
             await scheduler.schedule_existing_message(
                 message_id=response_message.id, send_time=send_time, priority="high"
             )

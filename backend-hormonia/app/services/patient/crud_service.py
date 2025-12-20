@@ -9,7 +9,7 @@ LOC: ~100
 Responsibility: CRUD operations only
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, List, Optional
 from uuid import UUID
 
@@ -117,7 +117,7 @@ class PatientCRUDService:
         if not patient:
             return False
 
-        patient.deleted_at = datetime.utcnow()
+        patient.deleted_at = datetime.now(timezone.utc)
 
         try:
             self.db.commit()

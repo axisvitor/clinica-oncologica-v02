@@ -8,7 +8,7 @@ Handles A/B testing functionality including:
 - Stopping tests early
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 import json
 import logging
@@ -76,8 +76,8 @@ async def create_ab_test(
             "results": None,
             "winning_variant": None,
             "confidence_level": None,
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
         }
 
         # Store in cache (15 min TTL for A/B tests)

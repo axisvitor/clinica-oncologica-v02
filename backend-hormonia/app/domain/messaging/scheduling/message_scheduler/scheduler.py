@@ -4,7 +4,7 @@ Core MessageScheduler service for time-based message delivery.
 
 import logging
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from sqlalchemy.orm import Session
 
@@ -172,7 +172,7 @@ class MessageScheduler:
                 "flow_type": flow_type,
                 "template_id": template_id,
                 "personalized": True,
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
             }
         }
 
@@ -213,7 +213,7 @@ class MessageScheduler:
 
             # Update message status
             message.status = MessageStatus.CANCELLED
-            message.message_metadata["cancelled_at"] = datetime.utcnow().isoformat()
+            message.message_metadata["cancelled_at"] = datetime.now(timezone.utc).isoformat()
             self.db.commit()
 
             return True
@@ -241,7 +241,7 @@ class MessageScheduler:
             Rescheduling result
         """
         try:
-            if new_delivery_time <= datetime.utcnow():
+            if new_delivery_time <= datetime.now(timezone.utc):
                 raise ValidationError("Cannot reschedule to past time")
 
             message = self.message_repo.get(message_id)
@@ -269,7 +269,7 @@ class MessageScheduler:
             message.message_metadata.update(
                 {
                     "celery_task_id": task_result.get("task_id"),
-                    "rescheduled_at": datetime.utcnow().isoformat(),
+                    "rescheduled_at": datetime.now(timezone.utc).isoformat(),
                     "reschedule_reason": reason,
                     "previous_task_id": old_task_id,
                 }
@@ -316,13 +316,13 @@ class MessageScheduler:
             # Update message status
             if status == DeliveryStatus.SENT:
                 message.status = MessageStatus.SENT
-                message.sent_at = datetime.utcnow()
+                message.sent_at = datetime.now(timezone.utc)
             elif status == DeliveryStatus.DELIVERED:
                 message.status = MessageStatus.DELIVERED
-                message.delivered_at = datetime.utcnow()
+                message.delivered_at = datetime.now(timezone.utc)
             elif status == DeliveryStatus.READ:
                 message.status = MessageStatus.READ
-                message.read_at = datetime.utcnow()
+                message.read_at = datetime.now(timezone.utc)
             elif status == DeliveryStatus.FAILED:
                 message.status = MessageStatus.FAILED
 
@@ -332,7 +332,7 @@ class MessageScheduler:
             # Update metadata
             message.message_metadata.update(
                 {
-                    "status_updated_at": datetime.utcnow().isoformat(),
+                    "status_updated_at": datetime.now(timezone.utc).isoformat(),
                     "delivery_status": status.value,
                 }
             )
@@ -389,11 +389,11 @@ class MessageScheduler:
                 )
 
             # Validate send_time is in the future
-            if send_time <= datetime.utcnow():
+            if send_time <= datetime.now(timezone.utc):
                 logger.warning(
                     f"Send time {send_time} is in the past, adjusting to 1 minute from now"
                 )
-                send_time = datetime.utcnow() + timedelta(minutes=1)
+                send_time = datetime.now(timezone.utc) + timedelta(minutes=1)
 
             # Update message with scheduling information
             message.scheduled_for = send_time
@@ -403,7 +403,7 @@ class MessageScheduler:
             if message.message_metadata is None:
                 message.message_metadata = {}
             message.message_metadata["priority"] = priority
-            message.message_metadata["scheduled_at"] = datetime.utcnow().isoformat()
+            message.message_metadata["scheduled_at"] = datetime.now(timezone.utc).isoformat()
 
             # Schedule Celery task
             task_result = await self.task_scheduler.schedule_celery_task(
@@ -482,14 +482,14 @@ class MessageScheduler:
             message.delivery_status = DeliveryStatus.FAILED
             message.status = MessageStatus.FAILED
             message.failure_reason = failure_reason
-            message.last_retry_at = datetime.utcnow()
+            message.last_retry_at = datetime.now(timezone.utc)
 
             # Store WhatsApp error details in metadata
             if whatsapp_error:
                 message.message_metadata = message.message_metadata or {}
                 message.message_metadata["whatsapp_error"] = whatsapp_error
                 message.message_metadata["failure_timestamp"] = (
-                    datetime.utcnow().isoformat()
+                    datetime.now(timezone.utc).isoformat()
                 )
 
             # Check if we should retry
@@ -498,7 +498,7 @@ class MessageScheduler:
                 retry_delay = self.retry_handler.calculate_retry_delay(
                     message.retry_count
                 )
-                next_retry = datetime.utcnow() + retry_delay
+                next_retry = datetime.now(timezone.utc) + retry_delay
 
                 message.retry_count += 1
                 message.next_retry_at = next_retry

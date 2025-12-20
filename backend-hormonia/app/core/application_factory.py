@@ -15,7 +15,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from datetime import datetime
+from datetime import datetime, timezone
 import time
 
 from app.config import settings
@@ -144,7 +144,7 @@ def create_application(
                 "message": exc.message,
                 "details": exc.details,
                 "request_id": request_id,
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         )
 
@@ -183,7 +183,7 @@ def create_application(
                 "message": "Request validation failed",
                 "details": {"errors": errors},
                 "request_id": request_id,
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         )
 
@@ -301,7 +301,7 @@ def _setup_global_exception_handler(app: FastAPI) -> None:
             "error": "internal_server_error",
             "message": "An unexpected error occurred",
             "details": {},
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "request_id": request_id,
         }
 
@@ -350,9 +350,9 @@ def _register_core_routers_individually(app: FastAPI) -> None:
             router = getattr(module, router_name)
             include_kwargs = include_kwargs or {}
             app.include_router(router, **include_kwargs)
-            logger.info(f"? {router_name} router registered successfully")
+            logger.info(f"✓ {router_name} router registered successfully")
         except Exception as e:
-            logger.error(f"?? Failed to register {router_name} router: {e}")
+            logger.error(f"✗ Failed to register {router_name} router: {e}")
 
 
 def _add_debug_endpoints(app: FastAPI) -> None:
@@ -415,7 +415,7 @@ def _add_debug_endpoints(app: FastAPI) -> None:
 
         return {
             "import_test_results": import_results,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     @app.get("/debug/health", tags=["Debug"])
@@ -429,7 +429,7 @@ def _add_debug_endpoints(app: FastAPI) -> None:
             "debug_mode": getattr(app.state, "debug_endpoints_enabled", False),
             "uptime_seconds": uptime,
             "version": "2.0.0",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "features": {
                 "monitoring": hasattr(app.state, "monitoring_manager"),
                 "redis": hasattr(app.state, "redis_client"),

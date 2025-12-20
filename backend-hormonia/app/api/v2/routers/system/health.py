@@ -5,7 +5,7 @@ ADMIN-ONLY endpoints for system health monitoring and diagnostics.
 Requires authentication and admin role.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 
 from fastapi import APIRouter, HTTPException, status, Depends, Request
@@ -125,7 +125,7 @@ async def get_system_health(
 
         health_response = {
             "status": overall_status,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "components": components_dict,
             "overall_score": overall_score,
             "degraded_components": degraded_components,
@@ -159,7 +159,7 @@ async def get_system_health(
             content={
                 "status": "unhealthy",
                 "error": "Health check failed",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "overall_score": 0.0,
                 "components": {},
                 "degraded_components": [],

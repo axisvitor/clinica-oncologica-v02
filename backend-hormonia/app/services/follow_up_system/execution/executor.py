@@ -5,7 +5,7 @@ Handles execution of pending follow-up actions.
 
 import logging
 from typing import Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from ..models import FollowUpAction
@@ -41,7 +41,7 @@ class ActionExecutor:
         try:
             executed_count = 0
             failed_count = 0
-            current_time = datetime.utcnow()
+            current_time = datetime.now(timezone.utc)
 
             # Get actions ready for execution from Redis
             ready_action_dicts = await self.redis_store.get_pending_actions(

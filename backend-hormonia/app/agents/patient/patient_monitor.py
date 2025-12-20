@@ -6,7 +6,7 @@ and detection of potential issues requiring intervention.
 """
 
 from typing import Dict, List, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -87,7 +87,7 @@ class PatientMonitorAgent(BaseAgent):
 
             # Perform status checks
             last_interaction = patient.updated_at or patient.created_at
-            days_since_interaction = (datetime.utcnow() - last_interaction).days
+            days_since_interaction = (datetime.now(timezone.utc) - last_interaction).days
 
             status_report = {
                 "patient_id": str(patient.id),

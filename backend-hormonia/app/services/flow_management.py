@@ -3,7 +3,7 @@ Flow Management Service for handling flow operations.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -202,14 +202,14 @@ class FlowManagementService:
             flow_state.state_data["pause_reason"] = (
                 reason or "Manual pause by healthcare provider"
             )
-            flow_state.state_data["paused_at"] = datetime.utcnow().isoformat()
+            flow_state.state_data["paused_at"] = datetime.now(timezone.utc).isoformat()
 
             if user_id:
                 flow_state.state_data["paused_by"] = str(user_id)
 
             auto_resume_at = None
             if duration_hours:
-                resume_at = datetime.utcnow() + timedelta(hours=duration_hours)
+                resume_at = datetime.now(timezone.utc) + timedelta(hours=duration_hours)
                 flow_state.state_data["auto_resume_at"] = resume_at.isoformat()
                 auto_resume_at = resume_at.isoformat()
 
@@ -266,7 +266,7 @@ class FlowManagementService:
 
             # Update flow state to resumed
             flow_state.state_data["paused"] = False
-            flow_state.state_data["resumed_at"] = datetime.utcnow().isoformat()
+            flow_state.state_data["resumed_at"] = datetime.now(timezone.utc).isoformat()
 
             if user_id:
                 flow_state.state_data["resumed_by"] = str(user_id)

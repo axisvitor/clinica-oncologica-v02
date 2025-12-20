@@ -446,7 +446,7 @@ class EnhancedFlowEngine(FlowCore):
             if flow_state:
                 flow_state.state_data = flow_state.state_data or {}
                 flow_state.state_data["last_response"] = {
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "sentiment": sentiment_analysis,
                     "text_length": len(response_text),
                     "engagement_score": engagement_score,
@@ -587,7 +587,7 @@ class EnhancedFlowEngine(FlowCore):
 
     def _tone_for_time_of_day(self) -> str:
         """Derive a gentle tone based on time of day to help variation."""
-        hour = datetime.utcnow().hour
+        hour = datetime.now(timezone.utc).hour
         if hour < 12:
             return "cheerful"
         if hour < 18:

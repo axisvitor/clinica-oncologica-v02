@@ -5,7 +5,7 @@ Coordinates error classification, recovery strategies, retry management, and aud
 
 import logging
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from typing import Optional, Callable, List
 from sqlalchemy.orm import Session
@@ -106,7 +106,7 @@ class FlowErrorHandler:
         Returns:
             Unique error ID
         """
-        timestamp = int(datetime.utcnow().timestamp())
+        timestamp = int(datetime.now(timezone.utc).timestamp())
         operation_hash = hash(context.operation) % 10000  # Keep it short
         return f"{str(context.patient_id)[:8]}_{operation_hash}_{timestamp}"
 

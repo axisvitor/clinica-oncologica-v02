@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List
 from uuid import uuid4
 import redis.asyncio as redis
@@ -60,14 +60,14 @@ class MessageQueue:
             "id": str(uuid4()),
             "data": message_data,
             "priority": priority,
-            "enqueued_at": datetime.utcnow().isoformat(),
+            "enqueued_at": datetime.now(timezone.utc).isoformat(),
             "retry_count": 0,
             "max_retries": 3,
         }
 
         if delay_seconds > 0:
             # Schedule for future processing
-            execute_at = datetime.utcnow() + timedelta(seconds=delay_seconds)
+            execute_at = datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
             await self.redis_client.zadd(
                 f"{self.queue_name}:scheduled",
                 {json.dumps(message_payload): execute_at.timestamp()},
@@ -107,7 +107,7 @@ class MessageQueue:
             await self.redis_client.lpush(
                 self.dlq_name,
                 json.dumps(
-                    {**message_payload, "failed_at": datetime.utcnow().isoformat()}
+                    {**message_payload, "failed_at": datetime.now(timezone.utc).isoformat()}
                 ),
             )
             logger.error(
@@ -123,12 +123,12 @@ class MessageQueue:
 
         # Calculate exponential backoff delay
         backoff_delay = delay_seconds * (2 ** (retry_count - 1))
-        execute_at = datetime.utcnow() + timedelta(seconds=backoff_delay)
+        execute_at = datetime.now(timezone.utc) + timedelta(seconds=backoff_delay)
 
         retry_payload = {
             **message_payload,
             "retry_count": retry_count,
-            "retried_at": datetime.utcnow().isoformat(),
+            "retried_at": datetime.now(timezone.utc).isoformat(),
         }
 
         await self.redis_client.zadd(
@@ -150,7 +150,7 @@ class MessageQueue:
 
     async def _process_scheduled_messages(self):
         """Move ready scheduled messages to main queue."""
-        now = datetime.utcnow().timestamp()
+        now = datetime.now(timezone.utc).timestamp()
 
         # Process main scheduled queue
         ready_messages = await self.redis_client.zrangebyscore(
@@ -258,7 +258,7 @@ class WhatsAppMessageService:
             id=message_id,
             status=MessageStatus.PENDING,
             message="Message queued for delivery",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
 
     async def process_message_queue(self):
@@ -348,7 +348,7 @@ class WhatsAppMessageService:
             # Update message status to failed
             message.status = MessageStatus.FAILED
             message.error_message = str(e)
-            message.failed_at = datetime.utcnow()
+            message.failed_at = datetime.now(timezone.utc)
             await self.db_session.commit()
 
             # Sync failure status to domain if handler is present
@@ -399,7 +399,7 @@ class WhatsAppMessageService:
             # Update message with Evolution API response
             message.external_id = response.external_id
             message.status = MessageStatus.SENT
-            message.sent_at = datetime.utcnow()
+            message.sent_at = datetime.now(timezone.utc)
 
             logger.info(f"Message {message.id} sent successfully")
 
@@ -442,7 +442,7 @@ class WhatsAppMessageService:
             message.error_message = error_message
 
         # Update timestamp based on status
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if status == MessageStatus.DELIVERED:
             message.delivered_at = now
         elif status == MessageStatus.READ:
@@ -548,7 +548,7 @@ class WhatsAppMessageService:
                     existing_contact.profile_picture_url = (
                         contact_response.profile_picture_url
                     )
-                    existing_contact.updated_at = datetime.utcnow()
+                    existing_contact.updated_at = datetime.now(timezone.utc)
                 else:
                     # Create new contact
                     contact = WhatsAppContact(

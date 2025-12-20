@@ -7,7 +7,7 @@ progressive notification and handling.
 
 import logging
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 from dataclasses import dataclass
 
@@ -235,7 +235,7 @@ class EscalationManager:
 
             # Mark as executed
             escalation.status = "executed"
-            escalation.executed_at = datetime.now()
+            escalation.executed_at = datetime.now(timezone.utc)
 
             # Update statistics
             self._total_executed += 1
@@ -276,7 +276,7 @@ class EscalationManager:
             escalation = self._escalations.get(escalation_id)
             if escalation and escalation.status == "scheduled":
                 escalation.status = "cancelled"
-                escalation.cancelled_at = datetime.now()
+                escalation.cancelled_at = datetime.now(timezone.utc)
                 escalation.metadata["cancellation_reason"] = reason
 
                 cancelled_count += 1
@@ -302,7 +302,7 @@ class EscalationManager:
         Returns:
             List of pending escalations
         """
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         cutoff = before or now
 
         pending = [
@@ -376,7 +376,7 @@ class EscalationManager:
         Returns:
             Datetime when escalation should occur
         """
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         if rule.escalation_strategy == EscalationStrategy.IMMEDIATE:
             # Escalate immediately

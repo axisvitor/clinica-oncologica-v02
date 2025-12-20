@@ -9,7 +9,7 @@ import logging
 import traceback
 import time
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import defaultdict
 
 from fastapi import HTTPException
@@ -205,7 +205,7 @@ class CriticalErrorHandler:
         context = {
             "user_role": user_role,
             "endpoint": endpoint,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         # Log with rate limiting
@@ -259,7 +259,7 @@ class CriticalErrorHandler:
         error_context = {
             "table_name": table_name,
             "operation": operation,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         if context:
             error_context.update(context)
@@ -318,7 +318,7 @@ class CriticalErrorHandler:
             "input_type": type(input_value).__name__
             if input_value is not None
             else None,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         if context:
             error_context.update(context)
@@ -372,7 +372,7 @@ class CriticalErrorHandler:
         error_message = str(error)
         error_key = self._create_error_key(error_type, error_message)
 
-        error_context = {"timestamp": datetime.utcnow().isoformat()}
+        error_context = {"timestamp": datetime.now(timezone.utc).isoformat()}
         if context:
             error_context.update(context)
 

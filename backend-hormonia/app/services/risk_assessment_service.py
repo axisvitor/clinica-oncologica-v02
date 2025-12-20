@@ -9,7 +9,7 @@ Performance target: < 200ms for 50 patients
 
 import logging
 from sqlalchemy import func, and_
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, List, Dict, Optional
 from uuid import UUID
 
@@ -144,11 +144,11 @@ class RiskAssessmentService:
             Target: < 200ms for 50 patients
             Queries: 3-4 total (not N+1)
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         try:
             # === QUERY 1: Get patients with alert counts (single JOIN) ===
-            cutoff_date = datetime.utcnow() - timedelta(days=days_lookback)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_lookback)
 
             query = self.db.query(
                 Patient.id,
@@ -272,7 +272,7 @@ class RiskAssessmentService:
                             if adherence < 0.85
                             else "low",
                             "severity_score": max(0, min(1, 1.0 - adherence)),
-                            "last_updated": datetime.utcnow(),
+                            "last_updated": datetime.now(timezone.utc),
                             "description": f"Adherence: {adherence * 100:.0f}%",
                         }
                     )
@@ -286,12 +286,12 @@ class RiskAssessmentService:
                         "risk_score": round(risk_score, 2),
                         "assessments": assessments,
                         "alert_count": row.alert_count or 0,
-                        "last_assessment": row.last_alert or datetime.utcnow(),
+                        "last_assessment": row.last_alert or datetime.now(timezone.utc),
                     }
                 )
 
             # Log performance
-            elapsed_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+            elapsed_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
             logger.info(
                 f"Risk assessment completed in {elapsed_ms:.0f}ms for "
                 f"{len(risk_profiles)} patients (target: <200ms)"

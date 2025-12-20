@@ -4,7 +4,7 @@ Centralized alert handling, notification, and escalation.
 """
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
@@ -194,7 +194,7 @@ class NotificationManager:
                     {
                         "alert_id": alert.alert_id,
                         "channel": channel.value,
-                        "timestamp": datetime.utcnow(),
+                        "timestamp": datetime.now(timezone.utc),
                         "recipients": config.recipients,
                     }
                 )
@@ -205,7 +205,7 @@ class NotificationManager:
         self, channel: NotificationChannel, limit_per_hour: int
     ) -> bool:
         """Check notification rate limit"""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         hour_ago = now - timedelta(hours=1)
 
         # Clean old entries
@@ -303,7 +303,7 @@ class AlertManager:
 
         # Track metric state for duration-based rules
         self.metric_states[metric_name].append(
-            {"value": value, "timestamp": datetime.utcnow()}
+            {"value": value, "timestamp": datetime.now(timezone.utc)}
         )
 
         # Limit state history
@@ -337,7 +337,7 @@ class AlertManager:
 
             # Create alert
             alert = Alert(
-                alert_id=f"{rule.rule_id}_{int(datetime.utcnow().timestamp())}",
+                alert_id=f"{rule.rule_id}_{int(datetime.now(timezone.utc).timestamp())}",
                 severity=rule.severity,
                 title=f"Alert: {rule.name}",
                 description=f"{metric_name} {rule.condition} {rule.threshold} (current: {value})",
@@ -345,7 +345,7 @@ class AlertManager:
                 metric_name=metric_name,
                 current_value=value,
                 threshold_value=rule.threshold,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
                 tags=rule.tags,
             )
 
@@ -370,7 +370,7 @@ class AlertManager:
         if not states:
             return False
 
-        cutoff_time = datetime.utcnow() - timedelta(seconds=rule.duration_seconds)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(seconds=rule.duration_seconds)
 
         # Check if all recent values within duration meet condition
         recent_states = [s for s in states if s["timestamp"] >= cutoff_time]
@@ -439,7 +439,7 @@ class AlertManager:
 
         alert = self.alerts[alert_id]
         alert.status = AlertStatus.ACKNOWLEDGED
-        alert.acknowledged_at = datetime.utcnow()
+        alert.acknowledged_at = datetime.now(timezone.utc)
         alert.acknowledged_by = acknowledged_by
 
         logger.info(f"Alert {alert_id} acknowledged by {acknowledged_by}")
@@ -454,7 +454,7 @@ class AlertManager:
 
         alert = self.alerts[alert_id]
         alert.status = AlertStatus.RESOLVED
-        alert.resolved_at = datetime.utcnow()
+        alert.resolved_at = datetime.now(timezone.utc)
         alert.resolved_by = resolved_by
 
         if resolution_note:

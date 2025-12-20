@@ -7,7 +7,7 @@ delegate the responsibility and remain stateless.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional
 
 from ..types import FlowContext
@@ -36,7 +36,7 @@ class FlowScheduler:
             return None
 
         delta = timedelta(seconds=wait_seconds or 0, minutes=wait_minutes or 0)
-        return datetime.utcnow() + delta
+        return datetime.now(timezone.utc) + delta
 
     def expires_at(self, template: Dict[str, Any]) -> datetime:
         """Default expiration timestamp for a newly started flow."""
@@ -47,7 +47,7 @@ class FlowScheduler:
         timeout_minutes = min(
             timeout_minutes, self.execution_config.max_flow_timeout_hours * 60
         )
-        return datetime.utcnow() + timedelta(minutes=timeout_minutes)
+        return datetime.now(timezone.utc) + timedelta(minutes=timeout_minutes)
 
 
 __all__ = ["FlowScheduler"]

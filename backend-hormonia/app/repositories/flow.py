@@ -142,11 +142,11 @@ class FlowStateRepository(BaseRepository[PatientFlowState]):
         self, flow_type: str, target_day: int, limit: int = 100
     ) -> List[PatientFlowState]:
         """Get flows by flow_type via template_version that are on a specific day"""
-        from datetime import datetime
+        from datetime import datetime, timezone
         from sqlalchemy import func, cast, Integer
 
         # Calculate flows that should be on target_day today
-        today = datetime.utcnow().date()
+        today = datetime.now(timezone.utc).date()
 
         return (
             self.db.query(PatientFlowState)

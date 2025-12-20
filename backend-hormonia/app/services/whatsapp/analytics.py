@@ -4,7 +4,7 @@ Analytics module for WhatsApp metrics and tracking.
 
 import logging
 from typing import Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class WhatsAppAnalytics:
                 "priority": message_data.priority.value,
                 "status": result.get("status", "sent"),
                 "message_id": result.get("message_id"),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "metadata": message_data.metadata,
             }
 
@@ -46,7 +46,7 @@ class WhatsAppAnalytics:
             )
 
             # Update daily statistics
-            stats_key = f"whatsapp:stats:{datetime.utcnow().strftime('%Y%m%d')}"
+            stats_key = f"whatsapp:stats:{datetime.now(timezone.utc).strftime('%Y%m%d')}"
             await self.redis.hincrby(stats_key, "total_sent", 1)
             await self.redis.hincrby(
                 stats_key, f"type_{message_data.message_type.value}", 1
@@ -66,7 +66,7 @@ class WhatsAppAnalytics:
         if self.redis:
             try:
                 # Update daily metrics
-                today = datetime.utcnow().strftime("%Y%m%d")
+                today = datetime.now(timezone.utc).strftime("%Y%m%d")
                 metrics_key = f"whatsapp:metrics:{today}"
 
                 await self.redis.hincrby(metrics_key, f"status_{status}", 1)
@@ -90,7 +90,7 @@ class WhatsAppAnalytics:
                 status_data = {
                     "status": status,
                     "timestamp": timestamp,
-                    "updated_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
                 }
 
                 await self.redis.set(

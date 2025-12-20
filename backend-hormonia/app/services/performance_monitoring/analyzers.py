@@ -6,7 +6,7 @@ Analyzes metrics to identify performance issues and trends.
 import logging
 import statistics
 from typing import Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import defaultdict
 
 from redis import Redis
@@ -53,7 +53,7 @@ class PerformanceAnalyzer:
                                     "Consider database connection pooling optimization",
                                     "Review database configuration parameters",
                                 ],
-                                detected_at=datetime.utcnow(),
+                                detected_at=datetime.now(timezone.utc),
                                 metrics=[metric],
                             )
                         )
@@ -89,7 +89,7 @@ class PerformanceAnalyzer:
                                 "Consider increasing available memory",
                                 "Optimize data structures and caching strategies",
                             ],
-                            detected_at=datetime.utcnow(),
+                            detected_at=datetime.now(timezone.utc),
                             metrics=[metric],
                         )
                     )
@@ -125,7 +125,7 @@ class PerformanceAnalyzer:
                                 "Review queue configuration",
                                 "Consider horizontal scaling",
                             ],
-                            detected_at=datetime.utcnow(),
+                            detected_at=datetime.now(timezone.utc),
                             metrics=[metric],
                         )
                     )
@@ -161,7 +161,7 @@ class PerformanceAnalyzer:
                                 "Consider API rate limiting",
                                 "Monitor external service status",
                             ],
-                            detected_at=datetime.utcnow(),
+                            detected_at=datetime.now(timezone.utc),
                             metrics=[],
                         )
                     )
@@ -195,7 +195,7 @@ class PerformanceAnalyzer:
                                 "Consider Redis clustering",
                                 "Optimize data structures",
                             ],
-                            detected_at=datetime.utcnow(),
+                            detected_at=datetime.now(timezone.utc),
                             metrics=[metric],
                         )
                     )
@@ -232,7 +232,7 @@ class PerformanceAnalyzer:
                                 "Review resource allocation",
                                 "Consider async processing patterns",
                             ],
-                            detected_at=datetime.utcnow(),
+                            detected_at=datetime.now(timezone.utc),
                             metrics=[metric],
                         )
                     )

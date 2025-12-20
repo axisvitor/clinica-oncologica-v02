@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import joinedload
 from typing import Optional, List, Dict, Any
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from app.database import get_db
@@ -630,7 +630,7 @@ async def mark_alert_read(
         user_id = UUID(current_user.get("id"))
         alert.acknowledged = True
         alert.acknowledged_by = user_id
-        alert.acknowledged_at = datetime.utcnow()
+        alert.acknowledged_at = datetime.now(timezone.utc)
 
         # Add notes if provided
         if acknowledge_data.notes:
@@ -720,7 +720,7 @@ async def mark_all_alerts_read(
 
         # Mark all as read
         user_id = UUID(current_user.get("id"))
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         count = 0
 
         for alert in unread_alerts:

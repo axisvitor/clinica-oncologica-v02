@@ -4,7 +4,7 @@ Contains enums and data classes for structured extraction.
 """
 
 from typing import Any, List, Dict
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from uuid import UUID
 
@@ -64,7 +64,7 @@ class ExtractedEntity:
         self.confidence = confidence
         self.context = context
         self.source_text = source_text
-        self.extracted_at = datetime.utcnow()
+        self.extracted_at = datetime.now(timezone.utc)
 
 
 class MedicalConcern:
@@ -85,7 +85,7 @@ class MedicalConcern:
         self.keywords = keywords
         self.confidence = confidence
         self.requires_immediate_attention = requires_immediate_attention
-        self.detected_at = datetime.utcnow()
+        self.detected_at = datetime.now(timezone.utc)
 
 
 class PatientPreference:
@@ -98,7 +98,7 @@ class PatientPreference:
         self.value = value
         self.confidence = confidence
         self.context = context
-        self.extracted_at = datetime.utcnow()
+        self.extracted_at = datetime.now(timezone.utc)
 
 
 class StructuredExtractionResult:
@@ -125,4 +125,4 @@ class StructuredExtractionResult:
         self.sentiment_analysis = sentiment_analysis
         self.confidence_score = confidence_score
         self.processing_notes = processing_notes
-        self.extracted_at = datetime.utcnow()
+        self.extracted_at = datetime.now(timezone.utc)

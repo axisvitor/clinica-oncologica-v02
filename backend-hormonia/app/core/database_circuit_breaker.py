@@ -7,7 +7,7 @@ database operations with configurable failure thresholds and recovery timeouts.
 
 import logging
 from typing import Callable, Any, Optional, Dict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -182,12 +182,12 @@ class DatabaseCircuitBreaker(CircuitBreaker):
                 # Simple health check query
                 session.execute("SELECT 1")
                 self._connection_pool_healthy = True
-                self._last_health_check = datetime.utcnow()
+                self._last_health_check = datetime.now(timezone.utc)
                 return True
         except Exception as e:
             logger.warning(f"Database health check failed for {self.name}: {e}")
             self._connection_pool_healthy = False
-            self._last_health_check = datetime.utcnow()
+            self._last_health_check = datetime.now(timezone.utc)
             return False
 
     async def _generate_smart_fallback(self, operation_name: str) -> Any:
@@ -230,7 +230,7 @@ class DatabaseCircuitBreaker(CircuitBreaker):
             return True  # Assume healthy until proven otherwise
 
         # Consider unhealthy if last check was more than 5 minutes ago
-        time_since_check = datetime.utcnow() - self._last_health_check
+        time_since_check = datetime.now(timezone.utc) - self._last_health_check
         if time_since_check > timedelta(minutes=5):
             return True  # Assume recovered if no recent check
 

@@ -5,7 +5,7 @@ Main orchestrator for flow execution and management.
 """
 
 from typing import List, Optional, Any, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 import asyncio
 import logging
 from sqlalchemy.orm import Session
@@ -330,7 +330,7 @@ class FlowEngine(AsyncFlowEngineBase):
             patient_id=patient_id,
             template_version_id=current_version.id,
             current_step=entry_step,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
             state_data={
                 **(initial_data or {}),
                 "requested_flow_type": flow_type,
@@ -598,7 +598,7 @@ class FlowEngine(AsyncFlowEngineBase):
             active_flow.current_step = to_step
             active_flow.state_data = active_flow.state_data or {}
             active_flow.state_data["manual_override"] = {
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "previous_step": active_flow.current_step,
                 "forced": force,
             }
@@ -637,7 +637,7 @@ class FlowEngine(AsyncFlowEngineBase):
             raise ValidationError(f"Step {to_step} does not exist in flow")
 
         reset_data = {
-            "reset_timestamp": datetime.utcnow().isoformat(),
+            "reset_timestamp": datetime.now(timezone.utc).isoformat(),
             "previous_step": active_flow.current_step,
             "reset_to_step": to_step,
             "preserve_data": preserve_data,
@@ -674,10 +674,10 @@ class FlowEngine(AsyncFlowEngineBase):
         if not active_flow:
             raise NotFoundError(f"No active flow found for patient {patient_id}")
 
-        active_flow.completed_at = datetime.utcnow()
+        active_flow.completed_at = datetime.now(timezone.utc)
         active_flow.state_data = active_flow.state_data or {}
         active_flow.state_data["completion"] = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "final_step": active_flow.current_step,
             "manual_completion": True,
         }

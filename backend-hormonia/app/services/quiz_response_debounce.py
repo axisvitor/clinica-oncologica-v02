@@ -9,7 +9,7 @@ HIGH-005 Fix: Prevents multiple rapid messages being processed as different answ
 
 import logging
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from app.core.redis_unified import get_async_redis
@@ -271,7 +271,7 @@ class QuizResponseDebouncer:
         import json
 
         data = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "metadata": message_metadata or {},
         }
 

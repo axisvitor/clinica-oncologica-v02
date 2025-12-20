@@ -5,7 +5,7 @@ Provides advanced log analysis, pattern detection, and search capabilities
 with Elasticsearch integration.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional
 from collections import defaultdict
 import redis.asyncio as redis
@@ -60,7 +60,7 @@ class LogQuery:
 
     def last_hours(self, hours: int):
         """Filter last N hours."""
-        end = datetime.utcnow()
+        end = datetime.now(timezone.utc)
         start = end - timedelta(hours=hours)
         self.time_range = {"start": start, "end": end}
         return self
@@ -133,7 +133,7 @@ class LogAnalyzer:
         self, time_window_hours: int = 24
     ) -> Dict[str, Any]:
         """Analyze error patterns in logs."""
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=time_window_hours)
 
         error_patterns = defaultdict(
@@ -258,7 +258,7 @@ class LogAnalyzer:
 
     async def analyze_performance(self, time_window_hours: int = 24) -> Dict[str, Any]:
         """Analyze performance metrics from logs."""
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=time_window_hours)
 
         api_performance = defaultdict(
@@ -371,7 +371,7 @@ class LogAnalyzer:
         self, time_window_hours: int = 24
     ) -> Dict[str, Any]:
         """Analyze security events from logs."""
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=time_window_hours)
 
         security_stats = {

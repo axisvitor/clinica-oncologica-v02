@@ -5,7 +5,7 @@ Provides centralized date calculation functions to eliminate code duplication.
 
 import logging
 from typing import Optional, Union, Tuple
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from zoneinfo import ZoneInfo
 from app.config.template_loader import get_template_loader
 
@@ -147,7 +147,7 @@ def _get_today_in_timezone(timezone: str = "America/Sao_Paulo") -> date:
         logger.warning(
             f"Error getting date in timezone {timezone}: {e}, falling back to UTC"
         )
-        return datetime.utcnow().date()
+        return datetime.now(timezone.utc).date()
 
 
 def calculate_flow_type_from_day(treatment_day: int) -> str:
@@ -333,7 +333,7 @@ def is_within_business_hours(
             tz = ZoneInfo(timezone)
             check_time = datetime.now(tz)
         except Exception:
-            check_time = datetime.utcnow()
+            check_time = datetime.now(datetime.timezone.utc)
 
     # Check if it's a business day
     if not is_business_day(check_time.date(), timezone):
@@ -379,7 +379,7 @@ def get_next_scheduled_time(
                 tz = ZoneInfo(timezone)
                 from_time = datetime.now(tz)
             except Exception:
-                from_time = datetime.utcnow()
+                from_time = datetime.now(datetime.timezone.utc)
 
         # Calculate based on frequency
         frequency = config.frequency

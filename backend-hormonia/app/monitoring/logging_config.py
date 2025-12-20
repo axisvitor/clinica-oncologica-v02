@@ -6,7 +6,7 @@ Provides JSON-formatted logging with context-aware fields.
 
 import logging
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from pythonjsonlogger import jsonlogger
 
@@ -24,7 +24,7 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
         super().add_fields(log_record, record, message_dict)
 
         # Add timestamp
-        log_record["timestamp"] = datetime.utcnow().isoformat()
+        log_record["timestamp"] = datetime.now(timezone.utc).isoformat()
 
         # Add log level
         log_record["level"] = record.levelname

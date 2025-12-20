@@ -10,7 +10,7 @@ This service handles comprehensive system initialization including:
 """
 
 from typing import Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 
 from sqlalchemy import text
@@ -48,7 +48,7 @@ class SystemInitializationService:
 
     async def initialize_system(self) -> Dict[str, Any]:
         """Initialize the entire system with comprehensive checks."""
-        self.initialization_status["started_at"] = datetime.utcnow().isoformat()
+        self.initialization_status["started_at"] = datetime.now(timezone.utc).isoformat()
         self.initialization_status["status"] = "initializing"
 
         self.logger.info("🚀 Starting Hormonia system initialization...")
@@ -63,7 +63,7 @@ class SystemInitializationService:
             await self._validate_service_dependencies()
 
             self.initialization_status["status"] = "completed"
-            self.initialization_status["completed_at"] = datetime.utcnow().isoformat()
+            self.initialization_status["completed_at"] = datetime.now(timezone.utc).isoformat()
 
             self.logger.info("✅ System initialization completed successfully")
 
@@ -103,7 +103,7 @@ class SystemInitializationService:
                 "status": "success",
                 "engine_url": engine.url.render_as_string(hide_password=True),
                 "user_count": user_count,
-                "tested_at": datetime.utcnow().isoformat(),
+                "tested_at": datetime.now(timezone.utc).isoformat(),
             }
 
             self.logger.info("✅ Database initialization successful")
@@ -112,7 +112,7 @@ class SystemInitializationService:
             self.initialization_status["components"]["database"] = {
                 "status": "failed",
                 "error": str(e),
-                "tested_at": datetime.utcnow().isoformat(),
+                "tested_at": datetime.now(timezone.utc).isoformat(),
             }
             raise InitializationError(f"Database initialization failed: {e}")
 
@@ -149,7 +149,7 @@ class SystemInitializationService:
                 "version": redis_info.get("redis_version"),
                 "memory_used": redis_info.get("used_memory_human"),
                 "connected_clients": redis_info.get("connected_clients"),
-                "tested_at": datetime.utcnow().isoformat(),
+                "tested_at": datetime.now(timezone.utc).isoformat(),
             }
 
             self.logger.info("✅ Redis cache initialization successful")
@@ -158,7 +158,7 @@ class SystemInitializationService:
             self.initialization_status["components"]["redis"] = {
                 "status": "failed",
                 "error": str(e),
-                "tested_at": datetime.utcnow().isoformat(),
+                "tested_at": datetime.now(timezone.utc).isoformat(),
             }
             raise InitializationError(f"Redis cache initialization failed: {e}")
 
@@ -181,7 +181,7 @@ class SystemInitializationService:
                 self.initialization_status["components"]["firebase"] = {
                     "status": "skipped",
                     "reason": "credentials_not_configured",
-                    "tested_at": datetime.utcnow().isoformat(),
+                    "tested_at": datetime.now(timezone.utc).isoformat(),
                 }
                 return
 
@@ -212,7 +212,7 @@ class SystemInitializationService:
                         "enable_audit_logging"
                     ),
                 },
-                "tested_at": datetime.utcnow().isoformat(),
+                "tested_at": datetime.now(timezone.utc).isoformat(),
             }
 
             self.logger.info("✅ Firebase Admin SDK initialization successful")
@@ -221,7 +221,7 @@ class SystemInitializationService:
             self.initialization_status["components"]["firebase"] = {
                 "status": "failed",
                 "error": str(e),
-                "tested_at": datetime.utcnow().isoformat(),
+                "tested_at": datetime.now(timezone.utc).isoformat(),
             }
             raise InitializationError(f"Firebase initialization failed: {e}")
 
@@ -263,7 +263,7 @@ class SystemInitializationService:
                 "checks": security_checks,
                 "rate_limiting_enabled": rate_limiting_enabled,
                 "environment": settings.APP_ENVIRONMENT,
-                "tested_at": datetime.utcnow().isoformat(),
+                "tested_at": datetime.now(timezone.utc).isoformat(),
             }
 
             if security_checks:
@@ -277,7 +277,7 @@ class SystemInitializationService:
             self.initialization_status["components"]["security"] = {
                 "status": "failed",
                 "error": str(e),
-                "tested_at": datetime.utcnow().isoformat(),
+                "tested_at": datetime.now(timezone.utc).isoformat(),
             }
             raise InitializationError(f"Security initialization failed: {e}")
 
@@ -312,7 +312,7 @@ class SystemInitializationService:
                 "enabled": settings.MONITORING_ENABLE_SERVICE,
                 "components": monitoring_components,
                 "apm_threshold": settings.APM_APDEX_THRESHOLD,
-                "tested_at": datetime.utcnow().isoformat(),
+                "tested_at": datetime.now(timezone.utc).isoformat(),
             }
 
             self.logger.info("✅ Monitoring systems initialization successful")
@@ -321,7 +321,7 @@ class SystemInitializationService:
             self.initialization_status["components"]["monitoring"] = {
                 "status": "failed",
                 "error": str(e),
-                "tested_at": datetime.utcnow().isoformat(),
+                "tested_at": datetime.now(timezone.utc).isoformat(),
             }
             raise InitializationError(f"Monitoring initialization failed: {e}")
 
@@ -377,7 +377,7 @@ class SystemInitializationService:
                 "status": "success",
                 "core_services": dependencies,
                 "external_services": external_services,
-                "validated_at": datetime.utcnow().isoformat(),
+                "validated_at": datetime.now(timezone.utc).isoformat(),
             }
 
             self.logger.info(
@@ -388,7 +388,7 @@ class SystemInitializationService:
             self.initialization_status["components"]["dependencies"] = {
                 "status": "failed",
                 "error": str(e),
-                "validated_at": datetime.utcnow().isoformat(),
+                "validated_at": datetime.now(timezone.utc).isoformat(),
             }
             raise InitializationError(f"Service dependencies validation failed: {e}")
 
@@ -396,7 +396,7 @@ class SystemInitializationService:
         """Get comprehensive system health status."""
         health_status = {
             "status": "healthy",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "components": {},
             "overall_score": 0,
         }

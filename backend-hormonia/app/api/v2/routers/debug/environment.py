@@ -8,7 +8,7 @@ Endpoints:
 import os
 import sys
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 
@@ -90,7 +90,7 @@ async def get_environment_info(
             debug_mode=DEBUG_ENDPOINTS_ENABLED,
             python_version=f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
             variables=env_vars,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
 
         # Audit log
@@ -107,7 +107,7 @@ async def get_environment_info(
             success=True,
             data=env_info.dict(),
             audit_logged=True,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             warning="Debug mode active - disable in production",
         )
 

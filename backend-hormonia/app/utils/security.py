@@ -10,7 +10,7 @@ from passlib.context import CryptContext
 import bcrypt as bcrypt_lib
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from app.config import settings
 
@@ -268,7 +268,7 @@ def create_access_token(
 ) -> str:
     """Create JWT access token using settings.SECURITY_SECRET_KEY and settings.SECURITY_ALGORITHM."""
     to_encode = data.copy()
-    expire = datetime.utcnow() + (
+    expire = datetime.now(timezone.utc) + (
         expires_delta or timedelta(minutes=settings.AUTH_ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     to_encode.update({"exp": int(expire.timestamp()), "type": "access"})
@@ -280,7 +280,7 @@ def create_access_token(
 def create_refresh_token(data: dict[str, Any]) -> str:
     """Create JWT refresh token with REFRESH_TOKEN_EXPIRE_DAYS."""
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(days=settings.AUTH_REFRESH_TOKEN_EXPIRE_DAYS)
+    expire = datetime.now(timezone.utc) + timedelta(days=settings.AUTH_REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": int(expire.timestamp()), "type": "refresh"})
     return jwt.encode(
         to_encode, settings.SECURITY_SECRET_KEY, algorithm=settings.SECURITY_ALGORITHM
@@ -298,7 +298,7 @@ def verify_token(token: str, token_type: str = "access") -> Optional[Any]:
         if payload.get("type") != token_type:
             return None
         exp = payload.get("exp")
-        if exp is None or datetime.fromtimestamp(exp) < datetime.utcnow():
+        if exp is None or datetime.fromtimestamp(exp, tz=timezone.utc) < datetime.now(timezone.utc):
             return None
         from app.schemas.auth import TokenData
 

@@ -8,7 +8,7 @@ archiving completed flows, and maintaining the database.
 import json
 import logging
 from typing import Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.celery_app import celery_app
 from app.database import get_db
@@ -46,7 +46,7 @@ def cleanup_old_flow_data(self, days_old: int = 90) -> dict[str, Any]:
         db = next(get_db())
 
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days_old)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
 
             # Initialize repositories
             FlowStateRepository(db)
@@ -56,7 +56,7 @@ def cleanup_old_flow_data(self, days_old: int = 90) -> dict[str, Any]:
                 "old_messages_cleaned": 0,
                 "analytics_cleaned": 0,
                 "cutoff_date": cutoff_date.isoformat(),
-                "start_time": datetime.utcnow().isoformat(),
+                "start_time": datetime.now(timezone.utc).isoformat(),
             }
 
             # Clean up completed flows older than threshold
@@ -131,7 +131,7 @@ def cleanup_old_flow_data(self, days_old: int = 90) -> dict[str, Any]:
             # Commit cleanup
             db.commit()
 
-            results["end_time"] = datetime.utcnow().isoformat()
+            results["end_time"] = datetime.now(timezone.utc).isoformat()
 
             logger.info(f"Flow data cleanup completed: {results}")
             return results

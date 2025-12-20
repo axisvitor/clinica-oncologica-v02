@@ -15,7 +15,7 @@ Version: 1.0.0 (QW-024)
 
 import logging
 from typing import Dict, Set, Optional, Any, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from fastapi import WebSocket
 from redis import Redis
@@ -100,12 +100,12 @@ class WebSocketConnectionManager:
 
             self.active_connections[connection_id] = websocket
             self.connection_metadata[connection_id] = {
-                "connected_at": datetime.utcnow(),
+                "connected_at": datetime.now(timezone.utc),
                 "user_id": None,
                 "patient_id": None,
                 "authenticated": False,
             }
-            self.last_heartbeat[connection_id] = datetime.utcnow()
+            self.last_heartbeat[connection_id] = datetime.now(timezone.utc)
 
             # Authenticate if token provided
             if token:
@@ -362,7 +362,7 @@ class WebSocketConnectionManager:
         if connection_id not in self.active_connections:
             return False
 
-        self.last_heartbeat[connection_id] = datetime.utcnow()
+        self.last_heartbeat[connection_id] = datetime.now(timezone.utc)
         return True
 
     async def check_stale_connections(self) -> List[str]:
@@ -373,7 +373,7 @@ class WebSocketConnectionManager:
             List of stale connection IDs
         """
         stale = []
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         timeout = timedelta(seconds=self.heartbeat_timeout)
 
         for connection_id, last_beat in self.last_heartbeat.items():

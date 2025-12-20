@@ -5,7 +5,7 @@ Handles scheduling of escalation notifications to healthcare providers.
 
 import logging
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ..models import FollowUpAction
 from ..enums import NotificationChannel
@@ -59,7 +59,7 @@ class EscalationScheduler:
                 )
 
             # Mark action as executed
-            action.executed_at = datetime.utcnow()
+            action.executed_at = datetime.now(timezone.utc)
             action.status = "executed"
             action.execution_result = {
                 "notifications_sent": len(alert.notification_channels),
@@ -100,7 +100,7 @@ class EscalationScheduler:
             )
 
             # Mark as executed
-            action.executed_at = datetime.utcnow()
+            action.executed_at = datetime.now(timezone.utc)
             action.status = "executed"
 
             logger.info(

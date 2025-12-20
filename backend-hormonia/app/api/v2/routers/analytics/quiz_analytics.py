@@ -4,7 +4,7 @@ Handles quiz-related analytics, status distribution and completion trends.
 """
 
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, case
 
@@ -140,7 +140,7 @@ async def get_completion_trend(
         return cached_result
 
     # Calculate date range
-    end_date = datetime.utcnow()
+    end_date = datetime.now(timezone.utc)
     start_date = end_date - timedelta(days=months * 30)
 
     # Get monthly stats using date functions

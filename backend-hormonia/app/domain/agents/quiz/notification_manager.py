@@ -6,7 +6,7 @@ Manages message composition, personalization, and delivery for quiz interactions
 
 import logging
 from typing import Optional, TYPE_CHECKING
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 from sqlalchemy.orm import Session
@@ -98,7 +98,7 @@ class NotificationManager:
                     "swarm_context": True,
                 },
                 status=MessageStatus.PENDING,
-                scheduled_for=datetime.utcnow(),
+                scheduled_for=datetime.now(timezone.utc),
             )
 
             self.db_session.add(message)
@@ -141,7 +141,7 @@ class NotificationManager:
                     },
                 },
                 status=MessageStatus.PENDING,
-                scheduled_for=datetime.utcnow(),
+                scheduled_for=datetime.now(timezone.utc),
             )
 
             self.db_session.add(message)
@@ -170,7 +170,7 @@ class NotificationManager:
                     "generated_by": self.agent_id,
                 },
                 status=MessageStatus.PENDING,
-                scheduled_for=datetime.utcnow(),
+                scheduled_for=datetime.now(timezone.utc),
             )
 
             self.db_session.add(message)
@@ -213,7 +213,7 @@ class NotificationManager:
                     "generated_by": self.agent_id,
                 },
                 status=MessageStatus.PENDING,
-                scheduled_for=datetime.utcnow(),
+                scheduled_for=datetime.now(timezone.utc),
             )
 
             self.db_session.add(message)

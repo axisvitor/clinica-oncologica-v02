@@ -8,7 +8,7 @@ Consolidated from: app/services/message_scheduler.py
 
 from typing import List, Optional, Any, Dict, Tuple
 from uuid import UUID
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta, time, timezone
 import logging
 import pytz
 
@@ -106,7 +106,7 @@ class MessageScheduler:
             patient_tz = pytz.timezone(patient_tz_str)
 
             # Get current time in patient timezone
-            now_utc = datetime.utcnow()
+            now_utc = datetime.now(timezone.utc)
             now_patient = now_utc.replace(tzinfo=pytz.utc).astimezone(patient_tz)
 
             # Get window times
@@ -152,7 +152,7 @@ class MessageScheduler:
         except Exception as e:
             logger.error(f"Error calculating send time: {e}", exc_info=True)
             # Fallback: send in 30 minutes
-            fallback_time = datetime.utcnow() + timedelta(
+            fallback_time = datetime.now(timezone.utc) + timedelta(
                 minutes=self.config.FALLBACK_DELAY_MINUTES
             )
             logger.warning(f"Using fallback send time: {fallback_time}")
@@ -213,7 +213,7 @@ class MessageScheduler:
         Returns:
             List of due Message objects
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         return self.message_service.get_scheduled_messages(now, limit=limit)
 
     def reschedule_message(

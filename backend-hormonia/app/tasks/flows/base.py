@@ -8,7 +8,7 @@ as well as helper functions like send_critical_alert_sync.
 import asyncio
 import logging
 from typing import Any
-from datetime import datetime
+from datetime import datetime, timezone
 from celery import Task
 
 logger = logging.getLogger(__name__)
@@ -42,7 +42,7 @@ def send_critical_alert_sync(task_name: str, error: str, context: dict = None):
             rule_type=AlertRuleType.CUSTOM,
             message=f"Critical failure in task {task_name}: {error}",
             context=context or {},
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
 
         # Get manager and process
@@ -168,7 +168,7 @@ class FlowTaskBase(Task):
             result_data = {
                 "task_id": task_id,
                 "status": status,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "data": data,
             }
 

@@ -6,7 +6,7 @@ with HIPAA retention policies (90 days for access logs).
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.celery_app import celery_app
@@ -33,7 +33,7 @@ def cleanup_expired_audit_logs():
         audit_service = AuditService(db)
 
         logger.info("Starting audit log cleanup task")
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         # Clean up expired logs
         deleted_count = audit_service.cleanup_expired_logs()
@@ -45,11 +45,11 @@ def cleanup_expired_audit_logs():
             WHERE event_type IN ('ai_cache_hit', 'ai_cache_miss')
             AND timestamp < :cutoff_date
             """,
-            {"cutoff_date": datetime.utcnow() - timedelta(days=30)},
+            {"cutoff_date": datetime.now(timezone.utc) - timedelta(days=30)},
         ).rowcount
         db.commit()
 
-        duration = (datetime.utcnow() - start_time).total_seconds()
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
 
         result = {
             "status": "success",
@@ -57,7 +57,7 @@ def cleanup_expired_audit_logs():
             "deleted_cache_logs": cache_deleted,
             "total_deleted": deleted_count + cache_deleted,
             "duration_seconds": duration,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         logger.info(
@@ -89,18 +89,18 @@ def refresh_ai_performance_metrics():
     db: Session = SessionLocal()
     try:
         logger.info("Refreshing AI performance metrics view")
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         # Refresh materialized view
         db.execute("SELECT refresh_ai_metrics();")
         db.commit()
 
-        duration = (datetime.utcnow() - start_time).total_seconds()
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
 
         result = {
             "status": "success",
             "duration_seconds": duration,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         logger.info(f"AI metrics refreshed in {duration:.2f} seconds")
@@ -133,7 +133,7 @@ def generate_daily_audit_report():
         logger.info("Generating daily audit report")
 
         # Get yesterday's date range
-        end_date = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         start_date = end_date - timedelta(days=1)
 
         # Get performance metrics
@@ -157,7 +157,7 @@ def generate_daily_audit_report():
                 }
                 for event in security_events[:10]  # Top 10
             ],
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
         logger.info(
@@ -233,7 +233,7 @@ def check_hipaa_compliance():
                 "missing_legal_basis": missing_legal_basis,
                 "excessive_retention_periods": excessive_retention,
             },
-            "checked_at": datetime.utcnow().isoformat(),
+            "checked_at": datetime.now(timezone.utc).isoformat(),
         }
 
         if not compliance_status["compliant"]:

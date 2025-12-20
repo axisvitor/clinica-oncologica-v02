@@ -5,7 +5,7 @@ Provides endpoints for Firebase authentication, session management,
 and user authentication flow with Redis-based session storage.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 import uuid
 
@@ -356,5 +356,5 @@ async def health_check(request: Request):
     return {
         "status": "healthy",
         "service": "authentication",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }

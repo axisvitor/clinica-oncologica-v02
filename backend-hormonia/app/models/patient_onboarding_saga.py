@@ -8,7 +8,7 @@ Sprint 1 - Transação Distribuída no Cadastro
 """
 
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, TYPE_CHECKING
 
 from sqlalchemy import (
@@ -116,7 +116,7 @@ class PatientOnboardingSaga(BaseModel):
 
     # Timestamps
     started_at = Column(
-        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
     )
     completed_at = Column(DateTime(timezone=True), nullable=True)
     failed_at = Column(DateTime(timezone=True), nullable=True)
@@ -163,7 +163,7 @@ class PatientOnboardingSaga(BaseModel):
             "step": step,
             "action": action,
             "status": status,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         if message:
@@ -209,7 +209,7 @@ class PatientOnboardingSaga(BaseModel):
         if not self.started_at:
             return None
 
-        end_time = self.completed_at or self.failed_at or datetime.utcnow()
+        end_time = self.completed_at or self.failed_at or datetime.now(timezone.utc)
         return (end_time - self.started_at).total_seconds()
 
     def is_completed(self) -> bool:

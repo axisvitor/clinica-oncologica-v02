@@ -211,7 +211,7 @@ async def _generate_report_async(
         # Generate report data
         report_data = {
             "summary": "Report data generated",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "records": 42,
         }
 
@@ -222,7 +222,7 @@ async def _generate_report_async(
             "type": report_type,
             "format": format_type,
             "status": "completed",
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "generated_by": str(user_id),
             "file_url": f"/api/v2/reports/{report_id}/download",
             "data": report_data,
@@ -350,8 +350,8 @@ async def list_reports(
             "title": f"Report {i}",
             "type": "patient_summary",
             "status": "completed",
-            "created_at": (datetime.utcnow() - timedelta(days=i)).isoformat(),
-            "updated_at": (datetime.utcnow() - timedelta(days=i)).isoformat(),
+            "created_at": (datetime.now(timezone.utc) - timedelta(days=i)).isoformat(),
+            "updated_at": (datetime.now(timezone.utc) - timedelta(days=i)).isoformat(),
             "format": "json",
             "generated_by": str(user_id),
         }
@@ -495,7 +495,7 @@ async def generate_report(
         "type": report_type,
         "format": format,
         "status": "pending",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "status_url": f"/api/v2/reports/{report_id}",
         "download_url": f"/api/v2/reports/{report_id}/download",
     }
@@ -689,7 +689,7 @@ async def schedule_report(
     schedule_id = uuid4()
 
     # Calculate next run
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     next_run = datetime.combine(
         start_date, datetime.strptime(time_of_day or "09:00", "%H:%M").time()
     )
@@ -718,9 +718,9 @@ async def schedule_report(
         "recipient_emails": recipients,
         "is_active": is_active,
         "run_count": 0,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "created_by": str(user_id),
-        "updated_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
     # Cache schedule

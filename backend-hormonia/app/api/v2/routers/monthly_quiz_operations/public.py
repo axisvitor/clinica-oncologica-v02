@@ -71,7 +71,7 @@ async def get_current_public_quiz(
         token_type = token_data.get("type")
 
         # Check expiry
-        if exp_timestamp and datetime.fromtimestamp(exp_timestamp) < datetime.utcnow():
+        if exp_timestamp and datetime.fromtimestamp(exp_timestamp) < datetime.now(timezone.utc):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired"
             )
@@ -109,7 +109,7 @@ async def get_current_public_quiz(
     # Check if quiz has expired
     if quiz.tags.get("expires_at"):
         expires_at = datetime.fromisoformat(quiz.tags["expires_at"])
-        if expires_at < datetime.utcnow():
+        if expires_at < datetime.now(timezone.utc):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Quiz has expired"
             )
@@ -133,7 +133,7 @@ async def get_current_public_quiz(
             patient_id=PUBLIC_PATIENT_ID,
             quiz_template_id=quiz_id,
             status="in_progress",
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
         )
         db.add(session)
         db.commit()
@@ -204,7 +204,7 @@ async def submit_public_quiz_response(
             )
 
         # Check expiry
-        if exp_timestamp and datetime.fromtimestamp(exp_timestamp) < datetime.utcnow():
+        if exp_timestamp and datetime.fromtimestamp(exp_timestamp) < datetime.now(timezone.utc):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired"
             )
@@ -257,7 +257,7 @@ async def submit_public_quiz_response(
             patient_id=PUBLIC_PATIENT_ID,
             quiz_template_id=quiz_id,
             status="in_progress",
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
         )
         db.add(session)
         db.commit()
@@ -287,7 +287,7 @@ async def submit_public_quiz_response(
         response_type=question.get("type", "text"),
         response_value=str(submission.response_value),
         response_metadata=submission.response_metadata or {},
-        responded_at=datetime.utcnow(),
+        responded_at=datetime.now(timezone.utc),
     )
 
     db.add(quiz_response)
@@ -305,7 +305,7 @@ async def submit_public_quiz_response(
     if answered_questions >= total_questions:
         # Complete session
         session.status = "completed"
-        session.completed_at = datetime.utcnow()
+        session.completed_at = datetime.now(timezone.utc)
 
         # Update quiz completion stats
         quiz.tags["total_completed"] = quiz.tags.get("total_completed", 0) + 1

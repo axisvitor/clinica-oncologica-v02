@@ -5,7 +5,7 @@ Each strategy handles a specific type of error recovery approach.
 
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 
@@ -59,7 +59,7 @@ class ExponentialBackoffRetry(RecoveryAction):
         delay_index = min(error_record.recovery_attempts, len(delays) - 1)
         delay_seconds = delays[delay_index]
 
-        next_retry_at = datetime.utcnow() + timedelta(seconds=delay_seconds)
+        next_retry_at = datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
 
         # Schedule retry
         await context.retry_manager.schedule_retry(error_record, next_retry_at)
@@ -93,7 +93,7 @@ class LinearBackoffRetry(RecoveryAction):
 
         # Fixed delay for linear backoff
         delay_seconds = ErrorHandlerConstants.DEFAULT_LINEAR_DELAY
-        next_retry_at = datetime.utcnow() + timedelta(seconds=delay_seconds)
+        next_retry_at = datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
 
         # Schedule retry
         await context.retry_manager.schedule_retry(error_record, next_retry_at)
@@ -145,7 +145,7 @@ class FallbackMessageAction(RecoveryAction):
                     "error_id": error_record.id,
                 },
                 status=MessageStatus.PENDING,
-                scheduled_for=datetime.utcnow(),
+                scheduled_for=datetime.now(timezone.utc),
             )
 
             context.db.add(fallback_message)
@@ -159,7 +159,7 @@ class FallbackMessageAction(RecoveryAction):
 
             if success:
                 error_record.resolved = True
-                error_record.resolved_at = datetime.utcnow()
+                error_record.resolved_at = datetime.now(timezone.utc)
 
                 return RecoveryResult(
                     success=True,
@@ -226,14 +226,14 @@ class SkipAndContinueAction(RecoveryAction):
                         {
                             "operation": error_context.operation,
                             "error_id": error_record.id,
-                            "skipped_at": datetime.utcnow().isoformat(),
+                            "skipped_at": datetime.now(timezone.utc).isoformat(),
                         }
                     )
 
                     context.db.commit()
 
             error_record.resolved = True
-            error_record.resolved_at = datetime.utcnow()
+            error_record.resolved_at = datetime.now(timezone.utc)
 
             return RecoveryResult(
                 success=True,
@@ -273,13 +273,13 @@ class PauseFlowAction(RecoveryAction):
                     flow_state.state_data["pause_reason"] = (
                         f"Error recovery: {error_record.error_type}"
                     )
-                    flow_state.state_data["paused_at"] = datetime.utcnow().isoformat()
+                    flow_state.state_data["paused_at"] = datetime.now(timezone.utc).isoformat()
                     flow_state.state_data["error_id"] = error_record.id
 
                     context.db.commit()
 
                     # Schedule resume
-                    resume_at = datetime.utcnow() + timedelta(
+                    resume_at = datetime.now(timezone.utc) + timedelta(
                         hours=ErrorHandlerConstants.FLOW_RESUME_DELAY_HOURS
                     )
                     await context.retry_manager.schedule_flow_resume(
@@ -322,7 +322,7 @@ class ResetFlowAction(RecoveryAction):
                     backup_data = {
                         "original_state": flow_state.state_data,
                         "reset_reason": error_record.error_type,
-                        "reset_at": datetime.utcnow().isoformat(),
+                        "reset_at": datetime.now(timezone.utc).isoformat(),
                         "error_id": error_record.id,
                     }
 
@@ -339,7 +339,7 @@ class ResetFlowAction(RecoveryAction):
                     context.db.commit()
 
                     error_record.resolved = True
-                    error_record.resolved_at = datetime.utcnow()
+                    error_record.resolved_at = datetime.now(timezone.utc)
 
             return RecoveryResult(
                 success=True,

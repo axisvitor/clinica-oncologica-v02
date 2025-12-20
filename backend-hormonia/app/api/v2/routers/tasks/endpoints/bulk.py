@@ -7,7 +7,7 @@ Endpoints:
 """
 
 from typing import Dict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
@@ -105,7 +105,7 @@ async def bulk_cancel_tasks(
                 task_registry[celery_task_id].update(
                     {
                         "status": TaskStatus.CANCELLED,
-                        "completed_at": datetime.utcnow(),
+                        "completed_at": datetime.now(timezone.utc),
                     }
                 )
 
@@ -166,7 +166,7 @@ async def cleanup_old_tasks(
         # Check admin role
         _check_admin_role(current_user)
 
-        cutoff_date = datetime.utcnow() - timedelta(days=cleanup_config.days_old)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=cleanup_config.days_old)
 
         tasks_deleted = 0
         tasks_analyzed = 0
@@ -218,7 +218,7 @@ async def cleanup_old_tasks(
             tasks_analyzed=tasks_analyzed,
             space_freed_mb=round(space_freed_mb, 2),
             dry_run=cleanup_config.dry_run,
-            completion_time=datetime.utcnow(),
+            completion_time=datetime.now(timezone.utc),
         )
 
         # Log cleanup

@@ -12,7 +12,7 @@ Soft delete operations preserve data for audit purposes while marking records as
 """
 
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from pydantic import BaseModel, EmailStr
@@ -212,7 +212,7 @@ async def delete_patient(
         )
 
     # Soft delete: set deleted_at timestamp
-    patient.deleted_at = datetime.utcnow()
+    patient.deleted_at = datetime.now(timezone.utc)
     db.commit()
 
     return None

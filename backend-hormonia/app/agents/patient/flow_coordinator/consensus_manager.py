@@ -71,7 +71,7 @@ class ConsensusManager:
             "patient_id": str(context.patient_id),
             "risk_factors": context.risk_factors,
             "escalated_by": self.agent_id,
-            "escalated_at": datetime.utcnow().isoformat(),
+            "escalated_at": datetime.now(timezone.utc).isoformat(),
             "priority": "high",
             "recommended_actions": [
                 "schedule_medical_consultation",
@@ -90,4 +90,4 @@ class ConsensusManager:
 
 
 # Import datetime for escalate_intervention
-from datetime import datetime
+from datetime import datetime, timezone

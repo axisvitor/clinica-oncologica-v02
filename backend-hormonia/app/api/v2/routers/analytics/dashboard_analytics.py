@@ -4,7 +4,7 @@ Handles overview, treatment distribution and consolidated dashboard metrics.
 """
 
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 
@@ -114,7 +114,7 @@ async def get_analytics_overview(
     )
 
     # Active patients (last 30 days)
-    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
     active_query = (
         db.query(func.count(func.distinct(QuizSession.patient_id)))
         .join(Patient, Patient.id == QuizSession.patient_id)
@@ -188,7 +188,7 @@ async def get_treatment_distribution(
             return cached_result
         logger.info("No cached result, proceeding with database query")
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         period_map = {"7d": 7, "30d": 30, "90d": 90}
         start_date = (
             now - timedelta(days=period_map.get(period, 30))

@@ -10,7 +10,7 @@ Security:
 - Rate limiting applied (30/min for list, 3/hour for restart)
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 import time
 import json
 
@@ -270,7 +270,7 @@ async def restart_component(
         return ComponentRestartResponse(
             component=component,
             status="success",
-            restarted_at=datetime.utcnow(),
+            restarted_at=datetime.now(timezone.utc),
             duration_ms=duration_ms,
             previous_status=previous_status,
             current_status=current_status,
@@ -283,7 +283,7 @@ async def restart_component(
         return ComponentRestartResponse(
             component=component,
             status="failed",
-            restarted_at=datetime.utcnow(),
+            restarted_at=datetime.now(timezone.utc),
             duration_ms=duration_ms,
             previous_status=previous_status,
             current_status="error",

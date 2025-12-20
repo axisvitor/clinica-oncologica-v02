@@ -8,7 +8,7 @@ Author: Backend Team
 Date: 2025-01-20
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List, Set
 from uuid import UUID
 from enum import Enum
@@ -103,7 +103,7 @@ class CacheInvalidator:
             "entity_type": entity_type,
             "entity_id": str(entity_id),
             "strategy": strategy,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "caches": {},
         }
 
@@ -179,7 +179,7 @@ class CacheInvalidator:
         stats = {
             "entity_type": entity_type,
             "strategy": strategy,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "caches": {},
         }
 
@@ -232,7 +232,7 @@ class CacheInvalidator:
         stats = {
             "user_id": str(user_id),
             "logout": logout,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "caches": {},
         }
 
@@ -277,7 +277,7 @@ class CacheInvalidator:
             "entity_type": entity_type,
             "entity_count": len(entity_ids),
             "strategy": strategy,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "entities": [],
         }
 
@@ -310,7 +310,7 @@ class CacheInvalidator:
         stats = {
             "cache_type": cache_type,
             "namespace": namespace,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "deleted": 0,
         }
 
@@ -359,7 +359,7 @@ class CacheInvalidator:
 
         stats = {
             "operation": "clear_all",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "caches": {},
         }
 
@@ -404,7 +404,7 @@ class CacheInvalidator:
             "operation": "on_create",
             "entity_type": entity_type,
             "entity_id": str(entity_id),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "caches": {},
         }
 

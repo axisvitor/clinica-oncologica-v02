@@ -8,7 +8,7 @@ and managing the queue lifecycle.
 import logging
 from typing import Dict, Any, Optional
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import desc, and_
 
@@ -80,7 +80,7 @@ class DeadLetterHandler:
             status=DLQStatus.PENDING,
             metadata={
                 "error_category": category.value,
-                "added_at": datetime.utcnow().isoformat(),
+                "added_at": datetime.now(timezone.utc).isoformat(),
             },
         )
 
@@ -115,9 +115,9 @@ class DeadLetterHandler:
             return False
 
         failed_message.status = DLQStatus.DISCARDED
-        failed_message.resolved_at = datetime.utcnow()
+        failed_message.resolved_at = datetime.now(timezone.utc)
         failed_message.metadata["discard_reason"] = reason
-        failed_message.metadata["discarded_at"] = datetime.utcnow().isoformat()
+        failed_message.metadata["discarded_at"] = datetime.now(timezone.utc).isoformat()
 
         self.db.commit()
 
@@ -233,7 +233,7 @@ class DeadLetterHandler:
         )
 
         # By category (last 24h)
-        yesterday = datetime.utcnow() - timedelta(days=1)
+        yesterday = datetime.now(timezone.utc) - timedelta(days=1)
         recent_messages = (
             self.db.query(FailedMessage)
             .filter(FailedMessage.created_at >= yesterday)

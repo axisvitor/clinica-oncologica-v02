@@ -4,7 +4,7 @@ Contains dataclasses for actions, alerts, and conversation context.
 """
 
 from typing import List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from .enums import FollowUpType, EscalationLevel, NotificationChannel
@@ -31,7 +31,7 @@ class FollowUpAction:
         self.scheduled_for = scheduled_for
         self.parameters = parameters
         self.created_by = created_by
-        self.created_at = datetime.utcnow()
+        self.created_at = datetime.now(timezone.utc)
         self.executed_at: Optional[datetime] = None
         self.execution_result: Optional[dict[str, Any]] = None
         self.status = "pending"
@@ -61,7 +61,7 @@ class EscalationAlert:
         self.recommended_actions = recommended_actions
         self.notification_channels = notification_channels
         self.requires_immediate_response = requires_immediate_response
-        self.created_at = datetime.utcnow()
+        self.created_at = datetime.now(timezone.utc)
         self.acknowledged_at: Optional[datetime] = None
         self.resolved_at: Optional[datetime] = None
         self.assigned_to: Optional[str] = None
@@ -85,7 +85,7 @@ class ConversationContext:
         self.emotional_state = emotional_state
         self.medical_context = medical_context
         self.preferences = preferences
-        self.last_updated = datetime.utcnow()
+        self.last_updated = datetime.now(timezone.utc)
 
 
 class ProviderNotification:
@@ -106,6 +106,6 @@ class ProviderNotification:
         self.content = content
         self.channels = channels
         self.priority = priority
-        self.created_at = datetime.utcnow()
+        self.created_at = datetime.now(timezone.utc)
         self.sent_at: Optional[datetime] = None
         self.status = "pending"

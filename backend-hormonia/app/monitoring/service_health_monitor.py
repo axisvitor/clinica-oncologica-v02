@@ -5,7 +5,7 @@ Monitor API endpoints, databases, and external services.
 
 import asyncio
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from enum import Enum
@@ -127,7 +127,7 @@ class EndpointHealthChecker:
             service_type=ServiceType.API,
             status=status,
             response_time_ms=response_time,
-            checked_at=datetime.utcnow(),
+            checked_at=datetime.now(timezone.utc),
             details=details,
             error=error,
         )
@@ -187,7 +187,7 @@ class DatabaseHealthChecker:
             service_type=ServiceType.DATABASE,
             status=status,
             response_time_ms=response_time,
-            checked_at=datetime.utcnow(),
+            checked_at=datetime.now(timezone.utc),
             details=details,
             error=error,
         )
@@ -238,7 +238,7 @@ class CacheHealthChecker:
             service_type=ServiceType.CACHE,
             status=status,
             response_time_ms=response_time,
-            checked_at=datetime.utcnow(),
+            checked_at=datetime.now(timezone.utc),
             details=details,
             error=error,
         )
@@ -312,7 +312,7 @@ class ServiceHealthMonitor:
         if service_name not in self.health_history:
             return None
 
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
         recent_checks = [
             check
             for check in self.health_history[service_name]
@@ -353,13 +353,13 @@ class ServiceHealthMonitor:
             current_error_rate=error_rate,
             sla_met=sla_met,
             period_start=cutoff_time,
-            period_end=datetime.utcnow(),
+            period_end=datetime.now(timezone.utc),
         )
 
     async def get_uptime_report(self, hours: int = 24) -> Dict[str, Any]:
         """Generate uptime report for all services"""
         report = {}
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
 
         for service_name, history in self.health_history.items():
             recent_checks = [c for c in history if c.checked_at >= cutoff_time]

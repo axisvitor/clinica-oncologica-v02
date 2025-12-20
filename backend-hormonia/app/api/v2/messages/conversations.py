@@ -12,7 +12,7 @@ Handles conversation-related operations: history, list, unread counts, mark as r
 """
 
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -351,7 +351,7 @@ async def mark_conversation_read(
             Message.direction == MessageDirection.INBOUND,
             Message.read_at.is_(None),
         )
-        .update({"read_at": datetime.utcnow()})
+        .update({"read_at": datetime.now(timezone.utc)})
     )
 
     db.commit()
@@ -467,7 +467,7 @@ async def process_inbound_message(
         content=inbound_data.content,
         whatsapp_id=inbound_data.whatsapp_id,
         message_type=msg_type,
-        received_at=inbound_data.received_at or datetime.utcnow(),
+        received_at=inbound_data.received_at or datetime.now(timezone.utc),
         metadata=inbound_data.message_metadata or {},
     )
 

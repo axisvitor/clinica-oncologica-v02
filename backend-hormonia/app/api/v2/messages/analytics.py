@@ -7,7 +7,7 @@ Handles analytics operations: delivery rate and response time analytics.
 - GET "/analytics/response-time" - Get average response time analytics
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 import logging
 from fastapi import APIRouter, Depends, Query
@@ -52,7 +52,7 @@ async def get_delivery_rate_analytics(
     cache_key = f"analytics:delivery_rate:{user_id}:{days}"
 
     def compute_analytics():
-        start_date = datetime.utcnow() - timedelta(days=days)
+        start_date = datetime.now(timezone.utc) - timedelta(days=days)
 
         query = db.query(Message).filter(
             Message.created_at >= start_date,
@@ -80,7 +80,7 @@ async def get_delivery_rate_analytics(
 
         return {
             "period_start": start_date.isoformat(),
-            "period_end": datetime.utcnow().isoformat(),
+            "period_end": datetime.now(timezone.utc).isoformat(),
             "total_sent": total_sent,
             "delivered": delivered,
             "failed": failed,
@@ -110,7 +110,7 @@ async def get_response_time_analytics(
     cache_key = f"analytics:response_time:{user_id}:{days}"
 
     def compute_analytics():
-        start_date = datetime.utcnow() - timedelta(days=days)
+        start_date = datetime.now(timezone.utc) - timedelta(days=days)
 
         query = db.query(Message).filter(
             Message.created_at >= start_date,
@@ -129,7 +129,7 @@ async def get_response_time_analytics(
         if not messages:
             return {
                 "period_start": start_date.isoformat(),
-                "period_end": datetime.utcnow().isoformat(),
+                "period_end": datetime.now(timezone.utc).isoformat(),
                 "total_messages": 0,
                 "average_delivery_time_seconds": 0,
                 "average_read_time_seconds": 0,
@@ -153,7 +153,7 @@ async def get_response_time_analytics(
 
         return {
             "period_start": start_date.isoformat(),
-            "period_end": datetime.utcnow().isoformat(),
+            "period_end": datetime.now(timezone.utc).isoformat(),
             "total_messages": len(messages),
             "average_delivery_time_seconds": round(avg_delivery, 2),
             "average_read_time_seconds": round(avg_read, 2),

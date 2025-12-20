@@ -73,7 +73,7 @@ class BusinessMetricsCollector:
                 "hourly_counts": deque(maxlen=24),
                 "daily_counts": deque(maxlen=30),
                 "response_times": deque(maxlen=1000),
-                "last_reset": datetime.utcnow(),
+                "last_reset": datetime.now(timezone.utc),
             }
 
     async def record_metric(self, metric: BusinessMetric) -> None:
@@ -175,7 +175,7 @@ class BusinessMetricsCollector:
         await self.record_metric(
             BusinessMetric(
                 metric_type=MetricType.PATIENT_FLOW,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 patient_id=patient_id,
                 metadata={"action": "start", "flow_type": flow_type},
             )
@@ -188,7 +188,7 @@ class BusinessMetricsCollector:
         await self.record_metric(
             BusinessMetric(
                 metric_type=MetricType.PATIENT_FLOW,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 patient_id=patient_id,
                 value=completed,
                 metadata={
@@ -206,7 +206,7 @@ class BusinessMetricsCollector:
         await self.record_metric(
             BusinessMetric(
                 metric_type=MetricType.MESSAGE_DELIVERY,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 patient_id=patient_id,
                 metadata={"action": "sent", "message_type": message_type},
             )
@@ -223,7 +223,7 @@ class BusinessMetricsCollector:
         await self.record_metric(
             BusinessMetric(
                 metric_type=MetricType.MESSAGE_DELIVERY,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 patient_id=patient_id,
                 value=delivered,
                 metadata={
@@ -247,7 +247,7 @@ class BusinessMetricsCollector:
         await self.record_metric(
             BusinessMetric(
                 metric_type=MetricType.AI_RESPONSE,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 patient_id=patient_id,
                 value=accuracy_score,
                 metadata={
@@ -270,7 +270,7 @@ class BusinessMetricsCollector:
         await self.record_metric(
             BusinessMetric(
                 metric_type=MetricType.USER_ENGAGEMENT,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 user_id=user_id,
                 value=session_duration_minutes,
                 metadata={
@@ -293,7 +293,7 @@ class BusinessMetricsCollector:
         await self.record_metric(
             BusinessMetric(
                 metric_type=MetricType.TREATMENT_ADHERENCE,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 patient_id=patient_id,
                 value=adherent,
                 metadata={
@@ -317,7 +317,7 @@ class BusinessMetricsCollector:
         await self.record_metric(
             BusinessMetric(
                 metric_type=MetricType.QUIZ_COMPLETION,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 patient_id=patient_id,
                 value=completed,
                 metadata={
@@ -342,7 +342,7 @@ class BusinessMetricsCollector:
         await self.record_metric(
             BusinessMetric(
                 metric_type=MetricType.QUIZ_LINK_GENERATION,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 patient_id=patient_id,
                 value=True,
                 metadata={
@@ -370,7 +370,7 @@ class BusinessMetricsCollector:
         await self.record_metric(
             BusinessMetric(
                 metric_type=MetricType.QUIZ_ACCESS,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 patient_id=patient_id,
                 value=True,
                 metadata={
@@ -393,7 +393,7 @@ class BusinessMetricsCollector:
         await self.record_metric(
             BusinessMetric(
                 metric_type=MetricType.QUIZ_ACCESS,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 patient_id=patient_id,
                 value=False,
                 metadata={
@@ -420,7 +420,7 @@ class BusinessMetricsCollector:
         await self.record_metric(
             BusinessMetric(
                 metric_type=MetricType.QUIZ_SUBMISSION,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 patient_id=patient_id,
                 value=True,
                 metadata={
@@ -443,7 +443,7 @@ class BusinessMetricsCollector:
         await self.record_metric(
             BusinessMetric(
                 metric_type=MetricType.QUIZ_SUBMISSION,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 patient_id=patient_id,
                 value=False,
                 metadata={
@@ -470,7 +470,7 @@ class BusinessMetricsCollector:
         await self.record_metric(
             BusinessMetric(
                 metric_type=MetricType.TOKEN_ROTATION,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 patient_id=patient_id,
                 value=True,
                 metadata={
@@ -497,7 +497,7 @@ class BusinessMetricsCollector:
         await self.record_metric(
             BusinessMetric(
                 metric_type=MetricType.FALLBACK_ACTIVATION,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 patient_id=patient_id,
                 value=True,
                 metadata={
@@ -520,7 +520,7 @@ class BusinessMetricsCollector:
         await self.record_metric(
             BusinessMetric(
                 metric_type=MetricType.ALERT_RESOLUTION,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 patient_id=patient_id,
                 metadata={
                     "action": "created",
@@ -541,7 +541,7 @@ class BusinessMetricsCollector:
         await self.record_metric(
             BusinessMetric(
                 metric_type=MetricType.ALERT_RESOLUTION,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 patient_id=patient_id,
                 value=resolved,
                 metadata={
@@ -558,7 +558,7 @@ class BusinessMetricsCollector:
         self, metric_type: MetricType, time_range_hours: int = 24
     ) -> Dict[str, Any]:
         """Get statistics for a specific metric type."""
-        cutoff_time = datetime.utcnow() - timedelta(hours=time_range_hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=time_range_hours)
 
         with self._lock:
             # Filter metrics by type and time range
@@ -642,7 +642,7 @@ class BusinessMetricsCollector:
         """Get summary of all business metrics."""
         summary = {
             "time_range_hours": time_range_hours,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "metrics": {},
         }
 
@@ -657,7 +657,7 @@ class BusinessMetricsCollector:
         self, patient_id: str, time_range_hours: int = 24
     ) -> Dict[str, Any]:
         """Get metrics for a specific patient."""
-        cutoff_time = datetime.utcnow() - timedelta(hours=time_range_hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=time_range_hours)
 
         with self._lock:
             patient_metrics = [

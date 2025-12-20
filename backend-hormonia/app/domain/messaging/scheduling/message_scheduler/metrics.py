@@ -4,7 +4,7 @@ Message delivery metrics and monitoring.
 
 import logging
 from typing import Dict, Any, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from sqlalchemy.orm import Session
 
@@ -83,7 +83,7 @@ class MetricsCollector:
             Delivery metrics and statistics
         """
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days_back)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_back)
 
             query = self.db.query(Message).filter(Message.created_at >= cutoff_date)
 
@@ -138,7 +138,7 @@ class MetricsCollector:
                 if delivery_times
                 else None,
                 "period_days": days_back,
-                "analysis_date": datetime.utcnow().isoformat(),
+                "analysis_date": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:

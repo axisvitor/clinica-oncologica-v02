@@ -4,7 +4,7 @@ Handles real-time dashboard updates and visualization data.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 from uuid import UUID
 
@@ -259,7 +259,7 @@ class DashboardGenerator:
         Reduces 14 queries to 1 query for 95% reduction.
         Uses connection pooling and query optimization for better performance.
         """
-        end_date = datetime.utcnow().date()
+        end_date = datetime.now(timezone.utc).date()
         start_date = end_date - timedelta(days=6)  # 7 days total
 
         # Single query with GROUP BY on date and direction
@@ -430,7 +430,7 @@ class DashboardGenerator:
         """
         try:
             # Get data from previous 7-day period (days 8-14 ago)
-            end_date = datetime.utcnow().date() - timedelta(days=7)
+            end_date = datetime.now(timezone.utc).date() - timedelta(days=7)
             start_date = end_date - timedelta(days=6)
 
             # Previous period messages

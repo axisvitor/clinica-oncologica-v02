@@ -5,7 +5,7 @@ PhysicianStatisticsService - Optimized statistics calculation with caching.
 import json
 import logging
 from typing import Optional, Dict, Any, List
-from datetime import datetime, timedelta, date, time
+from datetime import datetime, timedelta, date, time, timezone
 from uuid import UUID
 
 from sqlalchemy import func, case
@@ -94,7 +94,7 @@ class PhysicianStatisticsService:
             alerts=alert_stats,
             patient_satisfaction_score=satisfaction_score,
             avg_treatment_duration_days=treatment_duration,
-            calculated_at=datetime.utcnow(),
+            calculated_at=datetime.now(timezone.utc),
         )
 
         # Cache the result
@@ -141,7 +141,7 @@ class PhysicianStatisticsService:
     def _calculate_patient_metrics(self, physician_id: UUID) -> Dict[str, Any]:
         """Calculate patient-related metrics with optimized queries."""
         # Single query with aggregations
-        start_of_month = datetime.utcnow().replace(
+        start_of_month = datetime.now(timezone.utc).replace(
             day=1, hour=0, minute=0, second=0, microsecond=0
         )
 
@@ -177,7 +177,7 @@ class PhysicianStatisticsService:
 
     def _calculate_message_stats(self, physician_id: UUID) -> MessageStats:
         """Calculate message statistics with optimized queries."""
-        week_ago = datetime.utcnow() - timedelta(days=7)
+        week_ago = datetime.now(timezone.utc) - timedelta(days=7)
 
         # Get patient IDs subquery
         patient_ids = (
@@ -314,7 +314,7 @@ class PhysicianStatisticsService:
                     func.sum(
                         case(
                             (
-                                (Appointment.scheduled_at > datetime.utcnow())
+                                (Appointment.scheduled_at > datetime.now(timezone.utc))
                                 & (
                                     Appointment.status.in_(
                                         [

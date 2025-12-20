@@ -209,7 +209,7 @@ def monitor_quiz_links_task(self) -> dict[str, Any]:
             from app.services.monthly_quiz_message_integration import (
                 MonthlyQuizMessageIntegration,
             )
-            from datetime import datetime
+            from datetime import datetime, timezone
 
             MonthlyQuizService(db)
             MonthlyQuizMessageIntegration(db)
@@ -230,7 +230,7 @@ def monitor_quiz_links_task(self) -> dict[str, Any]:
                 db.query(QuizSession).filter(not QuizSession.is_completed).all()  # type: ignore[arg-type]
             )
 
-            current_time = datetime.utcnow()
+            current_time = datetime.now(timezone.utc)
 
             for session in active_sessions:
                 results["checked_links"] += 1

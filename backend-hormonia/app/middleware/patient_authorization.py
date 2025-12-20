@@ -7,7 +7,7 @@ all WhatsApp-related operations with proper logging and rate limiting.
 
 import logging
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from fastapi import status
 from fastapi.responses import JSONResponse
@@ -356,7 +356,7 @@ class PatientAuthorizationMiddleware:
                 "reason": validation_result["reason"],
                 "attempt_count": validation_result.get("attempt_count", 0),
                 "security_level": validation_result["security_level"],
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "context": request_context or {},
             }
 
@@ -459,7 +459,7 @@ async def validate_whatsapp_access(
     request_context = {
         "message_content": message_content[:100],  # First 100 chars
         "source": "whatsapp",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
     return await middleware.validate_patient_access(phone, request_context)

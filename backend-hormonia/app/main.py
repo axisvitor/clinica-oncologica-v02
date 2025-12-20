@@ -34,11 +34,11 @@ async def root_health_check():
     Simple health check endpoint at root level for Railway/Docker.
     Returns basic status without dependency checks.
     """
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     return {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "version": "2.0.0",
         "environment": settings.APP_ENVIRONMENT,
     }
