@@ -56,19 +56,25 @@ if settings.APP_ENABLE_DEBUG:
         }
 
 
-# CSRF Token endpoint - redirects to /api/v2/auth/csrf-token
-# NOTE: Use /api/v2/auth/csrf-token as the primary endpoint
+# CSRF Token endpoint - returns token directly (no redirect for CORS compatibility)
 @app.get("/csrf-token", tags=["Security"], include_in_schema=False)
 async def get_csrf_token_root():
     """
-    Legacy CSRF token endpoint - redirects to /api/v2/auth/csrf-token.
+    CSRF token endpoint for backwards compatibility.
 
-    This endpoint exists for backwards compatibility only.
-    Use /api/v2/auth/csrf-token for new implementations.
+    Returns token directly instead of redirecting to avoid CORS issues.
+    Cross-origin redirects don't carry CORS headers properly, causing
+    preflight requests to fail.
+
+    Primary endpoint: /api/v2/auth/csrf-token
     """
-    from fastapi.responses import RedirectResponse
+    from fastapi.responses import JSONResponse
+    from app.middleware.csrf import get_csrf_token, set_csrf_cookie
 
-    return RedirectResponse(url="/api/v2/auth/csrf-token", status_code=307)
+    token = get_csrf_token()
+    response = JSONResponse(content={"csrf_token": token})
+    set_csrf_cookie(response, token)
+    return response
 
 
 if __name__ == "__main__":
