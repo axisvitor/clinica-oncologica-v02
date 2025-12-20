@@ -5,7 +5,7 @@ Handles follow-up message scheduling logic.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from app.utils.date_helpers import get_next_scheduled_time, is_business_day

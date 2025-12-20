@@ -4,7 +4,7 @@ Shared imports and utilities for monthly quiz operations.
 
 import logging
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional, List
 from uuid import UUID
 

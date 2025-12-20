@@ -5,7 +5,7 @@ Celery tasks for message processing and scheduling.
 import logging
 from typing import Any, List, Optional
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.celery_app import celery_app
 from app.database import get_db

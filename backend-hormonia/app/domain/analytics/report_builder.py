@@ -4,7 +4,7 @@ Handles comprehensive reporting, trend analysis, and anomaly detection.
 """
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 from collections import deque
 from statistics import mean, stdev

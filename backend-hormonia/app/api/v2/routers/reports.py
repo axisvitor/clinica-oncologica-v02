@@ -15,7 +15,7 @@ import json
 import csv
 import io
 import hashlib
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from typing import Optional, List, Dict, Any
 from uuid import UUID, uuid4
 

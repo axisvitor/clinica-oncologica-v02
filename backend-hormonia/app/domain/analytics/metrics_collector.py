@@ -4,7 +4,7 @@ Handles raw data collection from database with optimized queries.
 """
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 from collections import deque
 from uuid import UUID

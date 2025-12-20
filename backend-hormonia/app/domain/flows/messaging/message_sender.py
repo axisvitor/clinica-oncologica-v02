@@ -6,7 +6,7 @@ Handles message scheduling and delivery through WhatsApp service.
 
 import logging
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any
 from uuid import UUID
 
