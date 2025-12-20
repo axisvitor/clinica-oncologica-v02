@@ -194,5 +194,8 @@ def configure_cors(
         logger.info("CORS configured for PRODUCTION", extra=log_context)
         # Also print to stdout for easier debugging in production logs
         print(f"[CORS] Production origins ({len(allowed_origins)}): {allowed_origins}")
+        print(f"[CORS] CORS_FRONTEND_URL from settings: {settings.CORS_FRONTEND_URL}")
+        print(f"[CORS] CORS_QUIZ_URL from settings: {settings.CORS_QUIZ_URL}")
+        print(f"[CORS] CORS_ALLOWED_ORIGINS from settings: {settings.CORS_ALLOWED_ORIGINS}")
     else:
         logger.warning("CORS configured for DEVELOPMENT", extra=log_context)
