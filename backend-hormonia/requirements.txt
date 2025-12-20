@@ -25,7 +25,7 @@ email-validator>=2.1.0.post1,<3.0.0
 # Background tasks
 celery>=5.3.4,<6.0.0
 celery[redis]>=5.3.4,<6.0.0  # Celery with Redis broker support
-redis>=5.0.0,<7.0.0  # Redis 5.x/6.x with ssl_context support for Python 3.13
+redis>=6.0.0,<7.0.0  # Redis 6.x required for ssl_context parameter (5.x uses 'ssl' param)
 certifi>=2023.7.22,<2025.0.0  # CA certificates for Redis SSL/TLS validation
 apscheduler>=3.10.4,<4.0.0  # Scheduled jobs (audit cleanup, etc.)
 
