@@ -45,6 +45,17 @@ class Settings(
 
         NOTE: Field names here are the DIRECT env variable names (no more aliases).
         """
+        def _strip_wrapping_quotes(value: str) -> str:
+            s = value.strip()
+            while len(s) >= 2 and s[0] == s[-1] and s[0] in ("\"", "'"):
+                s = s[1:-1].strip()
+            return s
+
+        if isinstance(data, dict):
+            for k, v in list(data.items()):
+                if isinstance(v, str):
+                    data[k] = _strip_wrapping_quotes(v)
+
         # Parse boolean fields from string - Using NEW direct field names
         boolean_fields = [
             # Base

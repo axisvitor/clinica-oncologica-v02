@@ -44,6 +44,17 @@ class BaseAppSettings(BaseSettings):
     @classmethod
     def parse_boolean_fields(cls, data: Any) -> Any:
         """Parse boolean fields from string environment variables."""
+        def _strip_wrapping_quotes(value: str) -> str:
+            s = value.strip()
+            while len(s) >= 2 and s[0] == s[-1] and s[0] in ("\"", "'"):
+                s = s[1:-1].strip()
+            return s
+
+        if isinstance(data, dict):
+            for k, v in list(data.items()):
+                if isinstance(v, str):
+                    data[k] = _strip_wrapping_quotes(v)
+
         boolean_fields = ["APP_ENABLE_DEBUG"]
 
         for field in boolean_fields:
