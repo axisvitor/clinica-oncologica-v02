@@ -265,7 +265,7 @@ def setup_middleware(app: FastAPI) -> None:
         app,
         allowed_origin_regex=None
         if is_production
-        else r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+        else r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$",
         allow_credentials=True,  # Required for httpOnly cookies and credentials
     )
 

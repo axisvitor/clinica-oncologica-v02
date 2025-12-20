@@ -154,6 +154,8 @@ def configure_cors(
             "Authorization",  # Bearer tokens and basic auth
             "X-Requested-With",  # AJAX request detection
             "X-CSRF-Token",  # CSRF protection tokens
+            "X-CSRFToken",  # Alternative CSRF header
+            "X-XSRF-Token",  # Angular/Axios CSRF header
             "Accept",  # Content type acceptance
             "Origin",  # Request origin (required for CORS)
         ]

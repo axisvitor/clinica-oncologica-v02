@@ -149,7 +149,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         random_data = secrets.token_hex(32)  # 64 character hex string (32 bytes)
 
         # Create payload
-        payload = f"{timestamp}:{random_data}"
+        payload = f"{timestamp}.{random_data}"
 
         # Create HMAC signature
         signature = hmac.new(
@@ -157,7 +157,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         ).hexdigest()
 
         # Combine payload and signature
-        token = f"{payload}:{signature}"
+        token = f"{payload}.{signature}"
 
         # Base64 encode for safe transport
         import base64
@@ -190,7 +190,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             ).decode("utf-8")
 
             # Split components
-            parts = decoded.split(":")
+            parts = decoded.split(".")
             if len(parts) != 3:
                 logger.warning("CSRF token has invalid format (expected 3 parts)")
                 return False
@@ -208,7 +208,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                 return False
 
             # Recreate payload and verify signature
-            payload = f"{timestamp_str}:{random_data}"
+            payload = f"{timestamp_str}.{random_data}"
             expected_signature = hmac.new(
                 self.secret_key, payload.encode("utf-8"), hashlib.sha256
             ).hexdigest()
