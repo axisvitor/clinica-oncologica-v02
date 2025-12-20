@@ -139,8 +139,8 @@ export class QuizApiClient {
    */
   private getBackendURL(): string {
     // Priority: VITE_API_BASE_URL > VITE_API_ENDPOINT_URL > fallback
-    const baseUrl = import.meta.env.VITE_API_BASE_URL;
-    const endpointUrl = import.meta.env.VITE_API_ENDPOINT_URL;
+    const baseUrl = import.meta.env['VITE_API_BASE_URL'];
+    const endpointUrl = import.meta.env['VITE_API_ENDPOINT_URL'];
 
     if (baseUrl) {
       logger.debug('[QuizApiClient] Using VITE_API_BASE_URL:', baseUrl);
@@ -261,10 +261,10 @@ export class QuizApiClient {
     const url = `${this.baseURL}${endpoint}`;
 
     // Prepare headers
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      ...(options.headers || {})
+      ...(options.headers as Record<string, string> || {})
     };
 
     // Add CSRF token for state-changing methods
@@ -459,6 +459,3 @@ export class QuizApiClient {
 
 // Export singleton instance
 export const quizApiClient = QuizApiClient.getInstance();
-
-// Export types
-export type { QuizApiClient };
