@@ -3,11 +3,58 @@ Main Settings module that combines all configuration modules.
 This provides backward compatibility with the monolithic config.py while using modular architecture.
 """
 
-from typing import Any, Tuple, Type
+from typing import Any
 from pydantic import model_validator
-from pydantic_settings import PydanticBaseSettingsSource
 import json
 import os
+
+# =============================================================================
+# CRITICAL: Preprocess env vars BEFORE any pydantic-settings class is imported
+# =============================================================================
+# pydantic-settings captures env vars when EnvSettingsSource is created.
+# For List[str] fields, it calls json.loads() which fails on empty strings.
+# We MUST fix the env vars BEFORE importing Settings classes.
+# =============================================================================
+
+_LIST_FIELDS_WITH_EMPTY_DEFAULT = [
+    "CORS_ALLOWED_ORIGINS",
+    "FIREBASE_ALLOWED_DOMAINS",
+    "SECURITY_ALLOWED_HOSTS",
+    "AI_HUMANIZATION_CRITICAL_KEYWORDS",
+]
+
+
+def _preprocess_list_env_vars():
+    """
+    Preprocess List[str] env vars to prevent pydantic-settings JSON parse errors.
+
+    Must be called BEFORE any Settings class is instantiated.
+    Converts:
+    - Empty string "" -> "[]" (valid empty JSON array)
+    - Comma-separated "a,b,c" -> '["a","b","c"]' (JSON array)
+    """
+    for field_name in _LIST_FIELDS_WITH_EMPTY_DEFAULT:
+        env_value = os.environ.get(field_name, None)
+        if env_value is not None:
+            stripped = env_value.strip()
+            # Empty string or whitespace -> empty JSON array
+            if not stripped:
+                os.environ[field_name] = "[]"
+            # Already valid JSON array -> leave as-is
+            elif stripped.startswith("["):
+                pass
+            # Comma-separated without brackets -> convert to JSON array
+            elif "," in stripped:
+                items = [item.strip() for item in stripped.split(",") if item.strip()]
+                os.environ[field_name] = json.dumps(items)
+            # Single value without brackets -> wrap in array
+            else:
+                os.environ[field_name] = json.dumps([stripped])
+
+
+# Execute preprocessing IMMEDIATELY at module load time
+_preprocess_list_env_vars()
+
 
 from .base import BaseAppSettings  # noqa: F401 - exported for use by other modules
 from .database import DatabaseSettings
@@ -15,16 +62,6 @@ from .security import SecuritySettings
 from .integrations import IntegrationsSettings
 from .features import FeaturesSettings
 from .monitoring import MonitoringSettings
-
-
-# List of fields that should default to empty list if env var is empty string
-# These are List[str] fields that pydantic-settings tries to JSON-parse
-LIST_FIELDS_WITH_EMPTY_DEFAULT = [
-    "CORS_ALLOWED_ORIGINS",
-    "FIREBASE_ALLOWED_DOMAINS",
-    "SECURITY_ALLOWED_HOSTS",
-    "AI_HUMANIZATION_CRITICAL_KEYWORDS",
-]
 
 
 class Settings(
@@ -226,43 +263,6 @@ class Settings(
                         )
 
         return data
-
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: Type["Settings"],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
-    ) -> Tuple[PydanticBaseSettingsSource, ...]:
-        """
-        Customize settings sources to preprocess empty string env vars.
-
-        This fixes the issue where pydantic-settings tries to JSON-parse empty strings
-        for List[str] fields, causing JSONDecodeError.
-
-        We preprocess environment variables BEFORE pydantic-settings sees them.
-        """
-        # Preprocess env vars for List fields that default to empty list
-        for field_name in LIST_FIELDS_WITH_EMPTY_DEFAULT:
-            env_value = os.environ.get(field_name, None)
-            if env_value is not None:
-                # If empty string or just whitespace, set to valid empty JSON array
-                if not env_value.strip():
-                    os.environ[field_name] = "[]"
-                # If it looks like a comma-separated list without brackets, wrap it
-                elif not env_value.strip().startswith("[") and "," in env_value:
-                    # Convert comma-separated to JSON array
-                    items = [
-                        f'"{item.strip()}"'
-                        for item in env_value.split(",")
-                        if item.strip()
-                    ]
-                    os.environ[field_name] = f"[{','.join(items)}]"
-
-        # Return default source order: init > env > dotenv > secrets
-        return (init_settings, env_settings, dotenv_settings, file_secret_settings)
 
     def __init__(self, **kwargs):
         """Initialize settings with validation."""
