@@ -196,9 +196,9 @@ class RedisManager:
                 if redis_url.startswith("redis://"):
                     redis_url = "rediss://" + redis_url[8:]
 
-                # Create SSL context with CA certificate
+                # For redis-py 6.x: use ssl_context parameter (not ssl=SSLContext)
                 ssl_context = self._create_ssl_context()
-                connection_kwargs["ssl"] = ssl_context
+                connection_kwargs["ssl_context"] = ssl_context
 
                 logger.info(
                     "Redis async SSL: Enabled with CA certificate "
