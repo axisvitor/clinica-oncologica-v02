@@ -244,8 +244,7 @@ class RedisManager:
         """
         Create sync Redis client with connection pool.
 
-        For sync redis-py 5.x, SSL is configured via ssl_cert_reqs parameter,
-        NOT via ssl=SSLContext (which only works for async).
+        For redis-py 6.x, both sync and async use ssl_context parameter.
         """
         try:
             # Base connection configuration - OPTIMIZED
@@ -269,19 +268,14 @@ class RedisManager:
                 if redis_url.startswith("redis://"):
                     redis_url = "rediss://" + redis_url[8:]
 
-                # For sync redis, use ssl_cert_reqs parameter (NOT ssl=SSLContext)
+                # For redis-py 6.x: use ssl_context parameter (same as async)
+                ssl_context = self._create_ssl_context()
+                connection_kwargs["ssl_context"] = ssl_context
+
+                # Log reflects actual SSL verification mode
                 ssl_cert_reqs = getattr(settings, "REDIS_SSL_CERT_REQS", "required").lower()
-                if ssl_cert_reqs == "none":
-                    connection_kwargs["ssl_cert_reqs"] = None  # No verification
-                    logger.info("Redis sync SSL: Enabled without certificate verification")
-                else:
-                    connection_kwargs["ssl_cert_reqs"] = "required"
-                    # Optionally add CA cert path if exists
-                    if REDIS_CA_CERT_PATH.exists():
-                        connection_kwargs["ssl_ca_certs"] = str(REDIS_CA_CERT_PATH)
-                        logger.info(f"Redis sync SSL: Using CA cert from {REDIS_CA_CERT_PATH}")
-                    else:
-                        logger.info("Redis sync SSL: Using system CA certificates")
+                verify_mode = "CERT_NONE" if ssl_cert_reqs == "none" else "CERT_REQUIRED"
+                logger.info(f"Redis sync SSL: Enabled (TLS >= 1.2, verify={verify_mode})")
             else:
                 # Ensure using non-SSL scheme
                 if redis_url.startswith("rediss://"):
