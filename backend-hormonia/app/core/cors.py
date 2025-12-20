@@ -1,5 +1,5 @@
 """
-CORS Middleware Configuration - Fail Fast Strategy
+CORS Configuration Module - Network Barrier with Fail-Fast Validation
 
 Modern security implementation with strict validation at application startup.
 All CORS origins MUST come from environment variables via settings.get_cors_origins().
@@ -11,8 +11,8 @@ Security Principles:
 4. Environment-driven: All configuration from settings, never hardcoded
 
 Architecture:
-- settings.py: Single source of truth for CORS origins (parses env vars)
-- cors.py: Startup validation and middleware configuration
+- settings/security.py: Single source of truth for CORS origins (parses env vars)
+- core/cors.py: Startup validation and middleware configuration
 
 Production Security Rules:
 1. NO regex patterns in production

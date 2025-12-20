@@ -182,29 +182,20 @@ def setup_middleware(app: FastAPI) -> None:
     logger.info("✅ [8/12] Enhanced security middleware added")
 
     # ========================================================================
-    # STEP 9: CSRF Protection middleware
+    # STEP 9: CSRF Protection middleware (Unified Stateless Implementation)
     # ========================================================================
     # Protects against Cross-Site Request Forgery attacks
+    # - Uses Double Submit Cookie pattern (stateless)
+    # - HEXADECIMAL tokens (not Base64) for auditability
+    # - NO in-memory rate limiting (prevents memory leaks)
+    # - Exempt paths configured as TUPLE in csrf.py for performance
     if settings.SECURITY_CSRF_SECRET_KEY:
-        from app.core.csrf_middleware import CSRFMiddleware
+        from app.middleware.csrf import CSRFMiddleware
 
-        app.add_middleware(
-            CSRFMiddleware,
-            secret_key=settings.SECURITY_CSRF_SECRET_KEY,
-            token_expiry=3600,  # 1 hour
-            exempt_paths=[
-                "/api/v2/auth/csrf-token",
-                "/api/v2/auth/firebase/verify",
-                "/webhooks/",
-                "/api/public/",
-                "/api/v2/quiz-extensions/monthly/public",
-                "/api/v2/monthly-quiz-public/monthly/public",
-                "/api/v2/monthly-quiz/monthly/public",
-            ],
-        )
-        logger.info("✅ [9/12] CSRF protection middleware added (HMAC-SHA256)")
+        app.add_middleware(CSRFMiddleware)
+        logger.info("✅ [9/12] CSRF protection middleware added (Unified Stateless - HMAC-SHA256)")
     else:
-        logger.warning("⚠️  CSRF protection DISABLED - Set CSRF_SECRET_KEY to enable")
+        logger.warning("⚠️  CSRF protection DISABLED - Set SECURITY_CSRF_SECRET_KEY to enable")
 
     # ========================================================================
     # STEP 10: Webhook validation middleware
@@ -252,13 +243,13 @@ def setup_middleware(app: FastAPI) -> None:
     # ========================================================================
     # ⚠️ CRITICAL: CORS must execute FIRST to handle preflight OPTIONS requests
     # This is why it's added LAST in the middleware stack
-    from app.middleware.cors import configure_cors
+    from app.core.cors import configure_cors
 
     is_production = settings.APP_ENVIRONMENT.lower() == "production"
 
-    # Configure CORS with security validation
+    # Configure CORS with fail-fast security validation
     # Origins are sourced internally from settings.get_cors_origins()
-    # Production: No regex, explicit HTTPS origins only (from settings)
+    # Production: No regex, explicit HTTPS origins only (validated at startup)
     # Development: Localhost regex pattern allowed + default origins
     # Note: allow_methods and allow_headers have secure defaults in cors.py
     configure_cors(
