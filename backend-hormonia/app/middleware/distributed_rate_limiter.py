@@ -535,6 +535,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         Returns:
             Response
         """
+        # Skip rate limiting for OPTIONS preflight requests (CORS)
+        # This ensures CORS middleware can handle preflights properly
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         # Check if path is exempt
         if any(request.url.path.startswith(path) for path in self.exempt_paths):
             return await call_next(request)

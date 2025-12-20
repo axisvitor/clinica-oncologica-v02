@@ -56,6 +56,14 @@ def configure_cors(app: FastAPI) -> None:
     """
     origins = get_allowed_origins()
 
+    # Log each origin for debugging CORS issues
+    if origins:
+        logger.info(f"[CORS] Configuring {len(origins)} allowed origins:")
+        for origin in origins:
+            logger.info(f"[CORS]   - {origin}")
+    else:
+        logger.warning("[CORS] No origins configured! All CORS requests will be blocked.")
+
     # Allowed headers for CORS requests
     allowed_headers = [
         "Content-Type",
@@ -87,7 +95,6 @@ def configure_cors(app: FastAPI) -> None:
         max_age=3600,  # Cache preflight for 1 hour
     )
 
-    # Log configuration
+    # Log configuration summary
     env = "PRODUCTION" if is_production() else "DEVELOPMENT"
-    logger.info(f"[CORS] {env} - {len(origins)} origins configured")
-    logger.debug(f"[CORS] Origins: {origins}")
+    logger.info(f"[CORS] {env} mode - {len(origins)} origins, credentials=True, max_age=3600s")
