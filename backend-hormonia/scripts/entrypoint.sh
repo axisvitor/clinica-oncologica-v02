@@ -22,18 +22,58 @@ wait_for_database() {
     local max_attempts=30
     local attempt=1
 
+    # Pre-flight check: Verify DATABASE_URL is set
+    if [ -z "$DATABASE_URL" ]; then
+        echo "❌ FATAL: DATABASE_URL environment variable is not set!"
+        echo "   Please configure DATABASE_URL in Railway environment variables."
+        echo "   Format: postgresql://user:password@host:port/database"
+        return 1
+    fi
+
+    # Extract host for diagnostic purposes (mask password)
+    DB_HOST=$(echo "$DATABASE_URL" | sed -E 's|.*@([^/:]+).*|\1|')
+    echo "   Database host: $DB_HOST"
+
     while [ $attempt -le $max_attempts ]; do
-        if python -c "
-from app.database import engine
-from sqlalchemy import text
+        # Use lightweight psycopg connection test (no full app import)
+        if python3 -c "
+import os
+import sys
+
 try:
-    with engine.connect() as conn:
-        conn.execute(text('SELECT 1'))
-    exit(0)
+    import psycopg
+    database_url = os.environ.get('DATABASE_URL', '')
+
+    # Connect with timeout
+    with psycopg.connect(database_url, connect_timeout=5) as conn:
+        with conn.cursor() as cur:
+            cur.execute('SELECT 1')
+            result = cur.fetchone()
+            if result and result[0] == 1:
+                sys.exit(0)
+            else:
+                print('Database query returned unexpected result')
+                sys.exit(1)
+except ImportError:
+    # Fallback: try psycopg2
+    try:
+        import psycopg2
+        database_url = os.environ.get('DATABASE_URL', '')
+        with psycopg2.connect(database_url, connect_timeout=5) as conn:
+            with conn.cursor() as cur:
+                cur.execute('SELECT 1')
+                result = cur.fetchone()
+                if result and result[0] == 1:
+                    sys.exit(0)
+        print('Database query returned unexpected result')
+        sys.exit(1)
+    except Exception as e:
+        print(f'Connection failed (psycopg2): {e}')
+        sys.exit(1)
 except Exception as e:
-    print(f'Database not ready: {e}')
-    exit(1)
-" 2>/dev/null; then
+    print(f'Connection failed: {e}')
+    sys.exit(1)
+" 2>&1; then
             echo "✓ Database connection established"
             return 0
         fi
@@ -44,6 +84,11 @@ except Exception as e:
     done
 
     echo "❌ Failed to connect to database after $max_attempts attempts"
+    echo "   Please verify:"
+    echo "   1. DATABASE_URL is correctly configured"
+    echo "   2. Database server is reachable from Railway network"
+    echo "   3. Security groups/firewall allow connections"
+    echo "   4. Database credentials are correct"
     return 1
 }
 
