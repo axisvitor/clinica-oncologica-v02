@@ -200,20 +200,12 @@ class RedisManager:
                 if redis_url.startswith("redis://"):
                     redis_url = "rediss://" + redis_url[8:]
 
-                # Configure SSL based on redis-py version
+                # Use ssl_cert_reqs parameter (works in both redis-py 5.x and 6.x with from_url())
                 ssl_cert_reqs = getattr(settings, "REDIS_SSL_CERT_REQS", "required").lower()
                 verify_mode = "CERT_NONE" if ssl_cert_reqs == "none" else "CERT_REQUIRED"
 
-                if REDIS_6_OR_HIGHER:
-                    # redis-py 6.x: use ssl_context parameter
-                    ssl_context = self._create_ssl_context()
-                    connection_kwargs["ssl_context"] = ssl_context
-                else:
-                    # redis-py 5.x: use ssl_cert_reqs parameter
-                    if ssl_cert_reqs == "none":
-                        connection_kwargs["ssl_cert_reqs"] = "none"
-                    else:
-                        connection_kwargs["ssl_cert_reqs"] = "required"
+                # ssl_cert_reqs works universally with from_url() and ConnectionPool.from_url()
+                connection_kwargs["ssl_cert_reqs"] = ssl_cert_reqs
 
                 logger.info(
                     f"Redis async SSL: Enabled (TLS >= 1.2, verify={verify_mode}, "
@@ -281,20 +273,12 @@ class RedisManager:
                 if redis_url.startswith("redis://"):
                     redis_url = "rediss://" + redis_url[8:]
 
-                # Configure SSL based on redis-py version
+                # Use ssl_cert_reqs parameter (works in both redis-py 5.x and 6.x with from_url())
                 ssl_cert_reqs = getattr(settings, "REDIS_SSL_CERT_REQS", "required").lower()
                 verify_mode = "CERT_NONE" if ssl_cert_reqs == "none" else "CERT_REQUIRED"
 
-                if REDIS_6_OR_HIGHER:
-                    # redis-py 6.x: use ssl_context parameter
-                    ssl_context = self._create_ssl_context()
-                    connection_kwargs["ssl_context"] = ssl_context
-                else:
-                    # redis-py 5.x: use ssl_cert_reqs parameter
-                    if ssl_cert_reqs == "none":
-                        connection_kwargs["ssl_cert_reqs"] = "none"
-                    else:
-                        connection_kwargs["ssl_cert_reqs"] = "required"
+                # ssl_cert_reqs works universally with from_url() and ConnectionPool.from_url()
+                connection_kwargs["ssl_cert_reqs"] = ssl_cert_reqs
 
                 logger.info(
                     f"Redis sync SSL: Enabled (TLS >= 1.2, verify={verify_mode}, "

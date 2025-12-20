@@ -55,7 +55,6 @@ wait_for_redis() {
     while [ $attempt -le $max_attempts ]; do
         if python -c "
 import redis
-import ssl
 import os
 
 redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
@@ -70,27 +69,9 @@ if enable_ssl:
     if redis_url.startswith('redis://'):
         redis_url = 'rediss://' + redis_url[8:]
 
-    # Detect redis-py version for correct SSL parameter
-    redis_version = tuple(int(x) for x in redis.__version__.split('.')[:2])
-
-    if redis_version >= (6, 0):
-        # redis-py 6.x uses ssl_context parameter
-        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
-        if ssl_cert_reqs == 'none':
-            ssl_context.check_hostname = False
-            ssl_context.verify_mode = ssl.CERT_NONE
-        else:
-            ssl_context.check_hostname = True
-            ssl_context.verify_mode = ssl.CERT_REQUIRED
-            ssl_context.load_default_certs()
-        kwargs['ssl_context'] = ssl_context
-    else:
-        # redis-py 5.x uses ssl_cert_reqs parameter
-        if ssl_cert_reqs == 'none':
-            kwargs['ssl_cert_reqs'] = 'none'
-        else:
-            kwargs['ssl_cert_reqs'] = 'required'
+    # Use ssl_cert_reqs parameter (works universally with from_url() in redis-py 5.x and 6.x)
+    kwargs['ssl_cert_reqs'] = ssl_cert_reqs
+    print(f'Redis SSL: enabled with cert_reqs={ssl_cert_reqs}')
 
 try:
     r = redis.from_url(redis_url, **kwargs)
