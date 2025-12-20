@@ -107,9 +107,22 @@ async def lifespan(app: FastAPI):
         if settings.REDIS_ENABLE_SSL:
             if redis_url.startswith("redis://"):
                 redis_url = "rediss://" + redis_url[8:]
-            # For redis-py 6.x: use ssl_context parameter (not ssl=SSLContext)
-            connection_kwargs["ssl_context"] = _create_redis_ssl_context()
-            logger.info("Redis connection using SSL with CA certificate")
+
+            # Detect redis-py version for correct SSL parameter
+            redis_version = tuple(int(x) for x in redis.__version__.split(".")[:2])
+            ssl_cert_reqs = getattr(settings, "REDIS_SSL_CERT_REQS", "required").lower()
+
+            if redis_version >= (6, 0):
+                # redis-py 6.x: use ssl_context parameter
+                connection_kwargs["ssl_context"] = _create_redis_ssl_context()
+            else:
+                # redis-py 5.x: use ssl_cert_reqs parameter
+                if ssl_cert_reqs == "none":
+                    connection_kwargs["ssl_cert_reqs"] = "none"
+                else:
+                    connection_kwargs["ssl_cert_reqs"] = "required"
+
+            logger.info(f"Redis connection using SSL (redis-py {redis.__version__})")
 
         redis_client = redis.from_url(redis_url, **connection_kwargs)
         # Test connection

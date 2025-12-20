@@ -70,21 +70,27 @@ if enable_ssl:
     if redis_url.startswith('redis://'):
         redis_url = 'rediss://' + redis_url[8:]
 
-    # Create SSL context for redis-py 6.x
-    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
+    # Detect redis-py version for correct SSL parameter
+    redis_version = tuple(int(x) for x in redis.__version__.split('.')[:2])
 
-    if ssl_cert_reqs == 'none':
-        # No certificate verification (Redis Cloud free tier)
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE
+    if redis_version >= (6, 0):
+        # redis-py 6.x uses ssl_context parameter
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
+        if ssl_cert_reqs == 'none':
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+        else:
+            ssl_context.check_hostname = True
+            ssl_context.verify_mode = ssl.CERT_REQUIRED
+            ssl_context.load_default_certs()
+        kwargs['ssl_context'] = ssl_context
     else:
-        ssl_context.check_hostname = True
-        ssl_context.verify_mode = ssl.CERT_REQUIRED
-        ssl_context.load_default_certs()
-
-    # redis-py 6.x uses ssl_context parameter
-    kwargs['ssl_context'] = ssl_context
+        # redis-py 5.x uses ssl_cert_reqs parameter
+        if ssl_cert_reqs == 'none':
+            kwargs['ssl_cert_reqs'] = 'none'
+        else:
+            kwargs['ssl_cert_reqs'] = 'required'
 
 try:
     r = redis.from_url(redis_url, **kwargs)

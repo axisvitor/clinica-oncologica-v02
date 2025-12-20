@@ -109,15 +109,18 @@ def get_redis_connection_kwargs(
 
     ssl_cert_reqs = getattr(settings, "REDIS_SSL_CERT_REQS", "required").lower()
 
-    if mode == "async":
-        # For redis-py 6.x: use ssl_context parameter (not ssl=SSLContext)
+    # Import version detection from manager
+    from .manager import REDIS_6_OR_HIGHER
+
+    if REDIS_6_OR_HIGHER:
+        # redis-py 6.x: use ssl_context parameter for both sync and async
         ssl_context = create_redis_ssl_context()
         if ssl_context:
             kwargs["ssl_context"] = ssl_context
     else:
-        # Sync redis uses ssl_cert_reqs parameter (not SSLContext)
+        # redis-py 5.x: use ssl_cert_reqs parameter
         if ssl_cert_reqs == "none":
-            kwargs["ssl_cert_reqs"] = None
+            kwargs["ssl_cert_reqs"] = "none"
         else:
             kwargs["ssl_cert_reqs"] = "required"
             if REDIS_CA_CERT_PATH.exists():

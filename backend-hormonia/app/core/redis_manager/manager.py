@@ -22,6 +22,10 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Detect redis-py version for SSL parameter compatibility
+REDIS_VERSION = tuple(int(x) for x in redis_sync.__version__.split(".")[:2])
+REDIS_6_OR_HIGHER = REDIS_VERSION >= (6, 0)
+
 # Path to Redis CA certificate for SSL/TLS connections
 REDIS_CA_CERT_PATH = Path(__file__).parent.parent.parent.parent / "certs" / "redis_ca.pem"
 
@@ -196,15 +200,24 @@ class RedisManager:
                 if redis_url.startswith("redis://"):
                     redis_url = "rediss://" + redis_url[8:]
 
-                # For redis-py 6.x: use ssl_context parameter (not ssl=SSLContext)
-                ssl_context = self._create_ssl_context()
-                connection_kwargs["ssl_context"] = ssl_context
-
-                # Log reflects actual SSL verification mode
+                # Configure SSL based on redis-py version
                 ssl_cert_reqs = getattr(settings, "REDIS_SSL_CERT_REQS", "required").lower()
                 verify_mode = "CERT_NONE" if ssl_cert_reqs == "none" else "CERT_REQUIRED"
+
+                if REDIS_6_OR_HIGHER:
+                    # redis-py 6.x: use ssl_context parameter
+                    ssl_context = self._create_ssl_context()
+                    connection_kwargs["ssl_context"] = ssl_context
+                else:
+                    # redis-py 5.x: use ssl_cert_reqs parameter
+                    if ssl_cert_reqs == "none":
+                        connection_kwargs["ssl_cert_reqs"] = "none"
+                    else:
+                        connection_kwargs["ssl_cert_reqs"] = "required"
+
                 logger.info(
-                    f"Redis async SSL: Enabled (TLS >= 1.2, verify={verify_mode})"
+                    f"Redis async SSL: Enabled (TLS >= 1.2, verify={verify_mode}, "
+                    f"redis-py={redis_sync.__version__})"
                 )
             else:
                 # Ensure using non-SSL scheme
@@ -268,14 +281,25 @@ class RedisManager:
                 if redis_url.startswith("redis://"):
                     redis_url = "rediss://" + redis_url[8:]
 
-                # For redis-py 6.x: use ssl_context parameter (same as async)
-                ssl_context = self._create_ssl_context()
-                connection_kwargs["ssl_context"] = ssl_context
-
-                # Log reflects actual SSL verification mode
+                # Configure SSL based on redis-py version
                 ssl_cert_reqs = getattr(settings, "REDIS_SSL_CERT_REQS", "required").lower()
                 verify_mode = "CERT_NONE" if ssl_cert_reqs == "none" else "CERT_REQUIRED"
-                logger.info(f"Redis sync SSL: Enabled (TLS >= 1.2, verify={verify_mode})")
+
+                if REDIS_6_OR_HIGHER:
+                    # redis-py 6.x: use ssl_context parameter
+                    ssl_context = self._create_ssl_context()
+                    connection_kwargs["ssl_context"] = ssl_context
+                else:
+                    # redis-py 5.x: use ssl_cert_reqs parameter
+                    if ssl_cert_reqs == "none":
+                        connection_kwargs["ssl_cert_reqs"] = "none"
+                    else:
+                        connection_kwargs["ssl_cert_reqs"] = "required"
+
+                logger.info(
+                    f"Redis sync SSL: Enabled (TLS >= 1.2, verify={verify_mode}, "
+                    f"redis-py={redis_sync.__version__})"
+                )
             else:
                 # Ensure using non-SSL scheme
                 if redis_url.startswith("rediss://"):
