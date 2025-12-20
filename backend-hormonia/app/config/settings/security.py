@@ -537,6 +537,40 @@ class SecuritySettings(BaseAppSettings):
                     + "\n".join(f"  - {error}" for error in errors)
                 )
 
+    def _normalize_cors_origin(self, origin: str, is_production: bool) -> str:
+        """
+        Normalize a CORS origin URL.
+
+        - Strips whitespace, quotes, and trailing slashes
+        - Adds https:// prefix if missing and in production
+        - Adds http:// prefix if missing and in development (for localhost)
+
+        Args:
+            origin: The origin URL to normalize
+            is_production: Whether running in production mode
+
+        Returns:
+            Normalized origin URL with proper protocol
+        """
+        normalized = origin.strip().strip('"').strip("'").rstrip("/")
+        if not normalized:
+            return ""
+
+        # If already has protocol, return as-is
+        if normalized.startswith("http://") or normalized.startswith("https://"):
+            return normalized
+
+        # Add appropriate protocol based on environment
+        if is_production:
+            # Production: always use HTTPS
+            return f"https://{normalized}"
+        else:
+            # Development: use HTTP for localhost, HTTPS for others
+            if "localhost" in normalized or "127.0.0.1" in normalized:
+                return f"http://{normalized}"
+            else:
+                return f"https://{normalized}"
+
     def get_cors_origins(self) -> List[str]:
         """
         Returns CORS origins from environment configuration only.
@@ -545,30 +579,29 @@ class SecuritySettings(BaseAppSettings):
         1. Start with any explicitly configured CORS_ALLOWED_ORIGINS
         2. Add CORS_FRONTEND_URL and CORS_QUIZ_URL if set
         3. Normalize all origins (strip whitespace, remove trailing slashes)
+        4. Auto-add https:// prefix if missing in production
 
         All origins must come from environment variables.
         """
         origins = set()
+        is_production = self.APP_ENVIRONMENT.lower() == "production"
 
         # 1. Explicitly configured origins
         if self.CORS_ALLOWED_ORIGINS:
             for origin in self.CORS_ALLOWED_ORIGINS:
-                # Normalize: strip whitespace, remove trailing slashes, remove quotes
-                normalized = origin.strip().strip('"').strip("'").rstrip("/")
+                normalized = self._normalize_cors_origin(origin, is_production)
                 if normalized:
                     origins.add(normalized)
 
         # 2. Configured Frontend/Quiz URLs (only if not localhost in production)
-        is_production = self.APP_ENVIRONMENT.lower() == "production"
-
         if self.CORS_FRONTEND_URL:
-            normalized = self.CORS_FRONTEND_URL.strip().strip('"').strip("'").rstrip("/")
+            normalized = self._normalize_cors_origin(self.CORS_FRONTEND_URL, is_production)
             # Skip localhost URLs in production
             if normalized and not (is_production and "localhost" in normalized):
                 origins.add(normalized)
 
         if self.CORS_QUIZ_URL:
-            normalized = self.CORS_QUIZ_URL.strip().strip('"').strip("'").rstrip("/")
+            normalized = self._normalize_cors_origin(self.CORS_QUIZ_URL, is_production)
             # Skip localhost URLs in production
             if normalized and not (is_production and "localhost" in normalized):
                 origins.add(normalized)
