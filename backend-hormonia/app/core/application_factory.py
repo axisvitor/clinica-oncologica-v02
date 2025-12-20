@@ -189,40 +189,10 @@ def create_application(
 
     logger.info("✓ API v2 exception handlers configured")
 
-    # Configure CSRF protection
-    try:
-        from fastapi_csrf_protect.exceptions import CsrfProtectError
-        from app.middleware.csrf import csrf_protect
-
-        @app.exception_handler(CsrfProtectError)
-        async def csrf_protect_exception_handler(
-            request: Request, exc: CsrfProtectError
-        ):
-            """Handle CSRF validation failures with proper logging."""
-            logger.warning(
-                f"CSRF validation failed: {str(exc)}",
-                extra={
-                    "path": str(request.url.path),
-                    "method": request.method,
-                    "client_ip": request.client.host if request.client else "unknown",
-                },
-            )
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "error": "csrf_validation_failed",
-                    "message": "CSRF token validation failed. Please refresh and try again.",
-                    "timestamp": datetime.utcnow().isoformat(),
-                },
-            )
-
-        # NOTE: Deprecated /api/v2/csrf-token endpoint removed.
-        # Use /api/v2/auth/csrf-token instead (defined in app/api/v2/routers/auth.py)
-
-        app.state.csrf_protect = csrf_protect
-        logger.info("✓ CSRF protection configured")
-    except Exception as e:
-        logger.warning(f"CSRF protection not configured: {e}")
+    # CSRF protection is handled by CSRFMiddleware (added in middleware_setup.py)
+    # The middleware uses Double Submit Cookie pattern with native Python implementation.
+    # Token endpoint: /api/v2/auth/csrf-token (defined in app/api/v2/routers/auth.py)
+    logger.info("✓ CSRF protection uses CSRFMiddleware (Double Submit Cookie pattern)")
 
     # Configure application components in order
     logger.info("Setting up application components...")
