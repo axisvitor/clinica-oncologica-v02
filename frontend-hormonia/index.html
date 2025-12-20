@@ -6,8 +6,6 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <!-- CSP nonce meta tag - injected by backend -->
-    <meta property="csp-nonce" content="{{ csp_nonce }}" />
     <title>Neoplasias Litoral - Clínica de Oncologia</title>
 
     <!-- Preconnect to Google Fonts for performance -->
@@ -15,50 +13,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
     <!-- Google Fonts - Professional Medical App Typography -->
-    <!-- Poppins: Headings and titles (Medium, SemiBold, Bold) -->
-    <!-- Roboto: Body text (Regular, Medium) -->
-    <!-- Roboto Mono: Numeric data and medical values (Regular, Medium) -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Roboto:wght@400;500&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
   </head>
   <body>
     <div id="root"></div>
-    <!-- Runtime configuration loader - DISABLED: causes loading issues -->
-    <!-- Config is loaded directly from import.meta.env in runtime-config.ts -->
-    <!-- <script src="/config.js"></script> -->
-    <!-- Vite resolves /main.tsx to correct hashed path in production -->
     <script type="module" src="/src/main.tsx"></script>
-
-    <!-- PRODUCTION SAFETY: Global error handler for unhandled errors -->
-    <!-- CSP Level 3: Using nonce instead of unsafe-inline -->
-    <script nonce="{{ csp_nonce }}">
-      window.addEventListener('error', function(e) {
-        console.error('🚨 Global error caught:', e.message, e.filename, e.lineno);
-        // Don't show overlay in development (already has one)
-        if (window.location.hostname.includes('railway.app')) {
-          const existingOverlay = document.getElementById('global-error-overlay');
-          if (!existingOverlay) {
-            const overlay = document.createElement('div');
-            overlay.id = 'global-error-overlay';
-            overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(220,38,38,0.95);color:white;display:flex;align-items:center;justify-content:center;z-index:999999;font-family:system-ui;padding:20px;';
-            overlay.innerHTML = '<div style="max-width:600px;text-align:center;"><h1 style="font-size:48px;margin:0 0 20px;">⚠️</h1><h2 style="margin:0 0 15px;">Erro Crítico</h2><p style="margin:0 0 15px;opacity:0.9;">' + e.message + '</p><button onclick="window.location.reload()" style="background:white;color:#dc2626;border:none;padding:12px 32px;border-radius:8px;cursor:pointer;font-weight:600;font-size:16px;">Recarregar Página</button></div>';
-            document.body.appendChild(overlay);
-          }
-        }
-      });
-
-      window.addEventListener('unhandledrejection', function(e) {
-        console.error('🚨 Unhandled promise rejection:', e.reason);
-        if (window.location.hostname.includes('railway.app')) {
-          const existingOverlay = document.getElementById('global-error-overlay');
-          if (!existingOverlay) {
-            const overlay = document.createElement('div');
-            overlay.id = 'global-error-overlay';
-            overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(220,38,38,0.95);color:white;display:flex;align-items:center;justify-content:center;z-index:999999;font-family:system-ui;padding:20px;';
-            overlay.innerHTML = '<div style="max-width:600px;text-align:center;"><h1 style="font-size:48px;margin:0 0 20px;">⚠️</h1><h2 style="margin:0 0 15px;">Erro de Promise</h2><p style="margin:0 0 15px;opacity:0.9;">' + (e.reason?.message || e.reason) + '</p><button onclick="window.location.reload()" style="background:white;color:#dc2626;border:none;padding:12px 32px;border-radius:8px;cursor:pointer;font-weight:600;font-size:16px;">Recarregar Página</button></div>';
-            document.body.appendChild(overlay);
-          }
-        }
-      });
-    </script>
   </body>
 </html>

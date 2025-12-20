@@ -336,9 +336,6 @@ export default defineConfig(({ mode }) => ({
       "X-Content-Type-Options": "nosniff",
       "Referrer-Policy": "strict-origin-when-cross-origin",
       "Permissions-Policy": "geolocation=(self), microphone=(), camera=()",
-      // CSP Level 3: Removed unsafe-inline and unsafe-eval, backend will inject nonces
-      "Content-Security-Policy":
-        "default-src 'self'; script-src 'self' 'strict-dynamic' https://www.gstatic.com https://identitytoolkit.googleapis.com; style-src 'self' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://clinica-oncologica-v02-production.up.railway.app wss://clinica-oncologica-v02-production.up.railway.app https://identitytoolkit.googleapis.com https://securetoken.googleapis.com wss://*.railway.app https://*.railway.app; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; block-all-mixed-content; upgrade-insecure-requests",
     },
     allowedHosts: [
       "frontend-production-c59bc.up.railway.app",
