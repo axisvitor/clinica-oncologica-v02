@@ -299,6 +299,7 @@ def _get_user_from_db(firebase_uid: str) -> Optional[User]:
 async def get_current_user_from_session(
     session_cookie_id: str = Cookie(None, alias="session_id"),
     x_session_id: str = Header(None, alias="X-Session-ID"),
+    authorization: Optional[str] = Header(None),
     services: Any = Depends(_get_service_provider),
     redis_cache: "FirebaseRedisCache" = Depends(get_redis_cache),
 ) -> Dict:
@@ -329,7 +330,19 @@ async def get_current_user_from_session(
         HTTPException 403: User account is inactive
     """
     try:
-        final_session_id = session_cookie_id or x_session_id
+        final_session_id = None
+
+        # Priority 1: Authorization Header (Bearer <session_id>)
+        if authorization and authorization.startswith("Bearer "):
+            final_session_id = authorization.split(" ")[1]
+        
+        # Priority 2: X-Session-ID Header
+        if not final_session_id and x_session_id:
+            final_session_id = x_session_id
+            
+        # Priority 3: Cookie
+        if not final_session_id and session_cookie_id:
+            final_session_id = session_cookie_id
 
         if not final_session_id:
             raise HTTPException(

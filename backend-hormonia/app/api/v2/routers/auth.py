@@ -243,18 +243,18 @@ async def verify_firebase_token(
         ):
             response.headers["X-Session-ID"] = str(session.id)
 
-        # Return correct response structure matching FirebaseTokenVerifyResponse
-        if (
-            settings.APP_ENABLE_DEBUG
-            and settings.APP_ENVIRONMENT.lower() != "production"
-        ):
-            return {
-                "valid": True,
-                "session_id": str(session.id),
-                "message": "Login successful",
-            }
-
-        return {"valid": True, "message": "Login successful"}
+        return {
+            "valid": True,
+            "session_id": str(session.id),
+            "message": "Login successful",
+            "user": {
+                "id": str(user.id),
+                "email": user.email,
+                "full_name": user.full_name,
+                "role": user.role,
+                "permissions": user_data.get("permissions", []),
+            },
+        }
 
     except ValueError as e:
         logger.warning(f"Invalid Firebase token: {e}")

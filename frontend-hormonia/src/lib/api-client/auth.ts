@@ -177,9 +177,15 @@ export function createAuthApi(client: ApiClientCore) {
         valid: boolean
         session_id?: string
         message?: string
+        user?: User
       }>('/api/v2/auth/firebase/verify', {
         id_token: firebaseToken
       });
+
+      if (response.valid && response.session_id) {
+        client.setAuthToken(response.session_id);
+      }
+
       return response;
     },
 

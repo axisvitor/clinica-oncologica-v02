@@ -56,6 +56,7 @@ EXEMPT_PATHS = frozenset({
     "/api/public/",
     "/api/v2/quiz-extensions/monthly/public",
     "/api/v2/monthly-quiz-public",
+    "/api/v2/auth/firebase/verify",  # Exempt: Use ID token in body (safe from CSRF)
 })
 
 # Safe HTTP methods (no state changes)

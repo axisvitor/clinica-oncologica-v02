@@ -45,19 +45,13 @@ export async function loginUser(
       }
     }
 
-    // VALIDATION: ALWAYS fetch fresh CSRF token before login
-    // This ensures we have the latest token and prevents concurrent fetch issues
+    // VALIDATION: Try to fetch fresh CSRF token (optional for Header-Based Auth)
     logger.log('Fetching fresh CSRF token for login...')
     try {
       await apiClient.fetchCsrfToken()
-      const csrfToken = apiClient.getCsrfToken()
-      if (!csrfToken) {
-        throw new Error('CSRF token not available after fetch')
-      }
-      logger.log('Fresh CSRF token obtained:', csrfToken.substring(0, 16) + '...')
+      // We don't block if this fails, as we are using Header Auth
     } catch (error) {
-      logger.error('Failed to fetch CSRF token:', error)
-      throw new Error('Security validation failed. Please refresh the page and try again.')
+      logger.warn('Failed to fetch CSRF token (non-fatal for Header Auth):', error)
     }
 
     logger.log('Pre-login validations passed')
@@ -75,21 +69,20 @@ export async function loginUser(
     const firebaseToken = await result.user.getIdToken()
     logger.log('Firebase token obtained')
 
-    // Step 3: Create backend session via apiClient (uses /session/ with trailing slash)
-    // SECURITY FIX: Session ID is now stored in httpOnly cookie (automatic)
+    // Step 3: Create backend session via apiClient
+    // SECURITY FIX: Session ID is returned in response for Header-Based Auth
+    let sessionData;
     try {
-      const sessionData = await apiClient.auth.createSession(firebaseToken, {
+      sessionData = await apiClient.auth.createSession(firebaseToken, {
         user_agent: navigator.userAgent,
         timestamp: new Date().toISOString()
       })
 
-      // SECURITY: session_id is now in httpOnly cookie (not in response body)
-      // Browser handles cookie storage automatically
       if (!sessionData.valid) {
         throw new Error('Session creation failed - invalid valid')
       }
 
-      logger.log('Backend session created (httpOnly cookie set)')
+      logger.log('Backend session created')
     } catch (error) {
       logger.error('Session creation failed:', error)
 
@@ -109,8 +102,16 @@ export async function loginUser(
     // Step 4: Firebase token stored in memory via Firebase Auth SDK
     // Session ID stored securely in httpOnly cookie (not accessible to JavaScript)
 
-    // Step 5: NOW safe to call auth.me() (cookie sent automatically)
-    apiClient.setAuthToken(firebaseToken)
+    // Step 5: NOW safe to call auth.me()
+    // CRITICAL FIX: Use session_id from backend response if available (Header-Based Auth)
+    if (sessionData.session_id) {
+      apiClient.setAuthToken(sessionData.session_id)
+      logger.log('Session ID set as Auth Token (Header-Based Auth)')
+    } else {
+      // Fallback: Use Firebase token (Legacy/Hybrid)
+      apiClient.setAuthToken(firebaseToken)
+    }
+
     const userResponse = await apiClient.auth.me()
 
     if (!userResponse || !userResponse.data) {
@@ -119,21 +120,16 @@ export async function loginUser(
 
     logger.log('Login successful, session created')
 
-    // HYBRID AUTH: Keep Firebase token for backward compatibility
-    // Both session cookie AND Bearer token will be sent for maximum compatibility
-    // This ensures all endpoints work regardless of their authentication method
-    logger.log('Keeping Firebase token for hybrid authentication (session + Bearer token)')
-
     // Setup automatic token refresh
     setupTokenRefresh()
 
     return {
       user: userResponse.data,
       tokens: {
-        access_token: firebaseToken
+        access_token: sessionData.session_id || firebaseToken
         // refresh_token is omitted (optional property)
       },
-      session_id: 'cookie' // Placeholder - actual session_id is in httpOnly cookie
+      session_id: sessionData.session_id || 'cookie'
     }
   } catch (error: any) {
     logger.error('Login failed:', error)
