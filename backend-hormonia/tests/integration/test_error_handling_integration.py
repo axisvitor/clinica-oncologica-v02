@@ -4,20 +4,16 @@ Integration tests for error handling in critical endpoints.
 Tests end-to-end error handling across analytics, monthly quiz, and alerts
 endpoints to ensure proper error handling is integrated throughout the system.
 """
-import pytest
 import uuid
-from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.main import app
 from app.models.user import User, UserRole
 from app.models.error_tracking import ErrorLog
 from app.core.error_handler import error_handler
-from app.core.database import get_db
-from tests.conftest import create_test_user, create_admin_user
+from tests.conftest import create_test_user
 
 
 class TestAnalyticsErrorHandling:

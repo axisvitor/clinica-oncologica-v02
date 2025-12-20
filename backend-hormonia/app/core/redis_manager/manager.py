@@ -9,7 +9,6 @@ import asyncio
 import logging
 import threading
 import ssl
-import os
 from pathlib import Path
 from typing import Optional, Union, TYPE_CHECKING
 import redis.asyncio as redis_async
@@ -202,8 +201,8 @@ class RedisManager:
                 connection_kwargs["ssl"] = ssl_context
 
                 logger.info(
-                    f"Redis async SSL: Enabled with CA certificate "
-                    f"(TLS >= 1.2, verify=CERT_REQUIRED)"
+                    "Redis async SSL: Enabled with CA certificate "
+                    "(TLS >= 1.2, verify=CERT_REQUIRED)"
                 )
             else:
                 # Ensure using non-SSL scheme

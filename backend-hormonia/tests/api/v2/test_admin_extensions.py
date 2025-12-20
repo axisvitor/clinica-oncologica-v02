@@ -16,12 +16,11 @@ Test Coverage:
 
 import pytest
 import json
-import base64
 import csv
 import io
 from datetime import datetime, timedelta
-from uuid import uuid4, UUID
-from unittest.mock import Mock, patch, MagicMock
+from uuid import uuid4
+from unittest.mock import Mock
 
 from fastapi import status
 from fastapi.testclient import TestClient
@@ -31,7 +30,6 @@ from app.models.user import User, UserRole
 from app.models.failed_message import FailedMessage
 from app.models.audit_log import AuditLog, AuditEventType
 from app.services.dlq_service import DLQService
-from app.services.audit_service import AuditService
 from app.utils.security import get_password_hash
 
 

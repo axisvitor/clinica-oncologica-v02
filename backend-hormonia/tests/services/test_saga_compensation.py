@@ -5,9 +5,9 @@ QW-002: Tests for atomic saga compensation with proper error propagation.
 """
 import pytest
 import json
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime
-from uuid import uuid4, UUID
+from uuid import uuid4
 
 from app.orchestration.saga_orchestrator import (
     SagaOrchestrator,

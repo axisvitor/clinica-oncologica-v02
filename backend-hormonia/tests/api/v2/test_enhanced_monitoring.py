@@ -20,9 +20,8 @@ Total: 60+ comprehensive tests
 """
 
 import pytest
-import json
-from datetime import datetime, timedelta
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
+from datetime import datetime
+from unittest.mock import Mock, patch, AsyncMock
 from fastapi.testclient import TestClient
 from fastapi import status
 

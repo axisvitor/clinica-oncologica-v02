@@ -63,7 +63,7 @@ class TestCPFEncryption:
 
     def test_encrypt_cpf_valid(self, service):
         """Should encrypt valid CPF and generate hash."""
-        cpf = "12345678901"
+        cpf = "12345678909"
         encrypted_cpf, cpf_hash = service.encrypt_cpf(cpf)
 
         assert encrypted_cpf is not None
@@ -80,7 +80,7 @@ class TestCPFEncryption:
 
         # Decrypt should return normalized CPF (no formatting)
         decrypted = service.decrypt_cpf(encrypted_cpf)
-        assert decrypted == "12345678901"
+        assert decrypted == "12345678909"
 
     def test_encrypt_cpf_invalid(self, service):
         """Should reject invalid CPF format."""
@@ -98,7 +98,7 @@ class TestCPFEncryption:
 
     def test_decrypt_cpf(self, service):
         """Should decrypt CPF correctly."""
-        cpf = "98765432100"
+        cpf = "12345678909"
         encrypted_cpf, _ = service.encrypt_cpf(cpf)
         decrypted_cpf = service.decrypt_cpf(encrypted_cpf)
 
@@ -106,7 +106,7 @@ class TestCPFEncryption:
 
     def test_hash_cpf_deterministic(self, service):
         """CPF hash should be deterministic."""
-        cpf = "12345678901"
+        cpf = "12345678909"
         _, hash1 = service.encrypt_cpf(cpf)
         _, hash2 = service.encrypt_cpf(cpf)
 
@@ -114,7 +114,7 @@ class TestCPFEncryption:
 
     def test_hash_cpf_normalization(self, service):
         """CPF hash should be same regardless of formatting."""
-        cpf_plain = "12345678901"
+        cpf_plain = "12345678909"
         cpf_formatted = "123.456.789-01"
 
         _, hash1 = service.encrypt_cpf(cpf_plain)
@@ -309,7 +309,7 @@ class TestPatientDataEncryption:
         """Should encrypt all PHI fields in patient data."""
         patient_data = {
             "name": "John Doe",
-            "cpf": "12345678901",
+            "cpf": "12345678909",
             "email": "john@example.com",
             "phone": "+5511999999999",
             "diagnosis": "Test diagnosis",
@@ -336,7 +336,7 @@ class TestPatientDataEncryption:
         """Should decrypt all PHI fields in patient data."""
         patient_data = {
             "name": "John Doe",
-            "cpf": "12345678901",
+            "cpf": "12345678909",
             "email": "john@example.com",
         }
 
@@ -376,7 +376,7 @@ class TestSearchableHashes:
 
     def test_generate_hash_cpf(self, service):
         """Should generate deterministic hash for CPF."""
-        cpf = "12345678901"
+        cpf = "12345678909"
         hash1 = service.generate_hash(cpf, FieldType.CPF)
         hash2 = service.generate_hash(cpf, FieldType.CPF)
 
@@ -405,7 +405,7 @@ class TestSearchableHashes:
 class TestKeyManagement:
     """Test encryption key management."""
 
-    @patch.dict(os.environ, {"PHI_ENCRYPTION_KEY": "test-key-12345678901234567890123456789012"})
+    @patch.dict(os.environ, {"PHI_ENCRYPTION_KEY": "test-key-12345678909234567890123456789092"})
     def test_custom_encryption_key(self):
         """Should use custom encryption key from environment."""
         service = UnifiedEncryptionService()

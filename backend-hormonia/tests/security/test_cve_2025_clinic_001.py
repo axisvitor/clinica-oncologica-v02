@@ -26,16 +26,14 @@ Test Coverage:
 
 import pytest
 from uuid import uuid4, UUID
-from datetime import datetime, timedelta
-from typing import List, Dict, Any
+from typing import List, Any
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from unittest.mock import Mock, patch
 
 from app.models.patient import Patient
 from app.models.user import User, UserRole
-from app.models.message import Message, MessageDirection
-from app.models.alert import Alert, AlertSeverity
+from app.models.message import Message
+from app.models.alert import Alert
 
 
 @pytest.mark.security

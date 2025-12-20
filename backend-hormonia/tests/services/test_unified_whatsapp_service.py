@@ -5,16 +5,15 @@ This test suite validates the UnifiedWhatsAppService which consolidates
 legacy and new WhatsApp messaging pipelines with queue management.
 """
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timedelta
 from uuid import uuid4
 
-from app.services.unified_whatsapp_service import UnifiedWhatsAppService, MessagingMode
+from app.services.unified_whatsapp_service import UnifiedWhatsAppService
 from app.models.message import Message, MessageType, MessageStatus, MessageDirection, MessagePriority
 from app.models.patient import Patient
 from app.integrations.whatsapp.models.message import (
-    MessageRequest, MessageResponse, MessageStatus as WhatsAppMessageStatus,
-    MessageType as WhatsAppMessageType
+    MessageRequest, MessageType as WhatsAppMessageType
 )
 
 

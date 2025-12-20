@@ -27,11 +27,8 @@ import hmac
 import hashlib
 import time
 import secrets
-from datetime import datetime, timedelta
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from fastapi import Request, Response, HTTPException
-from fastapi.testclient import TestClient
-from fastapi_csrf_protect import CsrfProtect
 from fastapi_csrf_protect.exceptions import CsrfProtectError
 
 from app.middleware.csrf import (

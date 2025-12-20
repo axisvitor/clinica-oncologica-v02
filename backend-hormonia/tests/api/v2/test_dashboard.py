@@ -16,17 +16,16 @@ sensitive patient data and system metrics.
 """
 
 import pytest
-from typing import Dict, Any, List
+from typing import Dict
 from datetime import datetime, timedelta
-from uuid import UUID, uuid4
-from unittest.mock import Mock, AsyncMock, patch
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.models.alert import Alert, AlertSeverity
 from app.models.patient import Patient
-from app.models.user import User, UserRole
+from app.models.user import User
 
 
 # ============================================================================

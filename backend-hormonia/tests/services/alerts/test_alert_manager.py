@@ -9,9 +9,9 @@ Date: 2025-01-20
 """
 
 import pytest
-from uuid import uuid4, UUID
+from uuid import uuid4
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock
 
 from app.services.alerts import (
     AlertManager,
@@ -23,7 +23,6 @@ from app.services.alerts import (
     AlertStatus,
     AlertRuleType,
     NotificationChannel,
-    AlertRule,
     AlertEvaluation,
     DispatchResult,
     NotificationResult,

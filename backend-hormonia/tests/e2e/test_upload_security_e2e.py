@@ -8,7 +8,6 @@ from httpx import AsyncClient
 from sqlalchemy.orm import Session
 
 from app.models.patient import Patient
-from app.models.user import User
 
 
 @pytest.mark.asyncio

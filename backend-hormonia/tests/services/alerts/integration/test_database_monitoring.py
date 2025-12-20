@@ -16,17 +16,14 @@ Date: 2025-01-20
 """
 
 import pytest
-import asyncio
-from uuid import uuid4, UUID
+from uuid import uuid4
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch, call
-from typing import Dict, Any, List
+from unittest.mock import AsyncMock, patch
 
 from app.services.alerts import (
     DatabaseMonitor,
     AlertManager,
     NotificationDispatcher,
-    Alert,
     AlertRuleType,
     AlertSeverity,
     AlertStatus,

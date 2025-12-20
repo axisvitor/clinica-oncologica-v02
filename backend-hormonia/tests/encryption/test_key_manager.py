@@ -4,7 +4,6 @@ Unit tests for key management service.
 Tests key generation, retrieval, AWS integration (mocked).
 """
 
-import os
 import pytest
 from cryptography.fernet import Fernet
 

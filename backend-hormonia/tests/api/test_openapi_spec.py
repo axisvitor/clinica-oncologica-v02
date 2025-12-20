@@ -7,10 +7,8 @@ and external consumer compatibility.
 SECURITY FIX: P0-02
 Validates comprehensive API documentation for external consumers.
 """
-import pytest
 import json
 from fastapi.testclient import TestClient
-from typing import Dict, Any
 
 from app.main import app
 

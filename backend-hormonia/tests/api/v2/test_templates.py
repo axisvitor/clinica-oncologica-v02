@@ -6,8 +6,8 @@ Tests for flow templates, quiz templates, and version management.
 import pytest
 import json
 from datetime import datetime
-from uuid import uuid4, UUID
-from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
+from unittest.mock import AsyncMock, patch
 
 from fastapi import status
 from fastapi.testclient import TestClient
@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session
 
 from app.models.flow import FlowKind, FlowTemplateVersion
 from app.models.quiz import QuizTemplate
-from app.models.user import User, UserRole
 
 
 # ==================== Test Fixtures ====================

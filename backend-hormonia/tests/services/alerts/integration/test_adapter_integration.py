@@ -16,9 +16,9 @@ Tests validate:
 """
 
 import pytest
-from datetime import datetime, timedelta
-from uuid import uuid4, UUID
-from unittest.mock import Mock, MagicMock, AsyncMock, patch
+from datetime import datetime
+from uuid import uuid4
+from unittest.mock import Mock, AsyncMock, patch
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -27,7 +27,6 @@ from app.main import app
 from app.models.alert import Alert, AlertSeverity, AlertStatus
 from app.models.patient import Patient
 from app.services.alerts.adapter import AlertManagerAdapter
-from app.config.settings import Settings
 
 
 @pytest.fixture

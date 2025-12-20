@@ -13,10 +13,9 @@ These tests establish baseline behavior to ensure no regressions during consolid
 
 import pytest
 import json
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime, timedelta
-from uuid import uuid4, UUID
-from typing import Dict, Any, Optional
+from unittest.mock import Mock, AsyncMock, patch
+from datetime import datetime
+from uuid import uuid4
 
 
 # =============================================================================

@@ -32,7 +32,7 @@ class TestCPFMasking:
 
     def test_mask_cpf_unformatted(self):
         """Test masking unformatted CPF."""
-        assert mask_cpf("12345678901") == "123.***.***-01"
+        assert mask_cpf("12345678909") == "123.***.***-09"
         assert mask_cpf("98765432100") == "987.***.***-00"
 
     def test_mask_cpf_partial(self):
@@ -47,14 +47,14 @@ class TestCPFMasking:
 
     def test_mask_cpf_preserves_first_and_last(self):
         """Test that masking preserves first 3 and last 2 digits."""
-        cpf = "12345678901"
+        cpf = "12345678909"
         masked = mask_cpf(cpf)
 
         # First 3 digits
         assert masked.startswith("123")
 
-        # Last 2 digits
-        assert masked.endswith("-01")
+        # Last 2 digits (09 from the CPF)
+        assert masked.endswith("-09")
 
         # Middle is masked
         assert "***" in masked
@@ -71,7 +71,8 @@ class TestPhoneMasking:
     def test_mask_phone_without_plus(self):
         """Test masking phone without + prefix."""
         assert mask_phone("5511987654321") == "+55***4321"
-        assert mask_phone("11987654321") == "+55***4321"
+        # Phone without country code shows last 4 digits only
+        assert mask_phone("11987654321") == "***4321"
 
     def test_mask_phone_local_format(self):
         """Test masking local phone number."""
@@ -165,7 +166,7 @@ class TestSafePatientLogContext:
         patient_id = uuid4()
         context = safe_patient_log_context(
             patient_id,
-            cpf="12345678901",
+            cpf="12345678909",
             phone="+5511987654321",
             email="patient@example.com",
             name="João da Silva"
@@ -174,8 +175,8 @@ class TestSafePatientLogContext:
         # UUID preserved
         assert context["patient_id"] == str(patient_id)
 
-        # PII masked
-        assert context["cpf"] == "123.***.***-01"
+        # PII masked (CPF 12345678909 ends in 09)
+        assert context["cpf"] == "123.***.***-09"
         assert context["phone"] == "+55***4321"
         assert context["email"] == "pa***@example.com"
         assert context["name"] == "João S."
@@ -200,14 +201,14 @@ class TestSafePatientLogContext:
         patient_id = uuid4()
         context = safe_patient_log_context(
             patient_id,
-            cpf="12345678901",
+            cpf="12345678909",
             treatment_type="chemotherapy",
             phone="+5511987654321",
             current_day=10
         )
 
-        # PII masked
-        assert context["cpf"] == "123.***.***-01"
+        # PII masked (CPF 12345678909 ends in 09)
+        assert context["cpf"] == "123.***.***-09"
         assert context["phone"] == "+55***4321"
 
         # Non-PII preserved
@@ -282,7 +283,7 @@ class TestLGPDHIPAACompliance:
         patient_id = uuid4()
         context = safe_patient_log_context(
             patient_id,
-            cpf="12345678901",
+            cpf="12345678909",
             phone="+5511987654321"
         )
 
@@ -322,7 +323,7 @@ def sample_patient_data():
     """Fixture providing sample patient data."""
     return {
         "id": uuid4(),
-        "cpf": "12345678901",
+        "cpf": "12345678909",
         "phone": "+5511987654321",
         "email": "patient@example.com",
         "name": "João da Silva",

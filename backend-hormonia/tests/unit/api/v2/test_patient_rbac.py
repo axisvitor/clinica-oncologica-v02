@@ -8,13 +8,12 @@ ensuring proper authorization and data isolation.
 import pytest
 from uuid import uuid4, UUID
 from datetime import date
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import Mock
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models.user import UserRole
-from app.models.patient import Patient, FlowState
 from app.core.authorization import (
     require_permission,
     require_role,
@@ -73,7 +72,7 @@ def patient_data():
         "email": "patient@example.com",
         "phone": "+5511999998888",
         "birth_date": date(1990, 1, 1),
-        "cpf": "12345678901",
+        "cpf": "12345678909",
         "treatment_type": "quimioterapia",
         "doctor_id": None,  # Will be set by tests
     }

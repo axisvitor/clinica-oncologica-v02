@@ -6,15 +6,11 @@ Tests both daemon and CLI modes, error handling, and EICAR test file detection.
 Priority: P2 - High (Security Feature)
 """
 import pytest
-import asyncio
-from pathlib import Path
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
-import tempfile
+from unittest.mock import Mock, patch, MagicMock
 import subprocess
 
 from app.services.virus_scanner import (
     VirusScannerService,
-    ScanResult,
     get_virus_scanner
 )
 

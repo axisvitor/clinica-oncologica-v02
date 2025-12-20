@@ -64,17 +64,14 @@ class FlowCore:
         if platform_sync:
             self.platform_sync = platform_sync
         else:
-            # Fallback or raise error? Plan said DI. Let's support fallback for now to avoid breaking other callers immediately if any.
-            # Actually, better to be explicit. If None, we instantiate (legacy behavior) OR we require them.
-            # Given the plan is strict DI, let's try to enforce it, but maybe keep fallback for safety if I miss a caller.
-            # Wait, if I keep fallback, I keep the circular import risk.
-            # Let's use the passed instances.
-            self.platform_sync = platform_sync or PlatformSynchronizationService(db)
+            # Use factory function to ensure all required dependencies are initialized properly
+            from app.services.platform_synchronization import get_platform_sync_service
+            self.platform_sync = get_platform_sync_service(db)
 
         if template_loader:
             self.template_loader = template_loader
         else:
-            self.template_loader = EnhancedTemplateLoader()
+            self.template_loader = EnhancedTemplateLoader(db)
 
         if template_cache:
             self.template_cache = template_cache

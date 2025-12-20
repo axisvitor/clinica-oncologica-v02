@@ -426,11 +426,14 @@ class EnhancedTemplateLoader:
     ) -> Optional[FlowTemplateData]:
         """Load template from database using versioning system."""
         try:
-            if version:
+            # Convert string version to int if provided
+            version_num = int(version) if version and version.isdigit() else None
+            
+            if version_num:
                 # Load specific version
                 template_version = (
                     self.template_version_repo.get_by_flow_type_and_version(
-                        flow_type, version
+                        flow_type, version_num
                     )
                 )
             else:
@@ -443,7 +446,7 @@ class EnhancedTemplateLoader:
 
                 # If no current version set, try latest published
                 if not template_version:
-                    kind = self.flow_kind_repo.get_by_flow_type(flow_type)
+                    kind = self.flow_kind_repo.get_by_kind_key(flow_type)
                     if kind:
                         template_version = (
                             self.template_version_repo.get_latest_published_by_kind(
@@ -613,62 +616,52 @@ class EnhancedTemplateLoader:
             return False
 
     def _parse_db_template_version(
-        self, template_version: FlowTemplateVersion
+        self, version_model: FlowTemplateVersion
     ) -> FlowTemplateData:
-        """Parse database template version into FlowTemplateData."""
-        # Access messages directly (JSONB field in database)
-        messages_data = template_version.messages or {}
-        messages = {}
+        """Parse database model to FlowTemplateData object."""
+        # The database column 'steps' contains the template data
+        db_steps = version_model.steps or {}
+        
+        # Normalize steps: handle both list (from UI) and dict (from RDS)
+        normalized_steps = {}
+        if isinstance(db_steps, list):
+            for idx, content in enumerate(db_steps):
+                day_num = content.get("day") or content.get("step_number") or (idx + 1)
+                normalized_steps[str(day_num)] = content
+        else:
+            normalized_steps = db_steps
 
-        for day_str, msg_data in messages_data.items():
-            day = int(day_str)
-
-            # Parse interactive elements
-            interactive_elements = None
-            if msg_data.get("interactive_elements"):
-                ie_data = msg_data["interactive_elements"]
-                interactive_elements = InteractiveElements(
-                    type=InteractiveType(ie_data.get("type", "buttons")),
-                    options=ie_data.get("options", []),
-                    header=ie_data.get("header"),
-                    footer=ie_data.get("footer"),
-                )
-
-            # Parse conditions
-            conditions = []
-            for cond_data in msg_data.get("conditions", []):
-                conditions.append(
-                    Condition(
-                        type=cond_data["type"],
-                        field=cond_data["field"],
-                        operator=cond_data["operator"],
-                        value=cond_data["value"],
-                        logical_operator=cond_data.get("logical_operator"),
+        # Standardize to MessageTemplate dictionary
+        message_templates = {}
+        for day_str, content in normalized_steps.items():
+            try:
+                day_num = int(day_str)
+                if isinstance(content, dict):
+                    # Ensure required fields are present
+                    content.setdefault("day", day_num)
+                    content.setdefault("intent", "general_message")
+                    # Map content key to base_content if needed
+                    if "content" in content and "base_content" not in content:
+                        content["base_content"] = content.pop("content")
+                    
+                    message_templates[day_num] = MessageTemplate(**content)
+                else:
+                    # Handle simplified text-only templates
+                    message_templates[day_num] = MessageTemplate(
+                        day=day_num,
+                        intent="general_message",
+                        base_content=str(content)
                     )
-                )
-
-            messages[day] = MessageTemplate(
-                day=day,
-                intent=msg_data.get("intent", "unknown"),
-                base_content=msg_data.get("base_content", ""),
-                message_type=MessageType(msg_data.get("message_type", "text")),
-                core_elements=msg_data.get("core_elements", {}),
-                personalization_hints=msg_data.get("personalization_hints", []),
-                ai_instructions=msg_data.get("ai_instructions"),
-                interactive_elements=interactive_elements,
-                conditions=conditions,
-                follow_up=msg_data.get("follow_up"),
-                variations=msg_data.get("variations", []),
-            )
+            except (ValueError, TypeError, Exception) as e:
+                logger.warning(f"Skipping invalid day '{day_str}' in template: {e}")
 
         return FlowTemplateData(
-            flow_type=template_version.kind.flow_type,
-            name=template_version.kind.name,
-            description=template_version.kind.description or "",
-            version=template_version.version,
-            humanization_level="medium",  # Default value
-            messages=messages,
-            metadata={},  # Default empty metadata
+            flow_type=version_model.kind.kind_key if version_model.kind else "unknown",
+            name=version_model.template_name,
+            description=version_model.description or f"Template version {version_model.version_number}",
+            version=str(version_model.version_number),
+            messages=message_templates,
+            metadata=version_model.metadata_json or {}
         )
 
     def _cache_template(self, cache_key: str, template_data: FlowTemplateData) -> None:

@@ -21,10 +21,10 @@ from uuid import uuid4
 from datetime import date
 from sqlalchemy.orm import Session
 
-from app.models.patient import Patient, FlowState
+from app.models.patient import Patient
 from app.models.user import User
 from app.schemas.patient import PatientCreate
-from app.orchestration.saga_orchestrator import SagaOrchestrator, SagaStatus
+from app.orchestration.saga_orchestrator import SagaOrchestrator
 
 
 @pytest.fixture
@@ -136,7 +136,7 @@ class TestSagaCompensationStep2FirebaseFailure:
 
             # Assert - No orphaned patients
             orphaned_patients = db_session.query(Patient).filter(
-                Patient.phone == patient_data.phone,
+                Patient.phone_hash == patient_data.phone,
                 Patient.doctor_id == doctor_user.id
             ).all()
             assert len(orphaned_patients) == 0, "Found orphaned patient after compensation"
@@ -202,7 +202,7 @@ class TestSagaCompensationStep3FlowFailure:
 
             # Assert - Patient was deleted (compensation)
             patient_exists = db_session.query(Patient).filter(
-                Patient.phone == patient_data.phone
+                Patient.phone_hash == patient_data.phone
             ).first()
             assert patient_exists is None, "Patient should be deleted after flow failure"
 
@@ -269,7 +269,7 @@ class TestSagaCompensationStep4MessageFailure:
 
             # Assert - No patient left in database
             patient_exists = db_session.query(Patient).filter(
-                Patient.phone == patient_data.phone
+                Patient.phone_hash == patient_data.phone
             ).first()
             assert patient_exists is None, "Patient should be deleted after message failure"
 
@@ -334,7 +334,7 @@ class TestSagaFullRollback:
 
             # Assert - Database clean
             patient_count = db_session.query(Patient).filter(
-                Patient.phone == patient_data.phone
+                Patient.phone_hash == patient_data.phone
             ).count()
             assert patient_count == 0, "All patients should be cleaned up after full rollback"
 

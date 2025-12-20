@@ -4,9 +4,8 @@ Unit tests for StatusWebhookHandler.
 Tests delivery status update processing for WhatsApp messages.
 """
 import pytest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, AsyncMock
 from uuid import uuid4
-from datetime import datetime
 
 from app.models.message import MessageStatus
 

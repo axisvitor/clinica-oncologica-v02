@@ -13,15 +13,16 @@ Journey Steps:
 8. Navigate between sections
 
 Coverage: Authentication, UI navigation, CRUD operations, Search, Reports
+
+NOTE: Requires playwright and playwright_config to be installed.
 """
-import asyncio
-from datetime import datetime, timedelta
-from typing import Any, Dict, List
-
 import pytest
-from playwright.async_api import Page, expect
 
-from playwright_config import TEST_CREDENTIALS, get_endpoint_url
+# Skip entire module if playwright is not installed
+pytest.importorskip("playwright", reason="Playwright not installed")
+
+from datetime import datetime
+from playwright.async_api import Page, expect
 
 
 class TestDoctorDashboardJourney:
@@ -168,7 +169,7 @@ class TestDoctorDashboardJourney:
 
             # Wait for patient details page
             await page.wait_for_url('**/patients/**', timeout=5000)
-            print(f"✅ Navigated to patient details")
+            print("✅ Navigated to patient details")
 
             # Verify patient details sections
             patient_info = page.locator('.patient-info, .patient-details, [data-testid="patient-details"]')

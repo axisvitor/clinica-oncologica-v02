@@ -157,7 +157,7 @@ class TestValidateSecretEntropy:
     def test_validate_secret_entropy_weak_key_fails(self):
         """Weak keys with low entropy fail."""
         assert not validate_secret_entropy("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-        assert not validate_secret_entropy("12345678901234567890123456789012")
+        assert not validate_secret_entropy("12345678909234567890123456789092")
 
     def test_validate_secret_entropy_strong_key_passes(self):
         """Strong random keys pass validation."""

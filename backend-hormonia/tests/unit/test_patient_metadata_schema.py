@@ -17,7 +17,6 @@ from app.utils.patient_metadata_schema import (
     get_clinical_fields,
     merge_clinical_metadata,
     extract_clinical_summary,
-    ClinicalMetadataSchema,
     MedicalHistorySchema,
     EmergencyContactSchema,
     BloodTypeValidator,

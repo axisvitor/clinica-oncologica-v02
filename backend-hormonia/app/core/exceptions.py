@@ -32,16 +32,35 @@ class HormoniaException(Exception):
     This allows catching all application-specific errors with a single except clause.
     """
 
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        message: str,
+        details: Optional[Dict[str, Any]] = None,
+        code: Optional[str] = None,
+        field: Optional[str] = None,
+        **kwargs
+    ):
         """
         Initialize exception.
 
         Args:
             message: Human-readable error message
             details: Additional context information (dict)
+            code: Machine-readable error code (optional)
+            field: Field that caused the error (optional)
+            **kwargs: Additional context fields
         """
         self.message = message
         self.details = details or {}
+        self.details.update(kwargs)
+        self.code = code or self.details.get("code")
+        self.field = field or self.details.get("field")
+        
+        if self.code:
+            self.details["code"] = self.code
+        if self.field:
+            self.details["field"] = self.field
+            
         super().__init__(self.message)
 
     def __str__(self) -> str:
@@ -72,6 +91,9 @@ class APIException(HormoniaException):
         status_code: int = 500,
         error_code: str = "INTERNAL_ERROR",
         details: Optional[Dict[str, Any]] = None,
+        code: Optional[str] = None,
+        field: Optional[str] = None,
+        **kwargs
     ):
         """
         Initialize API exception.
@@ -81,10 +103,19 @@ class APIException(HormoniaException):
             status_code: HTTP status code (default: 500)
             error_code: Machine-readable error code (e.g., "VALIDATION_ERROR")
             details: Additional error details
+            code: Optional machine-readable error code
+            field: Optional field name
+            **kwargs: Additional context fields
         """
-        super().__init__(message, details)
+        super().__init__(
+            message, 
+            details=details, 
+            code=code or error_code, 
+            field=field, 
+            **kwargs
+        )
         self.status_code = status_code
-        self.error_code = error_code
+        self.error_code = code or error_code
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert exception to dictionary for API responses."""
@@ -168,6 +199,9 @@ class ValidationError(APIException):
         message: str,
         details: Optional[Dict[str, Any]] = None,
         errors: Optional[Dict[str, str]] = None,
+        field: Optional[str] = None,
+        code: Optional[str] = None,
+        **kwargs
     ):
         """
         Initialize validation error.
@@ -176,13 +210,23 @@ class ValidationError(APIException):
             message: Human-readable error message
             details: Additional error details
             errors: Dict of field-level errors (field -> error message)
+            field: Field that caused the error (optional)
+            code: Machine-readable error code (optional)
+            **kwargs: Additional context fields
         """
         error_details = details or {}
         if errors:
             error_details["errors"] = errors
+        if field:
+            error_details["field"] = field
+        if code:
+            error_details["code"] = code
+        error_details.update(kwargs)
 
-        super().__init__(message, 422, "VALIDATION_ERROR", error_details)
+        super().__init__(message, 422, code or "VALIDATION_ERROR", error_details)
         self.errors = errors
+        self.field = field
+        self.code = code or "VALIDATION_ERROR"
 
 
 class NotFoundError(APIException):

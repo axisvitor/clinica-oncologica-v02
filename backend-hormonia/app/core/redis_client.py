@@ -5,6 +5,11 @@ This module provides a clean, consistent interface for accessing Redis clients
 throughout the application. It wraps the RedisManager to provide both sync and
 async clients with proper connection pooling and error handling.
 
+UPDATED: Now directly imports from redis_manager (2025-12-19)
+- All functionality delegated to RedisManager
+- Backward compatibility maintained
+- Proper error handling and logging
+
 Usage:
     from app.core.redis_client import get_redis_client, get_async_redis_client
 
@@ -30,6 +35,9 @@ from app.core.redis_manager import (
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+# Log successful import for monitoring
+logger.debug("Redis client module loaded - using RedisManager backend")
 
 
 def get_redis_client() -> Optional[redis.Redis]:

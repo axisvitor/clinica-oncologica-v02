@@ -14,7 +14,6 @@ Backward Compatibility: Required
 """
 import pytest
 from uuid import uuid4
-from datetime import datetime
 
 
 @pytest.mark.asyncio

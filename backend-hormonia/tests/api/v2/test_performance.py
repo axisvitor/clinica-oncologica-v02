@@ -5,12 +5,9 @@ Comprehensive test suite for unified performance monitoring system.
 
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
-from datetime import datetime, timezone
 from fastapi import status
 
 from app.schemas.v2.performance import (
-    PerformanceStatus,
-    HealthStatus,
     OptimizationBenefit,
     IndexType,
 )

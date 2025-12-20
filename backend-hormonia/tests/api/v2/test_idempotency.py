@@ -2,10 +2,9 @@
 Tests for idempotency key support
 """
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 from fastapi.testclient import TestClient
-from datetime import datetime, timedelta
 
 
 class TestPatientCreateIdempotency:
@@ -244,7 +243,6 @@ class TestWebhookIdempotency:
     async def test_webhook_concurrent_processing_prevented(self):
         """Test concurrent webhook processing is prevented."""
         from app.services.webhook_service import WebhookService
-        import asyncio
 
         mock_redis = AsyncMock()
         call_count = 0

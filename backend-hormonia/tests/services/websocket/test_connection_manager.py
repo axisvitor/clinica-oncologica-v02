@@ -12,7 +12,7 @@ Tests cover:
 import pytest
 import asyncio
 from datetime import datetime, timedelta
-from unittest.mock import Mock, AsyncMock, MagicMock, patch
+from unittest.mock import Mock, AsyncMock, patch
 from fastapi import WebSocket
 from sqlalchemy.orm import Session
 

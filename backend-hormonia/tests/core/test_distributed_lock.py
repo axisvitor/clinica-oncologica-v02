@@ -12,21 +12,13 @@ Tests verify:
 
 import pytest
 import asyncio
-import threading
-import time
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
-from uuid import uuid4
+from unittest.mock import patch, MagicMock, AsyncMock
 
 from app.core.distributed_lock import (
     DistributedLock,
     LockAcquisitionError,
-    LockReleaseError,
     LockKeys,
-    get_distributed_lock,
-    acquire_lock,
-    acquire_lock_sync,
     with_lock,
-    with_lock_sync,
 )
 
 

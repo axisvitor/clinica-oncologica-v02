@@ -7,8 +7,7 @@ and duplicate detection logic.
 
 import pytest
 from uuid import uuid4
-from unittest.mock import Mock, AsyncMock, patch
-from sqlalchemy.orm import Session
+from unittest.mock import patch
 
 from app.domain.patient.onboarding.validation_service import ValidationService
 from app.models.patient import Patient

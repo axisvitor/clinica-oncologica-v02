@@ -1,11 +1,21 @@
 """
 Critical API Tests: Authentication Login Flow
 Tests user authentication including login, token generation, and session management.
+
+NOTE: This application uses Firebase Authentication, not traditional email/password login.
+These tests are skipped as the /api/v2/auth/login endpoint does not exist.
+Authentication flow:
+1. Client authenticates with Firebase directly
+2. Client sends Firebase ID token to /api/v2/auth/session
+3. Server validates token and creates Redis session
+
+For Firebase auth tests, see test_firebase_auth.py
 """
 import pytest
 from fastapi.testclient import TestClient
 
 
+@pytest.mark.skip(reason="App uses Firebase Auth - no /api/v2/auth/login endpoint exists")
 @pytest.mark.api
 @pytest.mark.auth
 @pytest.mark.security

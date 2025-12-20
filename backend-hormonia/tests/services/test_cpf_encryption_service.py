@@ -34,21 +34,21 @@ class TestCPFEncryptionService:
         """Test CPF normalization removes dots and dashes"""
         formatted_cpf = "123.456.789-01"
         normalized = service._normalize_cpf(formatted_cpf)
-        assert normalized == "12345678901"
+        assert normalized == "12345678909"
         assert len(normalized) == 11
         assert normalized.isdigit()
 
     def test_normalize_cpf_without_formatting(self, service):
         """Test CPF normalization handles plain digits"""
-        plain_cpf = "12345678901"
+        plain_cpf = "12345678909"
         normalized = service._normalize_cpf(plain_cpf)
-        assert normalized == "12345678901"
+        assert normalized == "12345678909"
 
     def test_normalize_cpf_with_spaces(self, service):
         """Test CPF normalization removes spaces"""
         cpf_with_spaces = "123 456 789 01"
         normalized = service._normalize_cpf(cpf_with_spaces)
-        assert normalized == "12345678901"
+        assert normalized == "12345678909"
 
     def test_normalize_cpf_empty(self, service):
         """Test CPF normalization handles empty string"""
@@ -61,13 +61,13 @@ class TestCPFEncryptionService:
 
     def test_validate_cpf_format_valid(self, service):
         """Test CPF format validation accepts valid format"""
-        valid_cpf = "12345678901"
+        valid_cpf = "12345678909"
         assert service._validate_cpf_format(valid_cpf) is True
 
     def test_validate_cpf_format_invalid_length(self, service):
         """Test CPF format validation rejects invalid length"""
         assert service._validate_cpf_format("123456789") is False  # Too short
-        assert service._validate_cpf_format("123456789012") is False  # Too long
+        assert service._validate_cpf_format("123456789092") is False  # Too long
 
     def test_validate_cpf_format_non_digits(self, service):
         """Test CPF format validation rejects non-digits"""
@@ -91,7 +91,7 @@ class TestCPFEncryptionService:
 
     def test_encrypt_cpf_basic(self, service):
         """Test basic CPF encryption"""
-        cpf = "12345678901"
+        cpf = "12345678909"
         encrypted_cpf, cpf_hash = service.encrypt_cpf(cpf)
 
         # Verify encrypted format
@@ -130,7 +130,7 @@ class TestCPFEncryptionService:
 
     def test_decrypt_cpf_basic(self, service):
         """Test basic CPF decryption"""
-        original_cpf = "12345678901"
+        original_cpf = "12345678909"
         encrypted_cpf, _ = service.encrypt_cpf(original_cpf)
 
         decrypted_cpf = service.decrypt_cpf(encrypted_cpf)
@@ -143,7 +143,7 @@ class TestCPFEncryptionService:
 
     def test_decrypt_cpf_plaintext_backward_compatibility(self, service):
         """Test CPF decryption handles plaintext for backward compatibility"""
-        plaintext_cpf = "12345678901"
+        plaintext_cpf = "12345678909"
         # Should return as-is (not encrypted)
         decrypted = service.decrypt_cpf(plaintext_cpf)
         assert decrypted == plaintext_cpf
@@ -179,7 +179,7 @@ class TestCPFEncryptionService:
 
     def test_hash_cpf_for_search_basic(self, service):
         """Test basic searchable hash generation"""
-        cpf = "12345678901"
+        cpf = "12345678909"
         hash_value = service.hash_cpf_for_search(cpf)
 
         assert len(hash_value) == 64
@@ -187,7 +187,7 @@ class TestCPFEncryptionService:
 
     def test_hash_cpf_for_search_deterministic(self, service):
         """Test hash generation is deterministic"""
-        cpf = "12345678901"
+        cpf = "12345678909"
 
         hash1 = service.hash_cpf_for_search(cpf)
         hash2 = service.hash_cpf_for_search(cpf)
@@ -197,7 +197,7 @@ class TestCPFEncryptionService:
     def test_hash_cpf_for_search_format_independent(self, service):
         """Test hash is same regardless of formatting"""
         formatted_cpf = "123.456.789-01"
-        plain_cpf = "12345678901"
+        plain_cpf = "12345678909"
 
         hash1 = service.hash_cpf_for_search(formatted_cpf)
         hash2 = service.hash_cpf_for_search(plain_cpf)
@@ -206,7 +206,7 @@ class TestCPFEncryptionService:
 
     def test_hash_cpf_for_search_different_cpfs(self, service):
         """Test different CPFs produce different hashes"""
-        cpf1 = "12345678901"
+        cpf1 = "12345678909"
         cpf2 = "98765432109"
 
         hash1 = service.hash_cpf_for_search(cpf1)
@@ -221,7 +221,7 @@ class TestCPFEncryptionService:
 
     def test_encrypt_and_hash_consistency(self, service):
         """Test that encrypt_cpf and hash_cpf_for_search produce same hash"""
-        cpf = "12345678901"
+        cpf = "12345678909"
 
         # Get hash from encryption
         _, hash_from_encrypt = service.encrypt_cpf(cpf)
@@ -237,14 +237,14 @@ class TestCPFEncryptionService:
 
     def test_format_cpf_for_display_unmasked(self, service):
         """Test CPF display formatting without masking"""
-        cpf = "12345678901"
+        cpf = "12345678909"
         formatted = service.format_cpf_for_display(cpf, mask=False)
 
         assert formatted == "123.456.789-01"
 
     def test_format_cpf_for_display_masked(self, service):
         """Test CPF display formatting with masking"""
-        cpf = "12345678901"
+        cpf = "12345678909"
         masked = service.format_cpf_for_display(cpf, mask=True)
 
         assert masked == "***.***.789-**"
@@ -276,7 +276,7 @@ class TestCPFEncryptionService:
 
     def test_migrate_plaintext_cpf(self, service):
         """Test migration of plaintext CPF to encrypted format"""
-        plaintext_cpf = "12345678901"
+        plaintext_cpf = "12345678909"
 
         encrypted_cpf, cpf_hash = service.migrate_plaintext_cpf(plaintext_cpf)
 
@@ -300,7 +300,7 @@ class TestCPFEncryptionService:
 
     def test_encrypted_values_are_different(self, service):
         """Test that same CPF encrypts to different ciphertexts (due to random IV)"""
-        cpf = "12345678901"
+        cpf = "12345678909"
 
         encrypted1, _ = service.encrypt_cpf(cpf)
         encrypted2, _ = service.encrypt_cpf(cpf)
@@ -315,7 +315,7 @@ class TestCPFEncryptionService:
 
     def test_cannot_reverse_hash(self, service):
         """Test that hash cannot be reversed to get original CPF"""
-        cpf = "12345678901"
+        cpf = "12345678909"
         cpf_hash = service.hash_cpf_for_search(cpf)
 
         # Hash should not contain CPF digits
@@ -324,7 +324,7 @@ class TestCPFEncryptionService:
 
     def test_encrypted_data_format(self, service):
         """Test encrypted data follows expected format"""
-        cpf = "12345678901"
+        cpf = "12345678909"
         encrypted_cpf, _ = service.encrypt_cpf(cpf)
 
         # Should have prefix
@@ -354,7 +354,7 @@ class TestCPFEncryptionService:
 
     def test_multiple_encryptions_same_session(self, service):
         """Test multiple encryptions in same session work correctly"""
-        cpfs = ["12345678901", "98765432109", "11122233344"]
+        cpfs = ["12345678909", "98765432109", "12345678909"]
 
         encrypted_list = [service.encrypt_cpf(cpf) for cpf in cpfs]
         decrypted_list = [service.decrypt_cpf(enc[0]) for enc in encrypted_list]
@@ -363,7 +363,7 @@ class TestCPFEncryptionService:
 
     def test_hash_collision_resistance(self, service):
         """Test that similar CPFs produce different hashes"""
-        cpf1 = "12345678901"
+        cpf1 = "12345678909"
         cpf2 = "12345678902"  # Only last digit different
 
         hash1 = service.hash_cpf_for_search(cpf1)
@@ -385,7 +385,7 @@ class TestCPFEncryptionIntegration:
 
     def test_phi_encryption_service_integration(self, service):
         """Test integration with PHI encryption service"""
-        cpf = "12345678901"
+        cpf = "12345678909"
 
         # Encrypt
         encrypted_cpf, _ = service.encrypt_cpf(cpf)
@@ -399,7 +399,7 @@ class TestCPFEncryptionIntegration:
 
     def test_searchable_hash_integration(self, service):
         """Test integration with SearchableHash utility"""
-        cpf = "12345678901"
+        cpf = "12345678909"
 
         # Get hash from service
         service_hash = service.hash_cpf_for_search(cpf)
@@ -414,7 +414,7 @@ class TestCPFEncryptionIntegration:
     def test_encryption_with_different_formats(self, service):
         """Test that different input formats encrypt to searchable equivalents"""
         formats = [
-            "12345678901",
+            "12345678909",
             "123.456.789-01",
             "123 456 789 01",
         ]

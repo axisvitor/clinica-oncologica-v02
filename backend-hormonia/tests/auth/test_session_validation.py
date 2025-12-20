@@ -12,9 +12,8 @@ SECURITY FOCUS:
 Priority: P1 - High (Pre-Production Critical)
 """
 import pytest
-import json
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch, Mock
+from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 from uuid import uuid4
 

@@ -254,16 +254,15 @@ def setup_middleware(app: FastAPI) -> None:
     # This is why it's added LAST in the middleware stack
     from app.middleware.cors import configure_cors
 
-    cors_origins = settings.get_cors_origins()
     is_production = settings.APP_ENVIRONMENT.lower() == "production"
 
     # Configure CORS with security validation
+    # Origins are sourced internally from settings.get_cors_origins()
     # Production: No regex, explicit HTTPS origins only (from settings)
     # Development: Localhost regex pattern allowed + default origins
     # Note: allow_methods and allow_headers have secure defaults in cors.py
     configure_cors(
         app,
-        allowed_origins=cors_origins,
         allowed_origin_regex=None
         if is_production
         else r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",

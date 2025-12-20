@@ -22,15 +22,12 @@ All test cases must pass before deployment to production.
 
 import pytest
 import json
-from typing import Dict, Any, List
-from datetime import datetime
-from uuid import UUID, uuid4
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from typing import Dict, Any
+from uuid import uuid4
+from unittest.mock import AsyncMock, patch, MagicMock
 
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
 
-from app.models.user import User, UserRole
 
 
 # ============================================================================

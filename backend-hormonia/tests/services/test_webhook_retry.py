@@ -6,8 +6,7 @@ MEDIUM-009: Test exponential backoff retry logic, circuit breaker integration, a
 
 import pytest
 import asyncio
-from unittest.mock import Mock, AsyncMock, patch
-from datetime import datetime
+from unittest.mock import AsyncMock, patch
 import aiohttp
 
 from app.services.webhook_retry import (

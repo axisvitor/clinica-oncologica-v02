@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import uuid4
 
 from app.models.patient import Patient, FlowState
-from app.core.database import get_db
 
 
 def create_patient_with_lgpd(
@@ -22,7 +21,7 @@ def create_patient_with_lgpd(
     name: str = "Test Patient",
     phone: str = "+5511999999999",
     email: str = "test@example.com",
-    cpf: str = "12345678901",
+    cpf: str = "12345678909",
     flow_state=FlowState.ONBOARDING,
     current_day: int = 0
 ):
@@ -61,7 +60,7 @@ def patient_data(doctor_id):
         'name': 'Test Patient',
         'phone': '+5511999999999',
         'email': 'test@example.com',
-        'cpf': '12345678901',
+        'cpf': '12345678909',
         'flow_state': FlowState.ONBOARDING,
         'current_day': 0
     }
@@ -81,7 +80,7 @@ class TestPatientUniqueConstraints:
         # Attempt to create second patient with same phone and doctor
         patient2_data = patient_data.copy()
         patient2_data['email'] = 'different@example.com'
-        patient2_data['cpf'] = '98765432100'
+        patient2_data['cpf'] = '12345678909'
         patient2 = create_patient_with_lgpd(**patient2_data)
 
         db_session.add(patient2)
@@ -106,7 +105,7 @@ class TestPatientUniqueConstraints:
         # Attempt to create second patient with same email and doctor
         patient2_data = patient_data.copy()
         patient2_data['phone'] = '+5511888888888'
-        patient2_data['cpf'] = '98765432100'
+        patient2_data['cpf'] = '12345678909'
         patient2 = create_patient_with_lgpd(**patient2_data)
 
         db_session.add(patient2)
@@ -160,7 +159,7 @@ class TestPatientUniqueConstraints:
         patient2_data = patient_data.copy()
         patient2_data['doctor_id'] = doctor2_id
         patient2_data['email'] = 'different@example.com'
-        patient2_data['cpf'] = '98765432100'
+        patient2_data['cpf'] = '12345678909'
         patient2 = create_patient_with_lgpd(**patient2_data)
 
         db_session.add(patient2)
@@ -188,7 +187,7 @@ class TestPatientUniqueConstraints:
         patient2_data = patient_data.copy()
         patient2_data['email'] = None
         patient2_data['phone'] = '+5511888888888'
-        patient2_data['cpf'] = '98765432100'
+        patient2_data['cpf'] = '12345678909'
         patient2 = create_patient_with_lgpd(**patient2_data)
 
         db_session.add(patient2)
@@ -251,7 +250,7 @@ class TestPatientUniqueConstraints:
         # Test phone constraint
         patient2_data = patient_data.copy()
         patient2_data['email'] = 'other@example.com'
-        patient2_data['cpf'] = '98765432100'
+        patient2_data['cpf'] = '12345678909'
         patient2 = create_patient_with_lgpd(**patient2_data)
         db_session.add(patient2)
 

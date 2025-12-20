@@ -12,7 +12,6 @@ which provides Redis-based distributed rate limiting with tier support.
 import time
 import json
 import hashlib
-import logging
 from typing import Optional, Callable
 from datetime import datetime
 

@@ -57,6 +57,7 @@ class Appointment(BaseModel):
         index=True,
     )
     practitioner_id = Column(
+        "doctor_id",  # Maps to the actual column name in the PostgreSQL RDS
         PGUUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,

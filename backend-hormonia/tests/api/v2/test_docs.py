@@ -5,8 +5,7 @@ Tests for API documentation, guides, examples, and search functionality.
 
 import pytest
 import json
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 from fastapi import status
 from fastapi.testclient import TestClient

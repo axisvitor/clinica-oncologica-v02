@@ -4,10 +4,9 @@ Tests for role management, assignment, bulk operations, statistics, and validati
 """
 
 import pytest
-import json
 from datetime import datetime, timedelta
-from uuid import uuid4, UUID
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
+from uuid import uuid4
+from unittest.mock import Mock, patch, AsyncMock
 from typing import List
 
 from fastapi import status
@@ -15,7 +14,6 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.models.user import User, UserRole
-from app.models.audit_log import AuditLog
 from app.utils.security import get_password_hash
 
 

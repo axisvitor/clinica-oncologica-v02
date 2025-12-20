@@ -13,7 +13,6 @@ Created: 2025-01-16
 
 import pytest
 from fastapi.testclient import TestClient
-from datetime import datetime, timezone
 from app.main import app
 
 client = TestClient(app)

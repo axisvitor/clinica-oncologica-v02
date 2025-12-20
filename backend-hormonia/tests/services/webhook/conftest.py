@@ -3,9 +3,8 @@ Pytest configuration and shared fixtures for webhook tests.
 """
 import pytest
 import asyncio
-from unittest.mock import AsyncMock, Mock, MagicMock
+from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
-from datetime import datetime
 
 from app.models.message import Message, MessageStatus, MessageType
 
@@ -76,7 +75,7 @@ def sample_patient():
     """Create a sample patient for testing."""
     patient = Mock()
     patient.id = uuid4()
-    patient.cpf = "12345678901"
+    patient.cpf = "12345678909"
     patient.full_name = "Test Patient"
     patient.phone = "+5511987654321"
     patient.is_active = True

@@ -6,7 +6,6 @@ Tests connection state and QR code webhook processing.
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
 from uuid import uuid4
-from datetime import datetime
 
 
 class TestConnectionWebhookHandler:

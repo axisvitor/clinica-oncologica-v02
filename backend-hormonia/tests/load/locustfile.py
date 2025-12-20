@@ -33,9 +33,7 @@ Métricas Alvo:
 - CPU < 70% utilization
 """
 
-import json
 import random
-import time
 from datetime import datetime
 from typing import Dict, Any
 
@@ -474,8 +472,6 @@ def on_request(request_type, name, response_time, response_length, exception, **
 # ============================================================================
 
 if __name__ == "__main__":
-    import os
-    import sys
 
     # Para execução direta (útil para testes rápidos)
     print("Para executar os testes de carga, use:")

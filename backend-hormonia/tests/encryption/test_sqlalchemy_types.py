@@ -2,14 +2,32 @@
 Integration tests for SQLAlchemy custom types.
 
 Tests EncryptedString, EncryptedText, EncryptedJSON with in-memory database.
+
+NOTE: This test requires ENCRYPTION_KEY_CURRENT environment variable.
+The test generates its own key in fixtures but imports fail at module load.
 """
 
-import os
 import json
+import os
 import pytest
 from datetime import date
 from cryptography.fernet import Fernet
-from sqlalchemy import create_engine, Column, String, Integer
+
+# Generate a valid key BEFORE any app imports
+_test_key = Fernet.generate_key().decode()
+os.environ["ENCRYPTION_KEY_CURRENT"] = _test_key
+os.environ["ENCRYPTION_CURRENT_KEY"] = _test_key  # Alternative var name
+
+# Reset any existing singleton before imports
+try:
+    from app.core import encryption
+    if hasattr(encryption, 'EncryptionService'):
+        encryption.EncryptionService._instance = None
+        encryption.EncryptionService._initialized = False
+except Exception:
+    pass
+
+from sqlalchemy import create_engine, Column, Integer
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -18,7 +36,7 @@ from app.core.encryption_types import EncryptedString, EncryptedText, EncryptedJ
 Base = declarative_base()
 
 
-class TestModel(Base):
+class TestEncryptionModel(Base):
     """Test model with encrypted fields."""
     __tablename__ = "test_encryption"
 

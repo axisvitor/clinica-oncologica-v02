@@ -13,16 +13,19 @@ Journey Steps:
 8. Doctor sees results in dashboard
 
 Coverage: Patient CRUD, WhatsApp integration, Firebase auth, Quiz flow, Saga orchestration
+
+NOTE: Requires playwright and playwright_config to be installed.
 """
+import pytest
+
+# Skip entire module if playwright is not installed
+pytest.importorskip("playwright", reason="Playwright not installed")
+
 import asyncio
 import json
-from datetime import datetime, timedelta
-from typing import Any, Dict, List
-
-import pytest
+from datetime import datetime
+from typing import Any, Dict
 from playwright.async_api import Page, expect
-
-from playwright_config import get_endpoint_url
 
 
 class TestPatientOnboardingJourney:
@@ -410,7 +413,7 @@ class TestPatientOnboardingJourney:
         )
 
         assert duplicate_count == 1, f"Expected 1 message, found {duplicate_count} duplicates"
-        print(f"✅ Idempotency verified: 1 message processed (3 requests sent)")
+        print("✅ Idempotency verified: 1 message processed (3 requests sent)")
 
 
     @pytest.mark.asyncio

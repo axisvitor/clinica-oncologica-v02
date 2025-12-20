@@ -2,7 +2,6 @@
 Tests for Analytics API v2
 """
 
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta

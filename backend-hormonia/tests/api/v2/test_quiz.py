@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 
 from app.models.quiz import QuizSession, QuizTemplate
 from app.models.patient import Patient
-from app.models.doctor import Doctor
 
 
 class TestQuizV2:

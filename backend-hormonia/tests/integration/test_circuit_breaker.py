@@ -14,19 +14,23 @@ Comprehensive tests for circuit breaker pattern covering:
 
 Author: Backend API Developer Agent
 Date: 2025-11-16
+
+NOTE: Requires aiobreaker package to be installed.
 """
 
 import pytest
+
+# Skip entire module if aiobreaker is not installed
+pytest.importorskip("aiobreaker", reason="aiobreaker not installed")
+
 import asyncio
-from datetime import datetime, timedelta
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import AsyncMock, patch
 from aiobreaker import CircuitBreakerError
 
 from app.core.circuit_breaker_enhanced import (
     ServiceType,
     CircuitBreakerConfig,
     EnhancedCircuitBreaker,
-    CircuitBreakerManager,
     get_circuit_breaker_manager,
     with_circuit_breaker,
     CIRCUIT_CONFIGS

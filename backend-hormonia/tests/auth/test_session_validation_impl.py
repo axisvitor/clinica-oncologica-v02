@@ -6,10 +6,8 @@ Issue: #18
 Priority: P1 - High  
 Status: IMPLEMENTED
 """
-import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import Mock, AsyncMock, patch
-from uuid import uuid4
 
 
 class TestSessionValidation:

@@ -13,7 +13,6 @@ from datetime import date, timedelta
 
 from app.main import app
 from app.models.patient import Patient, FlowState
-from app.schemas.patient import PatientCreate, PatientUpdate
 
 
 class TestPatientPagination:
@@ -231,7 +230,7 @@ class TestCPFEncryption:
         )
 
         # Set CPF using encryption method
-        patient.set_cpf("12345678901")
+        patient.set_cpf("12345678909")
 
         # Verify encrypted fields are set
         assert patient.cpf_encrypted is not None
@@ -239,7 +238,7 @@ class TestCPFEncryption:
 
         # Verify decryption works
         decrypted = patient.cpf_decrypted
-        assert decrypted == "12345678901"
+        assert decrypted == "12345678909"
 
     def test_cpf_formatting_and_masking(self):
         """Test CPF formatting with and without masking"""
@@ -249,7 +248,7 @@ class TestCPFEncryption:
             doctor_id=uuid4()
         )
 
-        patient.set_cpf("12345678901")
+        patient.set_cpf("12345678909")
 
         # Get formatted CPF without mask
         formatted = patient.get_cpf_display(mask=False)
@@ -267,14 +266,14 @@ class TestCPFEncryption:
             phone="5511111111111",
             doctor_id=uuid4()
         )
-        patient1.set_cpf("12345678901")
+        patient1.set_cpf("12345678909")
 
         patient2 = Patient(
             name="Patient 2",
             phone="5511222222222",
             doctor_id=uuid4()
         )
-        patient2.set_cpf("12345678901")  # Same CPF
+        patient2.set_cpf("12345678909")  # Same CPF
 
         # Same CPF should produce same hash
         assert patient1.cpf_hash == patient2.cpf_hash
@@ -285,7 +284,7 @@ class TestCPFEncryption:
             phone="5511333333333",
             doctor_id=uuid4()
         )
-        patient3.set_cpf("98765432100")
+        patient3.set_cpf("12345678909")
 
         assert patient1.cpf_hash != patient3.cpf_hash
 

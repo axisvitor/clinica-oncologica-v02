@@ -17,7 +17,6 @@ from sqlalchemy import text
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from app.database import get_db
 from app.middleware.csrf import (
     generate_csrf_token,
     validate_csrf_token,
@@ -63,7 +62,7 @@ class TestSQLInjectionPrevention:
         # Verify the malicious input is passed as a parameter, not concatenated
         call_args = db_session.execute.call_args
         assert call_args[0][0].text.find("DROP TABLE") == -1
-        assert "patient_id" in str(call_args[1])
+        assert "patient_id" in str(call_args[0][1])  # Check positional args, not kwargs
 
     def test_medication_domain_query_safe_from_injection(self, db_session):
         """Test that medication domain queries prevent SQL injection."""
@@ -532,19 +531,27 @@ class TestSecurityIntegration:
         """Test that production has proper security configuration."""
         with patch.dict('os.environ', {'ENVIRONMENT': 'production'}):
             # Production should have:
-            # - Strict CORS (no wildcards)
+            # - Strict CORS (no wildcards) - cors_allow_all_origins should be False
             # - CSRF enabled
             # - Parameterized queries only
             # - HTTPS required
 
             production_config = {
-                "cors_allow_all_origins": False,
+                "cors_allow_all_origins": False,  # Security: wildcards disabled
                 "csrf_enabled": True,
                 "parameterized_queries": True,
                 "https_required": True,
             }
 
-            assert all(production_config.values())
+            # Verify each security setting individually
+            assert production_config["cors_allow_all_origins"] is False, \
+                "Production should NOT allow all CORS origins"
+            assert production_config["csrf_enabled"] is True, \
+                "Production should have CSRF enabled"
+            assert production_config["parameterized_queries"] is True, \
+                "Production should use parameterized queries"
+            assert production_config["https_required"] is True, \
+                "Production should require HTTPS"
 
 
 # ============================================================================

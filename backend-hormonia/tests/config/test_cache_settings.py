@@ -5,8 +5,6 @@ MEDIUM-008: Verify that TTL configuration works correctly with environment varia
 """
 
 import pytest
-from unittest.mock import patch
-import os
 
 from app.config.settings.cache import CacheSettings, get_cache_settings, get_ttl
 

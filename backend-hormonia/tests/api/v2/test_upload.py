@@ -17,12 +17,10 @@ Tests cover:
 
 import pytest
 import io
-import hashlib
 import json
-from datetime import datetime, timedelta
-from uuid import uuid4, UUID
-from pathlib import Path
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
+from datetime import datetime
+from uuid import uuid4
+from unittest.mock import Mock, patch, AsyncMock
 from fastapi import status
 from fastapi.testclient import TestClient
 
@@ -541,7 +539,6 @@ class TestGetUploadInfo:
             "custom_metadata": None,
         }
 
-        import json
         mock_redis_client.get = AsyncMock(return_value=json.dumps(cached_data))
 
         with patch("app.api.v2.upload.get_current_user_object_from_session", return_value=test_user):
@@ -623,7 +620,6 @@ class TestGetUploadInfo:
             "custom_metadata": None,
         }
 
-        import json
         mock_redis_client.get = AsyncMock(return_value=json.dumps(cached_data))
 
         with patch("app.api.v2.upload.get_current_user_object_from_session", return_value=test_user):
@@ -697,7 +693,6 @@ class TestDeleteUpload:
             "custom_metadata": None,
         }
 
-        import json
         mock_redis_client.get = AsyncMock(return_value=json.dumps(cached_data))
 
         with patch("app.api.v2.upload.get_current_user_object_from_session", return_value=test_user):
@@ -781,7 +776,6 @@ class TestDeleteUpload:
             "custom_metadata": None,
         }
 
-        import json
         mock_redis_client.get = AsyncMock(return_value=json.dumps(cached_data))
 
         with patch("app.api.v2.upload.get_current_user_object_from_session", return_value=test_user):

@@ -121,57 +121,32 @@ async def verify_firebase_token(
         if not firebase_uid or not email:
             raise HTTPException(status_code=400, detail="Token missing fields")
 
-        from app.repositories.user import UserRepository
+        # Use FirebaseUserSyncService for secure synchronization and domain validation
+        from app.services.firebase_user_sync_service import FirebaseUserSyncService
+        from app.dependencies.auth_dependencies import _firebase_service
 
-        user_repo = UserRepository(db)
-        user = user_repo.get_by_firebase_uid(firebase_uid)
-
-        if user:
-            # Update existing
-            user.firebase_last_sign_in = datetime.utcnow()
-            user.firebase_email_verified = user_data.get("email_verified", False)
-            if user_data.get("name"):
-                user.firebase_display_name = user_data.get("name")
-            if user_data.get("picture"):
-                user.firebase_photo_url = user_data.get("picture")
-            user.firebase_custom_claims = user_data.get("custom_claims", {})
-            user.last_firebase_sync = datetime.utcnow()
-
-            # Lock check
-            if getattr(user, "is_locked", False):
-                if user.locked_until and datetime.utcnow() < user.locked_until:
-                    raise HTTPException(status_code=403, detail="Account locked")
-                user.is_locked = False
-                user.locked_until = None
-                user.failed_login_attempts = 0
-
-            db.commit()
-            db.refresh(user)
-        else:
-            # Create new
-            from app.models.user import User, AuthProvider, UserRole
-
-            custom_claims = user_data.get("custom_claims", {})
-            firebase_role = custom_claims.get("role", "doctor").lower()
-            user_role = UserRole.ADMIN if firebase_role == "admin" else UserRole.DOCTOR
-
-            user = User(
+        sync_service = FirebaseUserSyncService(db, _firebase_service)
+        try:
+            user, created = await sync_service.sync_firebase_user(
                 firebase_uid=firebase_uid,
-                email=email,
-                full_name=user_data.get("name", email.split("@")[0]),
-                is_active=True,
-                role=user_role,
-                auth_provider=AuthProvider.FIREBASE,
-                firebase_email_verified=user_data.get("email_verified", False),
-                firebase_display_name=user_data.get("name"),
-                firebase_photo_url=user_data.get("picture"),
-                firebase_custom_claims=custom_claims,
-                firebase_created_at=datetime.utcnow(),
-                firebase_last_sign_in=datetime.utcnow(),
+                firebase_data=user_data,
+                auto_create=True
             )
-            db.add(user)
+        except ValueError as e:
+            # Handle unauthorized domain or invalid claims
+            logger.warning(f"Firebase sync validation failed: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=str(e)
+            )
+
+        if getattr(user, "is_locked", False):
+            if user.locked_until and datetime.utcnow() < user.locked_until:
+                raise HTTPException(status_code=403, detail="Account locked")
+            user.is_locked = False
+            user.locked_until = None
+            user.failed_login_attempts = 0
             db.commit()
-            db.refresh(user)
 
         # Create Session
         from app.models.session import Session as SessionModel

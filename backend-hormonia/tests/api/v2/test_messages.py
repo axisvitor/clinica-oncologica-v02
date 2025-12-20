@@ -12,16 +12,14 @@ Comprehensive test suite for message management endpoints including:
 """
 
 import pytest
-import json
-from datetime import datetime, timedelta
-from uuid import uuid4, UUID
-from unittest.mock import Mock, AsyncMock, patch
+from datetime import datetime
+from uuid import uuid4
+from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
 from app.models.user import User
 from app.models.patient import Patient
 from app.models.message import Message, MessageStatus, MessageType, MessageDirection
-from app.main import app
 
 
 # ============================================================================

@@ -5,10 +5,8 @@ Tests distributed rate limiting functionality across multiple workers.
 """
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
-import time
-from uuid import uuid4
 
-from app.middleware.distributed_rate_limiter import DistributedRateLimiter, RateLimitTier
+from app.middleware.distributed_rate_limiter import DistributedRateLimiter
 from app.models.message import MessagePriority
 
 

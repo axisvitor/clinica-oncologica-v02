@@ -18,14 +18,11 @@ Date: 2025-01-20
 """
 
 import pytest
-from uuid import uuid4, UUID
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch, call
-from typing import Dict, Any, Optional
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.services.alerts import (
     DatabaseMonitor,
-    Alert,
     AlertSeverity,
     AlertStatus,
     AlertRuleType,
@@ -753,7 +750,6 @@ class TestSingletonPattern:
         """Test that get_database_monitor creates singleton instance."""
         from app.services.alerts.monitoring.database_monitor import (
             get_database_monitor,
-            _database_monitor,
         )
 
         # Reset singleton

@@ -6,7 +6,6 @@ and caching strategies to prevent N+1 query problems.
 """
 import pytest
 from uuid import uuid4
-from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import event
 from typing import List
@@ -57,12 +56,12 @@ def setup_test_data(db: Session):
         patient = Patient(
             id=uuid4(),
             doctor_id=doctor.id,
-            phone=f"+5511999{i:06d}",
             name=f"Patient {i}",
-            email=f"patient{i}@test.com",
             flow_state=FlowState.ACTIVE,
             current_day=i
         )
+        patient.set_phone(f"+5511999{i:06d}")
+        patient.set_email(f"patient{i}@test.com")
         db.add(patient)
         patients.append(patient)
 

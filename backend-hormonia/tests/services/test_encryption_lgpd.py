@@ -2,7 +2,6 @@
 Tests for LGPD encryption compliance
 """
 import pytest
-from unittest.mock import MagicMock, patch
 import os
 
 # Mock environment before imports
@@ -20,7 +19,7 @@ class TestCPFEncryption:
 
     def test_cpf_is_encrypted(self, encryption_service):
         """Test that CPF is properly encrypted."""
-        cpf = "12345678901"
+        cpf = "12345678909"
         encrypted, hash_value = encryption_service.encrypt_cpf(cpf)
 
         assert encrypted != cpf.encode()  # Must be different
@@ -29,7 +28,7 @@ class TestCPFEncryption:
 
     def test_cpf_decryption_roundtrip(self, encryption_service):
         """Test CPF can be encrypted and decrypted."""
-        cpf = "12345678901"
+        cpf = "12345678909"
         encrypted, _ = encryption_service.encrypt_cpf(cpf)
         decrypted = encryption_service.decrypt_cpf(encrypted)
 
@@ -37,7 +36,7 @@ class TestCPFEncryption:
 
     def test_cpf_hash_is_consistent(self, encryption_service):
         """Test same CPF always produces same hash."""
-        cpf = "12345678901"
+        cpf = "12345678909"
         _, hash1 = encryption_service.encrypt_cpf(cpf)
         _, hash2 = encryption_service.encrypt_cpf(cpf)
 
@@ -45,8 +44,8 @@ class TestCPFEncryption:
 
     def test_different_cpfs_different_hashes(self, encryption_service):
         """Test different CPFs produce different hashes."""
-        _, hash1 = encryption_service.encrypt_cpf("12345678901")
-        _, hash2 = encryption_service.encrypt_cpf("98765432100")
+        _, hash1 = encryption_service.encrypt_cpf("12345678909")
+        _, hash2 = encryption_service.encrypt_cpf("12345678909")
 
         assert hash1 != hash2
 
@@ -61,7 +60,7 @@ class TestCPFEncryption:
         encrypted, hash_value = encryption_service.encrypt_cpf(cpf_formatted)
 
         decrypted = encryption_service.decrypt_cpf(encrypted)
-        assert decrypted == "12345678901"  # Normalized
+        assert decrypted == "12345678909"  # Normalized
 
 
 class TestEmailEncryption:
@@ -183,7 +182,7 @@ class TestPatientDataEncryption:
 
         patient_data = {
             "name": "Test Patient",
-            "cpf": "12345678901",
+            "cpf": "12345678909",
             "phone": "+5511999999999"
         }
 
@@ -218,7 +217,7 @@ class TestPatientDataEncryption:
         repo = PatientRepository(db=mock_db)
         encryption = EncryptionService()
 
-        cpf = "12345678901"
+        cpf = "12345678909"
         _, cpf_hash = encryption.encrypt_cpf(cpf)
 
         # Mock query result
@@ -243,7 +242,7 @@ class TestPatientDataEncryption:
         encryption = EncryptionService()
 
         # Simulate encrypted data from DB
-        original_cpf = "12345678901"
+        original_cpf = "12345678909"
         encrypted_cpf, _ = encryption.encrypt_cpf(original_cpf)
 
         # Decrypt should return original
@@ -295,7 +294,7 @@ class TestEncryptionEdgeCases:
 
     def test_encryption_deterministic_for_same_input(self, encryption_service):
         """Test encryption hash is deterministic."""
-        cpf = "12345678901"
+        cpf = "12345678909"
 
         results = [encryption_service.encrypt_cpf(cpf) for _ in range(10)]
         hashes = [r[1] for r in results]
@@ -305,7 +304,7 @@ class TestEncryptionEdgeCases:
 
     def test_encryption_unique_for_different_inputs(self, encryption_service):
         """Test different inputs produce different encryptions."""
-        cpfs = ["12345678901", "12345678902", "12345678903"]
+        cpfs = ["12345678909", "12345678902", "12345678903"]
 
         encrypted_values = [encryption_service.encrypt_cpf(cpf)[0] for cpf in cpfs]
 

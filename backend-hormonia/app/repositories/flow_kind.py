@@ -1,5 +1,6 @@
 """
-Repository for Flow Kind management - handles flow types and their metadata.
+Repository for Flow Kind management.
+Standardized to match the RDS PostgreSQL schema.
 """
 
 from typing import List, Optional
@@ -7,7 +8,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-from app.models.flow import FlowKind  # We'll need to create this model
+from app.models.flow import FlowKind
 from app.repositories.base import BaseRepository
 
 
@@ -17,99 +18,53 @@ class FlowKindRepository(BaseRepository):
     def __init__(self, db: Session):
         super().__init__(db, FlowKind)
 
-    def get_by_flow_type(self, flow_type: str) -> Optional[FlowKind]:
-        """Get flow kind by flow_type."""
-        return self.db.query(FlowKind).filter(FlowKind.flow_type == flow_type).first()
+    def get_by_kind_key(self, kind_key: str) -> Optional[FlowKind]:
+        """Get flow kind by its unique key."""
+        return self.db.query(FlowKind).filter(FlowKind.kind_key == kind_key).first()
 
-    def get_all_active(self) -> List[FlowKind]:
-        """Get all flow kinds that have a current version."""
-        # Use ORM query instead of raw SQL to avoid mapping issues
-        from sqlalchemy import exists
-        from app.models.flow import FlowTemplateVersion
+    def list_active(self) -> List[FlowKind]:
+        """List all active flow kinds."""
+        return self.db.query(FlowKind).filter(FlowKind.is_active == True).all()
 
-        subquery = exists().where(
-            FlowTemplateVersion.kind_id == FlowKind.id, FlowTemplateVersion.is_current
-        )
-
-        return (
-            self.db.query(FlowKind).filter(subquery).order_by(FlowKind.flow_type).all()
-        )
-
-    def create_kind(
-        self, flow_type: str, name: str, description: str = None
-    ) -> FlowKind:
-        """Create a new flow kind."""
-        kind = FlowKind(flow_type=flow_type, name=name, description=description)
-        self.db.add(kind)
-        self.db.flush()  # Get the ID without committing
-        return kind
-
-    def update_current_version(self, kind_id: UUID, version_id: UUID) -> bool:
-        """Update the current version for a flow kind by setting is_current flag."""
-        try:
-            # First, unset is_current for all versions of this kind
-            self.db.execute(
-                text(
-                    "UPDATE flow_template_versions SET is_current = false WHERE kind_id = :kind_id"
-                ),
-                {"kind_id": str(kind_id)},
-            )
-            # Then set is_current for the specified version
-            result = self.db.execute(
-                text(
-                    "UPDATE flow_template_versions SET is_current = true WHERE id = :version_id AND kind_id = :kind_id"
-                ),
-                {"version_id": str(version_id), "kind_id": str(kind_id)},
-            )
-            return result.rowcount > 0
-        except Exception:
-            return False
-
-    def get_with_current_version(self, flow_type: str):
-        """Get flow kind with its current version details."""
-        return self.db.execute(
-            text("""
-            SELECT
-                fk.id as kind_id,
-                fk.flow_type,
-                fk.name as kind_name,
-                fk.description as kind_description,
-                fk.category,
-                fk.is_active,
-                fk.display_order,
-                fk.metadata as flow_metadata,
-                ftv.id as version_id,
-                ftv.version,
-                ftv.status,
-                ftv.messages,
-                ftv.quiz_templates,
-                ftv.alerts,
-                ftv.published_at
+    def get_with_current_version(self, kind_key: str):
+        """Get flow kind with its currently active version details."""
+        query = text("""
+            SELECT 
+                fk.kind_key,
+                fk.display_name,
+                ftv.version_number,
+                ftv.is_active,
+                ftv.published_at,
+                ftv.id as version_id
             FROM flow_kinds fk
-            LEFT JOIN flow_template_versions ftv ON ftv.kind_id = fk.id AND ftv.is_current = true
-            WHERE fk.flow_type = :flow_type
-        """),
-            {"flow_type": flow_type},
-        ).fetchone()
+            LEFT JOIN flow_template_versions ftv ON ftv.flow_kind_id = fk.id AND ftv.is_active = true
+            WHERE fk.kind_key = :kind_key
+            ORDER BY ftv.version_number DESC
+            LIMIT 1
+        """)
+        return self.db.execute(query, {"kind_key": kind_key}).fetchone()
 
     def list_kinds_with_stats(self):
-        """List all flow kinds with version statistics."""
-        return self.db.execute(
-            text("""
-            SELECT
-                fk.id,
-                fk.flow_type,
-                fk.name,
+        """List all flow kinds with summary version statistics."""
+        query = text("""
+            SELECT 
+                fk.kind_key,
+                fk.display_name as name,
                 fk.description,
-                ftv_current.id as current_version_id_alias,  -- For compatibility, but use is_current instead
                 COUNT(ftv.id) as total_versions,
-                COUNT(CASE WHEN ftv.status = 'published' THEN 1 END) as published_versions,
-                COUNT(CASE WHEN ftv.status = 'draft' THEN 1 END) as draft_versions,
-                MAX(ftv.created_at) as latest_version_date
+                COUNT(CASE WHEN ftv.is_active = true THEN 1 END) as published_versions,
+                COUNT(CASE WHEN ftv.is_active = false THEN 1 END) as draft_versions,
+                MAX(ftv.created_at) as latest_version_date,
+                (
+                    SELECT id 
+                    FROM flow_template_versions 
+                    WHERE flow_kind_id = fk.id AND is_active = true 
+                    ORDER BY version_number DESC 
+                    LIMIT 1
+                ) as current_version_id
             FROM flow_kinds fk
-            LEFT JOIN flow_template_versions ftv ON fk.id = ftv.kind_id
-            LEFT JOIN flow_template_versions ftv_current ON fk.id = ftv_current.kind_id AND ftv_current.is_current = true
-            GROUP BY fk.id, fk.flow_type, fk.name, fk.description, ftv_current.id
-            ORDER BY fk.flow_type
+            LEFT JOIN flow_template_versions ftv ON fk.id = ftv.flow_kind_id
+            GROUP BY fk.id
+            ORDER BY fk.kind_key
         """)
-        ).fetchall()
+        return self.db.execute(query).fetchall()

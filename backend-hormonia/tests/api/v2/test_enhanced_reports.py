@@ -13,8 +13,7 @@ Tests cover:
 """
 
 import pytest
-import json
-from datetime import datetime, date, timedelta
+from datetime import datetime, timedelta
 from uuid import uuid4
 from unittest.mock import patch, MagicMock, AsyncMock
 
@@ -22,14 +21,6 @@ from fastapi import status
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.models.user import UserRole
-from app.schemas.v2.enhanced_reports import (
-    VisualizationType,
-    ReportPermissionLevel,
-    DeliveryMethod,
-    ExportFormat,
-    DashboardLayout,
-)
 
 
 # ============================================================================
@@ -581,8 +572,8 @@ class TestMultiFormatExport:
             "status": "completed",
             "formats": ["pdf", "excel"],
             "download_urls": {
-                "pdf": f"/download?format=pdf",
-                "excel": f"/download?format=excel"
+                "pdf": "/download?format=pdf",
+                "excel": "/download?format=excel"
             }
         }
 

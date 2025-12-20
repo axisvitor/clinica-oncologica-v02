@@ -13,7 +13,6 @@ Run with: pytest tests/integration/test_security_fixes_integration.py -v
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-import time
 
 
 class TestSecurityFixesIntegration:

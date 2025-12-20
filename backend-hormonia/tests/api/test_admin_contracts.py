@@ -5,17 +5,13 @@ Verifies backend API endpoints return correct schemas and handle all contract sc
 Tests system-stats, reset-password, WebSocket, dashboard trends, and permissions updates
 """
 
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
-import json
 
-from app.main import app
 from app.config import settings
 from app.models.user import User
 from app.models.appointment import Appointment
-from app.schemas.user_admin import SystemStatsResponse, UserPermissionsUpdate
 
 
 class TestSystemStatsContract:
@@ -202,9 +198,7 @@ class TestResetPasswordContract:
     ):
         """Verify error on expired token"""
         # Generate expired token
-        from app.core.security import create_password_reset_token
         from jose import jwt
-        from datetime import datetime, timedelta
 
         # Create token that's already expired
         expired_time = datetime.utcnow() - timedelta(hours=25)

@@ -5,14 +5,13 @@ MEDIUM-015: Test cursor-based pagination functionality and performance.
 """
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime
 from uuid import uuid4, UUID
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import Mock
 
 from app.utils.cursor_pagination import (
     CursorPaginator,
-    CursorPage,
-    paginate_model
+    CursorPage
 )
 
 

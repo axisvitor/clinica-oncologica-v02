@@ -3,12 +3,10 @@ Tests for Enhanced Analytics API v2
 Comprehensive test suite with 25+ tests covering all endpoints.
 """
 
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock
-import json
+from unittest.mock import patch
 
 
 class TestEnhancedDashboard:

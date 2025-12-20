@@ -6,8 +6,6 @@ of the quiz_responses.response_value JSONB column.
 
 Migration: HIGH-003 - response_value Text to JSONB conversion
 """
-import pytest
-import json
 from app.utils.quiz_response_jsonb import (
     ResponseValueSerializer,
     ResponseValueDeserializer,

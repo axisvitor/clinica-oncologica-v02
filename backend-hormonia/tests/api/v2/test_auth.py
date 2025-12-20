@@ -17,15 +17,14 @@ import pytest
 import json
 import base64
 from datetime import datetime, timedelta
-from uuid import uuid4, UUID
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from uuid import uuid4
+from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.models.user import User, UserRole
 from app.models.session import Session as SessionModel
 from app.models.notification import Notification, NotificationType
-from app.main import app
 
 
 # ============================================================================

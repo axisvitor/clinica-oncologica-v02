@@ -17,7 +17,6 @@ the actual model is PatientFlowState with different structure.
 """
 
 import pytest
-from fastapi.testclient import TestClient
 from uuid import uuid4
 
 

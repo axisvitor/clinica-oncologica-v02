@@ -9,10 +9,9 @@ import pytest
 from typing import Dict, Any
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
-from unittest.mock import Mock, MagicMock, patch
 
 from app.services.flow.integrations.quiz_integration import QuizFlowIntegration
-from app.services.flow.types import FlowType, FlowStatus
+from app.services.flow.types import FlowType
 
 
 class TestQuizFlowIntegrationCreation:

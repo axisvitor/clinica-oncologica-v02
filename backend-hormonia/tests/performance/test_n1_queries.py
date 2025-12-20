@@ -10,7 +10,6 @@ import pytest
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from typing import List
-from uuid import UUID
 
 
 class QueryCounter:

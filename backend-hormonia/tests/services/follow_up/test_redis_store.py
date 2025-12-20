@@ -5,7 +5,7 @@ Tests Redis-backed storage for follow-up actions, alerts, and patient contexts.
 """
 import pytest
 import json
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, AsyncMock, patch
 from uuid import uuid4, UUID
 from datetime import datetime, timedelta
 

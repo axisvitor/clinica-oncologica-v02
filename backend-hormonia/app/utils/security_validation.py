@@ -18,9 +18,15 @@ Example:
 from app.utils.key_validation import (
     # Models
     KeyStrengthResult,
+    MIN_ENTROPY_PRODUCTION,
+    MIN_ENTROPY_DEVELOPMENT,
     calculate_shannon_entropy,
     calculate_entropy,
-    # Placeholder
+    # Placeholder detection
+    contains_placeholder,
+    # Character distribution
+    analyze_character_distribution,
+    # Generators
     generate_secure_key,
     generate_secure_secret,
     # HMAC
@@ -41,6 +47,8 @@ from app.utils.key_validation import (
 __all__ = [
     # New comprehensive API (AUTH-001 fix)
     "KeyStrengthResult",
+    "MIN_ENTROPY_PRODUCTION",
+    "MIN_ENTROPY_DEVELOPMENT",
     "calculate_shannon_entropy",
     "validate_secret_entropy",
     "validate_key_strength",
@@ -48,6 +56,9 @@ __all__ = [
     "generate_secure_key",
     "validate_all_secrets",
     "is_production_ready",
+    # Placeholder and distribution analysis
+    "contains_placeholder",
+    "analyze_character_distribution",
     # Legacy API (backward compatibility)
     "calculate_entropy",
     "validate_csrf_secret",

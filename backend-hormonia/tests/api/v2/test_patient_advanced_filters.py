@@ -12,7 +12,6 @@ Backward Compatibility: Required
 """
 import pytest
 from datetime import datetime, timedelta
-from uuid import uuid4
 
 
 @pytest.mark.asyncio

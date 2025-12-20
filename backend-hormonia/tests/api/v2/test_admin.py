@@ -4,11 +4,9 @@ Tests for user management, roles, permissions, audit, bulk operations, and searc
 """
 
 import pytest
-import json
-import base64
 from datetime import datetime, timedelta
-from uuid import uuid4, UUID
-from unittest.mock import Mock, patch, MagicMock
+from uuid import uuid4
+from unittest.mock import Mock
 
 from fastapi import status
 from fastapi.testclient import TestClient
@@ -16,7 +14,6 @@ from sqlalchemy.orm import Session
 
 from app.models.user import User, UserRole
 from app.models.audit_log import AuditLog
-from app.repositories.user import UserRepository
 from app.utils.security import get_password_hash
 
 

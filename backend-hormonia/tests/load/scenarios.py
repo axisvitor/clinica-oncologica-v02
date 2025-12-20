@@ -30,13 +30,12 @@ locust -f tests/load/scenarios.py Scenario4DashboardLoad --host=http://localhost
 locust -f tests/load/scenarios.py Scenario5StressTest --host=http://localhost:8000 -u 1000 -r 100 --headless
 """
 
-import json
 import random
 import time
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
+from typing import Dict, Any
 
-from locust import HttpUser, task, between, events, constant, constant_throughput
+from locust import HttpUser, task, between, events, constant
 from locust.exception import RescheduleTask
 
 

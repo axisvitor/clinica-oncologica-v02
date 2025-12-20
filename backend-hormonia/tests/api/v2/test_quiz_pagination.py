@@ -13,7 +13,7 @@ import json
 
 from app.models.quiz import QuizSession, QuizTemplate
 from app.models.patient import Patient
-from app.models.user import User, UserRole
+from app.models.user import User
 
 
 # ============================================================================

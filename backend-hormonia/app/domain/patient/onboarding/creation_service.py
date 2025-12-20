@@ -153,19 +153,19 @@ class CreationService:
             await run_in_threadpool(self.db.rollback)
             error_message = str(e.orig).lower()
 
-            if "uq_patient_cpf_doctor" in error_message or "cpf" in error_message:
+            if any(term in error_message for term in ["uq_patient_cpf_hash_doctor", "uq_patient_cpf_doctor", "cpf_hash", "cpf"]):
                 raise ValidationError(
                     message="Paciente com este CPF já existe para este médico",
                     field="cpf",
                     code="duplicate_cpf",
                 )
-            elif "uq_patient_phone" in error_message or "phone" in error_message:
+            elif any(term in error_message for term in ["uq_patient_phone", "phone_hash", "phone"]):
                 raise ValidationError(
                     message="Paciente com este telefone já existe",
                     field="phone",
                     code="duplicate_phone",
                 )
-            elif "uq_patient_email_doctor" in error_message or "email" in error_message:
+            elif any(term in error_message for term in ["uq_patient_email_doctor", "email_hash", "email"]):
                 raise ValidationError(
                     message="Paciente com este email já existe para este médico",
                     field="email",

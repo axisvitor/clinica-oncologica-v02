@@ -6,17 +6,14 @@ Issue: #17
 Priority: P1 - High
 Status: IMPLEMENTED
 """
-import pytest
 from fastapi.testclient import TestClient
 from datetime import datetime, timedelta
 import base64
 import json
 from uuid import uuid4
 
-from app.models.user import UserRole
 from app.models.quiz import QuizSession
-from app.models.patient import Patient
-from tests.conftest import create_test_user, create_test_patient
+from tests.conftest import create_test_patient
 
 
 def create_quiz_session(db_session, patient, status="started", created_at=None):
@@ -255,7 +252,7 @@ class TestQuizCursorPagination:
         
         # Filter by status and paginate
         response = client.get(
-            f"/api/v2/quiz?limit=5&status=started",
+            "/api/v2/quiz?limit=5&status=started",
             headers=auth_headers
         )
         

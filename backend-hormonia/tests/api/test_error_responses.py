@@ -15,9 +15,8 @@ Test Coverage:
 """
 
 import pytest
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.core.exceptions import (

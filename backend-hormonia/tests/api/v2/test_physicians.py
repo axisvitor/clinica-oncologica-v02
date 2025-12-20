@@ -6,7 +6,7 @@ Comprehensive test suite covering all endpoints, RBAC, and statistics.
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime
 from uuid import uuid4
 
 from app.models.user import User, UserRole

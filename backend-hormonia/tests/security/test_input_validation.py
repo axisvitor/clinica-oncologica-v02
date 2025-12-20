@@ -13,7 +13,6 @@ Run with: pytest tests/security/test_input_validation.py -v
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
 
 
 class TestInputValidation:
@@ -272,7 +271,7 @@ class TestInputValidation:
 
             # Should either sanitize or reject gracefully
             assert response.status_code in [200, 201, 400, 422], \
-                f"Special characters should be handled safely"
+                "Special characters should be handled safely"
 
             # If accepted, verify no XSS in response
             if response.status_code in [200, 201]:
@@ -365,7 +364,7 @@ class TestInputValidation:
             "123",  # Too short
             "not a phone",
             "'; DROP TABLE--",
-            "12345678901234567890",  # Too long
+            "12345678909234567890",  # Too long
         ]
 
         for phone in invalid_phones:
@@ -384,7 +383,7 @@ class TestInputValidation:
             if response.status_code in [422, 400]:
                 print(f"✅ Invalid phone '{phone}' rejected")
             else:
-                print(f"⚠️  Phone validation may need improvement")
+                print("⚠️  Phone validation may need improvement")
 
 
 if __name__ == "__main__":

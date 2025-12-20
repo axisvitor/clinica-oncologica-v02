@@ -5,12 +5,12 @@ Provides shared fixtures for backend E2E tests
 import asyncio
 import os
 from typing import AsyncGenerator, Generator
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from faker import Faker
 
@@ -18,10 +18,9 @@ from app.main import app
 from app.core.database import Base, get_db
 from app.models.user import User, UserRole
 from app.models.patient import Patient
-from app.models.quiz import QuizSession, QuizResponse, QuizTemplate
+from app.models.quiz import QuizTemplate
 from app.models.flow import PatientFlowState
 from app.models.patient import FlowState  # FlowState enum is in patient model
-from app.models.alert import Alert
 from app.utils.security import get_password_hash
 
 

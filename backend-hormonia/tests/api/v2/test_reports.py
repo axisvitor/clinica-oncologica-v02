@@ -4,8 +4,7 @@ Comprehensive test coverage for all report endpoints.
 """
 
 import pytest
-import json
-from datetime import datetime, date, timedelta
+from datetime import datetime
 from uuid import uuid4
 from unittest.mock import patch, MagicMock, AsyncMock
 
@@ -13,9 +12,6 @@ from fastapi import status
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.models.user import UserRole
-from app.models.patient import FlowState
-from app.schemas.v2.reports import ReportFormat, ReportStatus, ReportType, ScheduleFrequency
 
 
 # ============================================================================

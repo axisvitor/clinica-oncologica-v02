@@ -15,9 +15,9 @@ Tests cover:
 """
 
 import pytest
-from datetime import datetime, timedelta
-from uuid import uuid4, UUID
-from unittest.mock import Mock, MagicMock, AsyncMock, patch
+from datetime import datetime
+from uuid import uuid4
+from unittest.mock import Mock, AsyncMock, patch
 
 from sqlalchemy.orm import Session
 

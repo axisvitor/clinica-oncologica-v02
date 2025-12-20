@@ -7,7 +7,6 @@ This test verifies that:
 3. No functionality was lost in the refactoring
 """
 
-import sys
 import pytest
 
 

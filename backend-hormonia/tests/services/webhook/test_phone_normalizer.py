@@ -4,7 +4,7 @@ Unit tests for PhoneNormalizer utility.
 Tests E.164 phone number normalization with multiple fallback strategies.
 """
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock
 from uuid import uuid4
 
 from app.services.webhook.utils.phone_normalizer import PhoneNormalizer
@@ -164,7 +164,7 @@ class TestEdgeCases:
 
     def test_normalize_very_long_number(self, normalizer):
         """Test handling of very long numbers."""
-        phone = "1234567890123456789"
+        phone = "1234567890923456789"
         result = normalizer.normalize_phone_e164(phone)
         # Should still process the number
         assert len(result) > 0

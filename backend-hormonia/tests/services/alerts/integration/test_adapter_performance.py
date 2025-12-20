@@ -21,7 +21,7 @@ Success Criteria:
 import pytest
 import time
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 from uuid import uuid4
 from unittest.mock import Mock, patch
 from statistics import mean, median
@@ -104,7 +104,7 @@ class TestResponseTimeBenchmarks:
             p99_time = sorted(times)[int(len(times) * 0.99)]
 
             # Report
-            print(f"\n=== Acknowledge Alert Benchmark ===")
+            print("\n=== Acknowledge Alert Benchmark ===")
             print(f"Average: {avg_time:.3f}ms")
             print(f"Median:  {median_time:.3f}ms")
             print(f"P95:     {p95_time:.3f}ms")
@@ -151,7 +151,7 @@ class TestResponseTimeBenchmarks:
             avg_time = mean(times)
             p95_time = sorted(times)[int(len(times) * 0.95)]
 
-            print(f"\n=== Resolve Alert Benchmark ===")
+            print("\n=== Resolve Alert Benchmark ===")
             print(f"Average: {avg_time:.3f}ms")
             print(f"P95:     {p95_time:.3f}ms")
 
@@ -183,7 +183,7 @@ class TestResponseTimeBenchmarks:
             avg_time = mean(times)
             p95_time = sorted(times)[int(len(times) * 0.95)]
 
-            print(f"\n=== Get Statistics Benchmark ===")
+            print("\n=== Get Statistics Benchmark ===")
             print(f"Average: {avg_time:.3f}ms")
             print(f"P95:     {p95_time:.3f}ms")
             print(f"Alerts processed: {len(sample_alerts_batch)}")
@@ -227,7 +227,7 @@ class TestResponseTimeBenchmarks:
             avg_time = mean(times)
             p95_time = sorted(times)[int(len(times) * 0.95)]
 
-            print(f"\n=== Process Escalation Benchmark ===")
+            print("\n=== Process Escalation Benchmark ===")
             print(f"Average: {avg_time:.3f}ms")
             print(f"P95:     {p95_time:.3f}ms")
 
@@ -282,7 +282,7 @@ class TestThroughputBenchmarks:
             total_time = (end - start) * 1000
             throughput = len(alerts) / (total_time / 1000)
 
-            print(f"\n=== Concurrent Acknowledge Benchmark ===")
+            print("\n=== Concurrent Acknowledge Benchmark ===")
             print(f"Total alerts: {len(alerts)}")
             print(f"Total time: {total_time:.3f}ms")
             print(f"Throughput: {throughput:.2f} ops/sec")
@@ -333,7 +333,7 @@ class TestThroughputBenchmarks:
                 elapsed = (end - start) * 1000
                 results.append((batch_size, elapsed))
 
-            print(f"\n=== Batch Statistics Benchmark ===")
+            print("\n=== Batch Statistics Benchmark ===")
             for batch_size, elapsed in results:
                 print(
                     f"Batch {batch_size:4d}: {elapsed:7.3f}ms ({elapsed / batch_size:.3f}ms/alert)"
@@ -395,7 +395,7 @@ class TestMemoryBenchmarks:
             # Measure after operations
             after_operations = process.memory_info().rss / 1024 / 1024
 
-            print(f"\n=== Memory Benchmark ===")
+            print("\n=== Memory Benchmark ===")
             print(f"Baseline:        {baseline_memory:.2f} MB")
             print(
                 f"After creation:  {after_creation:.2f} MB (+{after_creation - baseline_memory:.2f} MB)"
@@ -454,7 +454,7 @@ class TestMemoryBenchmarks:
                     memory_mb = process.memory_info().rss / 1024 / 1024
                     memory_samples.append(memory_mb)
 
-            print(f"\n=== Memory Leak Detection ===")
+            print("\n=== Memory Leak Detection ===")
             print(f"Iterations: {iterations}")
             for i, mem in enumerate(memory_samples):
                 print(f"Sample {i * sample_interval:4d}: {mem:.2f} MB")
@@ -592,7 +592,7 @@ class TestComparativeBenchmarks:
             avg_direct = mean(times_direct)
             overhead = ((avg_adapter - avg_direct) / avg_direct) * 100
 
-            print(f"\n=== Adapter Overhead Analysis ===")
+            print("\n=== Adapter Overhead Analysis ===")
             print(f"Direct method: {avg_direct:.3f}ms")
             print(f"Via adapter:   {avg_adapter:.3f}ms")
             print(f"Overhead:      {overhead:.1f}%")

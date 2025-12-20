@@ -17,9 +17,8 @@ Date: 2025-01-20
 
 import pytest
 import asyncio
-from uuid import uuid4, UUID
+from uuid import uuid4
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
 
 from app.services.alerts import (
     AlertManager,

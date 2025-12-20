@@ -4,7 +4,6 @@ Backward Compatibility Tests for Encryption Services
 These tests verify that the unified encryption package properly exports
 all legacy functions and maintains backward compatibility.
 """
-import pytest
 
 
 class TestEncryptionBackwardCompatibility:

@@ -10,11 +10,11 @@ import hmac
 import hashlib
 import json
 from datetime import datetime
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import AsyncMock, patch
 
 from app.services.unified_whatsapp_service import UnifiedWhatsAppService
 from app.services.whatsapp.security import WhatsAppSecurity
-from app.exceptions import ValidationError, ServiceError
+from app.exceptions import ValidationError
 from app.config import settings
 
 

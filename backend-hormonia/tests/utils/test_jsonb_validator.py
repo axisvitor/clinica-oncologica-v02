@@ -15,7 +15,6 @@ Test Coverage:
 """
 
 import pytest
-from jsonschema import ValidationError as JsonSchemaValidationError
 
 from app.utils.jsonb_validator import (
     validate_patient_metadata,
@@ -24,7 +23,6 @@ from app.utils.jsonb_validator import (
     sanitize_metadata,
     merge_metadata,
     get_allowed_fields,
-    PATIENT_METADATA_SCHEMA,
 )
 from app.core.exceptions import ValidationError
 

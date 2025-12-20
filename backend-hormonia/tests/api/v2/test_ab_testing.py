@@ -18,9 +18,8 @@ Test Coverage:
 """
 
 import pytest
-import json
-from datetime import datetime, timedelta
-from uuid import uuid4, UUID
+from datetime import datetime
+from uuid import uuid4
 from unittest.mock import Mock, patch, AsyncMock
 import numpy as np
 
@@ -35,7 +34,6 @@ from app.models.ab_experiment import (
     ExperimentStatus,
     VariantType,
 )
-from app.models.user import User, UserRole
 
 
 client = TestClient(app)

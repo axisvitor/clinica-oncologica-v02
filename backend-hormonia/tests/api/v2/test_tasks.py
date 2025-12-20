@@ -19,18 +19,15 @@ All test cases must pass before deployment to production.
 """
 
 import pytest
-from typing import Dict, Any, List
+from typing import Dict, Any
 from datetime import datetime, timedelta
-from uuid import UUID, uuid4
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import patch, MagicMock
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from celery.result import AsyncResult
 from celery import states
 
-from app.models.user import User, UserRole
-from app.schemas.v2.tasks import TaskStatus, TaskType, TaskPriority
+from app.schemas.v2.tasks import TaskStatus
 
 
 # ============================================================================

@@ -8,18 +8,23 @@ Test Coverage:
     - API Translation (legacy to new API)
     - Feature Flags (configuration respect)
     - Error Handling (legacy error formats)
+
+NOTE: FlowManagerAdapter was removed during refactoring.
+The flow service is now accessed directly via FlowManager.
 """
 
 import pytest
-from datetime import datetime
-from typing import Dict, Any
-from uuid import uuid4, UUID
-from unittest.mock import Mock, patch, MagicMock
-import warnings
 
-from app.services.flow.adapter import FlowManagerAdapter
+pytestmark = pytest.mark.skip(
+    reason="FlowManagerAdapter removed - use FlowManager directly"
+)
+
+from datetime import datetime
+from uuid import uuid4
+from unittest.mock import Mock, patch
+import warnings
 from app.services.flow.manager import FlowManager
-from app.services.flow.types import FlowType, FlowStatus
+from app.services.flow.types import FlowStatus
 
 
 # ============================================================================

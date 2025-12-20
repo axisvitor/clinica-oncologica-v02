@@ -11,9 +11,8 @@ Tests cover:
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock, AsyncMock, call
+from unittest.mock import patch, MagicMock, AsyncMock
 from datetime import datetime, timedelta
-import json
 
 from app.services.alerts import AlertManager, Alert, AlertSeverity as AlertPriority, AlertStatus
 

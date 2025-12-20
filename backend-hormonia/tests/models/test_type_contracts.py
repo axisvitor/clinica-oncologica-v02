@@ -11,7 +11,6 @@ import pytest
 from datetime import date
 from uuid import uuid4, UUID
 from sqlalchemy.orm import Session
-from pydantic import ValidationError
 
 from app.models.patient import Patient, FlowState
 from app.models.user import User
@@ -331,7 +330,6 @@ class TestFrontendBackendTypeContracts:
 
     def test_patient_api_response_matches_frontend_types(self, db: Session):
         """Test that Patient API response matches frontend TypeScript types."""
-        from app.schemas.patient import PatientResponse
 
         doctor = User(id=uuid4(), email="doc3@ex.com", role="physician", is_active=True)
         db.add(doctor)
@@ -344,7 +342,7 @@ class TestFrontendBackendTypeContracts:
             treatment_type="HRT",
             flow_state=FlowState.ACTIVE,
             current_day=10,
-            cpf="12345678901",
+            cpf="12345678909",
             diagnosis="Test diagnosis",
             treatment_phase="Phase 1"
         )

@@ -7,7 +7,6 @@ from httpx import AsyncClient
 from sqlalchemy.orm import Session
 
 from app.models.patient import Patient
-from app.models.alert import Alert
 
 
 @pytest.mark.asyncio

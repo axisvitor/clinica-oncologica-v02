@@ -13,7 +13,7 @@ import pytest
 from unittest.mock import Mock, MagicMock, AsyncMock
 from datetime import datetime, timedelta
 import asyncio
-from typing import Generator, Any
+from typing import Any
 
 # ==========================================
 # Database Fixtures

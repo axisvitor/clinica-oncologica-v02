@@ -7,8 +7,7 @@ Tests all 20 consolidated endpoints with various scenarios.
 
 import pytest
 import time
-from datetime import datetime, timedelta
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 

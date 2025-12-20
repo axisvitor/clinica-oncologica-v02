@@ -333,6 +333,11 @@ class Patient(BaseModel):
         """
         return self.cpf_decrypted
 
+    @cpf.setter
+    def cpf(self, value: Optional[str]) -> None:
+        """Compatibility setter for CPF."""
+        self.set_cpf(value)
+
     def set_cpf(self, cpf_value: Optional[str]) -> None:
         """
         Set CPF with automatic encryption.
@@ -408,6 +413,11 @@ class Patient(BaseModel):
         """
         return self.email_decrypted
 
+    @email.setter
+    def email(self, value: Optional[str]) -> None:
+        """Compatibility setter for email."""
+        self.set_email(value)
+
     def set_email(self, email_value: Optional[str]) -> None:
         """
         Set email with automatic encryption.
@@ -460,6 +470,11 @@ class Patient(BaseModel):
         New code should use phone_decrypted directly.
         """
         return self.phone_decrypted
+
+    @phone.setter
+    def phone(self, value: Optional[str]) -> None:
+        """Compatibility setter for phone."""
+        self.set_phone(value)
 
     def set_phone(self, phone_value: Optional[str]) -> None:
         """

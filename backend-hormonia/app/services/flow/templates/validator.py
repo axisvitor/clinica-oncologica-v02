@@ -98,7 +98,7 @@ class FlowTemplateValidator:
 
         details = {
             "template_id": template.template_id,
-            "flow_type": template.flow_type.value,
+            "flow_type": template.flow_type.value if template.flow_type else None,
             "step_count": len(template.steps),
             "transition_count": len(template.transitions),
             "validated_at": datetime.utcnow().isoformat(),

@@ -7,7 +7,6 @@ import pytest
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from unittest.mock import Mock, patch, MagicMock
-from sqlalchemy.orm import Session
 
 from app.models.quiz import QuizSession, QuizTemplate
 from app.models.patient import Patient

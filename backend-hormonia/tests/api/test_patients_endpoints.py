@@ -19,7 +19,6 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.models.patient import Patient
-from app.models.user import User, UserRole
 
 
 class TestPatientCRUDEndpoints:
@@ -33,7 +32,7 @@ class TestPatientCRUDEndpoints:
             "email": "test.patient@example.com",
             "phone": "+5511999999999",
             "birth_date": "1990-01-01",
-            "cpf": "12345678901",
+            "cpf": "12345678909",
             "treatment_type": "Quimioterapia",
             "diagnosis": "Test diagnosis",
             "metadata": {"test": "data"}

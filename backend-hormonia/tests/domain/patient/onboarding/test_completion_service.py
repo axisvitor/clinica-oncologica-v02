@@ -11,8 +11,7 @@ This test suite validates the CompletionService functionality including:
 File: backend-hormonia/tests/domain/patient/onboarding/test_completion_service.py
 """
 import pytest
-import asyncio
-from unittest.mock import Mock, AsyncMock, MagicMock, patch, call
+from unittest.mock import Mock, AsyncMock, patch
 from uuid import uuid4
 from datetime import datetime
 

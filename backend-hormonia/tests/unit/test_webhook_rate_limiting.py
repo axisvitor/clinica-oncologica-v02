@@ -9,13 +9,11 @@ Tests multi-layer rate limiting functionality:
 """
 
 import pytest
-import asyncio
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, AsyncMock, patch
 from fastapi import Request, HTTPException
 from app.utils.rate_limiter import (
     multi_layer_rate_limit,
     check_rate_limit_redis,
-    get_redis_client,
 )
 
 

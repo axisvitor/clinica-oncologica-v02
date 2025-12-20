@@ -3,8 +3,7 @@ from contextlib import asynccontextmanager
 
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
-from uuid import uuid4, UUID
-from datetime import datetime
+from uuid import uuid4
 
 os.environ.setdefault("MONTHLY_QUIZ_TOKEN_SECRET", "test-secret-key-for-testing")
 
@@ -12,7 +11,6 @@ from app.orchestration.saga_orchestrator import SagaOrchestrator
 from app.models.patient_onboarding_saga import SagaStatus, PatientOnboardingSaga
 from app.schemas.patient import PatientCreate
 from app.models.patient import Patient
-from app.models.message import Message
 
 
 @asynccontextmanager

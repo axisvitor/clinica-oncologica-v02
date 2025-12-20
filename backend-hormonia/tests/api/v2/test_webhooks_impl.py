@@ -1,11 +1,10 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
-from datetime import datetime
 
 from app.services.webhook_service import WebhookService
-from app.models.webhook import WebhookEndpoint, WebhookDelivery, WebhookLog
-from app.schemas.v2.webhooks import WebhookCreate, WebhookTestRequest, WebhookRetryRequest
+from app.models.webhook import WebhookEndpoint, WebhookDelivery
+from app.schemas.v2.webhooks import WebhookCreate, WebhookTestRequest
 
 @pytest.fixture
 def mock_db():

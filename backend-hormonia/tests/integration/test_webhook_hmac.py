@@ -20,12 +20,10 @@ import hmac
 import hashlib
 import time
 import json
-from datetime import datetime, timedelta
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.config import settings
-from app.middleware.webhook_validator import generate_webhook_signature
 
 
 @pytest.fixture

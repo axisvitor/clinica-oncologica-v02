@@ -14,7 +14,6 @@ from datetime import datetime
 from app.services.cache.invalidation import (
     CacheInvalidator,
     InvalidationStrategy,
-    InvalidationScope,
     get_cache_invalidator,
 )
 from app.services.cache.specialized import (

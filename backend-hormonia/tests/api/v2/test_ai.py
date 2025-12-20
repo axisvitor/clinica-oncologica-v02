@@ -12,9 +12,9 @@ Tests cover:
 - Rate limiting (simulated)
 """
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime
 from uuid import uuid4
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import patch, AsyncMock
 from fastapi import status
 from fastapi.testclient import TestClient
 

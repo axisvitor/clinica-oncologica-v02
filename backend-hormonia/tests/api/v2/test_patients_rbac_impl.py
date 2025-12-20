@@ -6,9 +6,7 @@ Issue: #16
 Priority: P0 - Critical
 Status: IMPLEMENTED
 """
-import pytest
 from fastapi.testclient import TestClient
-from uuid import uuid4
 from app.models.user import UserRole
 from tests.conftest import create_test_user, create_test_patient
 

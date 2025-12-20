@@ -11,7 +11,6 @@ Tests cover:
 """
 
 import pytest
-import json
 from datetime import datetime, timedelta
 from uuid import uuid4
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -119,7 +118,7 @@ class TestFirebaseAuthentication:
     ):
         """Test Firebase verification updates existing user."""
         # Create existing user
-        from app.models.user import User, AuthProvider, UserRole
+        from app.models.user import User
         existing_user = User(
             id=uuid4(),
             firebase_uid="existing_uid_123",
@@ -237,7 +236,7 @@ class TestFirebaseAuthentication:
         db_session: Session
     ):
         """Test Firebase verification with locked account."""
-        from app.models.user import User, AuthProvider, UserRole
+        from app.models.user import User
 
         locked_user = User(
             id=uuid4(),

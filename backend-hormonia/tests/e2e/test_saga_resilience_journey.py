@@ -12,16 +12,18 @@ Journey Steps:
 7. All state consistent
 
 Coverage: Saga orchestration, Error handling, Compensation, Retries, State consistency
+
+NOTE: Requires playwright and playwright_config to be installed.
 """
+import pytest
+
+# Skip entire module if playwright is not installed
+pytest.importorskip("playwright", reason="Playwright not installed")
+
 import asyncio
 import json
-from datetime import datetime, timedelta
-from typing import Any, Dict
-
-import pytest
-from playwright.async_api import Page, expect
-
-from playwright_config import get_endpoint_url
+from datetime import datetime
+from playwright.async_api import Page
 
 
 class TestSagaResilienceJourney:
@@ -276,11 +278,11 @@ class TestSagaResilienceJourney:
         print("="*60)
         print(f"✅ Saga ID: {saga_id}")
         print(f"✅ Retries: {retry_count}")
-        print(f"✅ Final Status: COMPLETED")
+        print("✅ Final Status: COMPLETED")
         print(f"✅ Firebase Account: {firebase_user['uid']}")
         print(f"✅ Patient Status: {final_patient['status']}")
         print(f"✅ Duration: {total_duration:.2f}s")
-        print(f"✅ State Consistency: Verified")
+        print("✅ State Consistency: Verified")
         print("="*60 + "\n")
 
 

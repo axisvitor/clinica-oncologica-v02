@@ -44,7 +44,7 @@ def valid_patient_data():
         name="João Silva",
         email="joao.silva@example.com",
         phone="+5511987654321",
-        cpf="12345678901",
+        cpf="12345678909",
         birth_date=date(1990, 1, 1),
         treatment_type="Quimioterapia",
         treatment_start_date=date.today(),
@@ -74,7 +74,7 @@ class TestCPFValidation:
         patient_data.cpf = "123.456.789-01"
 
         normalized = integrity_service._normalize_cpf(patient_data.cpf)
-        assert normalized == "12345678901"
+        assert normalized == "12345678909"
 
     @pytest.mark.asyncio
     async def test_cpf_length_validation(self, integrity_service, valid_patient_data, mock_doctor):
@@ -310,7 +310,7 @@ class TestUpdateValidation:
         """Test update validation excludes current patient from duplicate checks."""
         patient_id = uuid4()
         update_data = PatientUpdate(
-            cpf="12345678901",
+            cpf="12345678909",
             email="new@example.com"
         )
 

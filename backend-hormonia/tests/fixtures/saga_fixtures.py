@@ -7,7 +7,7 @@ compensation logic, and rollback scenarios.
 
 import uuid
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from unittest.mock import Mock, AsyncMock
 
 import pytest
@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session
 
 from app.models.patient import Patient, FlowState
 from app.models.flow import PatientFlowState
-from app.models.message import Message, MessageStatus, MessageDirection, MessageType
 from app.models.patient_onboarding_saga import PatientOnboardingSaga, SagaStatus
 from app.orchestration.saga_orchestrator import SagaOrchestrator
 

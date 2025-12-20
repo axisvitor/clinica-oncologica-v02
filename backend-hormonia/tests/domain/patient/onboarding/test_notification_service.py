@@ -14,15 +14,12 @@ Test Coverage:
 Target: 100% code coverage
 """
 import pytest
-from unittest.mock import Mock, AsyncMock, patch, call
-from uuid import uuid4, UUID
-from datetime import datetime
+from unittest.mock import Mock, AsyncMock, patch
+from uuid import uuid4
 
 from app.domain.patient.onboarding.notification_service import NotificationService
 from app.models.patient import Patient
 from app.models.user import User
-from app.models.message import MessageType
-from app.schemas.websocket import WebSocketEventType
 
 
 # ============================================================================

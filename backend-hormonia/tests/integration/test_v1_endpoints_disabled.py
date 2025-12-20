@@ -1,4 +1,3 @@
-import pytest
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 

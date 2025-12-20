@@ -6,10 +6,8 @@ Tests quota tracking, enforcement, reset logic, and different user tiers.
 Priority: P2 - High (Resource Management)
 """
 import pytest
-from datetime import datetime, timedelta
 from uuid import uuid4
-from fastapi.testclient import TestClient
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import Mock, AsyncMock
 
 from app.models.user import User, UserRole
 
@@ -92,7 +90,6 @@ class TestUploadQuotaEnforcement:
 
     def test_quota_enforcement_different_tiers(self, client, db_session, mocker):
         """Test different quota limits for different user tiers"""
-        from app.models.user import User
         from app.utils.security import get_password_hash
 
         # Create users with different tiers
@@ -167,7 +164,6 @@ class TestQuotaReset:
         mocker.patch('app.core.redis_client.get_redis_client', return_value=mock_redis)
 
         # Mock quota service
-        from app.services.upload_quota import reset_monthly_quotas
 
         # Call reset function (would be called by Celery task)
         # reset_monthly_quotas()
@@ -316,7 +312,6 @@ class TestQuotaAPI:
 
     def test_get_quota_status_premium_user(self, client, db_session, mocker):
         """Test quota status for premium tier user"""
-        from app.models.user import User
         from app.utils.security import get_password_hash
 
         # Create premium user
@@ -360,7 +355,6 @@ class TestQuotaTiers:
     ])
     def test_tier_quota_limits(self, tier, expected_quota_mb, db_session, mocker):
         """Test each tier has correct quota limit"""
-        from app.models.user import User
         from app.utils.security import get_password_hash
 
         user = User(

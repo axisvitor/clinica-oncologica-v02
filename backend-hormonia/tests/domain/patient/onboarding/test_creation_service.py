@@ -10,7 +10,6 @@ from uuid import uuid4
 from app.domain.patient.onboarding.creation_service import CreationService
 from app.models.patient import Patient
 from app.schemas.patient import PatientCreate
-from app.exceptions import ValidationError
 
 
 @pytest.fixture

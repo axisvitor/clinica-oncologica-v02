@@ -13,7 +13,7 @@ Tests validate:
 import pytest
 from datetime import datetime, timedelta
 from fastapi.testclient import TestClient
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 # Fixtures will be imported from conftest.py
 # from ..conftest import client, admin_token, regular_token

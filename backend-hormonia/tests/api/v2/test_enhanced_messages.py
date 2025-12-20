@@ -9,7 +9,6 @@ import pytest
 from datetime import datetime, timedelta
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-import json
 from uuid import uuid4
 
 from app.models.patient import Patient

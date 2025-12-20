@@ -9,9 +9,8 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.models.quiz import QuizSession, QuizTemplate, QuizResponse
+from app.models.quiz import QuizSession, QuizTemplate
 from app.models.patient import Patient
-from app.models.doctor import Doctor
 
 
 class TestEnhancedQuizAnalytics:

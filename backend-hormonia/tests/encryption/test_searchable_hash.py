@@ -4,7 +4,6 @@ Unit tests for searchable hash service.
 Tests hash determinism, uniqueness, case-insensitivity.
 """
 
-import os
 import pytest
 from app.core.searchable_hash import SearchableHash
 
@@ -12,7 +11,7 @@ from app.core.searchable_hash import SearchableHash
 @pytest.fixture
 def setup_salt(monkeypatch):
     """Set up hash salt for testing."""
-    monkeypatch.setenv("HASH_SALT", "test-salt-12345678901234567890123456789012")
+    monkeypatch.setenv("HASH_SALT", "test-salt-12345678909234567890123456789092")
 
 
 class TestSearchableHash:
@@ -74,13 +73,13 @@ class TestSearchableHash:
 
     def test_hash_cpf_determinism(self, setup_salt):
         """Test that same CPF produces same hash."""
-        hash1 = SearchableHash.hash_cpf("12345678901")
-        hash2 = SearchableHash.hash_cpf("12345678901")
+        hash1 = SearchableHash.hash_cpf("12345678909")
+        hash2 = SearchableHash.hash_cpf("12345678909")
         assert hash1 == hash2
 
     def test_hash_cpf_formatting_normalized(self, setup_salt):
         """Test that CPF formatting is normalized."""
-        hash1 = SearchableHash.hash_cpf("12345678901")
+        hash1 = SearchableHash.hash_cpf("12345678909")
         hash2 = SearchableHash.hash_cpf("123.456.789-01")
         assert hash1 == hash2
 

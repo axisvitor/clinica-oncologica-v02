@@ -4,11 +4,9 @@ Unit tests for MessageWebhookHandler.
 Tests message processing, flow routing, quiz handling, and security monitoring.
 """
 import pytest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, AsyncMock, patch
 from uuid import uuid4
-from datetime import datetime
 
-from app.models.message import MessageStatus, MessageType
 
 
 class TestMessageWebhookHandler:
@@ -65,7 +63,7 @@ class TestMessageWebhookHandler:
         """Create a sample patient."""
         patient = Mock()
         patient.id = uuid4()
-        patient.cpf = "12345678901"
+        patient.cpf = "12345678909"
         patient.full_name = "Test Patient"
         patient.phone = "+5511987654321"
         patient.is_active = True

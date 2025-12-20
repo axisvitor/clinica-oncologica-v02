@@ -20,7 +20,7 @@ except ImportError:
 from redis import Redis
 from redis.asyncio import Redis as AsyncRedis
 
-from app.core.redis_unified import get_sync_redis, get_async_redis
+from app.core.redis_manager import get_sync_redis_client, get_async_redis_client
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -120,7 +120,7 @@ class RedisBackend:
         if self.redis_client:
             return self.redis_client
         try:
-            return get_sync_redis()
+            return get_sync_redis_client()
         except Exception as e:
             logger.warning(f"Failed to get sync Redis client: {e}")
             return None
@@ -128,7 +128,7 @@ class RedisBackend:
     async def get_async_redis_client(self):
         """Get asynchronous Redis client."""
         try:
-            return await get_async_redis()
+            return await get_async_redis_client()
         except Exception as e:
             logger.warning(f"Failed to get async Redis client: {e}")
             return None

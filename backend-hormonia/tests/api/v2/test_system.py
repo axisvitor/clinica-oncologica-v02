@@ -17,8 +17,8 @@ Comprehensive test suite for system endpoints including:
 
 import pytest
 import json
-from datetime import datetime, timedelta
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from datetime import datetime
+from unittest.mock import Mock, AsyncMock, patch
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 

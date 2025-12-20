@@ -14,14 +14,13 @@ Tests cover:
 import pytest
 from datetime import datetime, timedelta, date
 from uuid import uuid4
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from sqlalchemy.orm import Session
 
 from app.models.user import User, UserRole
 from app.models.patient import Patient, FlowState
 from app.models.message import Message, MessageDirection, MessageStatus
-from app.models.alert import Alert, AlertSeverity, AlertStatus
 from app.models.appointment import Appointment, AppointmentStatus
 from app.api.v2.routers.physicians.services import (
     PhysicianStatisticsService,

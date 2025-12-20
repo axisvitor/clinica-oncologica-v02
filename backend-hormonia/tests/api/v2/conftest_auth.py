@@ -11,7 +11,7 @@ Specialized fixtures for authentication testing including:
 import pytest
 from datetime import datetime, timedelta
 from uuid import uuid4
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, patch
 from sqlalchemy.orm import Session
 
 from app.models.user import User, UserRole, AuthProvider

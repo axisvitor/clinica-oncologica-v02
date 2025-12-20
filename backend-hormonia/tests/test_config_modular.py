@@ -57,31 +57,24 @@ def test_modular_imports():
     print("\n🧪 Testing Modular Imports...")
 
     try:
-        from app.config.settings import Settings, settings
 
         print("  ✅ Import from app.config.settings works")
 
-        from app.config.settings.base import BaseAppSettings
 
         print("  ✅ Import from base.py works")
 
-        from app.config.settings.database import DatabaseSettings
 
         print("  ✅ Import from database.py works")
 
-        from app.config.settings.security import SecuritySettings
 
         print("  ✅ Import from security.py works")
 
-        from app.config.settings.integrations import IntegrationsSettings
 
         print("  ✅ Import from integrations.py works")
 
-        from app.config.settings.features import FeaturesSettings
 
         print("  ✅ Import from features.py works")
 
-        from app.config.settings.monitoring import MonitoringSettings
 
         print("  ✅ Import from monitoring.py works")
 

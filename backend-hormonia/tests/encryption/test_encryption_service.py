@@ -4,11 +4,10 @@ Unit tests for encryption service.
 Tests encryption/decryption correctness, key rotation, error handling.
 """
 
-import os
 import pytest
 from cryptography.fernet import Fernet
 
-from app.core.encryption import EncryptionService, EncryptionError, DecryptionError
+from app.core.encryption import EncryptionService, DecryptionError
 
 
 @pytest.fixture

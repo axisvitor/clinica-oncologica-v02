@@ -15,10 +15,9 @@ Date: 2025-01-20
 """
 
 import pytest
-from uuid import uuid4, UUID
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch, call
-from typing import Dict, Any, Optional
+from uuid import uuid4
+from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock
 
 from app.services.alerts import (
     AlertProcessor,

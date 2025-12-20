@@ -293,7 +293,7 @@ class TestConsentManagement:
     async def test_consent_expiration(self):
         """Test expired consent is not valid."""
         from app.services.consent_service import ConsentService
-        from datetime import datetime, timedelta
+        from datetime import timedelta
 
         service = ConsentService()
         service._consent_repo = AsyncMock()
@@ -355,7 +355,7 @@ class TestDataMinimization:
     async def test_data_retention_policy_enforced(self):
         """Test data retention policy is enforced."""
         from app.services.data_retention_service import DataRetentionService
-        from datetime import datetime, timedelta
+        from datetime import timedelta
 
         service = DataRetentionService()
         service._patient_repo = AsyncMock()

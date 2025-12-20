@@ -5,17 +5,15 @@ Tests security controls, ADMIN-ONLY access, rate limiting, and audit logging.
 
 import pytest
 import os
-import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from uuid import uuid4
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
 
 from fastapi import status
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.models.user import User, UserRole
-from app.models.audit_log import AuditLog
 from app.utils.security import get_password_hash
 
 

@@ -788,7 +788,7 @@ def get_platform_sync_service(db: Any) -> PlatformSynchronizationService:
     redis = Redis(host="localhost", port=6379, db=0)
     patient_repository = PatientRepository(db)
     flow_repository = FlowStateRepository(db)
-    websocket_service = WebSocketEventService()
+    websocket_service = WebSocketEventService(redis)
 
     return PlatformSynchronizationService(
         db=db,

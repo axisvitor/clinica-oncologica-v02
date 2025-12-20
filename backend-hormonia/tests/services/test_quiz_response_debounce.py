@@ -7,7 +7,7 @@ HIGH-005 Fix validation.
 import pytest
 import asyncio
 from uuid import uuid4
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 
 from app.services.quiz_response_debounce import (
     QuizResponseDebouncer,

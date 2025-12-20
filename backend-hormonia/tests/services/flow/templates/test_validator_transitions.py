@@ -10,14 +10,13 @@ This module tests the transition validation logic including:
 """
 
 import pytest
-from typing import Dict, List, Any
+from typing import Dict, Any
 
 from app.services.flow.templates.validator import FlowTemplateValidator
 from app.services.flow.types import (
     FlowTemplate,
     FlowTransitionType,
     FlowStepType,
-    FlowValidationResult,
 )
 
 

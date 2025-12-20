@@ -8,7 +8,7 @@ These tests verify that:
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
+from unittest.mock import Mock, MagicMock, AsyncMock
 from uuid import uuid4
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
@@ -18,8 +18,6 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.message import Message, MessageStatus
-from app.models.patient import Patient
-from app.models.user import UserRole
 
 
 class TestRetryAtomicIncrement:

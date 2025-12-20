@@ -5,7 +5,6 @@ Tests: login → token refresh → logout
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
 
 from app.models.user import User
 

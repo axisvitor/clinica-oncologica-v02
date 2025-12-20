@@ -95,7 +95,11 @@ def test_engine():
     db_url = os.getenv("DATABASE_URL")
     if db_url and "postgresql" in db_url and os.getenv("APP_ENVIRONMENT") == "testing":
         # USE TEST POSTGRES
-        engine = create_engine(db_url)
+        # Do not use StaticPool for Postgres as it prevents multiple connections
+        engine = create_engine(
+            db_url,
+            pool_pre_ping=True
+        )
     else:
         # USE FILE-BASED SQLITE FOR THREAD SAFETY
         import tempfile

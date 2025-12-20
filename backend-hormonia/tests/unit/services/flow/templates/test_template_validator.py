@@ -8,16 +8,11 @@ Part 1: Structure and Basic Validation Tests
 """
 
 import pytest
-from datetime import datetime
-from uuid import uuid4
 
 from app.services.flow.templates.validator import FlowTemplateValidator
 from app.services.flow.types import (
     FlowTemplate,
     FlowType,
-    FlowStepType,
-    FlowTransitionType,
-    FlowValidationResult,
 )
 
 

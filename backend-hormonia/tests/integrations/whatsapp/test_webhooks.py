@@ -5,14 +5,10 @@ This test suite validates webhook processing with duplicate detection,
 ensuring reliable message handling from Evolution API.
 """
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from fastapi.testclient import TestClient
-from fastapi import status
+from unittest.mock import AsyncMock
 from datetime import datetime
 from uuid import uuid4
 
-from app.integrations.whatsapp.api.webhooks import router
-from app.middleware.idempotency import IdempotencyMiddleware
 
 
 class TestWebhookIdempotency:

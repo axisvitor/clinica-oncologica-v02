@@ -14,7 +14,6 @@ Target Metrics:
 """
 import pytest
 import time
-import asyncio
 from typing import List
 from uuid import uuid4
 from concurrent.futures import ThreadPoolExecutor
@@ -23,7 +22,7 @@ from sqlalchemy.orm import Session
 from fastapi.testclient import TestClient
 
 from app.models.patient import Patient
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.services.cache.flow_template_cache import get_flow_template_cache
 
 
@@ -293,16 +292,17 @@ class TestRaceConditionProtection:
         - 10 threads try to create same patient simultaneously
         - Only 1 should succeed, 9 should get ValidationError
         """
-        from app.services.patient.creation_service import PatientCreationService
+        from app.services.patient.onboarding_factory import get_onboarding_coordinator
         from app.schemas.patient import PatientCreate
         from app.exceptions import ValidationError
+        import asyncio
 
         # Same patient data for all threads
         patient_data = PatientCreate(
             name="Concurrent Test",
             phone="+5511999999999",
             email="concurrent@test.com",
-            cpf="12345678901",
+            cpf="12345678909",
             birth_date="1990-01-01",
             treatment_type="Quimioterapia",
         )
@@ -317,11 +317,20 @@ class TestRaceConditionProtection:
                 from app.database import SessionLocal
                 thread_db = SessionLocal()
 
-                service = PatientCreationService(thread_db)
-                patient = service.create_patient_safe(
-                    patient_data,
-                    test_doctor.id
+                coordinator = get_onboarding_coordinator(thread_db)
+                service = coordinator.creation_service
+                
+                # Run async method in sync thread
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                patient = loop.run_until_complete(
+                    service.create_patient_direct(
+                        patient_data,
+                        test_doctor.id
+                    )
                 )
+                loop.close()
+
                 thread_db.commit()
                 thread_db.close()
 
@@ -359,7 +368,7 @@ class TestRaceConditionProtection:
         print(f"✅ Concurrent creation: {len(successes)} success, {len(failures)} prevented")
 
         # Cleanup
-        db.query(Patient).filter(Patient.cpf == "12345678901").delete()
+        db.query(Patient).filter(Patient.cpf_hash == "12345678909").delete()
         db.commit()
 
 

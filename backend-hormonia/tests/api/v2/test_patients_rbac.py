@@ -8,7 +8,6 @@ Status: IMPLEMENTED - All tests passing with >90% coverage
 import pytest
 from fastapi.testclient import TestClient
 from uuid import uuid4
-from datetime import datetime, timedelta
 
 from app.models.user import User, UserRole
 from app.models.patient import Patient

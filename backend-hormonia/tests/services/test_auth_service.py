@@ -12,7 +12,7 @@ Comprehensive tests for the authentication service layer including:
 import pytest
 from datetime import datetime, timedelta
 from uuid import uuid4
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock
 from sqlalchemy.orm import Session
 
 from app.services.auth import AuthService

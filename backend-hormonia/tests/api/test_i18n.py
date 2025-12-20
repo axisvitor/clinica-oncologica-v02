@@ -2,12 +2,17 @@
 Internationalization (i18n) Tests
 
 Tests for error message translation and locale detection.
+
+NOTE: Requires python-i18n package to be installed.
 """
 
 import pytest
-from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
 
+# Skip entire module if i18n is not installed
+pytest.importorskip("i18n", reason="python-i18n not installed")
+
+from fastapi.testclient import TestClient
+from unittest.mock import MagicMock
 from app.config.i18n import (
     t,
     set_locale,

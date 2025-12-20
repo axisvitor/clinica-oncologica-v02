@@ -15,7 +15,7 @@ Tests cover:
 
 import pytest
 from uuid import uuid4
-from datetime import datetime, timedelta
+from datetime import datetime
 from fastapi import status
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session

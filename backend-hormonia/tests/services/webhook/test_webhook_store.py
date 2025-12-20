@@ -4,7 +4,7 @@ Unit tests for WebhookEventStore persistence layer.
 Tests idempotent webhook event storage, retry management, and cleanup.
 """
 import pytest
-from unittest.mock import Mock, AsyncMock, MagicMock, patch
+from unittest.mock import Mock
 from uuid import uuid4, UUID
 from datetime import datetime, timedelta
 from sqlalchemy.exc import IntegrityError

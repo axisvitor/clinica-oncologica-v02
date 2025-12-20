@@ -16,14 +16,12 @@ GAP: NotificationService Tests (0% → 100% coverage)
 File: backend-hormonia/tests/services/test_notification_service.py
 """
 import pytest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime
+from unittest.mock import AsyncMock, patch, MagicMock
 
 from app.services.notification_service import (
     NotificationService,
     NotificationChannel,
-    NotificationPriority,
-    NotificationResult
+    NotificationPriority
 )
 
 

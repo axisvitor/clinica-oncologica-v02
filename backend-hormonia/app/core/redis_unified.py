@@ -1,6 +1,15 @@
 """
 Unified Redis Client - Single Entry Point
 Deprecates multiple client implementations in favor of redis_manager.py
+
+UPDATED: Now fully delegates to redis_manager (2025-12-19)
+- All operations use RedisManager for connection pooling
+- SSL/TLS support via RedisManager
+- Circuit breaker pattern included
+- Health checks and metrics available
+
+This module is maintained for backward compatibility.
+New code should import directly from app.core.redis_manager.
 """
 
 import logging
@@ -14,6 +23,9 @@ from app.core.redis_manager import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Log import for deprecation tracking
+logger.debug("redis_unified loaded - redirecting to redis_manager")
 
 # Re-export recommended functions
 __all__ = [

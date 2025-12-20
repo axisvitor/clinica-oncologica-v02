@@ -104,6 +104,9 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                 "/openapi.json",
                 "/health",
                 "/api/v2/auth/csrf-token",
+                "/api/v2/auth/login",
+                "/api/v2/auth/refresh",
+                "/api/v2/auth/register",
             ]
         )
 

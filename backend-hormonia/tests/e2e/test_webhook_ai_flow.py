@@ -12,18 +12,19 @@ Journey Steps:
 7. Saga coordination
 
 Coverage: Webhook validation, Idempotency, Flow Engine, AI integration, WhatsApp API
+
+NOTE: Requires playwright and playwright_config to be installed.
 """
+import pytest
+
+# Skip entire module if playwright is not installed
+pytest.importorskip("playwright", reason="Playwright not installed")
+
 import asyncio
-import hashlib
-import hmac
 import json
 from datetime import datetime
 from typing import Any, Dict
-
-import pytest
-from playwright.async_api import Page, expect
-
-from playwright_config import get_endpoint_url
+from playwright.async_api import Page
 
 
 class TestWebhookAIFlow:
@@ -61,7 +62,7 @@ class TestWebhookAIFlow:
         # Create patient first (to link messages)
         patient_data = {
             'nome': 'Test Patient Webhook',
-            'cpf': '98765432100',
+            'cpf': '12345678909',
             'telefone': '+5511888888888',
             'email': 'webhook.test@example.com',
             'data_nascimento': '1985-03-20',
@@ -156,7 +157,7 @@ class TestWebhookAIFlow:
             if m.get('whatsapp_id') == webhook_payload['data']['key']['id']
         ]
         assert len(message_with_id) == 1, f"Expected 1 message, found {len(message_with_id)}"
-        print(f"✅ Idempotency verified: 1 message stored (2 requests sent)")
+        print("✅ Idempotency verified: 1 message stored (2 requests sent)")
 
         # ===================================================================
         # STEP 4: Verify Flow Engine Processing
@@ -253,8 +254,8 @@ class TestWebhookAIFlow:
         print("\n" + "="*60)
         print("🎉 WEBHOOK → AI → RESPONSE FLOW COMPLETE!")
         print("="*60)
-        print(f"✅ Webhook Processed: 1 message")
-        print(f"✅ Idempotency: Verified")
+        print("✅ Webhook Processed: 1 message")
+        print("✅ Idempotency: Verified")
         print(f"✅ AI Calls: {mock_gemini.call_count}")
         print(f"✅ WhatsApp Sent: {mock_whatsapp.messages_sent}")
         print(f"✅ Messages Persisted: {len(all_messages)}")
@@ -347,7 +348,7 @@ class TestWebhookAIFlow:
         # Create patient
         patient_data = {
             'nome': 'Context Test Patient',
-            'cpf': '11122233344',
+            'cpf': '12345678909',
             'telefone': '+5511777777777',
             'email': 'context@test.com',
             'data_nascimento': '1990-01-01',

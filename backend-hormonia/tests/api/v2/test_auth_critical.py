@@ -1,11 +1,7 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 from app.main import app
-from app.models.user import User, UserRole, AuthProvider
-from app.models.session import Session
-from uuid import uuid4
-from datetime import datetime
 
 # Mock dependencies
 @pytest.fixture

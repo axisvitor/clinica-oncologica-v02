@@ -11,10 +11,9 @@ These tests establish baseline behavior to ensure no regressions during consolid
 """
 
 import pytest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, AsyncMock, patch
 from datetime import datetime, timedelta
-from uuid import uuid4, UUID
-from typing import List, Dict, Any, Optional
+from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
