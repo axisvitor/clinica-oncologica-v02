@@ -200,9 +200,11 @@ class RedisManager:
                 ssl_context = self._create_ssl_context()
                 connection_kwargs["ssl_context"] = ssl_context
 
+                # Log reflects actual SSL verification mode
+                ssl_cert_reqs = getattr(settings, "REDIS_SSL_CERT_REQS", "required").lower()
+                verify_mode = "CERT_NONE" if ssl_cert_reqs == "none" else "CERT_REQUIRED"
                 logger.info(
-                    "Redis async SSL: Enabled with CA certificate "
-                    "(TLS >= 1.2, verify=CERT_REQUIRED)"
+                    f"Redis async SSL: Enabled (TLS >= 1.2, verify={verify_mode})"
                 )
             else:
                 # Ensure using non-SSL scheme
