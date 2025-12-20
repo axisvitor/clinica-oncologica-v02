@@ -106,9 +106,9 @@ def get_csrf_settings() -> CSRFSettings:
         token_expires_in=TOKEN_EXPIRY,
         cookie_path=COOKIE_PATH,
         cookie_domain=None,
-        cookie_secure=_is_production(),
+        cookie_secure=getattr(settings, "SESSION_ENABLE_COOKIE_SECURE", _is_production()),
         cookie_httponly=True,
-        cookie_samesite=COOKIE_SAMESITE,
+        cookie_samesite=getattr(settings, "SESSION_COOKIE_SAMESITE", COOKIE_SAMESITE),
     )
 
 
@@ -318,17 +318,19 @@ def set_csrf_cookie(response: Response, token: str) -> str:
         >>> set_csrf_cookie(response, token)
         >>> return {"csrf_token": token}
     """
+    csrf_settings = get_csrf_settings()
+    
     response.set_cookie(
         key=COOKIE_NAME,
         value=token,
         max_age=TOKEN_EXPIRY,
         path="/",
-        secure=_is_production(),
+        secure=csrf_settings.cookie_secure,
         httponly=True,
-        samesite="strict",
+        samesite=csrf_settings.cookie_samesite,
     )
 
-    logger.debug(f"CSRF cookie set: secure={_is_production()}, httponly=True, samesite=strict")
+    logger.debug(f"CSRF cookie set: secure={csrf_settings.cookie_secure}, httponly=True, samesite={csrf_settings.cookie_samesite}")
 
     return token
 

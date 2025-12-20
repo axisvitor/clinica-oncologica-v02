@@ -230,7 +230,7 @@ async def verify_firebase_token(
             value=str(session.id),
             httponly=True,
             secure=settings.SESSION_ENABLE_COOKIE_SECURE,
-            samesite="strict",
+            samesite=settings.SESSION_COOKIE_SAMESITE,
             path="/",  # Important: ensure cookie is sent on all routes
             max_age=432000,  # 5 days
         )

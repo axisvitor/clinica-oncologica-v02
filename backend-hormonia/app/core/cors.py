@@ -86,17 +86,22 @@ def configure_cors(app: FastAPI) -> None:
     else:
         logger.warning("[CORS] No origins configured! All CORS requests will be blocked.")
 
-    # Allowed headers for CORS requests
-    allowed_headers = [
-        "Content-Type",
-        "Authorization",
-        "Accept",
-        "Origin",
-        "X-Requested-With",
-        "X-CSRF-Token",
-        "X-CSRFToken",
-        "X-XSRF-Token",
-    ]
+    # Allowed headers for CORS requests (validated in settings)
+    # Use headers from settings to enable centralized validation
+    allowed_headers = getattr(
+        settings,
+        "CORS_ALLOWED_HEADERS",
+        [
+            "Content-Type",
+            "Authorization",
+            "Accept",
+            "Origin",
+            "X-Requested-With",
+            "X-CSRF-Token",
+            "X-CSRFToken",
+            "X-XSRF-Token",
+        ],
+    )
 
     # Headers exposed to JavaScript
     expose_headers = [

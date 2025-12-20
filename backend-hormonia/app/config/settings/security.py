@@ -184,6 +184,19 @@ class SecuritySettings(BaseAppSettings):
         default=[],
         description="Allowed CORS origins (combined with CORS_FRONTEND_URL + CORS_QUIZ_URL)",
     )
+    CORS_ALLOWED_HEADERS: List[str] = Field(
+        default=[
+            "Content-Type",
+            "Authorization",
+            "Accept",
+            "Origin",
+            "X-Requested-With",
+            "X-CSRF-Token",
+            "X-CSRFToken",
+            "X-XSRF-Token",
+        ],
+        description="Allowed CORS headers (validated against safe headers whitelist)",
+    )
 
     # ============================================================================
     # Validators
@@ -353,6 +366,52 @@ class SecuritySettings(BaseAppSettings):
 
         return self
 
+    @field_validator("CORS_ALLOWED_HEADERS")
+    @classmethod
+    def validate_cors_headers(cls, v: List[str]) -> List[str]:
+        """
+        Validate CORS allowed headers against security whitelist.
+
+        Prevents runtime modification with unsafe headers that could
+        expose sensitive data or enable attacks.
+
+        Security Issue: HIGH-002 - CORS Wildcard Headers Vulnerability
+        """
+        # Whitelist of safe CORS headers
+        SAFE_HEADERS = {
+            "Content-Type",
+            "Authorization",
+            "Accept",
+            "Origin",
+            "X-Requested-With",
+            "X-CSRF-Token",
+            "X-CSRFToken",
+            "X-XSRF-Token",
+            "X-API-Key",
+            "Cache-Control",
+            "Pragma",
+        }
+
+        # Check for wildcard (critical security issue)
+        if "*" in v:
+            raise ValueError(
+                "CORS wildcard headers cannot be used with credentials. "
+                "This violates CORS specification and exposes all request headers."
+            )
+
+        # Check for unsafe headers
+        unsafe_headers = set(v) - SAFE_HEADERS
+        if unsafe_headers:
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"Non-standard CORS headers detected: {unsafe_headers}. "
+                f"Only whitelisted headers are recommended for security: {SAFE_HEADERS}"
+            )
+
+        return v
+
     @model_validator(mode="before")
     @classmethod
     def parse_security_values(cls, data: Any) -> Any:
@@ -510,10 +569,10 @@ class SecuritySettings(BaseAppSettings):
                     "SESSION_ENABLE_COOKIE_HTTPONLY must be True to prevent XSS attacks"
                 )
 
-            # SameSite should be strict or lax in production
-            if self.SESSION_COOKIE_SAMESITE.lower() not in ["strict", "lax"]:
+            # SameSite should be strict, lax, or none in production
+            if self.SESSION_COOKIE_SAMESITE.lower() not in ["strict", "lax", "none"]:
                 errors.append(
-                    f"SESSION_COOKIE_SAMESITE must be 'strict' or 'lax' in production (got: {self.SESSION_COOKIE_SAMESITE})"
+                    f"SESSION_COOKIE_SAMESITE must be 'strict', 'lax', or 'none' in production (got: {self.SESSION_COOKIE_SAMESITE})"
                 )
 
             # SSL redirect should be enabled in production

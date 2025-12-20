@@ -22,8 +22,8 @@ from .components import router as components_router
 from .metrics import router as metrics_router
 from .validation import router as validation_router
 
-# Create combined router with system prefix
-router = APIRouter(prefix="/system", tags=["system"])
+# Create combined router with system prefix (handled by parent router)
+router = APIRouter(tags=["system"])
 
 # Include config router without prefix (special case for public endpoint)
 # This makes it accessible at /system/config
