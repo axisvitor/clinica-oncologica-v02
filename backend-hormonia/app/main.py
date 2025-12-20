@@ -7,6 +7,8 @@ Clean, minimal main.py that delegates all concerns to specialized modules:
 - Router registry handles route registration
 - Lifespan manager handles startup/shutdown lifecycle
 - Monitoring setup handles observability
+
+Last deployment: 2025-12-20T16:50:00Z
 """
 
 import logging
