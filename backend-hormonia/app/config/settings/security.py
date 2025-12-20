@@ -3,7 +3,7 @@ Security configuration module: JWT, Firebase Auth, CSRF, CORS, and encryption se
 ENV Variable Naming Convention: {CATEGORY}_{SUBCATEGORY}_{ATTRIBUTE}_{UNIT}
 """
 
-from pydantic import Field, model_validator
+from pydantic import Field, model_validator, field_validator
 from typing import List, Optional, Any
 import json
 from .base import BaseAppSettings
