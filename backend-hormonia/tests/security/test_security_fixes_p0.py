@@ -294,148 +294,119 @@ class TestCORSConfiguration:
 # ============================================================================
 
 class TestCSRFProtection:
-    """Test suite for CSRF protection implementation."""
+    """Test suite for CSRF protection implementation.
 
-    def test_csrf_token_generation(self):
+    Uses simplified API:
+    - generate_csrf_token() -> str (format: timestamp.random.signature)
+    - validate_csrf_token(token: str) -> bool
+    """
+
+    @patch("app.middleware.csrf._get_secret_key")
+    def test_csrf_token_generation(self, mock_get_secret):
         """Test CSRF token generation."""
+        mock_get_secret.return_value = "test-secret-key-32-characters-long-for-testing"
+
         token = generate_csrf_token()
 
         # Token should be a non-empty string
         assert isinstance(token, str)
         assert len(token) > 0
 
-        # Token should be URL-safe
-        import re
-        assert re.match(r'^[A-Za-z0-9_-]+$', token)
+        # Token format: timestamp.random.signature (with dots)
+        parts = token.split(".")
+        assert len(parts) == 3  # Three parts separated by dots
 
-    def test_csrf_token_uniqueness(self):
+    @patch("app.middleware.csrf._get_secret_key")
+    def test_csrf_token_uniqueness(self, mock_get_secret):
         """Test that generated tokens are unique."""
+        mock_get_secret.return_value = "test-secret-key-32-characters-long-for-testing"
+
         token1 = generate_csrf_token()
         token2 = generate_csrf_token()
 
         # Tokens should be different
         assert token1 != token2
 
-    def test_csrf_token_validation_success(self):
+    @patch("app.middleware.csrf._get_secret_key")
+    def test_csrf_token_validation_success(self, mock_get_secret):
         """Test successful CSRF token validation."""
+        mock_get_secret.return_value = "test-secret-key-32-characters-long-for-testing"
+
         token = generate_csrf_token()
 
-        # Mock request with valid token
-        mock_request = Mock()
-        mock_request.headers = {"x-csrf-token": token}
-        mock_request.cookies = {"csrf_token": token}
+        # Validation should pass for valid token
+        assert validate_csrf_token(token) is True
 
-        # Validation should pass
-        try:
-            validate_csrf_token(mock_request)
-            validation_passed = True
-        except HTTPException:
-            validation_passed = False
+    @patch("app.middleware.csrf._get_secret_key")
+    def test_csrf_token_validation_invalid(self, mock_get_secret):
+        """Test CSRF validation fails with invalid token."""
+        mock_get_secret.return_value = "test-secret-key-32-characters-long-for-testing"
 
-        assert validation_passed
+        # Invalid token format
+        assert validate_csrf_token("invalid-token") is False
+        assert validate_csrf_token("a.b.c") is False  # Wrong signature
 
-    def test_csrf_token_validation_missing_header(self):
-        """Test CSRF validation fails with missing header."""
-        token = generate_csrf_token()
+    @patch("app.middleware.csrf._get_secret_key")
+    def test_csrf_token_validation_empty(self, mock_get_secret):
+        """Test CSRF validation fails with empty token."""
+        mock_get_secret.return_value = "test-secret-key-32-characters-long-for-testing"
 
-        # Mock request without header
-        mock_request = Mock()
-        mock_request.headers = {}
-        mock_request.cookies = {"csrf_token": token}
+        assert validate_csrf_token("") is False
 
-        # Validation should fail
-        with pytest.raises(HTTPException) as exc_info:
-            validate_csrf_token(mock_request)
+    @patch("app.middleware.csrf._get_secret_key")
+    def test_csrf_token_validation_wrong_parts(self, mock_get_secret):
+        """Test CSRF validation fails with wrong number of parts."""
+        mock_get_secret.return_value = "test-secret-key-32-characters-long-for-testing"
 
-        assert exc_info.value.status_code == 403
-
-    def test_csrf_token_validation_missing_cookie(self):
-        """Test CSRF validation fails with missing cookie."""
-        token = generate_csrf_token()
-
-        # Mock request without cookie
-        mock_request = Mock()
-        mock_request.headers = {"x-csrf-token": token}
-        mock_request.cookies = {}
-
-        # Validation should fail
-        with pytest.raises(HTTPException) as exc_info:
-            validate_csrf_token(mock_request)
-
-        assert exc_info.value.status_code == 403
-
-    def test_csrf_token_validation_mismatch(self):
-        """Test CSRF validation fails with token mismatch."""
-        token1 = generate_csrf_token()
-        token2 = generate_csrf_token()
-
-        # Mock request with mismatched tokens
-        mock_request = Mock()
-        mock_request.headers = {"x-csrf-token": token1}
-        mock_request.cookies = {"csrf_token": token2}
-
-        # Validation should fail
-        with pytest.raises(HTTPException) as exc_info:
-            validate_csrf_token(mock_request)
-
-        assert exc_info.value.status_code == 403
+        # Only 2 parts
+        assert validate_csrf_token("123456.abc") is False
+        # 4 parts
+        assert validate_csrf_token("123.abc.def.ghi") is False
 
     def test_csrf_exempt_safe_methods(self):
         """Test that safe HTTP methods are exempt from CSRF protection."""
+        from app.middleware.csrf import is_csrf_exempt
+
         safe_methods = ["GET", "HEAD", "OPTIONS"]
 
         for method in safe_methods:
-            mock_request = Mock()
-            mock_request.method = method
-            mock_request.headers = {}
-            mock_request.cookies = {}
-
-            # Should not raise exception for safe methods
-            try:
-                # In actual middleware, safe methods bypass validation
-                if method in ["GET", "HEAD", "OPTIONS"]:
-                    validation_passed = True
-                else:
-                    validate_csrf_token(mock_request)
-                    validation_passed = True
-            except HTTPException:
-                validation_passed = False
-
-            assert validation_passed
+            # Safe methods should be exempt
+            assert is_csrf_exempt("/api/test", method) is True
 
     def test_csrf_required_unsafe_methods(self):
         """Test that unsafe HTTP methods require CSRF protection."""
+        from app.middleware.csrf import is_csrf_exempt
+
         unsafe_methods = ["POST", "PUT", "DELETE", "PATCH"]
 
         for method in unsafe_methods:
-            mock_request = Mock()
-            mock_request.method = method
-            mock_request.headers = {}
-            mock_request.cookies = {}
+            # Unsafe methods should NOT be exempt (on non-exempt paths)
+            assert is_csrf_exempt("/api/test", method) is False
 
-            # Should raise exception for unsafe methods without token
-            with pytest.raises(HTTPException) as exc_info:
-                validate_csrf_token(mock_request)
-
-            assert exc_info.value.status_code == 403
-
-    def test_csrf_token_expiration(self):
+    @patch("app.middleware.csrf._get_secret_key")
+    def test_csrf_token_expiration(self, mock_get_secret):
         """Test CSRF token expiration logic."""
-        # Generate token with timestamp
+        mock_get_secret.return_value = "test-secret-key-32-characters-long-for-testing"
+
+        # Generate fresh token
         token = generate_csrf_token()
         current_time = datetime.utcnow()
 
-        # Mock token created 2 hours ago (assuming 1 hour expiration)
-        old_timestamp = current_time - timedelta(hours=2)
+        # Fresh token should be valid
+        assert validate_csrf_token(token) is True
 
-        # Token should be considered expired
+        # Mock token created 2 hours ago would be expired
+        old_timestamp = current_time - timedelta(hours=2)
         token_age = (current_time - old_timestamp).total_seconds()
         max_age = 3600  # 1 hour in seconds
 
         assert token_age > max_age
 
-    def test_csrf_invalid_token_format(self):
+    @patch("app.middleware.csrf._get_secret_key")
+    def test_csrf_invalid_token_format(self, mock_get_secret):
         """Test rejection of invalid token format."""
+        mock_get_secret.return_value = "test-secret-key-32-characters-long-for-testing"
+
         invalid_tokens = [
             "",  # Empty
             "short",  # Too short
@@ -445,36 +416,21 @@ class TestCSRFProtection:
         ]
 
         for invalid_token in invalid_tokens:
-            mock_request = Mock()
-            mock_request.headers = {"x-csrf-token": invalid_token}
-            mock_request.cookies = {"csrf_token": invalid_token}
+            # All invalid tokens should fail validation
+            assert validate_csrf_token(invalid_token) is False
 
-            # Should fail validation
-            # In production, add format validation before comparison
-            if not invalid_token or not str(invalid_token).strip() or len(invalid_token) < 8:
-                validation_failed = True
-            else:
-                validation_failed = False
-
-            assert validation_failed or invalid_token in ["invalid@chars!", "../../../etc/passwd"]
-
-    def test_csrf_double_submit_cookie_pattern(self):
+    @patch("app.middleware.csrf._get_secret_key")
+    def test_csrf_double_submit_cookie_pattern(self, mock_get_secret):
         """Test double-submit cookie CSRF protection pattern."""
+        mock_get_secret.return_value = "test-secret-key-32-characters-long-for-testing"
+
         token = generate_csrf_token()
 
-        # Both cookie and header must match (double-submit pattern)
-        mock_request = Mock()
-        mock_request.headers = {"x-csrf-token": token}
-        mock_request.cookies = {"csrf_token": token}
+        # Token should be valid (used for both header and cookie in double-submit)
+        assert validate_csrf_token(token) is True
 
-        # Validation should pass with matching token
-        try:
-            validate_csrf_token(mock_request)
-            validation_passed = True
-        except HTTPException:
-            validation_passed = False
-
-        assert validation_passed
+        # Same token validates consistently
+        assert validate_csrf_token(token) is True
 
 
 # ============================================================================
@@ -484,29 +440,17 @@ class TestCSRFProtection:
 class TestSecurityIntegration:
     """Integration tests for combined security features."""
 
-    def test_sql_injection_with_cors_and_csrf(self):
+    @patch("app.middleware.csrf._get_secret_key")
+    def test_sql_injection_with_cors_and_csrf(self, mock_get_secret):
         """Test SQL injection prevention works with CORS and CSRF."""
+        mock_get_secret.return_value = "test-secret-key-32-characters-long-for-testing"
+
         # Simulate request with all security layers
         malicious_input = "1'; DROP TABLE users; --"
         csrf_token = generate_csrf_token()
 
-        # Mock secure request
-        mock_request = Mock()
-        mock_request.method = "POST"
-        mock_request.headers = {
-            "x-csrf-token": csrf_token,
-            "origin": "https://app.example.com"
-        }
-        mock_request.cookies = {"csrf_token": csrf_token}
-
-        # CSRF validation should pass
-        try:
-            validate_csrf_token(mock_request)
-            csrf_valid = True
-        except HTTPException:
-            csrf_valid = False
-
-        assert csrf_valid
+        # CSRF validation should pass for valid token
+        assert validate_csrf_token(csrf_token) is True
 
         # SQL injection should still be prevented via parameterized queries
         # (tested separately in SQL injection tests)

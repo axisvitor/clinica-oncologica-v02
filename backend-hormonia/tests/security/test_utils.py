@@ -134,7 +134,7 @@ def create_mock_csrf_settings(
     token_expires_in: int = 3600,
 ):
     """
-    Create a mock CsrfSettings object.
+    Create a mock CSRF settings object.
 
     Args:
         secret_key: CSRF secret key
@@ -144,17 +144,15 @@ def create_mock_csrf_settings(
         token_expires_in: Token expiration time in seconds
 
     Returns:
-        Mock CsrfSettings object
+        Mock settings object with CSRF configuration
     """
-    from app.middleware.csrf import CsrfSettings
-
-    return CsrfSettings(
-        secret_key=secret_key,
-        cookie_secure=cookie_secure,
-        cookie_httponly=cookie_httponly,
-        cookie_samesite=cookie_samesite,
-        token_expires_in=token_expires_in,
-    )
+    settings = Mock()
+    settings.secret_key = secret_key
+    settings.cookie_secure = cookie_secure
+    settings.cookie_httponly = cookie_httponly
+    settings.cookie_samesite = cookie_samesite
+    settings.token_expires_in = token_expires_in
+    return settings
 
 
 def create_mock_security_settings(
