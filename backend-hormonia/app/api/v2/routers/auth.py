@@ -369,19 +369,82 @@ async def logout_all(
 
 
 @router.get("/csrf-token")
-async def get_csrf_token_endpoint(response: Response):
+@limiter.limit("100/minute")
+async def get_csrf_token_endpoint(request: Request, response: Response):
     """
-    Get signed CSRF token.
+    Generate and return a cryptographically signed CSRF token.
 
-    Generates a cryptographically signed CSRF token using HMAC-SHA256.
-    The token is also set as a cookie for Double Submit Cookie pattern.
+    Security Model (Double Submit Cookie Pattern):
+        1. Server generates signed token with HMAC-SHA256
+        2. Token stored in httpOnly cookie (automatic browser management)
+        3. Token returned in response body (for header inclusion)
+        4. Client sends token in X-CSRF-Token header for protected requests
 
-    Note: In this API-first design, we rely primarily on HTTP-only cookies
-    and SameSite=Strict for CSRF protection, but this endpoint is provided
-    for clients that require explicit CSRF tokens.
+    Token Properties:
+        - Format: {timestamp}.{random_hex}.{hmac_signature}
+        - Encoding: Hexadecimal (URL-safe, auditable)
+        - Entropy: 256 bits of cryptographically secure randomness
+        - Signature: HMAC-SHA256 (prevents tampering)
+        - Expiration: 1 hour (configurable)
+
+    Response Format:
+        {
+            "csrf_token": "1734695123.a1b2c3d4e5f6...signature"
+        }
+
+    Cookie Configuration:
+        - Name: csrf_token
+        - Flags: httpOnly, secure (production), SameSite=Strict
+        - Max-Age: 3600 seconds (1 hour)
+
+    Usage Example:
+        1. GET /api/v2/auth/csrf-token
+        2. Extract token from response body
+        3. Include in header: X-CSRF-Token: {token}
+        4. Make state-changing request (POST, PUT, DELETE, PATCH)
+
+    Rate Limiting:
+        100 requests per minute per IP address
+
+    Security Notes:
+        - Token is cryptographically signed (prevents forgery)
+        - Token expires after 1 hour (prevents replay attacks)
+        - Cookie is httpOnly (prevents XSS token theft)
+        - SameSite=Strict (prevents CSRF from external sites)
+
+    Returns:
+        dict: Response containing the CSRF token
+
+    Raises:
+        HTTPException: If rate limit exceeded (429 Too Many Requests)
     """
     from app.middleware.csrf import get_csrf_token, set_csrf_cookie
 
-    token = get_csrf_token()
-    set_csrf_cookie(response, token)
-    return {"csrf_token": token}
+    try:
+        # Generate cryptographically secure CSRF token
+        token = get_csrf_token()
+
+        # Set token in httpOnly cookie (returns token for convenience)
+        set_csrf_cookie(response, token)
+
+        # Log token generation (without exposing token value)
+        client_ip = request.client.host if request.client else "unknown"
+        logger.info(f"CSRF token generated for client: {client_ip}")
+
+        # Return token in response body for client-side storage
+        return {"csrf_token": token}
+
+    except ValueError as e:
+        # Handle invalid secret key or configuration errors
+        logger.error(f"CSRF token generation failed: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="CSRF token generation failed. Please contact administrator."
+        )
+    except Exception as e:
+        # Handle unexpected errors
+        logger.error(f"Unexpected error generating CSRF token: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error"
+        )
