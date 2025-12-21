@@ -99,6 +99,7 @@ def get_csrf_settings() -> CSRFSettings:
 
     Returns CSRFSettings with values from environment or defaults.
     """
+    from app.config import settings
     secret_key = _get_secret_key()
 
     return CSRFSettings(

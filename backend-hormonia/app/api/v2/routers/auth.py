@@ -122,6 +122,8 @@ async def verify_firebase_token(
         if not firebase_uid or not email:
             raise HTTPException(status_code=400, detail="Token missing fields")
 
+
+
         # Use FirebaseUserSyncService for secure synchronization and domain validation
         from app.services.firebase_user_sync_service import FirebaseUserSyncService
         from app.dependencies.auth_dependencies import _firebase_service
@@ -154,6 +156,8 @@ async def verify_firebase_token(
             })
             db.commit()
             db.refresh(user)
+        
+
 
         # Create Session
         from app.models.session import Session as SessionModel
@@ -169,12 +173,11 @@ async def verify_firebase_token(
             is_active=True,
         )
         db.add(session)
-
+        
         # CRITICAL FIX: Use flush() instead of commit() to get session ID without persisting
         # This allows us to rollback if Redis creation fails
         db.flush()
         db.refresh(session)
-        logger.info(f"🔄 DB Session flushed (not committed): session_id={session.id}")
 
         try:
             # Create Redis Session (Critical Fix)
@@ -190,20 +193,19 @@ async def verify_firebase_token(
             )
 
             if not redis_result:
-                logger.error("Redis create_session FAILED (returned False)")
+                print("Redis create_session FAILED (returned False)")
                 # Rollback DB session since Redis failed
                 db.rollback()
                 raise HTTPException(
                     status_code=500, detail="Failed to create Redis session"
                 )
 
-            logger.info(
+            print(
                 f"✅ Redis Session created: session_id={session.id}, result={redis_result}"
             )
 
             # CRITICAL FIX: Only commit DB after Redis succeeds
             db.commit()
-            logger.info(f"✅ DB Session committed: session_id={session.id}")
 
         except HTTPException:
             # Re-raise HTTP exceptions (already logged and rolled back)
@@ -266,8 +268,15 @@ async def verify_firebase_token(
         if isinstance(e, HTTPException):
             raise e
         import traceback
+        tb = traceback.format_exc()
 
-        logger.error(f"Auth error: {e}\n{traceback.format_exc()}")
+        logger.error(f"Auth error: {e}\n{tb}")
+        # Improve reliability by rolling back if session is active
+        try:
+            db.rollback()
+        except:
+            pass
+            
         raise HTTPException(status_code=500, detail=f"Authentication failed: {str(e)}")
 
 

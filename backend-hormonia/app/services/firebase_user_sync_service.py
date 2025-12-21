@@ -660,6 +660,10 @@ class FirebaseUserSyncService:
             self._store_audit_event(log_data)
         except Exception as e:
             logger.error(f"Failed to store audit event: {str(e)}")
+            try:
+                self.db.rollback()
+            except:
+                pass
 
     def _store_audit_event(self, event_data: Dict[str, Any]):
         """
@@ -734,6 +738,10 @@ class FirebaseUserSyncService:
 
         except Exception as e:
             logger.error(f"Failed to log sync operation: {str(e)}")
+            try:
+                self.db.rollback()
+            except:
+                pass
             # Don't raise - logging failure shouldn't break sync
 
     async def get_or_create_user(

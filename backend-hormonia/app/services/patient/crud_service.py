@@ -166,3 +166,27 @@ class PatientCRUDService:
         )
 
         logger.debug(f"Invalidated caches for patient: {patient_id}")
+
+    @staticmethod
+    def invalidate_patient_cache_static(patient_id: UUID, doctor_id: UUID) -> None:
+        """
+        Static method to invalidate patient caches.
+        Can be called without service instance (e.g., from router after create).
+
+        This is a best-effort operation - failures are logged but don't affect the main flow.
+        """
+        try:
+            invalidate_patient_cache(str(patient_id))
+
+            cache_manager = get_cache_manager()
+            cache_manager.invalidate_pattern(
+                f"patient_by_id:*:{patient_id}*", namespace="cache"
+            )
+            cache_manager.invalidate_pattern(
+                f"patient_list:*:{doctor_id}*", namespace="cache"
+            )
+
+            logger.debug(f"Invalidated caches for patient (static): {patient_id}")
+        except Exception as e:
+            # Best-effort: log warning but don't raise
+            logger.warning(f"Cache invalidation failed for patient {patient_id}: {e}")

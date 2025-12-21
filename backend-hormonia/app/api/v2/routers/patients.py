@@ -103,6 +103,8 @@ def list_patients(
         "has_active_flow": has_active_flow,
         "created_after": created_after,
         "created_before": created_before,
+        "include": sorted(include) if include else [],
+        "fields": sorted(fields) if fields else [],
     }
 
     # RBAC: Non-admin users can only see their own patients
@@ -111,33 +113,50 @@ def list_patients(
             raise HTTPException(
                 status_code=403, detail="Unable to determine user context"
             )
-        filters["doctor_id"] = current_user_uuid
+        filters["doctor_id"] = str(current_user_uuid)
 
-    # Execute Query via Repository
-    patients, has_more, next_cursor, total = repo.list_v2(
-        filters=filters,
-        cursor_data=pagination["cursor_data"],
-        limit=pagination["limit"],
-        sort_by=sort_by,
-        sort_order=sort_order,
-        eager_load=include,
-    )
+    try:
+        # Execute Query via Repository
+        patients, has_more, next_cursor, total = repo.list_v2(
+            filters=filters,
+            cursor_data=pagination["cursor_data"],
+            limit=pagination["limit"],
+            sort_by=sort_by,
+            sort_order=sort_order,
+            eager_load=include,
+        )
 
-    # Serialize Response
-    patient_responses = []
-    for patient in patients:
-        patient_dict = _serialize_patient_with_includes(patient, include)
+        # Serialize Response
+        patient_responses = []
+        for patient in patients:
+            patient_dict = _serialize_patient_with_includes(patient, include)
 
-        if fields:
-            patient_dict = apply_field_selection(patient_dict, fields)
-        patient_responses.append(patient_dict)
+            if fields:
+                patient_dict = apply_field_selection(patient_dict, fields)
+            patient_responses.append(patient_dict)
 
-    return {
-        "data": patient_responses,
-        "next_cursor": next_cursor,
-        "has_more": has_more,
-        "total": total,
-    }
+        return {
+            "data": patient_responses,
+            "next_cursor": next_cursor,
+            "has_more": has_more,
+            "total": total,
+        }
+    except Exception as e:
+        import traceback
+        import sys
+        
+        # Log to file to ensure we catch it
+        try:
+            with open("debug_error.log", "a", encoding="utf-8") as f:
+                f.write(f"\n\nCRITICAL ERROR IN LIST_PATIENTS at {datetime.now()}:\n{e}\n")
+                f.write(traceback.format_exc())
+                f.write("\n" + "="*50 + "\n")
+        except:
+            pass
+            
+        print(f"CRITICAL ERROR IN LIST_PATIENTS: {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get(
@@ -272,6 +291,9 @@ async def create_patient(
             idempotency_key=x_idempotency_key,  # QW-004: Pass idempotency key to coordinator
         )
         result = _serialize_patient(created)
+
+        # Invalidate dashboard/patient caches after successful creation
+        PatientCRUDService.invalidate_patient_cache_static(created.id, created.doctor_id)
 
         # QW-006: Store result with idempotency key in Redis (TTL: 24 hours) as secondary cache
         if x_idempotency_key:

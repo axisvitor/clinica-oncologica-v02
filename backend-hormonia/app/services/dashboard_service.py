@@ -16,6 +16,7 @@ from app.models.alert import Alert, AlertSeverity
 from app.models.message import Message
 from app.models.flow import PatientFlowState as PatientFlow
 from app.schemas.v2.dashboard import TimeRangeEnum
+from app.utils.query_cache import get_query_cache
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +139,25 @@ class DashboardService:
         end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """Calculate patient metrics for dashboard widgets."""
+        try:
+            cache = get_query_cache()
+
+            # Generate cache key
+            cache_key = cache.generate_cache_key(
+                "dashboard:patient_metrics",
+                patient_ids=str(sorted(patient_ids)) if patient_ids else "all",
+                start=str(start_date) if start_date else "none",
+                end=str(end_date) if end_date else "none"
+            )
+
+            # Try cache
+            cached = cache.get(cache_key)
+            if cached is not None:
+                return cached
+        except Exception as e:
+            logger.warning(f"Cache GET failed in get_patient_metrics: {e}")
+
+        # Execute query
         query = self.db.query(Patient)
 
         if patient_ids:
@@ -169,13 +189,21 @@ class DashboardService:
                 .count()
             )
 
-        return {
+        result = {
             "total_patients": total_patients,
             "active_patients": active_patients,
             "inactive_patients": total_patients - active_patients,
             "new_patients": new_patients,
             "high_risk_patients": high_risk_count,
         }
+
+        # Save to cache
+        try:
+            cache.set(cache_key, result, ttl=600, tags=["metrics:patients"])
+        except Exception as e:
+            logger.warning(f"Cache SET failed in get_patient_metrics: {e}")
+
+        return result
 
     def get_message_metrics(
         self,
@@ -184,6 +212,25 @@ class DashboardService:
         end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """Calculate message metrics."""
+        try:
+            cache = get_query_cache()
+
+            # Generate cache key
+            cache_key = cache.generate_cache_key(
+                "dashboard:message_metrics",
+                patient_ids=str(sorted(patient_ids)) if patient_ids else "all",
+                start=str(start_date) if start_date else "none",
+                end=str(end_date) if end_date else "none"
+            )
+
+            # Try cache
+            cached = cache.get(cache_key)
+            if cached is not None:
+                return cached
+        except Exception as e:
+            logger.warning(f"Cache GET failed in get_message_metrics: {e}")
+
+        # Execute query
         query = self.db.query(
             func.count(Message.id).label("total_messages"),
             func.count(case((Message.status == "sent", 1))).label("sent_count"),
@@ -211,7 +258,7 @@ class DashboardService:
         responses = result.response_count or 0
         response_rate = round((responses / total * 100), 1) if total > 0 else 0
 
-        return {
+        result_dict = {
             "total_messages": total,
             "sent_count": result.sent_count or 0,
             "delivered_count": result.delivered_count or 0,
@@ -220,6 +267,18 @@ class DashboardService:
             "response_rate": response_rate,
         }
 
+        # Save to cache with dynamic tags
+        try:
+            tags = ["metrics:messages"]
+            if patient_ids:
+                # Add patient-specific tags for granular invalidation
+                tags.extend([f"patient:{pid}" for pid in patient_ids])
+            cache.set(cache_key, result_dict, ttl=180, tags=tags)
+        except Exception as e:
+            logger.warning(f"Cache SET failed in get_message_metrics: {e}")
+
+        return result_dict
+
     def get_alert_metrics(
         self,
         patient_ids: Optional[List[UUID]] = None,
@@ -227,6 +286,25 @@ class DashboardService:
         end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """Calculate alert metrics."""
+        try:
+            cache = get_query_cache()
+
+            # Generate cache key
+            cache_key = cache.generate_cache_key(
+                "dashboard:alert_metrics",
+                patient_ids=str(sorted(patient_ids)) if patient_ids else "all",
+                start=str(start_date) if start_date else "none",
+                end=str(end_date) if end_date else "none"
+            )
+
+            # Try cache
+            cached = cache.get(cache_key)
+            if cached is not None:
+                return cached
+        except Exception as e:
+            logger.warning(f"Cache GET failed in get_alert_metrics: {e}")
+
+        # Execute query
         query = self.db.query(Alert)
 
         if patient_ids:
@@ -247,7 +325,7 @@ class DashboardService:
         )
         high_alerts = len([a for a in alerts if a.severity == AlertSeverity.HIGH])
 
-        return {
+        result = {
             "total_alerts": total_alerts,
             "pending_alerts": pending_alerts,
             "acknowledged_alerts": total_alerts - pending_alerts,
@@ -259,6 +337,18 @@ class DashboardService:
             "low_alerts": len([a for a in alerts if a.severity == AlertSeverity.LOW]),
         }
 
+        # Save to cache with dynamic tags
+        try:
+            tags = ["metrics:alerts"]
+            if patient_ids:
+                # Add patient-specific tags for granular invalidation
+                tags.extend([f"patient:{pid}" for pid in patient_ids])
+            cache.set(cache_key, result, ttl=120, tags=tags)
+        except Exception as e:
+            logger.warning(f"Cache SET failed in get_alert_metrics: {e}")
+
+        return result
+
     def get_flow_metrics(
         self,
         patient_ids: Optional[List[UUID]] = None,
@@ -266,6 +356,25 @@ class DashboardService:
         end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """Calculate flow metrics."""
+        try:
+            cache = get_query_cache()
+
+            # Generate cache key
+            cache_key = cache.generate_cache_key(
+                "dashboard:flow_metrics",
+                patient_ids=str(sorted(patient_ids)) if patient_ids else "all",
+                start=str(start_date) if start_date else "none",
+                end=str(end_date) if end_date else "none"
+            )
+
+            # Try cache
+            cached = cache.get(cache_key)
+            if cached is not None:
+                return cached
+        except Exception as e:
+            logger.warning(f"Cache GET failed in get_flow_metrics: {e}")
+
+        # Execute query
         avg_days_expr = func.avg(
             case(
                 (
@@ -305,7 +414,7 @@ class DashboardService:
         completed = result.completed_flows or 0
         completion_rate = round((completed / total * 100), 1) if total > 0 else 0
 
-        return {
+        result_dict = {
             "total_flows": total,
             "active_flows": result.active_flows or 0,
             "completed_flows": completed,
@@ -314,10 +423,36 @@ class DashboardService:
             "avg_completion_days": round(result.avg_completion_days or 0, 1),
         }
 
+        # Save to cache
+        try:
+            cache.set(cache_key, result_dict, ttl=300, tags=["metrics:flows"])
+        except Exception as e:
+            logger.warning(f"Cache SET failed in get_flow_metrics: {e}")
+
+        return result_dict
+
     def get_recent_activity(
         self, patient_ids: Optional[List[UUID]] = None, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """Get recent activity for dashboard feed."""
+        try:
+            cache = get_query_cache()
+
+            # Generate cache key
+            cache_key = cache.generate_cache_key(
+                "dashboard:recent_activity",
+                patient_ids=str(sorted(patient_ids)) if patient_ids else "all",
+                limit=str(limit)
+            )
+
+            # Try cache
+            cached = cache.get(cache_key)
+            if cached is not None:
+                return cached
+        except Exception as e:
+            logger.warning(f"Cache GET failed in get_recent_activity: {e}")
+
+        # Execute query
         activities = []
 
         params = {"limit": limit // 3}
@@ -395,7 +530,15 @@ class DashboardService:
             )
 
         activities.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
-        return activities[:limit]
+        result = activities[:limit]
+
+        # Save to cache
+        try:
+            cache.set(cache_key, result, ttl=60, tags=["activity"])
+        except Exception as e:
+            logger.warning(f"Cache SET failed in get_recent_activity: {e}")
+
+        return result
 
     def get_engagement_chart_data(
         self, patient_ids: Optional[List[UUID]] = None, days: int = 7

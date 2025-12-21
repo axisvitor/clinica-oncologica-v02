@@ -21,7 +21,8 @@ interface HeaderProps {
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
-  const { user, logout } = useAuth()
+  const { user, logout, hasRole } = useAuth()
+  const isAdmin = hasRole('admin')
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
 
   const getInitials = (name: string) => {
@@ -73,8 +74,8 @@ export function Header({ onMenuClick }: HeaderProps) {
 
         {/* Right side */}
         <div className="flex items-center space-x-2 md:space-x-4">
-          {/* System Health */}
-          <TaskHealthIndicator />
+          {/* System Health - Admin only */}
+          {isAdmin && <TaskHealthIndicator />}
 
           {/* Notifications */}
           <NotificationCenter />

@@ -76,12 +76,15 @@ def get_redis_url() -> str:
 
 # Create the real rate limiter instance with Redis backend
 # SECURITY: This replaces the disabled NoOpLimiter
+# NOTE: headers_enabled=False because slowapi tries to inject headers via
+# kwargs.get("response") which is None when endpoint returns Pydantic model.
+# This causes "parameter `response` must be an instance of Response" error.
 limiter = Limiter(
     key_func=get_remote_address,
     storage_uri=get_redis_url(),
     default_limits=["60/minute"],  # Global default: 60 requests per minute
     enabled=True,  # CRITICAL: Rate limiting is now ENABLED
-    headers_enabled=True,  # Include rate limit headers in responses
+    headers_enabled=False,  # Disabled: endpoints return Pydantic models, not Response
     swallow_errors=False,  # Raise errors on rate limit exceeded
 )
 
@@ -91,7 +94,7 @@ auth_limiter = Limiter(
     storage_uri=get_redis_url(),
     default_limits=["10/minute"],  # Auth endpoints: 10 requests per minute
     enabled=True,
-    headers_enabled=True,
+    headers_enabled=False,  # Disabled: endpoints return Pydantic models, not Response
     swallow_errors=False,
 )
 

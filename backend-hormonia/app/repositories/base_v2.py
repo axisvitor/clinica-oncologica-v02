@@ -25,12 +25,26 @@ class BaseRepositoryV2(Generic[ModelType]):
         self.db = db
         self.model = model
 
+    def _apply_eager_loading(self, query, eager_load: Optional[List[str]] = None):
+        """
+        Apply eager loading (override in subclasses).
+
+        Args:
+            query: SQLAlchemy query object
+            eager_load: List of relationship names to load
+
+        Returns:
+            Query with eager loading applied (default: unchanged)
+        """
+        return query
+
     def list_paginated(
         self,
         cursor: Optional[str] = None,
         limit: int = 20,
         filters: Optional[Dict[str, Any]] = None,
         order_by: Optional[str] = "created_at",
+        eager_load: Optional[List[str]] = None,
     ) -> Tuple[List[ModelType], int, bool]:
         """
         List items with cursor-based pagination.
@@ -40,11 +54,16 @@ class BaseRepositoryV2(Generic[ModelType]):
             limit: Items per page (1-100)
             filters: Additional filter criteria
             order_by: Field to order by (default: created_at)
+            eager_load: List of relationship names for eager loading
 
         Returns:
             Tuple of (items, total_count, has_more)
         """
         query = self.db.query(self.model)
+
+        # Apply eager loading BEFORE filters to optimize query
+        if eager_load:
+            query = self._apply_eager_loading(query, eager_load)
 
         # Apply filters
         if filters:
@@ -108,9 +127,21 @@ class BaseRepositoryV2(Generic[ModelType]):
 
         return query
 
-    def get_by_id(self, id: UUID) -> Optional[ModelType]:
-        """Get record by ID."""
-        return self.db.query(self.model).filter(self.model.id == id).first()
+    def get_by_id(self, id: UUID, eager_load: Optional[List[str]] = None) -> Optional[ModelType]:
+        """
+        Get record by ID.
+
+        Args:
+            id: Record ID
+            eager_load: List of relationship names for eager loading
+
+        Returns:
+            Record or None if not found
+        """
+        query = self.db.query(self.model).filter(self.model.id == id)
+        if eager_load:
+            query = self._apply_eager_loading(query, eager_load)
+        return query.first()
 
     def create(self, obj_in: Dict[str, Any]) -> ModelType:
         """Create new record."""

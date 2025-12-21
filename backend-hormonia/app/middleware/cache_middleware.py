@@ -32,7 +32,8 @@ class CacheMiddleware(BaseHTTPMiddleware):
         app,
         default_ttl: int = 300,  # 5 minutes default
         exclude_patterns: Optional[list[str]] = None,
-        cache_authenticated: bool = False,
+        cache_authenticated: bool = True,  # ENABLED for authenticated requests
+        authenticated_ttl: int = 90,  # Shorter TTL for authenticated data (90 seconds)
     ):
         """
         Initialize cache middleware.
@@ -42,6 +43,7 @@ class CacheMiddleware(BaseHTTPMiddleware):
             default_ttl: Default cache TTL in seconds
             exclude_patterns: List of path patterns to exclude from caching
             cache_authenticated: Whether to cache authenticated requests
+            authenticated_ttl: TTL for authenticated requests (default: 90s)
         """
         super().__init__(app)
         self.default_ttl = default_ttl
@@ -52,14 +54,15 @@ class CacheMiddleware(BaseHTTPMiddleware):
             "/health",  # Never cache health checks
         ]
         self.cache_authenticated = cache_authenticated
+        self.authenticated_ttl = authenticated_ttl  # Shorter TTL for security
         self.cache_manager = get_cache_manager()
 
-        # Custom TTL per endpoint pattern
+        # Custom TTL per endpoint pattern (for authenticated requests)
         self.endpoint_ttl = {
-            "/api/v2/patients": 300,  # 5 minutes for patient lists
-            "/api/v2/dashboard": 60,  # 1 minute for dashboard
-            "/api/v2/templates": 3600,  # 1 hour for templates
-            "/api/v2/reports": 600,  # 10 minutes for reports
+            "/api/v2/patients": 120,  # 2 minutes for patient lists (authenticated)
+            "/api/v2/dashboard": 60,  # 1 minute for dashboard (authenticated)
+            "/api/v2/templates": 300,  # 5 minutes for templates (authenticated)
+            "/api/v2/reports": 180,  # 3 minutes for reports (authenticated)
         }
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
@@ -138,8 +141,9 @@ class CacheMiddleware(BaseHTTPMiddleware):
             # Generate ETag from response body
             etag = self._generate_etag(body)
 
-            # Determine TTL for this endpoint
-            ttl = self._get_ttl_for_path(request.url.path)
+            # Determine TTL for this endpoint (shorter for authenticated)
+            is_authenticated = self._is_authenticated(request)
+            ttl = self._get_ttl_for_path(request.url.path, is_authenticated)
 
             # Cache the response
             cache_data = {
@@ -201,6 +205,9 @@ class CacheMiddleware(BaseHTTPMiddleware):
         """
         Generate unique cache key from request.
 
+        SECURITY: For authenticated requests, includes user_id in cache key
+        to prevent data leakage between users.
+
         Args:
             request: HTTP request
 
@@ -217,6 +224,13 @@ class CacheMiddleware(BaseHTTPMiddleware):
         accept = request.headers.get("Accept", "")
         if accept:
             key_parts.append(accept)
+
+        # SECURITY: Include user_id for authenticated requests
+        # This prevents cache leakage between different users
+        if self._is_authenticated(request):
+            user_id = self._extract_user_id(request)
+            if user_id:
+                key_parts.append(f"user:{user_id}")
 
         key_string = "|".join(key_parts)
 
@@ -237,16 +251,71 @@ class CacheMiddleware(BaseHTTPMiddleware):
         content_hash = hashlib.md5(content).hexdigest()
         return f'"{content_hash}"'
 
-    def _get_ttl_for_path(self, path: str) -> int:
+    def _extract_user_id(self, request: Request) -> Optional[str]:
+        """
+        Extract user ID from request for cache key generation.
+
+        Tries multiple sources:
+        1. JWT token payload (sub claim)
+        2. Session cookie
+        3. Request state (if set by auth middleware)
+
+        Args:
+            request: HTTP request
+
+        Returns:
+            User ID string or None
+        """
+        try:
+            # Try to get from JWT token
+            auth_header = request.headers.get("Authorization", "")
+            if auth_header.startswith("Bearer "):
+                token = auth_header[7:]
+                # Simple base64 decode of JWT payload (not validating, just extracting ID)
+                try:
+                    import base64
+                    import json
+                    # JWT format: header.payload.signature
+                    payload_part = token.split('.')[1]
+                    # Add padding if needed
+                    padding = 4 - len(payload_part) % 4
+                    if padding:
+                        payload_part += '=' * padding
+                    payload = json.loads(base64.urlsafe_b64decode(payload_part))
+                    return payload.get('sub') or payload.get('user_id')
+                except Exception:
+                    pass
+
+            # Try to get from request state (set by auth middleware)
+            if hasattr(request.state, 'user_id'):
+                return request.state.user_id
+
+        except Exception as e:
+            logger.warning(f"Failed to extract user_id for cache key: {e}")
+
+        return None
+
+    def _get_ttl_for_path(self, path: str, is_authenticated: bool = False) -> int:
         """
         Get TTL for a specific path.
 
+        Uses shorter TTL for authenticated requests for security.
+
         Args:
             path: Request path
+            is_authenticated: Whether request is authenticated
 
         Returns:
             TTL in seconds
         """
+        # For authenticated requests, use shorter TTL
+        if is_authenticated:
+            for pattern, ttl in self.endpoint_ttl.items():
+                if path.startswith(pattern):
+                    return ttl
+            return self.authenticated_ttl  # Use shorter default for authenticated
+
+        # For public requests, use standard TTL
         for pattern, ttl in self.endpoint_ttl.items():
             if path.startswith(pattern):
                 return ttl

@@ -9,7 +9,8 @@ MIDDLEWARE EXECUTION ORDER (what request sees):
 3. Rate Limiting (Redis-backed, prevents abuse)
 4. CSRF Protection (Double Submit Cookie pattern)
 5. Request Logging (debug only)
-6. Compression (response optimization)
+6. HTTP Response Caching (ETag + user-specific caching)
+7. Compression (response optimization)
 
 NOTE: FastAPI executes middlewares in REVERSE order of addition.
       Middleware added LAST executes FIRST.
@@ -47,7 +48,29 @@ def setup_middleware(app: FastAPI) -> None:
         logger.warning(f"Compression middleware not available: {e}")
 
     # ========================================================================
-    # 2. REQUEST LOGGING (debug only)
+    # 2. HTTP RESPONSE CACHING (added second, executes second-to-last)
+    # ========================================================================
+    try:
+        from app.middleware.cache_middleware import CacheMiddleware
+
+        app.add_middleware(
+            CacheMiddleware,
+            default_ttl=300,  # 5 minutes for public endpoints
+            authenticated_ttl=90,  # 90 seconds for authenticated endpoints
+            cache_authenticated=True,  # ENABLED for performance after login
+            exclude_patterns=[
+                "/api/v2/auth",  # Never cache auth endpoints
+                "/api/v2/admin",  # Never cache admin endpoints
+                "/ws",  # Never cache WebSocket
+                "/health",  # Never cache health checks
+            ],
+        )
+        logger.info("[2/7] HTTP cache middleware added (with user-specific caching)")
+    except ImportError as e:
+        logger.warning(f"Cache middleware not available: {e}")
+
+    # ========================================================================
+    # 3. REQUEST LOGGING (debug only)
     # ========================================================================
     if settings.APP_ENABLE_DEBUG:
         try:
@@ -59,12 +82,12 @@ def setup_middleware(app: FastAPI) -> None:
                 log_response_body=False,
                 sensitive_headers=["authorization", "cookie", "x-api-key"],
             )
-            logger.info("[2/6] Request logging middleware added (debug mode)")
+            logger.info("[3/7] Request logging middleware added (debug mode)")
         except ImportError as e:
             logger.warning(f"Request logging middleware not available: {e}")
 
     # ========================================================================
-    # 3. CSRF PROTECTION
+    # 4. CSRF PROTECTION
     # ========================================================================
     csrf_secret = None
     if hasattr(settings, "SECURITY_CSRF_SECRET_KEY"):
@@ -77,14 +100,14 @@ def setup_middleware(app: FastAPI) -> None:
             from app.middleware.csrf import CSRFMiddleware
 
             app.add_middleware(CSRFMiddleware)
-            logger.info("[3/6] CSRF protection middleware added")
+            logger.info("[4/7] CSRF protection middleware added")
         except ImportError as e:
             logger.warning(f"CSRF middleware not available: {e}")
     else:
-        logger.warning("[3/6] CSRF protection DISABLED - Set SECURITY_CSRF_SECRET_KEY")
+        logger.warning("[4/7] CSRF protection DISABLED - Set SECURITY_CSRF_SECRET_KEY")
 
     # ========================================================================
-    # 4. RATE LIMITING (Redis-backed)
+    # 5. RATE LIMITING (Redis-backed)
     # ========================================================================
     try:
         from app.core.redis_client import get_redis_client
@@ -99,16 +122,16 @@ def setup_middleware(app: FastAPI) -> None:
                 default_limit=100,
                 default_window=60,
             )
-            logger.info("[4/6] Rate limiting middleware added (Redis-backed)")
+            logger.info("[5/7] Rate limiting middleware added (Redis-backed)")
         else:
-            logger.warning("[4/6] Rate limiting DISABLED - Redis not available")
+            logger.warning("[5/7] Rate limiting DISABLED - Redis not available")
     except ImportError as e:
-        logger.warning(f"[4/6] Rate limiting not available: {e}")
+        logger.warning(f"[5/7] Rate limiting not available: {e}")
     except Exception as e:
-        logger.error(f"[4/6] Rate limiting error: {e}")
+        logger.error(f"[5/7] Rate limiting error: {e}")
 
     # ========================================================================
-    # 5. SECURITY HEADERS
+    # 6. SECURITY HEADERS
     # ========================================================================
     try:
         from app.middleware.security_headers import SecurityHeadersMiddleware
@@ -125,18 +148,18 @@ def setup_middleware(app: FastAPI) -> None:
             xss_protection="1; mode=block",
             referrer_policy="strict-origin-when-cross-origin",
         )
-        logger.info("[5/6] Security headers middleware added")
+        logger.info("[6/7] Security headers middleware added")
     except ImportError as e:
         logger.warning(f"Security headers middleware not available: {e}")
 
     # ========================================================================
-    # 6. CORS (added last, executes FIRST)
+    # 7. CORS (added last, executes FIRST)
     # ========================================================================
     from app.core.cors import configure_cors
 
     configure_cors(app)
-    logger.info("[6/6] CORS middleware added (executes FIRST)")
+    logger.info("[7/7] CORS middleware added (executes FIRST)")
 
     # Summary
     env = "PRODUCTION" if settings.APP_ENVIRONMENT.lower() == "production" else "DEVELOPMENT"
-    logger.info(f"Middleware setup complete - {env} mode")
+    logger.info(f"Middleware setup complete - {env} mode with HTTP caching enabled")
