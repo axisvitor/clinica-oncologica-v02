@@ -43,7 +43,7 @@ export function DashboardPage() {
     queryKey: ["dashboard-metrics"],
     queryFn: () => apiClient.analytics.dashboard(),
     enabled: !!user && !authLoading, // Only run when authenticated
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 60000, // Refresh every 60 seconds (optimized from 30s)
   });
 
   if (isLoading) {

@@ -206,7 +206,7 @@ export function usePatients(filterOptions?: UsePatientFiltersOptions) {
 
       return normalized
     },
-    staleTime: 30000, // 30 seconds
+    staleTime: 60000, // 60 seconds (optimized from 30s)
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000)
   })
@@ -256,7 +256,7 @@ export function usePatients(filterOptions?: UsePatientFiltersOptions) {
             next_cursor: response?.next_cursor
           } as any
         },
-        staleTime: 30000
+        staleTime: 60000 // Aligned with main query
       })
     }
   }, [data, filters.page, queryParams, filterOptions?.pageSize, effectiveParams, cursorsByPage, queryClient])
