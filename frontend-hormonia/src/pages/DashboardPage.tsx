@@ -170,7 +170,7 @@ export function DashboardPage() {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="overview" className="space-y-4 md:space-y-6">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-1">
+        <TabsList className="flex overflow-x-auto md:grid md:grid-cols-4 gap-1 scrollbar-hide">
           <TabsTrigger value="overview" className="text-xs sm:text-sm">
             Visão Geral
           </TabsTrigger>

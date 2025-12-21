@@ -202,3 +202,13 @@
 .animate-spin {
   animation: spin 0.8s linear infinite;
 }
+
+/* Utility: Hide scrollbar for horizontal scroll containers (mobile) */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
