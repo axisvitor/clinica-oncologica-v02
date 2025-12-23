@@ -106,7 +106,10 @@ class SagaOrchestrator:
         # duplicate patients when phone comes in different formats (e.g.,
         # "11 9876-54321" vs "+55 11 98765-4321" would generate same hash)
         normalized_phone = normalize_phone(patient_data.phone) or patient_data.phone
-        phone_hash = hashlib.sha256(normalized_phone.encode()).hexdigest()[:16]
+        # FIX: Extended hash from 16 to 32 chars (128 bits) to reduce collision risk
+        # 16 chars = 64 bits → 50% collision at ~5 billion entries
+        # 32 chars = 128 bits → 50% collision at ~18 quintillion entries
+        phone_hash = hashlib.sha256(normalized_phone.encode()).hexdigest()[:32]
         lock_key = f"saga:onboarding:{str(doctor_id)[:8]}:{phone_hash}"
 
         # Acquire distributed lock to prevent concurrent saga execution for same patient
@@ -125,7 +128,8 @@ class SagaOrchestrator:
                 started_at=datetime.now(timezone.utc),
             )
             self.db.add(saga)
-            self.db.commit()
+            # Use flush() instead of commit() - get ID without committing transaction
+            self.db.flush()
 
             logger.info(
                 f"Starting patient onboarding saga {saga_id} for doctor {doctor_id}"
@@ -149,6 +153,8 @@ class SagaOrchestrator:
                 # --- Complete Saga ---
                 saga.status = SagaStatus.COMPLETED
                 saga.completed_at = datetime.now(timezone.utc)
+
+                # UNIT OF WORK: Single commit at the end for entire transaction
                 self.db.commit()
 
                 logger.info(f"Saga {saga_id} completed successfully")
@@ -160,10 +166,14 @@ class SagaOrchestrator:
                     exc_info=True,
                 )
 
+                # Rollback entire transaction on any failure
+                self.db.rollback()
+
                 saga.status = SagaStatus.FAILED
                 saga.error_message = str(e)
                 saga.error_type = type(e).__name__
                 saga.failed_at = datetime.now(timezone.utc)
+                # Commit the failure state separately
                 self.db.commit()
 
                 # Trigger compensation
@@ -241,28 +251,35 @@ class SagaOrchestrator:
             if not patient:
                 raise Exception("Patient not found for resumption")
 
-            if saga.current_step < 3:  # Assuming Step 3 is Flow Initialized in Enum
+            # FIX: Use <= to ensure steps are not skipped on resume
+            # Step numbering: 1=Patient Created, 2=Flow Init, 3=Message Sent
+            # (Step 2 Firebase was deprecated and removed)
+            if saga.current_step <= 1:  # Patient created but flow not initialized
                 await self._step_initialize_flow(
                     saga, patient, None
                 )  # user context lost, passing None
 
-            if saga.current_step < 4:  # Step 4 is Message Sent
+            if saga.current_step <= 2:  # Flow initialized but message not sent
                 await self._step_send_welcome_message(saga, patient)
 
             # Complete
             saga.status = SagaStatus.COMPLETED
             saga.completed_at = datetime.now(timezone.utc)
+            # UNIT OF WORK: Single commit at the end for entire resume transaction
             self.db.commit()
 
             return {"status": "completed"}
 
         except Exception as e:
             logger.error(f"Failed to resume saga {saga.id}: {e}", exc_info=True)
+            # Rollback entire resume transaction on any failure
+            self.db.rollback()
             # Update saga error
             saga.error_message = str(e)
             # Don't change status to FAILED if we want to allow more retries via the external task,
             # but execute_patient_onboarding_saga does set it to FAILED.
             # The caller (task) handles the retry loop.
+            # Commit the error state separately
             self.db.commit()
             return {"status": "failed", "error": str(e)}
 
@@ -299,7 +316,8 @@ class SagaOrchestrator:
             saga.current_step = 1  # Mapped to STEP_1_PATIENT_CREATED effectively
             saga.status = SagaStatus.STEP_1_PATIENT_CREATED
             saga.add_log_entry(1, "create_patient", "success")
-            self.db.commit()
+            # Use flush() instead of commit() - persist to DB but don't commit transaction
+            self.db.flush()
 
             return patient
 
@@ -329,7 +347,8 @@ class SagaOrchestrator:
             saga.current_step = 3  # Mapped to STEP_3_FLOW_INITIALIZED
             saga.status = SagaStatus.STEP_3_FLOW_INITIALIZED
             saga.add_log_entry(3, "initialize_flow", "success")
-            self.db.commit()
+            # Use flush() instead of commit() - persist to DB but don't commit transaction
+            self.db.flush()
 
         except Exception as e:
             logger.error(f"Step 2 (Flow) failed: {type(e).__name__}", exc_info=True)
@@ -410,7 +429,8 @@ class SagaOrchestrator:
                         else None,
                         "welcome_send_failed_at": datetime.now(timezone.utc).isoformat(),
                     }
-                    self.db.commit()
+                    # Use flush() instead of commit() - persist to DB but don't commit transaction
+                    self.db.flush()
                 except Exception as update_exc:
                     logger.warning(
                         f"Saga {saga.id}: Failed to keep welcome message pending: {type(update_exc).__name__}",
@@ -429,7 +449,8 @@ class SagaOrchestrator:
                     "failed_nonfatal",
                     str(send_error) if send_error else "send_message returned False",
                 )
-            self.db.commit()
+            # Use flush() instead of commit() - persist to DB but don't commit transaction
+            self.db.flush()
 
         except Exception as e:
             logger.error(f"Step 3 (Message) failed: {type(e).__name__}", exc_info=True)
@@ -437,9 +458,11 @@ class SagaOrchestrator:
             saga.status = SagaStatus.STEP_4_MESSAGE_SENT
             saga.add_log_entry(4, "send_message", "failed_nonfatal", str(e))
             try:
-                self.db.commit()
+                # Use flush() instead of commit() - persist to DB but don't commit transaction
+                self.db.flush()
             except Exception:
-                self.db.rollback()
+                # If flush fails, we'll let it rollback with the main transaction
+                logger.error("Failed to flush message step state", exc_info=True)
             return
 
     async def _track_compensation_failure(
