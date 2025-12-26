@@ -1,19 +1,38 @@
-"""Services module exports."""
+"""Services module exports.
 
-# ServiceProvider - Special import to avoid name conflict with package
-import importlib.util
-from pathlib import Path
+This module provides the central service layer for the Hormonia Backend System.
 
-# Get the services.py file (not this services package)
-_services_file = Path(__file__).parent.parent / "services.py"
-if _services_file.exists():
-    # Load services.py module
-    _spec = importlib.util.spec_from_file_location("_services_module", _services_file)
-    _services_module = importlib.util.module_from_spec(_spec)
-    _spec.loader.exec_module(_services_module)
+Service Architecture:
+--------------------
+- ServiceProvider: Thread-safe, request-scoped dependency injection container
+  located in app/service_provider.py. Each HTTP request gets its own
+  ServiceProvider instance with isolated database session and Redis client.
 
-    # Import ServiceProvider from the services.py file
-    ServiceProvider = _services_module.ServiceProvider
+- Individual services are lazy-loaded through ServiceProvider properties
+  to optimize memory usage and startup time.
+
+Thread Safety:
+-------------
+The ServiceProvider uses request-scoping (one instance per FastAPI request)
+rather than thread-local storage. This ensures:
+- No shared state between concurrent requests
+- Proper database session isolation
+- Clean resource lifecycle management
+
+Usage:
+-----
+    # In route handlers or dependencies:
+    from app.service_provider import ServiceProvider
+    # OR for backwards compatibility:
+    from app.services import ServiceProvider
+
+    def get_patient(services: ServiceProvider = Depends(get_thread_safe_service_provider)):
+        return services.patient_service.get_patient(patient_id)
+"""
+
+# ServiceProvider - Import from dedicated module (avoids package/module shadowing)
+# This import is safe because app.service_provider uses lazy imports internally
+from app.service_provider import ServiceProvider
 
 # Core Services
 from .auth import AuthService
@@ -85,12 +104,11 @@ from .error_recovery import ErrorRecoveryService
 from .automated_recovery import AutomatedRecoveryService
 from .critical_error_escalation import CriticalErrorEscalationService
 
-# Note: ServiceProvider and get_service_provider are imported from app.services
-# directly where needed to avoid circular imports. This module only exports
-# the individual service classes.
+# Note: ServiceProvider is now in app.service_provider module
+# It is re-exported here for backwards compatibility
 
 __all__ = [
-    # ServiceProvider (imported from services.py file)
+    # ServiceProvider (re-exported from app.service_provider)
     "ServiceProvider",
     # Core Services
     "AuthService",

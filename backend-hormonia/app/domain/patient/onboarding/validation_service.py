@@ -55,9 +55,8 @@ class ValidationService:
             executor: Thread pool executor for sync operations (optional).
         """
         self.db = db
-        self._executor = executor or ThreadPoolExecutor(
-            max_workers=5, thread_name_prefix="validation_sync"
-        )
+        # Use centralized executor from app.core.executors
+        self._executor = executor or get_validation_executor()
         self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     async def find_existing_patient(

@@ -82,9 +82,8 @@ class NotificationService:
         self.message_service = message_service
         self.whatsapp_service = whatsapp_service
         self.websocket_service = websocket_service
-        self._executor = executor or ThreadPoolExecutor(
-            max_workers=5, thread_name_prefix="notification_sync"
-        )
+        # Use centralized executor from app.core.executors
+        self._executor = executor or get_notification_executor()
         self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     async def send_welcome_message(

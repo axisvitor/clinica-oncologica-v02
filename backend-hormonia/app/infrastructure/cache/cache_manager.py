@@ -17,6 +17,7 @@ from redis import Redis
 from redis.asyncio import Redis as AsyncRedis
 
 from app.utils.logging import get_logger
+from app.core.executors import get_cache_executor
 from .redis_backend import RedisBackend, SerializationMethod
 
 logger = get_logger(__name__)
@@ -120,7 +121,8 @@ class UnifiedCacheManager:
         self.enable_stats = enable_stats
         self._stats = CacheStats() if enable_stats else None
         self._cache_configs = DEFAULT_CACHE_CONFIGS.copy()
-        self._executor = ThreadPoolExecutor(max_workers=4)
+        # Use centralized executor from app.core.executors
+        self._executor = get_cache_executor()
         self._backend = RedisBackend(
             redis_client=redis_client, enable_local_fallback=enable_local_fallback
         )

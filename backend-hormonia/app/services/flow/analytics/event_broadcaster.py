@@ -63,8 +63,8 @@ class FlowEventBroadcaster:
         self._event_queue: List[FlowEvent] = []
         self._max_queue_size = self.config.event_queue_size
 
-        # Async processing
-        self._executor = ThreadPoolExecutor(max_workers=max_workers)
+        # Use centralized executor from app.core.executors
+        self._executor = get_event_executor()
         self._is_processing = False
 
         logger.info("FlowEventBroadcaster initialized")

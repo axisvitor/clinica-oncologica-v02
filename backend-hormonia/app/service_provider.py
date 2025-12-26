@@ -6,33 +6,36 @@ using request-scoped sessions and stateless service instantiation.
 
 This ServiceProvider is designed to be created per-request with its own
 database session, ensuring thread safety and proper resource isolation.
+
+IMPORTANT: All service imports are done lazily (inside property methods)
+to avoid circular import issues with app/services/__init__.py
 """
 
-import logging
-from typing import Optional
-from sqlalchemy.orm import Session
-from app.services.auth import AuthService
-from app.services.patient import PatientCRUDService, PatientIntegrityService
-from app.services.quiz import QuizService
-from app.services.reporting import ReportService
-from app.domain.analytics.analytics_service import AnalyticsService
-from app.domain.messaging.core import MessageService
-from app.services.flow import FlowManager
-from app.services.enhanced_flow_engine import EnhancedFlowEngine
-from app.services.notification_service import (
-    NotificationService,
-    get_notification_service,
-)
-from app.services.file import FileService
-from app.services.quiz.quiz_service import MonthlyQuizService
-from app.services.analytics.metrics_collector import MetricsCollectorService
-from app.services.analytics.metrics_redis_storage import MetricsRedisStorage
-from app.services.simple_session_service import SimpleSessionService
+from __future__ import annotations
 
-# Import repositories
-from app.repositories.user import UserRepository
-from app.repositories.patient import PatientRepository
-from app.repositories.quiz import QuizRepository
+import logging
+from typing import TYPE_CHECKING, Optional, Any
+from sqlalchemy.orm import Session
+
+# TYPE_CHECKING imports for type hints only (not executed at runtime)
+if TYPE_CHECKING:
+    from app.services.auth import AuthService
+    from app.services.patient import PatientCRUDService, PatientIntegrityService
+    from app.services.quiz import QuizService
+    from app.services.reporting import ReportService
+    from app.domain.analytics.analytics_service import AnalyticsService
+    from app.domain.messaging.core import MessageService
+    from app.services.flow import FlowManager
+    from app.services.enhanced_flow_engine import EnhancedFlowEngine
+    from app.services.notification_service import NotificationService
+    from app.services.file import FileService
+    from app.services.quiz.quiz_service import MonthlyQuizService
+    from app.services.analytics.metrics_collector import MetricsCollectorService
+    from app.services.analytics.metrics_redis_storage import MetricsRedisStorage
+    from app.services.simple_session_service import SimpleSessionService
+    from app.repositories.user import UserRepository
+    from app.repositories.patient import PatientRepository
+    from app.repositories.quiz import QuizRepository
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +46,8 @@ class ServiceProvider:
 
     This class is designed to be instantiated per-request with its own
     database session, ensuring thread safety and proper resource isolation.
-    Services are lazily instantiated to improve performance.Fa
+    Services are lazily instantiated to improve performance and avoid
+    circular imports.
     """
 
     def __init__(self, db: Session, redis_client: Optional[object] = None):
@@ -62,26 +66,26 @@ class ServiceProvider:
         self._redis_client_type = self._detect_redis_client_type(redis_client)
 
         # Initialize repositories (lazy loading)
-        self._user_repository = None
-        self._patient_repository = None
-        self._quiz_repository = None
+        self._user_repository: Optional[UserRepository] = None
+        self._patient_repository: Optional[PatientRepository] = None
+        self._quiz_repository: Optional[QuizRepository] = None
 
         # Initialize services (lazy loading)
-        self._auth_service = None
-        self._patient_service = None
-        self._patient_integrity_service = None
-        self._quiz_service = None
-        self._report_service = None
-        self._analytics_service = None
-        self._message_service = None
-        self._flow_engine = None
-        self._flow_service = None
-        self._notification_service = None
-        self._file_service = None
-        self._monthly_quiz_service = None
-        self._metrics_collector_service = None
-        self._metrics_redis_storage = None
-        self._simple_session_service = None
+        self._auth_service: Optional[AuthService] = None
+        self._patient_service: Optional[PatientCRUDService] = None
+        self._patient_integrity_service: Optional[PatientIntegrityService] = None
+        self._quiz_service: Optional[QuizService] = None
+        self._report_service: Optional[ReportService] = None
+        self._analytics_service: Optional[AnalyticsService] = None
+        self._message_service: Optional[MessageService] = None
+        self._flow_engine: Optional[EnhancedFlowEngine] = None
+        self._flow_service: Optional[FlowManager] = None
+        self._notification_service: Optional[NotificationService] = None
+        self._file_service: Optional[FileService] = None
+        self._monthly_quiz_service: Optional[MonthlyQuizService] = None
+        self._metrics_collector_service: Optional[MetricsCollectorService] = None
+        self._metrics_redis_storage: Optional[MetricsRedisStorage] = None
+        self._simple_session_service: Optional[SimpleSessionService] = None
 
         logger.debug(
             f"ServiceProvider initialized for request {self._request_id} with {self._redis_client_type} Redis client"
@@ -94,7 +98,7 @@ class ServiceProvider:
         except Exception:
             pass  # Avoid errors during cleanup (logger may be unavailable)
 
-    def _detect_redis_client_type(self, redis_client) -> str:
+    def _detect_redis_client_type(self, redis_client: Any) -> str:
         """Detect the type of Redis client provided."""
         if redis_client is None:
             return "none"
@@ -115,7 +119,7 @@ class ServiceProvider:
 
         return "unknown"
 
-    def get_redis_client_for_service(self, service_name: str):
+    def get_redis_client_for_service(self, service_name: str) -> Any:
         """
         Get appropriate Redis client for a specific service.
 
@@ -161,7 +165,7 @@ class ServiceProvider:
         except Exception:
             return False
 
-    def validate_session(self):
+    def validate_session(self) -> None:
         """Validate that the database session is still usable."""
         if not self.is_session_active:
             logger.error(f"Session validation failed for request {self._request_id}")
@@ -182,29 +186,33 @@ class ServiceProvider:
                 "This may indicate a database connection issue or premature session closure."
             )
 
-    # Repository properties
+    # Repository properties - LAZY IMPORTS to avoid circular dependencies
     @property
-    def user_repository(self) -> UserRepository:
+    def user_repository(self) -> "UserRepository":
         if self._user_repository is None:
+            from app.repositories.user import UserRepository
             self._user_repository = UserRepository(self.db)
         return self._user_repository
 
     @property
-    def patient_repository(self) -> PatientRepository:
+    def patient_repository(self) -> "PatientRepository":
         if self._patient_repository is None:
+            from app.repositories.patient import PatientRepository
             self._patient_repository = PatientRepository(self.db)
         return self._patient_repository
 
     @property
-    def quiz_repository(self) -> QuizRepository:
+    def quiz_repository(self) -> "QuizRepository":
         if self._quiz_repository is None:
+            from app.repositories.quiz import QuizRepository
             self._quiz_repository = QuizRepository(self.db)
         return self._quiz_repository
 
-    # Service properties with proper dependencies
+    # Service properties with proper dependencies - LAZY IMPORTS
     @property
-    def auth_service(self) -> AuthService:
+    def auth_service(self) -> "AuthService":
         if self._auth_service is None:
+            from app.services.auth import AuthService
             # AuthService needs: db, UserRepository, RedisClient
             self._auth_service = AuthService(
                 db=self.db,
@@ -214,15 +222,17 @@ class ServiceProvider:
         return self._auth_service
 
     @property
-    def flow_engine(self) -> EnhancedFlowEngine:
+    def flow_engine(self) -> "EnhancedFlowEngine":
         if self._flow_engine is None:
+            from app.services.enhanced_flow_engine import EnhancedFlowEngine
             # FlowEngine needs db
             self._flow_engine = EnhancedFlowEngine(self.db)
         return self._flow_engine
 
     @property
-    def patient_integrity_service(self) -> PatientIntegrityService:
+    def patient_integrity_service(self) -> "PatientIntegrityService":
         if self._patient_integrity_service is None:
+            from app.services.patient import PatientIntegrityService
             # PatientIntegrityService needs: db, PatientRepository
             self._patient_integrity_service = PatientIntegrityService(
                 db=self.db, patient_repository=self.patient_repository
@@ -230,8 +240,9 @@ class ServiceProvider:
         return self._patient_integrity_service
 
     @property
-    def patient_service(self) -> PatientCRUDService:
+    def patient_service(self) -> "PatientCRUDService":
         if self._patient_service is None:
+            from app.services.patient import PatientCRUDService
             # PatientService needs: db, PatientRepository, PatientIntegrityService, FlowEngine
             self._patient_service = PatientCRUDService(
                 db=self.db,
@@ -242,8 +253,9 @@ class ServiceProvider:
         return self._patient_service
 
     @property
-    def quiz_service(self) -> QuizService:
+    def quiz_service(self) -> "QuizService":
         if self._quiz_service is None:
+            from app.services.quiz import QuizService
             # Assuming QuizService needs similar dependencies
             # Check the actual constructor requirements
             try:
@@ -259,51 +271,59 @@ class ServiceProvider:
         return self._quiz_service
 
     @property
-    def report_service(self) -> ReportService:
+    def report_service(self) -> "ReportService":
         if self._report_service is None:
+            from app.services.reporting import ReportService
             self._report_service = ReportService(self.db)
         return self._report_service
 
     @property
-    def analytics_service(self) -> AnalyticsService:
+    def analytics_service(self) -> "AnalyticsService":
         if self._analytics_service is None:
+            from app.domain.analytics.analytics_service import AnalyticsService
             self._analytics_service = AnalyticsService(self.db)
         return self._analytics_service
 
     @property
-    def message_service(self) -> MessageService:
+    def message_service(self) -> "MessageService":
         if self._message_service is None:
+            from app.domain.messaging.core import MessageService
             self._message_service = MessageService(self.db)
         return self._message_service
 
     @property
-    def flow_service(self) -> FlowManager:
+    def flow_service(self) -> "FlowManager":
         if self._flow_service is None:
+            from app.services.flow import FlowManager
             self._flow_service = FlowManager(self.db)
         return self._flow_service
 
     @property
-    def notification_service(self) -> NotificationService:
+    def notification_service(self) -> "NotificationService":
         """Get multi-channel notification service (singleton)."""
         if self._notification_service is None:
+            from app.services.notification_service import get_notification_service
             self._notification_service = get_notification_service()
         return self._notification_service
 
     @property
-    def file_service(self) -> FileService:
+    def file_service(self) -> "FileService":
         if self._file_service is None:
+            from app.services.file import FileService
             self._file_service = FileService()
         return self._file_service
 
     @property
-    def monthly_quiz_service(self) -> MonthlyQuizService:
+    def monthly_quiz_service(self) -> "MonthlyQuizService":
         if self._monthly_quiz_service is None:
+            from app.services.quiz.quiz_service import MonthlyQuizService
             self._monthly_quiz_service = MonthlyQuizService(self.db)
         return self._monthly_quiz_service
 
     @property
-    def metrics_collector_service(self) -> MetricsCollectorService:
+    def metrics_collector_service(self) -> "MetricsCollectorService":
         if self._metrics_collector_service is None:
+            from app.services.analytics.metrics_collector import MetricsCollectorService
             redis_client = self.get_redis_client_for_service(
                 "metrics_collector_service"
             )
@@ -313,21 +333,23 @@ class ServiceProvider:
         return self._metrics_collector_service
 
     @property
-    def metrics_redis_storage(self) -> MetricsRedisStorage:
+    def metrics_redis_storage(self) -> "MetricsRedisStorage":
         if self._metrics_redis_storage is None:
+            from app.services.analytics.metrics_redis_storage import MetricsRedisStorage
             # MetricsRedisStorage needs async Redis client
             redis_client = self.get_redis_client_for_service("metrics_redis_storage")
             self._metrics_redis_storage = MetricsRedisStorage(redis_client)
         return self._metrics_redis_storage
 
     @property
-    def session_service(self) -> SimpleSessionService:
+    def session_service(self) -> "SimpleSessionService":
         """Get simple synchronous session service for quiz authentication."""
         if self._simple_session_service is None:
-            # CRITICAL: SimpleSessionService requires SYNC Redis client
-            # The default self.redis_client is async, so we need to get sync client
+            from app.services.simple_session_service import SimpleSessionService
             from app.core.redis_manager import get_redis_manager
 
+            # CRITICAL: SimpleSessionService requires SYNC Redis client
+            # The default self.redis_client is async, so we need to get sync client
             sync_redis_client = None
             if self.redis_client is not None:
                 try:

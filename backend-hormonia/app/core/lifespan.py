@@ -11,7 +11,6 @@ Provides a clean lifespan context manager that handles:
 
 import time
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Optional
 import redis.asyncio as redis
 from contextlib import asynccontextmanager
@@ -21,6 +20,7 @@ from app.utils.logging import setup_logging, get_logger
 from app.utils.security import mask_sensitive_url
 from app.core.redis_manager import get_redis_manager, cleanup_redis_connections
 from app.core.session_manager import initialize_session_manager
+from app.core.executors import shutdown_executors, get_executor_stats
 from app.utils.structured_logger import (
     configure_logging as configure_structured_logging,
 )

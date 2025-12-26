@@ -21,7 +21,7 @@ from typing import List, Optional
 from uuid import UUID
 
 # Third-party imports
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, Query, Request, status
 from sqlalchemy.orm import Session
 
 # Local application imports
@@ -35,6 +35,15 @@ from app.core.authorization import (
     require_admin,
     require_doctor_or_admin,
     require_permission,
+)
+from app.core.exceptions import (
+    BadRequestError,
+    BusinessRuleError,
+    ForbiddenError,
+    NotFoundError,
+    PatientNotFoundError,
+    ServiceUnavailableError,
+    ValidationError,
 )
 from app.core.permissions import Permission
 from app.database import get_db
@@ -137,7 +146,8 @@ async def list_patients(
         PatientV2List with paginated patient data.
 
     Raises:
-        HTTPException: 403 if unable to determine user context (non-admin).
+        ForbiddenError: 403 if unable to determine user context (non-admin).
+        ServiceUnavailableError: 500 if internal server error occurs.
     """
     try:
         repo = PatientRepository(db)
@@ -161,10 +171,7 @@ async def list_patients(
         if role_enum != UserRole.ADMIN:
             if not current_user_uuid:
                 logger.warning("Unable to determine user context for non-admin user")
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Unable to determine user context",
-                )
+                raise ForbiddenError("Unable to determine user context")
             filters["doctor_id"] = current_user_uuid
 
         # Execute query via repository
@@ -193,14 +200,11 @@ async def list_patients(
             "total": total,
         }
 
-    except HTTPException:
+    except (ForbiddenError, ValidationError, NotFoundError):
         raise
     except Exception as e:
         logger.error(f"Unexpected error listing patients: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        )
+        raise ServiceUnavailableError("Internal server error")
 
 
 @router.get(
@@ -235,18 +239,16 @@ async def get_patient(
         PatientV2Response with patient data.
 
     Raises:
-        HTTPException: 400 if patient ID format is invalid.
-        HTTPException: 403 if user lacks permissions to access patient.
-        HTTPException: 404 if patient not found.
+        ValidationError: 422 if patient ID format is invalid.
+        ForbiddenError: 403 if user lacks permissions to access patient.
+        PatientNotFoundError: 404 if patient not found.
+        ServiceUnavailableError: 500 if internal server error occurs.
     """
     try:
         patient_uuid = UUID(patient_id)
     except ValueError as e:
         logger.warning(f"Invalid patient ID format: {patient_id}", extra={"error": str(e)})
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid patient ID format",
-        )
+        raise ValidationError("Invalid patient ID format", field="patient_id")
 
     try:
         repo = PatientRepository(db)
@@ -254,10 +256,7 @@ async def get_patient(
 
         if not patient:
             logger.warning(f"Patient not found: {patient_id}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Patient with id {patient_id} not found",
-            )
+            raise PatientNotFoundError(patient_id)
 
         await ensure_patient_access(current_user, patient.doctor_id)
 
@@ -269,14 +268,11 @@ async def get_patient(
 
         return patient_dict
 
-    except HTTPException:
+    except (ForbiddenError, ValidationError, NotFoundError, PatientNotFoundError):
         raise
     except Exception as e:
         logger.error(f"Unexpected error retrieving patient {patient_id}: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        )
+        raise ServiceUnavailableError("Internal server error")
 
 
 @router.post(
@@ -309,8 +305,9 @@ async def create_patient(
         PatientV2Response with created patient data.
 
     Raises:
-        HTTPException: 400 if doctor ID format is invalid or creation fails.
-        HTTPException: 403 if doctor tries to create patient for another doctor.
+        ValidationError: 422 if doctor ID format is invalid.
+        ForbiddenError: 403 if doctor tries to create patient for another doctor.
+        BusinessRuleError: 400 if creation fails.
     """
     # QW-004: Database-level idempotency key support for duplicate request prevention
     if x_idempotency_key:
@@ -349,17 +346,14 @@ async def create_patient(
         else:
             doctor_uuid = UUID(str(patient_data.doctor_id))
     except (ValueError, AttributeError):
-        raise HTTPException(status_code=400, detail="Invalid doctor ID format")
+        raise ValidationError("Invalid doctor ID format", field="doctor_id")
 
     # Authorization: Doctors can only create patients for themselves
     role_enum, user_id = await extract_user_context(current_user)
     current_user_uuid = await ensure_uuid(user_id)
     if role_enum != UserRole.ADMIN:
         if not current_user_uuid or current_user_uuid != doctor_uuid:
-            raise HTTPException(
-                status_code=403,
-                detail="Doctors can only create patients for themselves",
-            )
+            raise ForbiddenError("Doctors can only create patients for themselves")
 
     # Initialize coordinator via factory
     from app.services.patient.onboarding_factory import get_onboarding_coordinator
@@ -413,11 +407,13 @@ async def create_patient(
 
         return result
 
+    except (ForbiddenError, ValidationError, NotFoundError, BusinessRuleError):
+        raise
     except Exception as e:
         if hasattr(e, "status_code"):
             raise e
         logger.error(f"Error creating patient: {e}", exc_info=True)
-        raise HTTPException(status_code=400, detail="Failed to create patient")
+        raise BusinessRuleError("Failed to create patient")
 
 
 @router.patch(
@@ -440,6 +436,12 @@ async def update_patient(
     - Data integrity validation
     - RBAC: Doctors cannot reassign patients to other doctors
     - Uses CRUD service layer for business logic
+
+    Raises:
+        ValidationError: 422 if patient ID format is invalid or data validation fails.
+        PatientNotFoundError: 404 if patient not found.
+        ForbiddenError: 403 if doctor tries to reassign patient.
+        ServiceUnavailableError: 500 if update fails.
     """
     try:
         # Handle both UUID and string types
@@ -448,7 +450,7 @@ async def update_patient(
         else:
             patient_uuid = UUID(str(patient_id))
     except (ValueError, AttributeError):
-        raise HTTPException(status_code=400, detail="Invalid patient ID")
+        raise ValidationError("Invalid patient ID", field="patient_id")
 
     # Initialize services
     repo = PatientRepository(db)
@@ -458,7 +460,7 @@ async def update_patient(
     # Check existence and permissions
     patient = repo.get_by_id(patient_uuid, eager_load=False)
     if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+        raise PatientNotFoundError(str(patient_uuid))
 
     await ensure_patient_access(current_user, patient.doctor_id)
 
@@ -480,23 +482,21 @@ async def update_patient(
                         setattr(patient_data, k, v)
         except Exception as e:
             logger.error(f"Error validating patient data: {e}", exc_info=True)
-            raise HTTPException(status_code=400, detail="Invalid patient data")
+            raise ValidationError("Invalid patient data")
 
     # Handle doctor reassignment check
     if patient_data.doctor_id:
         role_enum, user_id = await extract_user_context(current_user)
         if role_enum != UserRole.ADMIN:
             if str(patient_data.doctor_id) != str(patient.doctor_id):
-                raise HTTPException(
-                    status_code=403, detail="Doctors cannot reassign patients"
-                )
+                raise ForbiddenError("Doctors cannot reassign patients")
 
     # Delegate to CRUD service
     domain_update = DomainPatientUpdate(**patient_data.dict(exclude_unset=True))
     updated_patient = crud_service.update_patient(patient_uuid, domain_update)
 
     if not updated_patient:
-        raise HTTPException(status_code=500, detail="Failed to update patient")
+        raise ServiceUnavailableError("Failed to update patient")
 
     return await serialize_patient(updated_patient)
 
@@ -515,6 +515,11 @@ async def delete_patient(
 
     The patient is marked as deleted but not removed from the database.
     This preserves data for audit purposes.
+
+    Raises:
+        ValidationError: 422 if patient ID format is invalid.
+        PatientNotFoundError: 404 if patient not found.
+        ServiceUnavailableError: 500 if deletion fails.
     """
     try:
         # Handle both UUID and string types
@@ -523,7 +528,7 @@ async def delete_patient(
         else:
             pid = UUID(str(patient_id))
     except (ValueError, TypeError, AttributeError):
-        raise HTTPException(status_code=400, detail="Invalid patient_id UUID")
+        raise ValidationError("Invalid patient_id UUID", field="patient_id")
 
     # Initialize CRUD service
     repo = PatientRepository(db)
@@ -532,12 +537,12 @@ async def delete_patient(
     # Check existence
     patient = repo.get_by_id(pid)
     if not patient:
-        raise HTTPException(status_code=404)
+        raise PatientNotFoundError(str(pid))
 
     await ensure_patient_access(current_user, patient.doctor_id)
 
     success = service.delete_patient(pid)
     if not success:
-        raise HTTPException(status_code=500, detail="Failed to delete patient")
+        raise ServiceUnavailableError("Failed to delete patient")
 
     return {"message": "Patient soft deleted"}

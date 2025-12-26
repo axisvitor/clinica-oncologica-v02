@@ -2,10 +2,17 @@
 # NOTE: Removed 'from __future__ import annotations' to fix Pydantic/FastAPI OpenAPI issues
 from typing import Optional, List
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import joinedload
 from sqlalchemy import and_, func
 
+from app.core.exceptions import (
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    ServiceUnavailableError,
+    ValidationError,
+)
 from app.database import get_db
 from app.models.quiz import QuizSession, QuizTemplate
 from app.models.patient import Patient
@@ -38,10 +45,10 @@ def _ensure_patient_owner(current_user, doctor_id):
     """Verify user has access to patient's data."""
     if is_admin(current_user):
         return
-    _, user_id = extract_user_context(current_user)
-    user_uuid = ensure_uuid(user_id)
+    _, user_id = _extract_user_context(current_user)
+    user_uuid = _ensure_uuid(user_id)
     if user_uuid is None or doctor_id != user_uuid:
-        raise HTTPException(status_code=403, detail="Not enough permissions")
+        raise ForbiddenError("Not enough permissions")
 
 
 @router.get("", response_model=QuizV2List, summary="List quizzes")
@@ -63,7 +70,7 @@ async def list_quizzes(
 
     if role_enum != UserRole.ADMIN:
         if not current_user_uuid:
-            raise HTTPException(status_code=403)
+            raise ForbiddenError("Insufficient permissions")
         query = query.join(Patient)
 
     if include and "patient" in include:
@@ -87,7 +94,7 @@ async def list_quizzes(
         try:
             filters.append(QuizSession.patient_id == UUID(patient_id))
         except (ValueError, TypeError):
-            raise HTTPException(status_code=400, detail="Invalid patient_id UUID")
+            raise ValidationError("Invalid patient_id UUID", field="patient_id")
 
     if status_filter:
         filters.append(QuizSession.status == status_filter)
@@ -171,7 +178,7 @@ async def get_quiz(
     try:
         qid = UUID(quiz_id)
     except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="Invalid quiz_id UUID")
+        raise ValidationError("Invalid quiz_id UUID", field="quiz_id")
 
     query = db.query(QuizSession)
     if include and "patient" in include:
@@ -182,12 +189,12 @@ async def get_quiz(
 
     if role_enum != UserRole.ADMIN:
         if not current_user_uuid:
-            raise HTTPException(status_code=403)
+            raise ForbiddenError("Insufficient permissions")
         query = query.join(Patient).filter(Patient.doctor_id == current_user_uuid)
 
     quiz = query.filter(QuizSession.id == qid).first()
     if not quiz:
-        raise HTTPException(status_code=404)
+        raise NotFoundError("Quiz", quiz_id)
 
     if role_enum != UserRole.ADMIN:
         # Extra check if not joined (though join handles filter)
@@ -243,18 +250,18 @@ async def create_quiz(
         pid = UUID(quiz_data.patient_id)
         tid = UUID(quiz_data.quiz_template_id)
     except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="Invalid UUID format")
+        raise ValidationError("Invalid UUID format", field="patient_id or quiz_template_id")
 
     patient = db.query(Patient).get(pid)
     if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+        raise NotFoundError("Patient", str(pid))
     _ensure_patient_owner(current_user, patient.doctor_id)
 
     template = db.query(QuizTemplate).get(tid)
     if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
+        raise NotFoundError("Template", str(tid))
     if not template.is_active:
-        raise HTTPException(status_code=400, detail="Template inactive")
+        raise ValidationError("Template inactive", field="quiz_template_id")
 
     # Acquire distributed lock per patient+template to prevent duplicate sessions
     lock_key = LockKeys.quiz_session(str(pid))
@@ -271,7 +278,7 @@ async def create_quiz(
                 .first()
             )
             if existing:
-                raise HTTPException(status_code=409, detail="Active session exists")
+                raise ConflictError("Active session exists", {"patient_id": str(pid), "quiz_template_id": str(tid)})
 
             new_quiz = QuizSession(
                 patient_id=pid,
@@ -284,11 +291,7 @@ async def create_quiz(
             db.refresh(new_quiz)
 
     except LockAcquisitionError:
-        raise HTTPException(
-            status_code=503,
-            detail="Service busy, please retry",
-            headers={"Retry-After": "5"},
-        )
+        raise ServiceUnavailableError("Service busy, please retry")
 
     return {
         "id": str(new_quiz.id),
@@ -315,11 +318,11 @@ async def update_quiz(
     try:
         qid = UUID(quiz_id)
     except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="Invalid quiz_id UUID")
+        raise ValidationError("Invalid quiz_id UUID", field="quiz_id")
 
     quiz = db.query(QuizSession).get(qid)
     if not quiz:
-        raise HTTPException(status_code=404)
+        raise NotFoundError("Quiz", quiz_id)
 
     patient = db.query(Patient).get(quiz.patient_id)
     if patient:
@@ -355,11 +358,11 @@ async def delete_quiz(
     try:
         qid = UUID(quiz_id)
     except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="Invalid quiz_id UUID")
+        raise ValidationError("Invalid quiz_id UUID", field="quiz_id")
 
     quiz = db.query(QuizSession).get(qid)
     if not quiz:
-        raise HTTPException(status_code=404)
+        raise NotFoundError("Quiz", quiz_id)
 
     patient = db.query(Patient).get(quiz.patient_id)
     if patient:

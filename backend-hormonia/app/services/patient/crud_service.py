@@ -34,8 +34,8 @@ from app.utils.transaction_manager import sync_transaction
 
 logger = logging.getLogger(__name__)
 
-# Thread pool for running async cache operations from sync context
-_cache_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="cache_invalidation")
+# Module-level executor removed - now using centralized executor manager
+# Use get_cache_executor() for shared cache operations
 
 
 class PatientCRUDService:
@@ -115,8 +115,8 @@ class PatientCRUDService:
                 logger.warning(f"Thread cache invalidation error: {e}")
 
         try:
-            # Submit to thread pool (fire-and-forget)
-            _cache_executor.submit(_run_in_thread)
+            # Submit to shared cache executor (fire-and-forget)
+            get_cache_executor().submit(_run_in_thread)
         except Exception as e:
             self._logger.warning(f"Failed to submit cache invalidation task: {e}")
 
@@ -355,8 +355,8 @@ class PatientCRUDService:
                 logger.warning(f"Cache invalidation failed for patient {patient_id}: {e}")
 
         try:
-            # Submit to thread pool (fire-and-forget)
-            _cache_executor.submit(_run_invalidation)
+            # Submit to shared cache executor (fire-and-forget)
+            get_cache_executor().submit(_run_invalidation)
         except Exception as e:
             # Best-effort: log warning but don't raise
             logger.warning(f"Failed to submit cache invalidation for patient {patient_id}: {e}")

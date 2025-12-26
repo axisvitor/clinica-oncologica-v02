@@ -14,7 +14,7 @@ from __future__ import annotations
 # Standard library imports
 import logging
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 from uuid import UUID
 
 # Third-party imports
@@ -26,13 +26,13 @@ from app.config.template_loader import get_template_for_treatment
 from app.models.flow import PatientFlowState
 from app.models.patient import FlowState, Patient
 from app.schemas.websocket import WebSocketEventType
-from app.services.enhanced_flow_engine import (
-    EnhancedFlowEngine,
-    get_enhanced_flow_engine,
-)
 from app.services.flow_core import FlowType
 from app.services.websocket_service import websocket_events
 from app.utils.db_retry import with_db_retry
+
+# TYPE_CHECKING import to avoid circular import at runtime
+if TYPE_CHECKING:
+    from app.services.enhanced_flow_engine import EnhancedFlowEngine
 
 logger = logging.getLogger(__name__)
 
@@ -53,10 +53,15 @@ class PatientFlowService:
     def __init__(
         self,
         db: Any,
-        flow_engine: Optional[EnhancedFlowEngine] = None,
+        flow_engine: Optional["EnhancedFlowEngine"] = None,
     ):
         self.db = db
-        self.flow_engine = flow_engine or get_enhanced_flow_engine(db)
+        if flow_engine is None:
+            # Lazy import to avoid circular dependency
+            from app.services.enhanced_flow_engine import get_enhanced_flow_engine
+            self.flow_engine = get_enhanced_flow_engine(db)
+        else:
+            self.flow_engine = flow_engine
         self._logger = logging.getLogger(__name__)
 
     async def initialize_default_flow(

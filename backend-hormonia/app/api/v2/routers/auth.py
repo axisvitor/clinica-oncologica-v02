@@ -4,8 +4,15 @@ from uuid import UUID
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
+from fastapi import APIRouter, Depends, status, Request, Response
 
+from app.core.exceptions import (
+    BusinessRuleError,
+    ForbiddenError,
+    ServiceUnavailableError,
+    UnauthorizedError,
+    ValidationError,
+)
 from app.database import get_db
 from app.dependencies.auth_dependencies import (
     get_current_user_from_session,
@@ -105,22 +112,22 @@ async def verify_firebase_token(
     redis_cache=Depends(get_redis_cache),
 ):
     """Verify Firebase ID token and create/update user session."""
-    logger.info("🔥 Firebase login request received: Starting processing")
+    logger.info("Firebase login request received: Starting processing")
 
     try:
         # Standard Firebase Verification
         # Use dependency helper which handles service initialization and validation
         user_data = await verify_token(payload.id_token)
-        logger.info(f"✅ Token verified for user: {user_data.get('email')}")
+        logger.info(f"Token verified for user: {user_data.get('email')}")
 
         if not user_data:
-            raise HTTPException(status_code=401, detail="Invalid Firebase token")
+            raise UnauthorizedError("Invalid Firebase token")
 
         firebase_uid = user_data.get("uid")
         email = user_data.get("email")
 
         if not firebase_uid or not email:
-            raise HTTPException(status_code=400, detail="Token missing fields")
+            raise ValidationError("Token missing required fields", details={"missing": "firebase_uid or email"})
 
 
 
@@ -138,15 +145,12 @@ async def verify_firebase_token(
         except ValueError as e:
             # Handle unauthorized domain or invalid claims
             logger.warning(f"Firebase sync validation failed: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied: Invalid user configuration"
-            )
+            raise ForbiddenError("Access denied: Invalid user configuration")
 
         # Check account lock status with proper transaction handling
         if getattr(user, "is_locked", False):
             if user.locked_until and datetime.now(timezone.utc) < user.locked_until:
-                raise HTTPException(status_code=403, detail="Account locked")
+                raise ForbiddenError("Account locked")
             # Use update query to avoid race conditions
             from app.models.user import User
             db.query(User).filter(User.id == user.id).update({
@@ -156,7 +160,7 @@ async def verify_firebase_token(
             })
             db.commit()
             db.refresh(user)
-        
+
 
 
         # Create Session
@@ -173,7 +177,7 @@ async def verify_firebase_token(
             is_active=True,
         )
         db.add(session)
-        
+
         # CRITICAL FIX: Use flush() instead of commit() to get session ID without persisting
         # This allows us to rollback if Redis creation fails
         db.flush()
@@ -196,19 +200,17 @@ async def verify_firebase_token(
                 print("Redis create_session FAILED (returned False)")
                 # Rollback DB session since Redis failed
                 db.rollback()
-                raise HTTPException(
-                    status_code=500, detail="Failed to create Redis session"
-                )
+                raise ServiceUnavailableError("Failed to create Redis session")
 
             print(
-                f"✅ Redis Session created: session_id={session.id}, result={redis_result}"
+                f"Redis Session created: session_id={session.id}, result={redis_result}"
             )
 
             # CRITICAL FIX: Only commit DB after Redis succeeds
             db.commit()
 
-        except HTTPException:
-            # Re-raise HTTP exceptions (already logged and rolled back)
+        except (ServiceUnavailableError, UnauthorizedError, ForbiddenError, ValidationError):
+            # Re-raise domain exceptions (already logged and rolled back)
             raise
         except Exception as e:
             # Unexpected error during Redis creation - rollback DB and cleanup
@@ -221,10 +223,7 @@ async def verify_firebase_token(
             except Exception as cleanup_error:
                 logger.warning(f"Failed to cleanup Redis session: {cleanup_error}")
 
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to create session - transaction rolled back"
-            )
+            raise ServiceUnavailableError("Failed to create session - transaction rolled back")
 
         # Set HttpOnly Cookie
         response.set_cookie(
@@ -236,7 +235,7 @@ async def verify_firebase_token(
             path="/",  # Important: ensure cookie is sent on all routes
             max_age=432000,  # 5 days
         )
-        logger.info(f"✅ Cookie set: session_id={session.id}, path=/")
+        logger.info(f"Cookie set: session_id={session.id}, path=/")
 
         # Set X-Session-ID header for compatibility
         if (
@@ -260,13 +259,10 @@ async def verify_firebase_token(
 
     except ValueError as e:
         logger.warning(f"Invalid Firebase token: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired authentication token",
-        )
+        raise UnauthorizedError("Invalid or expired authentication token")
+    except (ServiceUnavailableError, UnauthorizedError, ForbiddenError, ValidationError):
+        raise
     except Exception as e:
-        if isinstance(e, HTTPException):
-            raise e
         import traceback
         tb = traceback.format_exc()
 
@@ -276,8 +272,8 @@ async def verify_firebase_token(
             db.rollback()
         except Exception as rollback_err:
             logger.warning(f"Rollback failed during auth error recovery: {rollback_err}")
-            
-        raise HTTPException(status_code=500, detail="Authentication failed. Please try again later.")
+
+        raise ServiceUnavailableError("Authentication failed. Please try again later.")
 
 
 @router.get("/verify-session", response_model=SessionV2Response)
@@ -298,7 +294,7 @@ async def verify_session(
     try:
         user_uuid = UUID(user_id)
     except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="Invalid user_id UUID")
+        raise ValidationError("Invalid user_id UUID", field="user_id")
 
     from app.models.session import Session as SessionModel
     from app.models.user import User
@@ -316,7 +312,7 @@ async def verify_session(
     )
 
     if not session or session.expires_at < datetime.now(timezone.utc):
-        raise HTTPException(status_code=401, detail="Session expired")
+        raise UnauthorizedError("Session expired")
 
     # Enrich user data with database timestamps if not in cache
     # The current_user dict from cache might not have created_at/updated_at
@@ -355,7 +351,7 @@ async def logout(
             session_uuid = UUID(session_id)
         except (ValueError, TypeError):
             logger.warning(f"Invalid session_id format: {session_id}")
-            raise HTTPException(status_code=400, detail="Invalid session ID")
+            raise ValidationError("Invalid session ID", field="session_id")
 
         await redis_cache.invalidate_session(session_id)
 
@@ -373,7 +369,7 @@ async def logout(
         except Exception as e:
             logger.error(f"Error revoking DB session: {e}")
             db.rollback()
-            raise HTTPException(status_code=500, detail="Failed to revoke session")
+            raise BusinessRuleError("Failed to revoke session")
 
     return {"message": "Logged out successfully", "success": True}
 
@@ -412,7 +408,7 @@ async def logout_all(
     except Exception as e:
         logger.error(f"Error revoking all DB sessions: {e}")
         db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to revoke all sessions")
+        raise BusinessRuleError("Failed to revoke all sessions")
 
     return {
         "message": "Logged out from all devices",
@@ -469,7 +465,7 @@ async def get_csrf_token_endpoint(request: Request, response: Response):
         dict: Response containing the CSRF token
 
     Raises:
-        HTTPException: If rate limit exceeded (429 Too Many Requests)
+        BusinessRuleError: If token generation fails
     """
     from app.middleware.csrf import get_csrf_token, set_csrf_cookie
 
@@ -490,14 +486,8 @@ async def get_csrf_token_endpoint(request: Request, response: Response):
     except ValueError as e:
         # Handle invalid secret key or configuration errors
         logger.error(f"CSRF token generation failed: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail="CSRF token generation failed. Please contact administrator."
-        )
+        raise BusinessRuleError("CSRF token generation failed. Please contact administrator.")
     except Exception as e:
         # Handle unexpected errors
         logger.error(f"Unexpected error generating CSRF token: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail="Internal server error"
-        )
+        raise BusinessRuleError("Internal server error")

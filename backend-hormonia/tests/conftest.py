@@ -27,8 +27,13 @@ if os.path.exists(_env_path):
     load_dotenv(_env_path)
 
 from app.db.base import Base
+# Import all models to ensure tables are registered with Base.metadata
+import app.models  # This imports all SQLAlchemy models for table creation
 from app.models.user import User, UserRole
 from app.models.patient import Patient, FlowState
+from app.models.message import Message
+from app.models.medication import Medication
+from app.models.treatment import Treatment
 from app.utils.security import get_password_hash
 from app.main import app
 from app.database import get_db
@@ -89,6 +94,40 @@ def _replace_postgres_types_with_sqlite(engine):
             
             table.indexes = new_indexes
 
+def _apply_sqlite_type_fixes():
+    """Apply SQLite compatibility fixes to all models in Base.metadata."""
+    for table in Base.metadata.tables.values():
+        for column in table.columns:
+            if isinstance(column.type, JSONB):
+                column.type = JSONBCompat()
+            elif isinstance(column.type, INET):
+                column.type = INETCompat()
+            elif str(column.type) == 'BYTEA' or isinstance(column.type, BYTEA):
+                column.type = BLOB()
+
+            # Strip PG server defaults for SQLite
+            if column.server_default is not None and hasattr(column.server_default, 'arg'):
+                arg_str = str(column.server_default.arg).lower()
+                if 'gen_random_uuid()' in arg_str:
+                    column.server_default = None
+
+        # Strip PG-specific indexes
+        new_indexes = set()
+        for idx in list(table.indexes):
+            if idx.unique and any(hasattr(idx, k) and getattr(idx, k) is not None for k in ['postgresql_where']):
+                new_idx = Index(
+                    idx.name,
+                    *[c for c in idx.columns],
+                    unique=True
+                )
+                new_indexes.add(new_idx)
+            elif not any(hasattr(idx, k) and getattr(idx, k) is not None
+                       for k in ['postgresql_where', 'postgresql_concurrently']):
+                new_indexes.add(idx)
+
+        table.indexes = new_indexes
+
+
 @pytest.fixture(scope="session")
 def test_engine():
     # Detect if we should use Postgres or SQLite
@@ -105,22 +144,32 @@ def test_engine():
         import tempfile
         db_fd, db_path = tempfile.mkstemp(suffix=".db")
         os.close(db_fd)
-        
+
         db_url = f"sqlite:///{db_path}"
         engine = create_engine(
             db_url,
             connect_args={"check_same_thread": False},
             poolclass=StaticPool,
         )
-    
+
+        # Apply SQLite compatibility fixes BEFORE create_all
+        _apply_sqlite_type_fixes()
+
+    # Legacy call for any remaining issues (now mostly redundant for SQLite)
     _replace_postgres_types_with_sqlite(engine)
-    
-    # Simple create_all with error handling for duplicates
+
+    # Drop all tables first to ensure clean state, then create all
     try:
-        Base.metadata.create_all(bind=engine)
+        Base.metadata.drop_all(bind=engine)
+    except Exception as e:
+        print(f"Warning during drop_all: {e}")
+
+    # Create all tables with checkfirst to avoid errors
+    try:
+        Base.metadata.create_all(bind=engine, checkfirst=True)
     except Exception as e:
         print(f"Warning during create_all: {e}")
-    
+
     try:
         yield engine
     finally:
@@ -154,6 +203,11 @@ def client(db_session: Session) -> TestClient:
     app.dependency_overrides.clear()
 
 def create_test_user(db_session, email="test@example.com", role=UserRole.DOCTOR, **kwargs):
+    # Check if user already exists
+    existing = db_session.query(User).filter(User.email == email).first()
+    if existing:
+        return existing
+
     user = User(
         id=kwargs.get('id', uuid4()),
         email=email,

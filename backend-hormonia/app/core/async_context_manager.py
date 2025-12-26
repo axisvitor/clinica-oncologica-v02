@@ -17,8 +17,10 @@ import logging
 import threading
 from typing import Coroutine, Optional, Any, Dict, Set
 from contextlib import asynccontextmanager
-from concurrent.futures import ThreadPoolExecutor
 import functools
+
+# Use centralized executor manager
+from app.core.executors import get_async_bridge_executor
 
 logger = logging.getLogger(__name__)
 
@@ -89,9 +91,8 @@ class EventLoopContext:
 
     def __init__(self):
         self._thread_loops: Dict[threading.Thread, asyncio.AbstractEventLoop] = {}
-        self._executor = ThreadPoolExecutor(
-            max_workers=4, thread_name_prefix="async_context"
-        )
+        # Use centralized executor from app.core.executors
+        self._executor = get_async_bridge_executor()
 
     def get_or_create_event_loop(self) -> asyncio.AbstractEventLoop:
         """

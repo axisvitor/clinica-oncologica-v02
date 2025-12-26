@@ -75,9 +75,8 @@ class CompletionService:
         self.db = db
         self.flow_service = flow_service
         self.notification_service = notification_service
-        self._executor = executor or ThreadPoolExecutor(
-            max_workers=5, thread_name_prefix="completion_sync"
-        )
+        # Use centralized executor from app.core.executors
+        self._executor = executor or get_io_executor()
         self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     async def complete_partial_onboarding(

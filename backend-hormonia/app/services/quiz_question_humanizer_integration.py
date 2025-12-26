@@ -16,7 +16,14 @@ from app.models.patient import Patient
 
 logger = logging.getLogger(__name__)
 
-_HUMANIZER_EXECUTOR = ThreadPoolExecutor(max_workers=4)
+# Module-level executor removed - now using centralized executor manager
+# Use get_cpu_executor() for humanization tasks
+
+
+def get_humanizer_executor():
+    """Get the shared CPU executor for humanization tasks."""
+    from app.core.executors import get_cpu_executor
+    return get_cpu_executor()
 
 
 class QuizQuestionHumanizerIntegration:
@@ -139,7 +146,8 @@ class QuizQuestionHumanizerIntegration:
             except RuntimeError:
                 humanized_text = asyncio.run(_humanize())
             else:
-                humanized_text = _HUMANIZER_EXECUTOR.submit(
+                # Use centralized CPU executor for humanization work
+                humanized_text = get_humanizer_executor().submit(
                     lambda: asyncio.run(_humanize())
                 ).result()
 

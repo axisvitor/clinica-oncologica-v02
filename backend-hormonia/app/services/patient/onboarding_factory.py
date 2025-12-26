@@ -38,10 +38,8 @@ from app.services.unified_whatsapp_service import UnifiedWhatsAppService
 if TYPE_CHECKING:
     from app.orchestration.saga_orchestrator import SagaOrchestrator
 
-# Global thread pool for sync operations in async context
-_onboarding_thread_pool = ThreadPoolExecutor(
-    max_workers=5, thread_name_prefix="onboarding_factory"
-)
+# Module-level executor removed - now using centralized executor manager
+# Use get_io_executor() for shared I/O operations
 
 
 def get_onboarding_coordinator(
@@ -65,20 +63,23 @@ def get_onboarding_coordinator(
     message_service = MessageService(db)
     whatsapp_service = UnifiedWhatsAppService(db)
 
+    # Use centralized I/O executor for all domain services
+    shared_executor = get_io_executor()
+
     # Domain Services
-    validation_service = ValidationService(db=db, executor=_onboarding_thread_pool)
+    validation_service = ValidationService(db=db, executor=shared_executor)
 
     notification_service = NotificationService(
         message_service=message_service,
         whatsapp_service=whatsapp_service,
-        executor=_onboarding_thread_pool,
+        executor=shared_executor,
     )
 
     completion_service = CompletionService(
         db=db,
         flow_service=flow_service,
         notification_service=notification_service,
-        executor=_onboarding_thread_pool,
+        executor=shared_executor,
     )
 
     creation_service = CreationService(
@@ -88,7 +89,7 @@ def get_onboarding_coordinator(
         notification_service=notification_service,
         validation_service=validation_service,
         flow_service=flow_service,
-        executor=_onboarding_thread_pool,
+        executor=shared_executor,
     )
 
     # Coordinator (now uses SagaOrchestrator directly - Phase 2 simplification)

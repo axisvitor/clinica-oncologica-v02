@@ -9,7 +9,9 @@ import logging
 import asyncio
 from typing import Dict, Any
 from datetime import datetime, timezone
-from concurrent.futures import ThreadPoolExecutor
+
+# Use centralized executor manager
+from app.core.executors import get_io_executor
 
 from app.models.failed_message import FailedMessage, FailureReason
 
@@ -29,7 +31,8 @@ class DLQMessageProcessor:
 
     def __init__(self):
         """Initialize message processor."""
-        self._executor = ThreadPoolExecutor(max_workers=4)
+        # Use centralized executor from app.core.executors
+        self._executor = get_io_executor()
 
     def reprocess_message(self, failed_message: FailedMessage) -> bool:
         """

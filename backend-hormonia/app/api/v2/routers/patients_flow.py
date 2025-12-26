@@ -19,10 +19,16 @@ from typing import Dict
 from datetime import datetime, timezone
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, status, Request
 from pydantic import BaseModel
 from sqlalchemy.orm.attributes import flag_modified
 
+from app.core.exceptions import (
+    ForbiddenError,
+    PatientNotFoundError,
+    ServiceUnavailableError,
+    ValidationError,
+)
 from app.database import get_db
 from app.models.patient import Patient, FlowState
 from app.models.user import UserRole
@@ -81,25 +87,19 @@ async def activate_patient(
         Serialized patient data with updated flow_state
 
     Raises:
-        HTTPException: 400 if patient_id format is invalid
-        HTTPException: 404 if patient not found
-        HTTPException: 403 if user lacks permissions
-        HTTPException: 500 if activation fails
+        ValidationError: 422 if patient_id format is invalid
+        PatientNotFoundError: 404 if patient not found
+        ForbiddenError: 403 if user lacks permissions
+        ServiceUnavailableError: 500 if activation fails
     """
     patient_uuid = _ensure_uuid(patient_id)
     if patient_uuid is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid patient ID format",
-        )
+        raise ValidationError("Invalid patient ID format", field="patient_id")
 
     repo = PatientRepository(db)
     patient = repo.get_by_id(patient_uuid)
     if not patient:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Patient not found",
-        )
+        raise PatientNotFoundError(patient_id)
 
     _ensure_patient_access(current_user, patient.doctor_id)
 
@@ -109,10 +109,7 @@ async def activate_patient(
 
     updated_patient = await flow_service.activate_patient(patient_uuid)
     if not updated_patient:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to activate patient",
-        )
+        raise ServiceUnavailableError("Failed to activate patient")
 
     invalidate_patient_cache(str(patient_uuid))
     return _serialize_patient(updated_patient)
@@ -146,25 +143,19 @@ async def deactivate_patient(
         Serialized patient data with updated flow_state
 
     Raises:
-        HTTPException: 400 if patient_id format is invalid
-        HTTPException: 404 if patient not found
-        HTTPException: 403 if user lacks permissions
-        HTTPException: 500 if deactivation fails
+        ValidationError: 422 if patient_id format is invalid
+        PatientNotFoundError: 404 if patient not found
+        ForbiddenError: 403 if user lacks permissions
+        ServiceUnavailableError: 500 if deactivation fails
     """
     patient_uuid = _ensure_uuid(patient_id)
     if patient_uuid is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid patient ID format",
-        )
+        raise ValidationError("Invalid patient ID format", field="patient_id")
 
     repo = PatientRepository(db)
     patient = repo.get_by_id(patient_uuid)
     if not patient:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Patient not found",
-        )
+        raise PatientNotFoundError(patient_id)
 
     _ensure_patient_access(current_user, patient.doctor_id)
 
@@ -174,10 +165,7 @@ async def deactivate_patient(
 
     updated_patient = await flow_service.pause_patient(patient_uuid)
     if not updated_patient:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to deactivate patient",
-        )
+        raise ServiceUnavailableError("Failed to deactivate patient")
 
     invalidate_patient_cache(str(patient_uuid))
     return _serialize_patient(updated_patient)
@@ -218,17 +206,14 @@ async def archive_patient(
         Serialized patient data with archived metadata
 
     Raises:
-        HTTPException: 400 if patient_id format is invalid
-        HTTPException: 404 if patient not found
-        HTTPException: 403 if user lacks permissions
-        HTTPException: 500 if archive operation fails
+        ValidationError: 422 if patient_id format is invalid
+        PatientNotFoundError: 404 if patient not found
+        ForbiddenError: 403 if user lacks permissions
+        ServiceUnavailableError: 500 if archive operation fails
     """
     patient_uuid = _ensure_uuid(patient_id)
     if patient_uuid is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid patient ID format",
-        )
+        raise ValidationError("Invalid patient ID format", field="patient_id")
 
     # Get patient
     patient = (
@@ -238,10 +223,7 @@ async def archive_patient(
     )
 
     if not patient:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Patient not found",
-        )
+        raise PatientNotFoundError(patient_id)
 
     # Check access
     _ensure_patient_access(current_user, patient.doctor_id)
@@ -271,10 +253,7 @@ async def archive_patient(
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to archive patient {patient_id}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to archive patient: {str(e)}",
-        )
+        raise ServiceUnavailableError(f"Failed to archive patient: {str(e)}")
 
     # Invalidate cache
     invalidate_patient_cache(str(patient_uuid))
@@ -315,16 +294,13 @@ async def get_patient_timeline(
         Dictionary with patient_id and list of timeline events
 
     Raises:
-        HTTPException: 400 if patient_id format is invalid
-        HTTPException: 404 if patient not found
-        HTTPException: 403 if user lacks permissions
+        ValidationError: 422 if patient_id format is invalid
+        PatientNotFoundError: 404 if patient not found
+        ForbiddenError: 403 if user lacks permissions
     """
     patient_uuid = _ensure_uuid(patient_id)
     if patient_uuid is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid patient ID format",
-        )
+        raise ValidationError("Invalid patient ID format", field="patient_id")
 
     patient = (
         db.query(Patient)
@@ -333,10 +309,7 @@ async def get_patient_timeline(
     )
 
     if not patient:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Patient not found",
-        )
+        raise PatientNotFoundError(patient_id)
 
     _ensure_patient_access(current_user, patient.doctor_id)
 
@@ -477,7 +450,7 @@ async def get_patient_stats(
         PatientStatsResponse with aggregated statistics
 
     Raises:
-        HTTPException: 403 if unable to determine user permissions
+        ForbiddenError: 403 if unable to determine user permissions
     """
     role_enum, user_id = _extract_user_context(current_user)
     current_user_uuid = _ensure_uuid(user_id)
@@ -485,10 +458,7 @@ async def get_patient_stats(
     base_query = db.query(Patient).filter(Patient.deleted_at.is_(None))
     if role_enum != UserRole.ADMIN:
         if current_user_uuid is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Unable to determine user permissions",
-            )
+            raise ForbiddenError("Unable to determine user permissions")
         base_query = base_query.filter(Patient.doctor_id == current_user_uuid)
 
     total_patients = base_query.count()

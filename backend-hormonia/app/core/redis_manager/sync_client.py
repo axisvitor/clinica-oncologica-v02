@@ -11,6 +11,9 @@ from typing import Optional, Any
 import redis as redis_sync
 from redis.exceptions import TimeoutError
 
+# Use centralized executor manager
+from app.core.executors import get_cache_executor
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,7 +56,8 @@ class AsyncToSyncWrapper:
 
     def __init__(self, redis_manager):
         self.redis_manager = redis_manager
-        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+        # Use centralized executor from app.core.executors
+        self._executor = get_cache_executor()
 
     def _run_async(self, coro):
         """Run async coroutine in sync context."""

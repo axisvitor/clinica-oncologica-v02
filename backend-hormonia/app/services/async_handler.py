@@ -7,9 +7,11 @@ import asyncio
 import logging
 import threading
 from typing import Any, Callable, Coroutine, Optional, TypeVar
-from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
 import weakref
+
+# Use centralized executor manager
+from app.core.executors import get_async_bridge_executor
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +45,8 @@ class AsyncHandler:
         if hasattr(self, "_initialized"):
             return
 
-        self._executor = ThreadPoolExecutor(
-            max_workers=4, thread_name_prefix="async_handler"
-        )
+        # Use centralized executor from app.core.executors
+        self._executor = get_async_bridge_executor()
         self._loop = None
         self._loop_thread = None
         self._shutdown = False
