@@ -32,18 +32,19 @@ class FlowState(enum.Enum):
     CANCELLED = "cancelled"
 
 
-class SagaStatus(enum.Enum):
+class SagaStatus(str, enum.Enum):
     """
     Saga execution status enumeration.
 
     Represents the state of a distributed transaction (saga):
     - STARTED: Saga initiated
-    - IN_PROGRESS: Saga executing steps
+    - IN_PROGRESS: Saga executing steps (alias for STARTED - saga orchestrator compatibility)
     - STEP_1_PATIENT_CREATED: Patient record created
     - STEP_2_FIREBASE_USER_CREATED: (Deprecated) Firebase user created
     - STEP_3_FLOW_INITIALIZED: Flow state initialized
     - STEP_4_MESSAGE_SENT: Welcome message sent
     - COMPLETED: All steps successful
+    - COMPLETED_WITH_WARNINGS: Completed with non-critical issues (e.g., WhatsApp message failed)
     - FAILED: Saga failed
     - COMPENSATING: Running compensation
     - COMPENSATED: Compensation complete
@@ -52,12 +53,13 @@ class SagaStatus(enum.Enum):
     Used in: PatientOnboardingSaga model
     """
     STARTED = "STARTED"
-    IN_PROGRESS = "IN_PROGRESS"
+    IN_PROGRESS = "IN_PROGRESS"  # Alias for STARTED - saga orchestrator compatibility
     STEP_1_PATIENT_CREATED = "STEP_1_PATIENT_CREATED"
-    STEP_2_FIREBASE_USER_CREATED = "STEP_2_FIREBASE_USER_CREATED"  # Deprecated, kept for DB compatibility
+    STEP_2_FIREBASE_USER_CREATED = "STEP_2_FIREBASE_USER_CREATED"  # @deprecated - kept for DB compatibility
     STEP_3_FLOW_INITIALIZED = "STEP_3_FLOW_INITIALIZED"
     STEP_4_MESSAGE_SENT = "STEP_4_MESSAGE_SENT"
     COMPLETED = "COMPLETED"
+    COMPLETED_WITH_WARNINGS = "COMPLETED_WITH_WARNINGS"  # For sagas with non-critical issues
     FAILED = "FAILED"
     COMPENSATING = "COMPENSATING"
     COMPENSATED = "COMPENSATED"

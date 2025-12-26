@@ -187,12 +187,16 @@ class AtomicWebhookIdempotency:
 
         except Exception as e:
             logger.error(f"Redis idempotency check failed: {e}", exc_info=True)
-            # Fail-open: if Redis fails, try DB fallback if available
+            # Try DB fallback if available
             if self.db:
                 return await self._try_acquire_db_fallback(event_type, event_id)
-            # If no DB, fail-open and allow processing (better than dropping events)
-            logger.warning("No DB fallback, allowing event processing")
-            return True, "fallback"
+            # FAIL-CLOSED: Reject event if both Redis and DB fail
+            logger.error(
+                "Both Redis and DB idempotency checks failed. "
+                "Rejecting event to prevent duplicates.",
+                extra={"event_type": event_type, "event_id": event_id}
+            )
+            return False, "infrastructure_failure"
 
     async def try_acquire_with_script(
         self,

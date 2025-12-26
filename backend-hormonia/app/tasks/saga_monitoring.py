@@ -16,7 +16,8 @@ from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.patient_onboarding_saga import PatientOnboardingSaga, SagaStatus
+from app.models.patient_onboarding_saga import PatientOnboardingSaga
+from app.models.enums import SagaStatus
 from app.core.monitoring_config import capture_message, capture_exception
 
 logger = logging.getLogger(__name__)

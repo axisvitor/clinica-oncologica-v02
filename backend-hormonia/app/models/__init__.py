@@ -5,7 +5,8 @@ SQLAlchemy models for Hormonia Backend System.
 from app.models.base import BaseModel
 from app.models.user import User, UserRole, AuthProvider
 from app.models.patient import Patient, FlowState
-from app.models.patient_onboarding_saga import PatientOnboardingSaga, SagaStatus
+from app.models.patient_onboarding_saga import PatientOnboardingSaga
+from app.models.enums import SagaStatus
 from app.models.message import Message, MessageDirection, MessageType, MessageStatus
 from app.models.message_events import MessageStatusEvent, EvolutionWebhookEvent
 from app.models.flow import PatientFlowState, FlowKind, FlowTemplateVersion

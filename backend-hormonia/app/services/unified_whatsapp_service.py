@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from enum import Enum
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import update
 
 from app.integrations.whatsapp.services.evolution_client import EvolutionAPIClient
 from app.integrations.whatsapp.services.message_service import (
@@ -42,7 +43,8 @@ from app.services.websocket_events import websocket_events
 from app.schemas.websocket import WebSocketEventType
 from app.exceptions import ExternalServiceError
 from app.config import settings
-from app.services.circuit_breaker import CircuitBreaker
+# Use Redis-backed circuit breaker for cross-worker consistency
+from app.core.redis_circuit_breaker import RedisCircuitBreaker as CircuitBreaker
 from app.core.tracing import get_tracer
 from app.domain.analytics.quiz import get_quiz_metrics_collector
 
@@ -479,15 +481,39 @@ class UnifiedWhatsAppService:
         }
 
         # Mark message as failed using message_service (if available)
+        error_message = json.dumps(unified_error)
+
         if self.message_service is not None:
-            error_message = json.dumps(unified_error)
             await self.message_service.mark_as_failed_async(message.id, error_message)
         else:
-            # Fallback: log warning if message_service not available (async session)
-            logger.warning(
-                f"Cannot mark message {message.id} as failed: message_service not initialized (async session)",
-                extra={"unified_error": unified_error},
-            )
+            # Direct database update when message_service not available
+            try:
+                from app.core.database import get_scoped_session
+                from app.models.message import Message as MessageModel, MessageStatus
+
+                with get_scoped_session() as session:
+                    stmt = (
+                        update(MessageModel)
+                        .where(MessageModel.id == message.id)
+                        .values(
+                            status=MessageStatus.FAILED,
+                            failed_at=datetime.now(timezone.utc),
+                            error_message=error_message,
+                            updated_at=datetime.now(timezone.utc),
+                        )
+                    )
+                    session.execute(stmt)
+                    # get_scoped_session commits automatically on exit
+
+                logger.info(
+                    f"Message {message.id} marked as failed via direct update",
+                    extra={"unified_error": unified_error},
+                )
+            except Exception as db_error:
+                logger.error(
+                    f"Failed to mark message {message.id} as failed: {db_error}",
+                    extra={"unified_error": unified_error, "db_error": str(db_error)},
+                )
 
         # Publish WebSocket event
         await self._publish_message_event(

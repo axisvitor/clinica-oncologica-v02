@@ -91,17 +91,33 @@ class WebhookValidatorMiddleware(BaseHTTPMiddleware):
         self.signature_header = signature_header.lower()
         self.timestamp_header = timestamp_header.lower()
         self.webhook_paths = webhook_paths or ["/webhooks/"]
-        self.enabled = bool(secret_key)
 
-        if self.enabled:
-            logger.info(
-                f"✅ Webhook signature validation ENABLED "
-                f"(max_age={max_timestamp_age}s, paths={self.webhook_paths})"
-            )
+        # Get environment from settings
+        from app.core.config import settings
+        environment = getattr(settings, 'APP_ENVIRONMENT', 'production')
+        is_production = environment.lower() in ('production', 'prod')
+
+        if not secret_key:
+            if is_production:
+                # FAIL-CLOSED in production - webhook validation is mandatory
+                raise ValueError(
+                    "CRITICAL: EVOLUTION_WEBHOOK_SECRET must be set in production. "
+                    "Webhook validation cannot be disabled in production environment."
+                )
+            else:
+                logger.warning(
+                    "Webhook signature validation DISABLED in %s environment. "
+                    "This is acceptable for development/testing only.",
+                    environment
+                )
+                self.enabled = False
         else:
-            logger.warning(
-                "⚠️  Webhook signature validation DISABLED - "
-                "Set EVOLUTION_WEBHOOK_SECRET to enable security"
+            self.enabled = True
+            logger.info(
+                "Webhook HMAC validation enabled "
+                "(max_age=%ds, paths=%s)",
+                max_timestamp_age,
+                self.webhook_paths
             )
 
     def _is_webhook_path(self, path: str) -> bool:

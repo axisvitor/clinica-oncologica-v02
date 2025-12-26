@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 
 from app.models.patient import Patient
 from app.models.flow import PatientFlowState
-from app.models.patient_onboarding_saga import PatientOnboardingSaga, SagaStatus
+from app.models.patient_onboarding_saga import PatientOnboardingSaga
+from app.models.enums import SagaStatus
 from app.models.message import Message, MessageType, MessageStatus
 from app.models.template import MessageTemplate
 from app.schemas.patient import PatientCreate

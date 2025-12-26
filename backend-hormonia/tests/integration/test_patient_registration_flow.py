@@ -16,7 +16,8 @@ from datetime import datetime
 from uuid import UUID
 
 from app.models.patient import Patient, FlowState
-from app.models.patient_onboarding_saga import PatientOnboardingSaga, SagaStatus
+from app.models.patient_onboarding_saga import PatientOnboardingSaga
+from app.models.enums import SagaStatus
 from app.models.flow import PatientFlowState
 from app.models.message import Message, MessageStatus
 from app.orchestration.saga_orchestrator import SagaOrchestrator

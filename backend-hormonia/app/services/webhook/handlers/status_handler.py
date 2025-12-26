@@ -4,10 +4,12 @@ Processes message delivery status updates.
 """
 
 import logging
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from app.config.settings.cache import cache_settings
 from app.models.message import MessageStatus
+from app.models.message_events import MessageStatusEvent
 from app.domain.messaging.core import MessageService
 from app.services.websocket_events import websocket_events
 from app.schemas.websocket import WebSocketEventType
@@ -96,12 +98,32 @@ class StatusWebhookHandler:
                     )
                 return True
 
+            # Map the new status
+            new_status = self._map_evolution_status(status)
+
+            # Get previous status before update for audit trail
+            previous_status = None
+            existing_message = self.message_service.get_message_by_whatsapp_id(whatsapp_id)
+            if existing_message:
+                previous_status = existing_message.status.value if existing_message.status else None
+
             # Update message status (now protected by atomic lock)
             message = self.message_service.update_message_status_by_whatsapp_id(
-                whatsapp_id=whatsapp_id, status=self._map_evolution_status(status)
+                whatsapp_id=whatsapp_id, status=new_status
             )
 
             if message:
+                # Create audit trail event for message status change
+                status_event = MessageStatusEvent(
+                    message_id=message.id,
+                    status=new_status.value,
+                    previous_status=previous_status,
+                    whatsapp_id=whatsapp_id,
+                    created_at=datetime.now(timezone.utc),
+                    event_metadata={"source": "webhook", "event_type": "message.status"}
+                )
+                self.db.add(status_event)
+                self.db.commit()
                 # Publish WebSocket event for status update
                 await websocket_events.publish_message_event(
                     event_type=WebSocketEventType.MESSAGE_STATUS_UPDATED,

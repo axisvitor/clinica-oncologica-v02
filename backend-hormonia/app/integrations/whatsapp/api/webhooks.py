@@ -21,6 +21,7 @@ from ..models.message import (
     WhatsAppContact,
     WhatsAppInstance,
 )
+from app.models.message_events import MessageStatusEvent
 from app.database import get_db
 from app.utils.rate_limiter import limiter
 from app.config import settings
@@ -462,6 +463,9 @@ async def handle_message_update(
                 message = result.scalar_one_or_none()
 
                 if message:
+                    # Store previous status for audit trail
+                    previous_status = message.status.value if message.status else None
+
                     message.status = new_status
                     message.updated_at = datetime.now(timezone.utc)
 
@@ -469,6 +473,17 @@ async def handle_message_update(
                         message.delivered_at = datetime.now(timezone.utc)
                     elif new_status == MessageStatus.READ:
                         message.read_at = datetime.now(timezone.utc)
+
+                    # Create audit trail event for message status change
+                    status_event = MessageStatusEvent(
+                        message_id=message.id,
+                        status=new_status.value,
+                        previous_status=previous_status,
+                        whatsapp_id=key.get("id"),
+                        created_at=datetime.now(timezone.utc),
+                        event_metadata={"source": "evolution_webhook", "raw_status": status_update}
+                    )
+                    db.add(status_event)
 
                     db.commit()
                     logger.info(f"Updated message {message_id} status to {new_status}")

@@ -8,7 +8,8 @@ from uuid import uuid4
 os.environ.setdefault("MONTHLY_QUIZ_TOKEN_SECRET", "test-secret-key-for-testing")
 
 from app.orchestration.saga_orchestrator import SagaOrchestrator
-from app.models.patient_onboarding_saga import SagaStatus, PatientOnboardingSaga
+from app.models.patient_onboarding_saga import PatientOnboardingSaga
+from app.models.enums import SagaStatus
 from app.schemas.patient import PatientCreate
 from app.models.patient import Patient
 

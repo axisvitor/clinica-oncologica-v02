@@ -7,7 +7,6 @@ de onboarding de pacientes com retry logic e compensações.
 Sprint 1 - Transação Distribuída no Cadastro
 """
 
-from enum import Enum
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, TYPE_CHECKING
 
@@ -25,29 +24,10 @@ from sqlalchemy.orm import relationship
 import uuid
 
 from app.models.base import BaseModel
+from app.models.enums import SagaStatus
 
 if TYPE_CHECKING:
     pass
-
-
-class SagaStatus(str, Enum):
-    """Status possíveis de uma saga de onboarding."""
-
-    STARTED = "STARTED"
-    IN_PROGRESS = "IN_PROGRESS"  # Alias for STARTED - saga orchestrator compatibility
-    STEP_1_PATIENT_CREATED = "STEP_1_PATIENT_CREATED"
-    # DEPRECATED: Firebase integration removed - keeping for DB compatibility
-    # This step is skipped in saga execution (see saga_orchestrator.py)
-    STEP_2_FIREBASE_USER_CREATED = "STEP_2_FIREBASE_USER_CREATED"  # @deprecated
-    STEP_3_FLOW_INITIALIZED = "STEP_3_FLOW_INITIALIZED"
-    STEP_4_MESSAGE_SENT = "STEP_4_MESSAGE_SENT"
-    COMPLETED = "COMPLETED"
-    # NEW: For sagas that completed but with non-critical issues (e.g., WhatsApp message failed)
-    COMPLETED_WITH_WARNINGS = "COMPLETED_WITH_WARNINGS"
-    FAILED = "FAILED"
-    COMPENSATING = "COMPENSATING"
-    COMPENSATED = "COMPENSATED"
-    RETRY_SCHEDULED = "RETRY_SCHEDULED"
 
 
 class PatientOnboardingSaga(BaseModel):
@@ -111,6 +91,12 @@ class PatientOnboardingSaga(BaseModel):
     # Data
     patient_data = Column(JSONB, nullable=False)
     execution_log = Column(JSONB, nullable=False, default=list)
+    step_data = Column(
+        JSONB,
+        nullable=True,
+        default=dict,
+        doc="Stores compensation tracking data for idempotency (FIX P1-008)"
+    )
 
     # Error Information
     error_message = Column(Text, nullable=True)
@@ -259,4 +245,4 @@ class PatientOnboardingSaga(BaseModel):
         return list(range(self.current_step, 0, -1))
 
 
-__all__ = ["PatientOnboardingSaga", "SagaStatus"]
+__all__ = ["PatientOnboardingSaga"]
