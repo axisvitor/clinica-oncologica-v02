@@ -1,20 +1,27 @@
 """
 Cursor pagination for patient listing with Redis caching.
+
+This module provides efficient cursor-based pagination with
+Redis caching for patient lists, preventing N+1 queries and
+optimizing query performance.
 """
+
+from __future__ import annotations
 
 import base64
 import hashlib
 import json
 import logging
-from datetime import datetime, date
-from typing import List, Optional, Dict, Any, Tuple
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy import and_, or_, func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import joinedload, selectinload
 
-from app.models.patient import Patient, FlowState
 from app.models.message import Message
+from app.models.patient import FlowState, Patient
+
 from .encryption_helpers import build_search_criteria
 
 logger = logging.getLogger(__name__)
@@ -23,13 +30,24 @@ logger = logging.getLogger(__name__)
 class PatientPaginationMixin:
     """
     Cursor-based pagination with Redis caching for performance.
+
+    Provides efficient pagination with:
+    - Cursor-based navigation
+    - Redis caching for total counts (60s TTL)
+    - Optimized eager loading
+    - LGPD-compliant filtering
+
+    Methods:
+        list_v2: Advanced listing with cursor pagination and filtering.
+        list_patients_optimized: Optimized listing with N+1 prevention.
     """
 
     def _get_cache_key(self, prefix: str, filters: Dict[str, Any]) -> str:
         """Generate deterministic cache key from filters"""
         # Sort filters for consistent hashing
         filter_str = json.dumps(filters, sort_keys=True, default=str)
-        filter_hash = hashlib.md5(filter_str.encode()).hexdigest()[:12]
+        # Use SHA-256 instead of MD5 for better collision resistance
+        filter_hash = hashlib.sha256(filter_str.encode()).hexdigest()[:16]
         return f"patient:{prefix}:{filter_hash}"
 
     def _get_cached_count(self, filters: Dict[str, Any]) -> Optional[int]:

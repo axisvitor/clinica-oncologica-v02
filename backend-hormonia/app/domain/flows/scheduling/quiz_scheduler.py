@@ -4,6 +4,8 @@ Quiz Scheduling Module - Quiz Trigger and Execution Logic
 Handles quiz scheduling, triggering, and execution for patient assessments.
 """
 
+from __future__ import annotations
+
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
@@ -55,28 +57,33 @@ class QuizScheduler:
             True if quiz should be triggered
         """
         try:
-            # Import quiz constants
-            from app.utils.constants import QUIZ_FLOW_CONSTANTS
+            # Use centralized quiz trigger policy
+            from app.domain.quizzes.quiz_trigger_policy import QuizTriggerPolicy
+            from app.repositories.patient import PatientRepository
 
-            # Check if this is a monthly flow on quiz day
-            if (
-                flow_type == "monthly"
-                and current_day % QUIZ_FLOW_CONSTANTS.get("MONTHLY_QUIZ_DAY", 30) == 0
-            ):
-                logger.info(f"Quiz triggered for monthly flow day {current_day}")
-                return True
+            # Get patient enrollment info if available
+            days_since_enrollment = None
+            try:
+                patient_repo = PatientRepository(self.db)
+                patient = patient_repo.get(flow_state.patient_id)
+                if patient:
+                    enrollment_date = patient.enrollment_date or patient.created_at
+                    days_since_enrollment = (datetime.now(timezone.utc) - enrollment_date).days
+            except Exception as e:
+                logger.warning(f"Could not get patient enrollment info: {e}")
 
-            # Check for initial assessment quiz (day 15)
-            if flow_type == "day_1_15" and current_day == 15:
-                logger.info("Quiz triggered for initial assessment (day 15)")
-                return True
+            # Check using centralized policy
+            is_quiz_day = QuizTriggerPolicy.is_quiz_day(
+                current_day, flow_type, days_since_enrollment
+            )
 
-            # Check for mid-treatment assessment (day 45)
-            if flow_type == "day_16_45" and current_day == 45:
-                logger.info("Quiz triggered for mid-treatment assessment (day 45)")
-                return True
+            if is_quiz_day:
+                logger.info(
+                    f"Quiz triggered for {flow_type} flow on day {current_day} "
+                    f"(days since enrollment: {days_since_enrollment})"
+                )
 
-            return False
+            return is_quiz_day
 
         except Exception as e:
             logger.error(f"Error checking quiz trigger: {e}")

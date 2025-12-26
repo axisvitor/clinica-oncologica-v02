@@ -518,9 +518,12 @@ class FlowErrorHandler:
         self.error_history[flow_id].append(flow_error)
 
         # Trim history if too large
-        max_history = 100
-        if len(self.error_history[flow_id]) > max_history:
-            self.error_history[flow_id] = self.error_history[flow_id][-max_history:]
+        from ..constants import FlowEngine
+
+        if len(self.error_history[flow_id]) > FlowEngine.MAX_ERROR_HISTORY:
+            self.error_history[flow_id] = self.error_history[flow_id][
+                -FlowEngine.MAX_ERROR_HISTORY :
+            ]
 
     def _should_escalate(self, flow_error: FlowError) -> bool:
         """Determine if error should be escalated."""

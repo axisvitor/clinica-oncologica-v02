@@ -6,6 +6,8 @@ Endpoints:
 - GET /monthly/{quiz_id}/statistics - Get comprehensive statistics
 """
 
+# NOTE: Removed 'from __future__ import annotations' to fix Pydantic/FastAPI OpenAPI issues
+
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 
 from ._shared import (

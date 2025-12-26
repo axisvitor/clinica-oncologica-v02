@@ -145,15 +145,25 @@ class ActionExecutor:
 
     def _dict_to_action(self, action_dict: dict) -> FollowUpAction:
         """Convert dictionary to FollowUpAction."""
+
+        def _parse_dt_tz_aware(dt_str: str) -> datetime:
+            """FIX P1-006: Ensure timezone-aware datetime parsing."""
+            dt = datetime.fromisoformat(dt_str)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+
         action = FollowUpAction(
             action_id=UUID(action_dict["action_id"]),
             patient_id=UUID(action_dict["patient_id"]),
             follow_up_type=FollowUpType(action_dict["follow_up_type"]),
             priority=action_dict["priority"],
-            scheduled_for=datetime.fromisoformat(action_dict["scheduled_for"]),
+            # FIX P1-006: Use timezone-aware parsing
+            scheduled_for=_parse_dt_tz_aware(action_dict["scheduled_for"]),
             parameters=action_dict["parameters"],
             created_by=action_dict["created_by"],
         )
         action.status = action_dict["status"]
-        action.created_at = datetime.fromisoformat(action_dict["created_at"])
+        # FIX P1-006: Use timezone-aware parsing
+        action.created_at = _parse_dt_tz_aware(action_dict["created_at"])
         return action

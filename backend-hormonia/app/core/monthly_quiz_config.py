@@ -5,6 +5,8 @@ This module provides configuration for the monthly quiz feature,
 which allows patients to access quizzes via a secure tokenized link.
 """
 
+from __future__ import annotations
+
 from pydantic import Field, field_validator, HttpUrl, AliasChoices
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional

@@ -8,6 +8,8 @@ Handles:
 - Dead letter queue management
 """
 
+from __future__ import annotations
+
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any

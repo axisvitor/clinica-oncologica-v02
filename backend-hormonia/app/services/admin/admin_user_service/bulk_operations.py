@@ -41,9 +41,27 @@ class BulkOperationsMixin:
         successful = []
         failed = []
 
+        # FIX: Bulk fetch all users in single query instead of N queries
+        # This prevents N+1 query problem (was: 1 query per user)
+        users_query = self.db.query(User).filter(User.id.in_(bulk_request.user_ids))
+        users = users_query.all()
+        user_map = {user.id: user for user in users}
+
+        # Pre-calculate admin count once instead of per-user checks
+        active_admin_count = (
+            self.db.query(User)
+            .filter(
+                and_(
+                    User.role == UserRole.ADMIN,
+                    User.is_active
+                )
+            )
+            .count()
+        )
+
         for user_id in bulk_request.user_ids:
             try:
-                user = await self.get_user_by_id(user_id)
+                user = user_map.get(user_id)
                 if not user:
                     failed.append({"user_id": str(user_id), "reason": "User not found"})
                     continue
@@ -62,18 +80,10 @@ class BulkOperationsMixin:
 
                 elif bulk_request.operation == "deactivate":
                     if user.role == UserRole.ADMIN:
-                        admin_count = (
-                            self.db.query(User)
-                            .filter(
-                                and_(
-                                    User.role == UserRole.ADMIN,
-                                    User.is_active,
-                                    User.id != user_id,
-                                )
-                            )
-                            .count()
-                        )
-                        if admin_count == 0:
+                        # Use pre-calculated admin count instead of querying per user
+                        # Adjust for current user being deactivated
+                        remaining_admins = active_admin_count - 1 if user.is_active else active_admin_count
+                        if remaining_admins == 0:
                             failed.append(
                                 {
                                     "user_id": str(user_id),
@@ -95,18 +105,9 @@ class BulkOperationsMixin:
                 elif bulk_request.operation == "delete":
                     # Prevent deleting the last admin
                     if user.role == UserRole.ADMIN:
-                        admin_count = (
-                            self.db.query(User)
-                            .filter(
-                                and_(
-                                    User.role == UserRole.ADMIN,
-                                    User.is_active,
-                                    User.id != user_id,
-                                )
-                            )
-                            .count()
-                        )
-                        if admin_count == 0:
+                        # Use pre-calculated admin count instead of querying per user
+                        remaining_admins = active_admin_count - 1 if user.is_active else active_admin_count
+                        if remaining_admins == 0:
                             failed.append(
                                 {
                                     "user_id": str(user_id),

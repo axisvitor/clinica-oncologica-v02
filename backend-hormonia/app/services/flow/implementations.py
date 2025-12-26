@@ -84,10 +84,11 @@ class DatabaseFlowProcessor:
     def _determine_flow_type(self, current_day: int) -> "FlowType":
         """Determine appropriate flow type (business logic)"""
         from app.services.enhanced_flow_engine import FlowType
+        from ..constants import TreatmentFlow
 
-        if current_day <= 15:
+        if current_day <= TreatmentFlow.INITIAL_PERIOD_DAYS:
             return FlowType.INITIAL_15_DAYS
-        elif current_day <= 45:
+        elif current_day <= TreatmentFlow.INTERMEDIATE_PERIOD_DAYS:
             return FlowType.DAYS_16_45
         else:
             return FlowType.MONTHLY_RECURRING

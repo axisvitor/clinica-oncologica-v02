@@ -286,7 +286,7 @@ async def archive_patient(
 @router.get(
     "/{patient_id}/timeline",
     summary="Get patient timeline",
-    description="Return a lightweight patient timeline for activity feeds",
+    description="Return a comprehensive patient timeline with all activity events",
 )
 @limiter.limit("60/minute")
 async def get_patient_timeline(
@@ -299,7 +299,12 @@ async def get_patient_timeline(
     Get patient timeline of events.
 
     Returns a chronological list of significant events in the patient's
-    treatment journey, useful for activity feeds and status tracking.
+    treatment journey, including:
+    - Patient creation
+    - Flow state changes (activate, deactivate, archive)
+    - Saga status changes
+    - Message events
+    - Quiz completions
 
     Args:
         patient_id: UUID of the patient
@@ -335,7 +340,10 @@ async def get_patient_timeline(
 
     _ensure_patient_access(current_user, patient.doctor_id)
 
-    created_event = {
+    events = []
+
+    # 1. Patient created event
+    events.append({
         "date": patient.created_at,
         "event": "patient_created",
         "details": f"Paciente {patient.name} foi cadastrado",
@@ -343,11 +351,99 @@ async def get_patient_timeline(
             "doctor_id": str(patient.doctor_id) if patient.doctor_id else None,
             "treatment_type": patient.treatment_type,
         },
-    }
+    })
+
+    # 2. Current flow state
+    events.append({
+        "date": patient.updated_at or patient.created_at,
+        "event": "flow_state_current",
+        "details": f"Estado atual do fluxo: {patient.flow_state.value if patient.flow_state else 'N/A'}",
+        "metadata": {
+            "flow_state": patient.flow_state.value if patient.flow_state else None,
+        },
+    })
+
+    # 3. Saga events (if any)
+    try:
+        from app.models.patient_onboarding_saga import PatientOnboardingSaga
+
+        sagas = (
+            db.query(PatientOnboardingSaga)
+            .filter(PatientOnboardingSaga.patient_id == patient_uuid)
+            .order_by(PatientOnboardingSaga.created_at.desc())
+            .limit(5)
+            .all()
+        )
+
+        for saga in sagas:
+            # Saga started
+            events.append({
+                "date": saga.started_at or saga.created_at,
+                "event": "saga_started",
+                "details": f"Saga de onboarding iniciada",
+                "metadata": {
+                    "saga_id": str(saga.id),
+                    "status": saga.status.value if saga.status else None,
+                },
+            })
+
+            # Saga completed/failed
+            if saga.completed_at:
+                events.append({
+                    "date": saga.completed_at,
+                    "event": "saga_completed",
+                    "details": f"Onboarding concluído com sucesso",
+                    "metadata": {
+                        "saga_id": str(saga.id),
+                        "duration_seconds": saga._calculate_duration(),
+                    },
+                })
+            elif saga.failed_at:
+                events.append({
+                    "date": saga.failed_at,
+                    "event": "saga_failed",
+                    "details": f"Onboarding falhou: {saga.error_message or 'Erro desconhecido'}",
+                    "metadata": {
+                        "saga_id": str(saga.id),
+                        "error_type": saga.error_type,
+                        "retry_count": saga.retry_count,
+                    },
+                })
+
+            # Add execution log entries as events
+            if saga.execution_log:
+                for log_entry in saga.execution_log:
+                    events.append({
+                        "date": log_entry.get("timestamp", saga.created_at),
+                        "event": f"saga_step_{log_entry.get('step', 0)}",
+                        "details": f"Step {log_entry.get('step')}: {log_entry.get('action')} - {log_entry.get('status')}",
+                        "metadata": log_entry,
+                    })
+
+    except Exception as e:
+        logger.warning(f"Could not fetch saga events for patient {patient_id}: {e}")
+
+    # 4. Check for archived status in metadata
+    if patient.patient_data and patient.patient_data.get("archived"):
+        archived_at = patient.patient_data.get("archived_at")
+        events.append({
+            "date": archived_at or patient.updated_at,
+            "event": "patient_archived",
+            "details": f"Paciente foi arquivado",
+            "metadata": {
+                "archived_by": patient.patient_data.get("archived_by"),
+            },
+        })
+
+    # Sort events by date (most recent first)
+    events.sort(key=lambda x: x["date"] if x["date"] else datetime.min.replace(tzinfo=timezone.utc), reverse=True)
 
     return {
         "patient_id": patient_id,
-        "events": [created_event],
+        "patient_name": patient.name,
+        "current_flow_state": patient.flow_state.value if patient.flow_state else None,
+        "events": events,
+        "total_events": len(events),
     }
 
 

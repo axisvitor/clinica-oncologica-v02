@@ -356,7 +356,10 @@ class FlowTemplateManager:
         validate: bool = True,
     ) -> List[FlowTemplate]:
         """
-        Create multiple templates.
+        Create multiple templates with transaction management.
+
+        All templates are created in a single transaction - either all succeed or all fail.
+        This prevents partial batch failures and maintains data consistency.
 
         Args:
             templates_data: List of template data dictionaries.
@@ -364,19 +367,32 @@ class FlowTemplateManager:
 
         Returns:
             List of created templates.
-        """
-        created = []
-        for template_data in templates_data:
-            try:
-                template = self.create_template(template_data, validate=validate)
-                created.append(template)
-            except Exception as e:
-                logger.warning(
-                    f"Failed to create template {template_data.get('template_id')}: {e}"
-                )
 
-        logger.info(f"Bulk created {len(created)} templates")
-        return created
+        Raises:
+            Exception: If any template creation fails, all changes are rolled back.
+        """
+        from app.utils.transaction_manager import sync_transaction
+        from app.database import get_db
+
+        # Get database session for transaction
+        db = next(get_db())
+        created = []
+
+        try:
+            with sync_transaction(db):
+                for template_data in templates_data:
+                    template = self.create_template(template_data, validate=validate)
+                    created.append(template)
+                # Transaction manager handles commit/rollback automatically
+
+            logger.info(f"Bulk created {len(created)} templates")
+            return created
+
+        except Exception as e:
+            logger.error(f"Bulk template creation failed, all changes rolled back: {e}")
+            raise
+        finally:
+            db.close()
 
     def validate_templates_bulk(
         self,

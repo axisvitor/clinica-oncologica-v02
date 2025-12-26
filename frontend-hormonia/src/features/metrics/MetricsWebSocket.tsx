@@ -28,6 +28,13 @@ interface MetricsWebSocketReturn {
   reconnectAttempts: number;
 }
 
+/**
+ * NOTE: The backend WebSocket endpoint /api/v2/metrics/live does not exist.
+ * This hook now uses HTTP polling as a fallback instead of WebSocket.
+ * When the backend implements the WebSocket endpoint, set WEBSOCKET_ENABLED to true.
+ */
+const WEBSOCKET_ENABLED = false; // Disable until backend implements the endpoint
+
 export const MetricsWebSocket = ({
   onMessage,
   onError,
@@ -44,6 +51,7 @@ export const MetricsWebSocket = ({
 
   const ws = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
+  const pollingTimer = useRef<NodeJS.Timeout | null>(null);
   const isManualDisconnect = useRef(false);
 
   const getWebSocketUrl = useCallback(() => {
@@ -52,6 +60,43 @@ export const MetricsWebSocket = ({
     // WebSocket connections automatically include cookies
     return `${protocol}//${host}/api/v2/metrics/live`;
   }, []);
+
+  // Polling fallback when WebSocket is not available
+  const startPolling = useCallback(() => {
+    if (pollingTimer.current) return;
+
+    const poll = async () => {
+      try {
+        const response = await fetch('/api/v2/enhanced-analytics/realtime-stream', {
+          credentials: 'include'
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setLastMessage(data);
+          onMessage?.(data);
+        }
+      } catch (err) {
+        logger.warn('Polling failed', { error: err });
+      }
+    };
+
+    // Initial poll
+    poll();
+
+    // Set up interval
+    pollingTimer.current = setInterval(poll, reconnectInterval);
+    setIsConnected(true);
+    onConnect?.();
+  }, [onMessage, onConnect, reconnectInterval]);
+
+  const stopPolling = useCallback(() => {
+    if (pollingTimer.current) {
+      clearInterval(pollingTimer.current);
+      pollingTimer.current = null;
+    }
+    setIsConnected(false);
+    onDisconnect?.();
+  }, [onDisconnect]);
 
   const handleOpen = useCallback(() => {
     logger.info('Metrics WebSocket connected');
@@ -126,6 +171,13 @@ export const MetricsWebSocket = ({
       return;
     }
 
+    // Use polling fallback if WebSocket is disabled
+    if (!WEBSOCKET_ENABLED) {
+      logger.info('WebSocket disabled, using polling fallback');
+      startPolling();
+      return;
+    }
+
     // Clear any existing connection
     if (ws.current) {
       ws.current.removeEventListener('open', handleOpen);
@@ -166,10 +218,13 @@ export const MetricsWebSocket = ({
       setError('Erro ao criar conexão WebSocket');
       setIsConnecting(false);
     }
-  }, [isConnected, isConnecting, getWebSocketUrl, handleOpen, handleMessage, handleError, handleClose]);
+  }, [isConnected, isConnecting, getWebSocketUrl, handleOpen, handleMessage, handleError, handleClose, startPolling]);
 
   const disconnect = useCallback(() => {
     isManualDisconnect.current = true;
+
+    // Stop polling if active
+    stopPolling();
 
     // Clear reconnect timer
     if (reconnectTimer.current) {
@@ -193,7 +248,7 @@ export const MetricsWebSocket = ({
     setIsConnecting(false);
     setError(null);
     setReconnectAttempts(0);
-  }, [handleOpen, handleMessage, handleError, handleClose]);
+  }, [handleOpen, handleMessage, handleError, handleClose, stopPolling]);
 
   // Cleanup on unmount
   useEffect(() => {

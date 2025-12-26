@@ -38,6 +38,7 @@ from app.api.v2.templates_shared import (
     RATE_LIMIT_READ,
     RATE_LIMIT_WRITE,
 )
+from app.utils.audit_logger import AuditLogger, AuditAction
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -173,7 +174,8 @@ async def get_flow_template(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting flow template: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get flow template")
 
 
 @router.post("/flows", response_model=FlowTemplateV2Response, status_code=201)
@@ -243,6 +245,22 @@ async def create_flow_template(
         db.refresh(template_version)
         await _invalidate_template_cache("flow")
 
+        # Audit log
+        AuditLogger.log(
+            action=AuditAction.CREATE,
+            resource_type="flow_template",
+            resource_id=str(template_version.id),
+            user_id=str(user_uuid),
+            user_role=role,
+            details={
+                "template_name": template_version.template_name,
+                "version_number": template_version.version_number,
+                "kind_key": flow_kind.kind_key,
+                "is_draft": template_version.is_draft,
+            },
+            ip_address=request.client.host if request.client else None,
+        )
+
         template_version = (
             db.query(FlowTemplateVersion)
             .options(joinedload(FlowTemplateVersion.kind))
@@ -255,7 +273,8 @@ async def create_flow_template(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error creating flow template: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to create flow template")
 
 
 @router.put("/flows/{template_id}", response_model=FlowTemplateV2Response)
@@ -297,6 +316,26 @@ async def update_flow_template(
         db.refresh(template)
         await _invalidate_template_cache("flow", template_id)
 
+        # Audit log
+        role, user_uuid = _extract_user_context(current_user)
+        changes = {}
+        if updates.template_name is not None:
+            changes["template_name"] = updates.template_name
+        if updates.is_active is not None:
+            changes["is_active"] = updates.is_active
+        if updates.is_draft is not None:
+            changes["is_draft"] = updates.is_draft
+
+        AuditLogger.log(
+            action=AuditAction.UPDATE,
+            resource_type="flow_template",
+            resource_id=str(template_id),
+            user_id=str(user_uuid),
+            user_role=role,
+            details={"changes": changes},
+            ip_address=request.client.host if request.client else None,
+        )
+
         template = (
             db.query(FlowTemplateVersion)
             .options(joinedload(FlowTemplateVersion.kind))
@@ -308,7 +347,8 @@ async def update_flow_template(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error updating flow template: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to update flow template")
 
 
 @router.delete("/flows/{template_id}", status_code=204)
@@ -339,12 +379,29 @@ async def delete_flow_template(
             db.commit()
 
         await _invalidate_template_cache("flow", template_id)
+
+        # Audit log
+        role, user_uuid = _extract_user_context(current_user)
+        AuditLogger.log(
+            action=AuditAction.DELETE if not soft_delete else AuditAction.ARCHIVE,
+            resource_type="flow_template",
+            resource_id=str(template_id),
+            user_id=str(user_uuid),
+            user_role=role,
+            details={
+                "soft_delete": soft_delete,
+                "template_name": template.template_name,
+            },
+            ip_address=request.client.host if request.client else None,
+        )
+
         return None
     except HTTPException:
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error deleting flow template: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to delete flow template")
 
 
 @router.post(
@@ -402,6 +459,21 @@ async def duplicate_flow_template(
         db.refresh(new_template)
         await _invalidate_template_cache("flow")
 
+        # Audit log
+        AuditLogger.log(
+            action=AuditAction.DUPLICATE,
+            resource_type="flow_template",
+            resource_id=str(new_template.id),
+            user_id=str(user_uuid),
+            user_role=role,
+            details={
+                "source_template_id": str(template_id),
+                "new_template_name": new_template.template_name,
+                "new_version_number": new_template.version_number,
+            },
+            ip_address=request.client.host if request.client else None,
+        )
+
         new_template = (
             db.query(FlowTemplateVersion)
             .options(joinedload(FlowTemplateVersion.kind))
@@ -413,7 +485,8 @@ async def duplicate_flow_template(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error duplicating flow template: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to duplicate flow template")
 
 
 @router.get("/flow-kinds", response_model=FlowKindV2List)
@@ -446,7 +519,8 @@ async def list_flow_kinds(
         await _set_cached_result(cache_key, result, CACHE_TTL_METADATA)
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error listing flow kinds: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to list flow kinds")
 
 
 @router.post("/flow-kinds", response_model=FlowKindV2Response, status_code=201)
@@ -475,9 +549,26 @@ async def create_flow_kind(
         db.commit()
         db.refresh(flow_kind)
         await _invalidate_template_cache("flow_kinds")
+
+        # Audit log
+        role, user_uuid = _extract_user_context(current_user)
+        AuditLogger.log(
+            action=AuditAction.CREATE,
+            resource_type="flow_kind",
+            resource_id=str(flow_kind.id),
+            user_id=str(user_uuid),
+            user_role=role,
+            details={
+                "kind_key": flow_kind.kind_key,
+                "display_name": flow_kind.display_name,
+            },
+            ip_address=request.client.host if request.client else None,
+        )
+
         return _serialize_flow_kind(flow_kind)
     except HTTPException:
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error creating flow kind: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to create flow kind")

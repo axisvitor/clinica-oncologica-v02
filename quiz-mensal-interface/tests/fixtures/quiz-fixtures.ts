@@ -2,42 +2,10 @@
  * Test Fixtures Factory
  * Provides reusable test data builders
  */
-import type { QuizSession, QuizQuestion, QuizOption } from '@/types/quiz'
+import type { QuizSession, QuizQuestion } from '@/types/quiz'
 
-/**
- * Quiz Option Builder
- */
-export class QuizOptionBuilder {
-  private option: QuizOption = {
-    id: `opt-${Date.now()}`,
-    value: 'default',
-    text: 'Default Option'
-  }
-
-  withId(id: string): this {
-    this.option.id = id
-    return this
-  }
-
-  withValue(value: string): this {
-    this.option.value = value
-    return this
-  }
-
-  withText(text: string): this {
-    this.option.text = text
-    return this
-  }
-
-  withOther(allow: boolean = true): this {
-    this.option.allow_other = allow
-    return this
-  }
-
-  build(): QuizOption {
-    return { ...this.option }
-  }
-}
+// Option type matching QuizQuestion.options
+type QuizOption = { id?: string; value: string; text: string; allow_other?: boolean }
 
 /**
  * Quiz Question Builder
@@ -45,7 +13,6 @@ export class QuizOptionBuilder {
 export class QuizQuestionBuilder {
   private question: QuizQuestion = {
     id: `q-${Date.now()}`,
-    order_index: 0,
     text: 'Default Question',
     type: 'text',
     required: true,
@@ -54,11 +21,6 @@ export class QuizQuestionBuilder {
 
   withId(id: string): this {
     this.question.id = id
-    return this
-  }
-
-  withOrder(order: number): this {
-    this.question.order_index = order
     return this
   }
 
@@ -104,6 +66,7 @@ export class QuizQuestionBuilder {
  */
 export class QuizSessionBuilder {
   private session: QuizSession = {
+    id: `id-${Date.now()}`,
     quiz_session_id: `session-${Date.now()}`,
     patient_id: 'patient-123',
     patient_name: 'Test Patient',
@@ -111,11 +74,15 @@ export class QuizSessionBuilder {
     template_name: 'Test Template',
     status: 'in_progress',
     current_question_index: 0,
-    total_questions: 1,
     expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     questions: [
       new QuizQuestionBuilder().withId('q1').withText('Test Question').build()
     ]
+  }
+
+  withId(id: string): this {
+    this.session.id = id
+    return this
   }
 
   withSessionId(id: string): this {
@@ -135,7 +102,7 @@ export class QuizSessionBuilder {
     return this
   }
 
-  withStatus(status: QuizSession['status']): this {
+  withStatus(status: string): this {
     this.session.status = status
     return this
   }
@@ -147,7 +114,6 @@ export class QuizSessionBuilder {
 
   withQuestions(questions: QuizQuestion[]): this {
     this.session.questions = questions
-    this.session.total_questions = questions.length
     return this
   }
 
@@ -176,9 +142,9 @@ export const fixtures = {
     .withType('single_choice')
     .withText('Qual é o principal sintoma?')
     .withOptions([
-      new QuizOptionBuilder().withId('opt1').withValue('headache').withText('Dor de cabeça').build(),
-      new QuizOptionBuilder().withId('opt2').withValue('nausea').withText('Náusea').build(),
-      new QuizOptionBuilder().withId('opt3').withValue('fatigue').withText('Fadiga').build()
+      { id: 'opt1', value: 'headache', text: 'Dor de cabeça' },
+      { id: 'opt2', value: 'nausea', text: 'Náusea' },
+      { id: 'opt3', value: 'fatigue', text: 'Fadiga' }
     ])
     .allowOther(true)
     .build(),
@@ -189,9 +155,9 @@ export const fixtures = {
     .withType('multiple_choice')
     .withText('Quais sintomas você está sentindo?')
     .withOptions([
-      new QuizOptionBuilder().withId('opt4').withValue('pain').withText('Dor').build(),
-      new QuizOptionBuilder().withId('opt5').withValue('insomnia').withText('Insônia').build(),
-      new QuizOptionBuilder().withId('opt6').withValue('anxiety').withText('Ansiedade').build()
+      { id: 'opt4', value: 'pain', text: 'Dor' },
+      { id: 'opt5', value: 'insomnia', text: 'Insônia' },
+      { id: 'opt6', value: 'anxiety', text: 'Ansiedade' }
     ])
     .allowOther(true)
     .build(),
@@ -225,10 +191,10 @@ export const fixtures = {
     .withPatient('patient-123', 'João Silva')
     .withTemplate('template-123', 'Questionário Mensal')
     .withQuestions([
-      fixtures.scaleQuestion(),
+      fixtures.singleChoiceWithOther(),
       fixtures.yesNoQuestion(),
       fixtures.multipleChoiceWithOther(),
-      fixtures.singleChoiceWithOther(),
+      fixtures.scaleQuestion(),
       fixtures.textQuestion()
     ])
     .build(),

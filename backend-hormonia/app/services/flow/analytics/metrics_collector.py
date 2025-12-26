@@ -11,21 +11,25 @@ Migration Note:
     - Various monitoring scattered across flow services
 """
 
-from typing import Dict, Any, Optional
-from datetime import datetime, timedelta, timezone
-from uuid import UUID
-from collections import defaultdict
-import logging
+from __future__ import annotations
 
-from ..types import (
-    FlowType,
-    FlowStatus,
-    FlowStepStatus,
-    FlowMetrics,
-    FlowContext,
-    FlowStepData,
-)
+# Standard library imports
+import logging
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Optional
+from uuid import UUID
+
+# Local application imports
 from ..config import get_flow_config
+from ..types import (
+    FlowContext,
+    FlowMetrics,
+    FlowStatus,
+    FlowStepData,
+    FlowStepStatus,
+    FlowType,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -36,10 +40,18 @@ class FlowMetricsCollector:
     Collector for flow execution metrics.
 
     Tracks and aggregates metrics for flow instances, steps, and overall
-    system performance.
+    system performance with in-memory storage.
+
+    Attributes:
+        config: Analytics configuration.
+        _flow_metrics: Storage for flow-level metrics.
+        _step_metrics: Storage for step-level metrics.
+        _aggregate_metrics: Aggregated system metrics.
+        _flow_start_times: Flow execution start times.
+        _step_start_times: Step execution start times.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize metrics collector."""
         self.config = get_flow_config().analytics
 

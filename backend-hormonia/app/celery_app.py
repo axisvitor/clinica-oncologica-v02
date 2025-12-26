@@ -28,6 +28,7 @@ celery_app = Celery(
         "app.tasks.quiz_flow",
         "app.tasks.saga_retry",
         "app.tasks.saga_monitoring",
+        "app.tasks.follow_up",
     ],
 )
 
@@ -65,6 +66,10 @@ celery_app.conf.update(
         "app.tasks.quiz_link_tasks.fallback_to_whatsapp": {"queue": "quiz"},
         "app.tasks.quiz_link_tasks.process_dead_letter_queue": {"queue": "maintenance"},
         "app.tasks.quiz_link_tasks.monitor_resilience_metrics": {"queue": "monitoring"},
+        # Follow-up system task routes
+        "app.tasks.follow_up.execute_pending_follow_ups": {"queue": "follow_up"},
+        "app.tasks.follow_up.process_escalation_alerts": {"queue": "follow_up"},
+        "app.tasks.follow_up.cleanup_old_contexts": {"queue": "follow_up"},
     },
     # Task execution settings
     task_acks_late=True,
@@ -182,7 +187,13 @@ celery_app.conf.beat_schedule = {
     },
     "send-daily-reminders": {
         "task": "flow_automation.send_daily_reminders",
-        "schedule": crontab(hour=9, minute=0),  # Daily at 9:00 AM UTC
+        "schedule": crontab(hour=11, minute=30),  # Daily at 11:30 AM UTC = 08:30 AM Brazil
+        "options": {"queue": "flows"},
+    },
+    # Daily flow questions based on treatment phase (P1 FIX)
+    "send-daily-flow-questions": {
+        "task": "flow_automation.send_daily_flow_questions",
+        "schedule": crontab(hour=11, minute=0),  # Daily at 11:00 AM UTC = 08:00 AM Brazil
         "options": {"queue": "flows"},
     },
     "resume-paused-flows": {
@@ -194,6 +205,22 @@ celery_app.conf.beat_schedule = {
         "task": "flow_automation.cleanup_expired_quiz_links",
         "schedule": 86400.0,  # Daily
         "options": {"queue": "maintenance"},
+    },
+    # Follow-up system tasks - Patient daily engagement
+    "execute-pending-follow-ups": {
+        "task": "app.tasks.follow_up.execute_pending_follow_ups",
+        "schedule": 300.0,  # Every 5 minutes
+        "options": {"queue": "follow_up"},
+    },
+    "process-escalation-alerts": {
+        "task": "app.tasks.follow_up.process_escalation_alerts",
+        "schedule": 600.0,  # Every 10 minutes
+        "options": {"queue": "follow_up"},
+    },
+    "cleanup-old-contexts": {
+        "task": "app.tasks.follow_up.cleanup_old_contexts",
+        "schedule": crontab(hour=3, minute=0),  # Daily at 3 AM
+        "options": {"queue": "follow_up"},
     },
 }
 

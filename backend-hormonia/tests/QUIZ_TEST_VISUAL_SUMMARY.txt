@@ -1,0 +1,183 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                  QUIZ INTEGRATION TESTS - VISUAL SUMMARY                     ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ STATUS: ❌ FAILED - App Initialization Timeout                               │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ TEST FILES DISCOVERED                                                        │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ Critical Tests (tests/api/critical/):                                       │
+│   📝 test_quiz_session.py        249 lines   19 tests   ⏳ TIMEOUT          │
+│   📝 test_quiz_submit.py         311 lines   ?? tests   ⏳ TIMEOUT          │
+│   ✅ test_auth_login.py          190 lines    4 tests   ✓ PASSING          │
+│   ❓ test_auth_refresh.py        122 lines   ?? tests   ? UNKNOWN          │
+│   ⚠️  test_patients_crud.py      198 lines    9 tests   ~ PARTIAL          │
+│   ❓ test_patients_list.py       154 lines   ?? tests   ? UNKNOWN          │
+│                                                                              │
+│ Other Quiz Tests: 17 additional files                                       │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ TEST BREAKDOWN - test_quiz_session.py (19 tests)                            │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ TestQuizSession (11 tests)                                                   │
+│   ├─ 🔓 test_list_quizzes_requires_auth                                     │
+│   ├─ 🔓 test_get_quiz_requires_auth                                         │
+│   ├─ 🔓 test_create_quiz_requires_auth                                      │
+│   ├─ 🔓 test_delete_quiz_requires_auth                                      │
+│   ├─ 🔓 test_all_quiz_endpoints_require_authentication                      │
+│   ├─ 🔐 test_list_quizzes_with_auth                    [INTEGRATION]        │
+│   ├─ 🔐 test_get_quiz_with_auth                        [INTEGRATION]        │
+│   ├─ 🔐 test_create_quiz_with_auth                     [INTEGRATION]        │
+│   ├─ 🔐 test_create_quiz_validation                    [INTEGRATION]        │
+│   ├─ 🔐 test_delete_nonexistent_quiz                   [INTEGRATION]        │
+│   └─ ⏭️  test_quiz_session_expiration                  [SKIPPED - Redis]    │
+│                                                                              │
+│ TestPublicQuizAccess (4 tests)                                               │
+│   ├─ 🌐 test_get_current_public_quiz_requires_token                         │
+│   ├─ 🌐 test_get_current_public_quiz_with_invalid_token                     │
+│   ├─ 🌐 test_submit_public_quiz_endpoint_exists                             │
+│   └─ 🔐 test_results_endpoint_exists                   [INTEGRATION]        │
+│                                                                              │
+│ TestQuizSessionIntegrity (4 tests)                                           │
+│   ├─ ✅ test_quiz_id_format_validation                                      │
+│   ├─ 🛡️  test_quiz_id_sql_injection_protection         [SECURITY]          │
+│   ├─ 🛡️  test_quiz_id_path_traversal_protection        [SECURITY]          │
+│   └─ ✅ test_empty_quiz_id                                                  │
+│                                                                              │
+│ Legend:                                                                      │
+│   🔓 = Basic auth test    🔐 = Integration test                             │
+│   🌐 = Public endpoint    🛡️ = Security test                                │
+│   ✅ = Validation test    ⏭️ = Skipped test                                 │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ENDPOINTS COVERED                                                            │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ Quiz Management (Authenticated):                                             │
+│   GET    /api/v2/quiz/sessions                                              │
+│   GET    /api/v2/quiz/sessions/{quiz_id}                                    │
+│   POST   /api/v2/quiz/sessions                                              │
+│   DELETE /api/v2/quiz/sessions/{quiz_id}                                    │
+│                                                                              │
+│ Public Quiz Access:                                                          │
+│   GET    /api/v2/monthly-quiz-public/monthly/public/current                 │
+│   POST   /api/v2/monthly-quiz-public/monthly/public/{id}/submit             │
+│   GET    /api/v2/monthly-quiz-public/monthly/public/{id}/results            │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ TIMEOUT ANALYSIS                                                             │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ Timeline:                                                                    │
+│   0:00  ✓ pytest started                                                    │
+│   0:01  ✓ conftest.py loaded                                                │
+│   0:02  ✓ Environment variables set (APP_ENVIRONMENT=testing)               │
+│   0:03  ⚙️  app.main importing...                                            │
+│   0:05  ⚙️  Rate limiter connecting to Redis...                             │
+│   0:10  ⚙️  Database pool initializing (environment=production ❌)           │
+│   0:15  ⚙️  Routers registering (50+ routers)...                            │
+│   0:30  ⏳ Still loading...                                                  │
+│   1:00  ⏳ Still loading...                                                  │
+│   2:00  ⏳ Still loading...                                                  │
+│   2:05  ❌ TIMEOUT - Process terminated (SIGTERM)                           │
+│                                                                              │
+│ Issue: App loads in PRODUCTION mode despite TESTING environment variable    │
+│                                                                              │
+│ Evidence:                                                                    │
+│   ❌ "environment=production" in logs                                        │
+│   ❌ Full connection pool initialization (pool_size=10, max_overflow=10)    │
+│   ❌ Redis connection without mocking                                       │
+│   ❌ PostgreSQL connection with full pool                                   │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ROOT CAUSES                                                                  │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ 1. Environment Variable Timing                                               │
+│    Problem: Variables set in conftest.py load AFTER pytest starts           │
+│    Solution: Use pytest.ini or environment variables before pytest          │
+│                                                                              │
+│ 2. Production Mode Loading                                                   │
+│    Problem: App ignores ENVIRONMENT=testing and loads production config     │
+│    Solution: Fix app initialization to respect testing mode                 │
+│                                                                              │
+│ 3. External Service Connections                                              │
+│    Problem: Redis, PostgreSQL connect with full production configuration    │
+│    Solution: Mock services in test fixtures                                 │
+│                                                                              │
+│ 4. Router Registration Overhead                                              │
+│    Problem: 50+ routers being registered even in test mode                  │
+│    Solution: Lazy load routers or skip non-essential ones in tests          │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ RECOMMENDATIONS                                                              │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ Priority 0 (CRITICAL - Do First):                                            │
+│   1. ⚡ Create pytest.ini with environment variables                         │
+│   2. ⚡ Mock Redis in conftest.py                                            │
+│   3. ⚡ Add app startup timeout (180s+)                                      │
+│                                                                              │
+│ Priority 1 (Important):                                                      │
+│   4. 📋 Separate unit vs integration tests                                  │
+│   5. 🏥 Add service health checks                                           │
+│   6. ⏱️  Install pytest-timeout plugin                                       │
+│                                                                              │
+│ Priority 2 (Enhancement):                                                    │
+│   7. 🗄️  Test database fixtures                                             │
+│   8. 🎭 Comprehensive mock layer                                            │
+│   9. 🚀 Optimize app init for testing                                       │
+│                                                                              │
+│ Estimated Fix Time: 2-4 hours                                                │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ FILES GENERATED                                                              │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ 📄 QUIZ_INTEGRATION_TEST_REPORT.md      - Detailed analysis (Markdown)      │
+│ 📄 QUIZ_TEST_STATUS_SUMMARY.txt         - Text summary                      │
+│ 📄 QUIZ_TEST_VISUAL_SUMMARY.txt         - This file (Visual)                │
+│                                                                              │
+│ Location: /mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/    │
+│           tests/                                                             │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ CONCLUSION                                                                   │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ ✅ Test Quality:     EXCELLENT - Comprehensive coverage                     │
+│ ✅ Test Structure:   EXCELLENT - Well-organized                             │
+│ ✅ Security Tests:   PRESENT - SQL injection, path traversal                │
+│                                                                              │
+│ ❌ Test Execution:   BLOCKED - Infrastructure timeout                       │
+│ ❌ Environment:      BROKEN - Production mode in testing                    │
+│ ❌ Service Mocking:  MISSING - No mocks for Redis/PostgreSQL                │
+│                                                                              │
+│ Priority: P1 - HIGH                                                          │
+│ Impact:   Blocking quiz functionality testing                               │
+│ Effort:   2-4 hours to fix                                                  │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                              END OF REPORT                                   ║
+╚══════════════════════════════════════════════════════════════════════════════╝

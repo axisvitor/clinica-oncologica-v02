@@ -8,23 +8,32 @@ the production database without changing orchestration code.
 
 from __future__ import annotations
 
+# Standard library imports
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
 from uuid import UUID
-import logging
 
+# Third-party imports
 from pydantic import ValidationError
 
+# Local application imports
 from app.repositories.flow import FlowStateRepository
-from ..types import FlowContext, FlowType, FlowStatus
+from ..types import FlowContext, FlowStatus, FlowType
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class ContextPersistenceResult:
-    """Outcome of a save/delete operation."""
+    """
+    Outcome of a save/delete operation.
+
+    Attributes:
+        persisted: Whether the operation succeeded.
+        reason: Optional reason for failure.
+    """
 
     persisted: bool
     reason: Optional[str] = None
@@ -36,14 +45,32 @@ class FlowContextRepository:
 
     Persists data to patient_flow_states while keeping an in-memory cache
     for quick lookups inside the FlowManager lifecycle.
+
+    Attributes:
+        _memory_store: In-memory cache of flow contexts.
+        _db_repo: Database repository for persistence.
     """
 
     def __init__(self, db: Any):
+        """
+        Initialize the flow context repository.
+
+        Args:
+            db: Database session for persistence.
+        """
         self._memory_store: Dict[UUID, FlowContext] = {}
         self._db_repo = FlowStateRepository(db)
 
     async def get(self, flow_id: UUID) -> Optional[FlowContext]:
-        """Return context from cache or database."""
+        """
+        Return context from cache or database.
+
+        Args:
+            flow_id: Flow instance UUID.
+
+        Returns:
+            Flow context or None if not found.
+        """
         cached = self._memory_store.get(flow_id)
         if cached:
             return cached
@@ -64,6 +91,9 @@ class FlowContextRepository:
         Args:
             context: Flow execution context to persist.
             template: Optional template metadata (used to resolve version IDs).
+
+        Returns:
+            Result of persistence operation.
         """
         self._memory_store[context.flow_instance_id] = context
 
@@ -71,14 +101,30 @@ class FlowContextRepository:
         return ContextPersistenceResult(persisted=persisted, reason=reason)
 
     async def delete(self, flow_id: UUID) -> ContextPersistenceResult:
-        """Remove context from storage."""
+        """
+        Remove context from storage.
+
+        Args:
+            flow_id: Flow instance UUID.
+
+        Returns:
+            Result of deletion operation.
+        """
         self._memory_store.pop(flow_id, None)
 
         deleted = self._db_repo.delete(flow_id)
         return ContextPersistenceResult(deleted, None if deleted else "not-found")
 
     async def _load_from_db(self, flow_id: UUID) -> Optional[FlowContext]:
-        """Load context from the database if we have matching metadata."""
+        """
+        Load context from the database if we have matching metadata.
+
+        Args:
+            flow_id: Flow instance UUID.
+
+        Returns:
+            Flow context or None if not found.
+        """
         state = self._db_repo.get(flow_id)
         if not state:
             return None
@@ -101,7 +147,15 @@ class FlowContextRepository:
         return self._build_context_from_state(state)
 
     def _build_context_from_state(self, state) -> FlowContext:
-        """Create a FlowContext from PatientFlowState columns."""
+        """
+        Create a FlowContext from PatientFlowState columns.
+
+        Args:
+            state: PatientFlowState database record.
+
+        Returns:
+            Reconstructed FlowContext.
+        """
         flow_type_value = (
             state.template_version.kind.flow_type
             if state.template_version and state.template_version.kind
@@ -137,7 +191,16 @@ class FlowContextRepository:
         context: FlowContext,
         template: Optional[Dict[str, Any]],
     ) -> Tuple[bool, Optional[str]]:
-        """Persist context into patient_flow_states if possible."""
+        """
+        Persist context into patient_flow_states if possible.
+
+        Args:
+            context: Flow execution context.
+            template: Optional template metadata.
+
+        Returns:
+            Tuple of (success, failure_reason).
+        """
         template_version_id = None
         if template:
             template_version_id = template.get("metadata", {}).get(
@@ -183,7 +246,16 @@ class FlowContextRepository:
         template: Optional[Dict[str, Any]],
         context: FlowContext,
     ) -> Optional[int]:
-        """Best-effort step index calculation for persisting current_step."""
+        """
+        Best-effort step index calculation for persisting current_step.
+
+        Args:
+            template: Flow template.
+            context: Flow execution context.
+
+        Returns:
+            Step index or None if not found.
+        """
         if not template or not template.get("steps") or not context.current_step_id:
             return None
 

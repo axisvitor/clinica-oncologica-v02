@@ -1,4 +1,3 @@
-import { useState } from "react"
 import type { SingleAnswer, MultipleAnswer, OtherAnswer } from "@/types/quiz"
 
 export function useQuizAnswer() {

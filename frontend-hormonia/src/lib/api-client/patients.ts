@@ -133,7 +133,7 @@ export function createPatientsApi(client: ApiClientCore) {
         ...rest
       }
 
-      const res: any = await client.get<any>('/api/v2/patients', query)
+      const res: any = await client.get<any>('/api/v2/patients/', query)
 
       // Normalize to keep backward compatibility with components expecting `items`
       const rawItems = Array.isArray(res?.data) ? res.data : (res?.items ?? [])
@@ -173,7 +173,7 @@ export function createPatientsApi(client: ApiClientCore) {
       }
       // Denormalize frontend data to backend format before sending
       const backendData = denormalizePatient(data as any)
-      const patient = await client.post<BackendPatient>('/api/v2/patients', backendData)
+      const patient = await client.post<BackendPatient>('/api/v2/patients/', backendData)
       return normalizePatient(patient)
     },
 
@@ -267,7 +267,7 @@ export function createPatientsApi(client: ApiClientCore) {
       start_date?: string
       end_date?: string
     }): Promise<PatientStats> => {
-      return client.get<PatientStats>('/api/v2/patients/stats', filters)
+      return client.get<PatientStats>('/api/v2/patients/stats/', filters)
     },
 
     /**
@@ -336,11 +336,13 @@ export function createPatientsApi(client: ApiClientCore) {
      * Check if email is already registered
      */
     checkEmailExists: async (email: string): Promise<{ exists: boolean }> => {
-      return client.get<{ exists: boolean }>('/api/v2/patients/check-email', { email })
+      return client.get<{ exists: boolean }>('/api/v2/patients/check-email/', { email })
     },
 
     /**
      * Import patients from CSV/Excel file
+     *
+     * Backend returns: { success: number, failed: number, errors: Array<{row: number, message: string}> }
      */
     importPatients: async (
       file: File,
@@ -350,13 +352,9 @@ export function createPatientsApi(client: ApiClientCore) {
         validateOnly?: boolean;
       }
     ): Promise<{
-      total: number;
-      successful: number;
+      success: number;
       failed: number;
-      skipped: number;
-      updated: number;
-      errors: Array<{ row: number; patientName?: string; message: string; code?: string }>;
-      sessionId?: string;
+      errors: Array<{ row: number; message: string }>;
     }> => {
       const formData = new FormData()
       formData.append('file', file)
@@ -386,7 +384,13 @@ export function createPatientsApi(client: ApiClientCore) {
         throw new Error(error.detail || 'Failed to import patients')
       }
 
-      return response.json()
+      // Backend returns { success, failed, errors }
+      const result = await response.json()
+      return {
+        success: result.success || 0,
+        failed: result.failed || 0,
+        errors: result.errors || []
+      }
     },
 
     /**
@@ -488,7 +492,7 @@ export function createPatientsApi(client: ApiClientCore) {
       if (filters?.page) params['page'] = filters.page
       if (filters?.size) params['size'] = filters.size
 
-      return client.get('/api/v2/patients/import/history', params)
+      return client.get('/api/v2/patients/import/history/', params)
     }
   }
 }

@@ -1,12 +1,35 @@
 """
 Main orchestrator for the Follow-up Action System.
 Coordinates follow-up processing, scheduling, and execution via specialized components.
+
+FIX P1-006: Added timezone-aware datetime parsing to prevent timezone loss on deserialization.
 """
 
 import logging
 from typing import List, Optional, Any, Dict
 from datetime import datetime, timezone
 from uuid import UUID
+
+
+def _parse_datetime_tz_aware(dt_string: str) -> datetime:
+    """
+    Parse ISO format datetime string ensuring timezone-aware result.
+
+    FIX P1-006: datetime.fromisoformat() can return naive datetimes if the
+    source string lacks timezone info. This helper ensures UTC timezone
+    is applied to naive results.
+
+    Args:
+        dt_string: ISO format datetime string
+
+    Returns:
+        Timezone-aware datetime (UTC if source was naive)
+    """
+    dt = datetime.fromisoformat(dt_string)
+    if dt.tzinfo is None:
+        # Source was naive - assume UTC
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
 
 from .context.manager import ContextManager
 from .context.builder import ContextBuilder
@@ -39,13 +62,23 @@ class FollowUpSystemService:
     Coordinates specialized components for context, generation, scheduling, and execution.
     """
 
-    def __init__(self, db: Any):
-        """Initialize follow-up system service with specialized components."""
+    # Class-level flag to prevent multiple rehydrations
+    _rehydration_attempted: bool = False
+
+    def __init__(self, db: Any, auto_rehydrate: bool = True):
+        """
+        Initialize follow-up system service with specialized components.
+
+        Args:
+            db: Database session
+            auto_rehydrate: If True, attempt to rehydrate state from Redis on init
+        """
         self.db = db
         self.message_repo = MessageRepository(db)
         self.flow_state_repo = FlowStateRepository(db)
         self.patient_repo = PatientRepository(db)
         self._ai_service = None
+        self._initialized = False
 
         # Domain services - initialize with required dependencies
         logger.info("Initializing MessageSender with db, redis_client, evolution_client...")
@@ -80,6 +113,42 @@ class FollowUpSystemService:
         self.action_executor = MessageExecutor(self.redis_store, self.pending_actions)
 
         logger.info("Follow-up System Service initialized with modular components")
+
+        # FIX: Auto-rehydrate from Redis on startup to prevent data loss
+        # Only attempt once per process to avoid redundant Redis calls
+        if auto_rehydrate and not FollowUpSystemService._rehydration_attempted:
+            self._schedule_startup_rehydration()
+
+    def _schedule_startup_rehydration(self):
+        """
+        Schedule async rehydration on startup.
+
+        Uses a background task to avoid blocking the constructor
+        while still ensuring state is restored from Redis.
+        """
+        import asyncio
+
+        async def _do_rehydrate():
+            try:
+                FollowUpSystemService._rehydration_attempted = True
+                result = await self.rehydrate_from_redis()
+                self._initialized = True
+                logger.info(
+                    f"Startup rehydration complete: {result.get('pending_actions', 0)} actions, "
+                    f"{result.get('active_alerts', 0)} alerts"
+                )
+            except Exception as e:
+                logger.warning(f"Startup rehydration failed (will use in-memory): {e}")
+                self._initialized = True  # Mark as initialized even on failure
+
+        # Schedule the rehydration to run in the background
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(_do_rehydrate())
+        except RuntimeError:
+            # No running loop - we're not in async context
+            # Rehydration will happen via Celery task or first async call
+            logger.debug("No running event loop, skipping startup rehydration")
 
     async def rehydrate_from_redis(self) -> Dict[str, int]:
         """
@@ -137,6 +206,79 @@ class FollowUpSystemService:
             logger.error(f"Failed to rehydrate from Redis: {e}", exc_info=True)
             return rehydrated
 
+    async def sync_memory_to_redis(self) -> Dict[str, int]:
+        """
+        Sync in-memory state to Redis.
+
+        This method persists in-memory pending actions and active alerts
+        back to Redis when Redis becomes available after being down.
+
+        Returns:
+            Dict with counts of synced items
+        """
+        synced = {"pending_actions": 0, "active_alerts": 0, "errors": 0}
+
+        try:
+            # Sync pending actions to Redis
+            for action_id, action in self.pending_actions.items():
+                try:
+                    action_dict = self._follow_up_action_to_dict(action)
+                    await self.redis_store.store_pending_action(action_dict)
+                    synced["pending_actions"] += 1
+                except Exception as e:
+                    logger.warning(f"Failed to sync action {action_id} to Redis: {e}")
+                    synced["errors"] += 1
+
+            # Sync active alerts to Redis
+            for alert_id, alert in self.active_alerts.items():
+                try:
+                    alert_dict = self._escalation_alert_to_dict(alert)
+                    await self.redis_store.store_alert(alert_dict)
+                    synced["active_alerts"] += 1
+                except Exception as e:
+                    logger.warning(f"Failed to sync alert {alert_id} to Redis: {e}")
+                    synced["errors"] += 1
+
+            logger.info(
+                f"Memory sync complete: {synced['pending_actions']} actions, "
+                f"{synced['active_alerts']} alerts synced to Redis, {synced['errors']} errors"
+            )
+            return synced
+
+        except Exception as e:
+            logger.error(f"Failed to sync memory to Redis: {e}", exc_info=True)
+            return synced
+
+    def _follow_up_action_to_dict(self, action: FollowUpAction) -> Dict[str, Any]:
+        """Convert FollowUpAction object to dictionary for Redis storage."""
+        return {
+            "action_id": str(action.action_id),
+            "patient_id": str(action.patient_id),
+            "follow_up_type": action.follow_up_type.value,
+            "priority": action.priority,
+            "scheduled_for": action.scheduled_for.isoformat(),
+            "parameters": action.parameters,
+            "created_by": action.created_by,
+            "status": action.status,
+            "created_at": action.created_at.isoformat(),
+            "executed_at": action.executed_at.isoformat() if action.executed_at else None,
+            "execution_result": action.execution_result,
+        }
+
+    def _escalation_alert_to_dict(self, alert: EscalationAlert) -> Dict[str, Any]:
+        """Convert EscalationAlert object to dictionary for Redis storage."""
+        return {
+            "alert_id": str(alert.alert_id),
+            "patient_id": str(alert.patient_id),
+            "escalation_level": alert.escalation_level.value,
+            "concern_type": alert.concern_type,
+            "description": alert.description,
+            "created_at": alert.created_at.isoformat(),
+            "acknowledged_at": alert.acknowledged_at.isoformat() if alert.acknowledged_at else None,
+            "resolved_at": alert.resolved_at.isoformat() if alert.resolved_at else None,
+            "metadata": alert.metadata,
+        }
+
     def _dict_to_follow_up_action(
         self, data: Dict[str, Any]
     ) -> Optional[FollowUpAction]:
@@ -149,14 +291,16 @@ class FollowUpSystemService:
                 patient_id=UUID(data["patient_id"]),
                 follow_up_type=FollowUpType(data["follow_up_type"]),
                 priority=data["priority"],
-                scheduled_for=datetime.fromisoformat(data["scheduled_for"]),
+                # FIX P1-006: Use timezone-aware parsing
+                scheduled_for=_parse_datetime_tz_aware(data["scheduled_for"]),
                 parameters=data.get("parameters", {}),
                 created_by=data.get("created_by", "system"),
             )
             action.status = data.get("status", "pending")
-            action.created_at = datetime.fromisoformat(data["created_at"])
+            # FIX P1-006: Use timezone-aware parsing
+            action.created_at = _parse_datetime_tz_aware(data["created_at"])
             if data.get("executed_at"):
-                action.executed_at = datetime.fromisoformat(data["executed_at"])
+                action.executed_at = _parse_datetime_tz_aware(data["executed_at"])
             action.execution_result = data.get("execution_result")
             return action
         except Exception as e:
@@ -187,11 +331,12 @@ class FollowUpSystemService:
                     "requires_immediate_response", False
                 ),
             )
-            alert.created_at = datetime.fromisoformat(data["created_at"])
+            # FIX P1-006: Use timezone-aware parsing
+            alert.created_at = _parse_datetime_tz_aware(data["created_at"])
             if data.get("acknowledged_at"):
-                alert.acknowledged_at = datetime.fromisoformat(data["acknowledged_at"])
+                alert.acknowledged_at = _parse_datetime_tz_aware(data["acknowledged_at"])
             if data.get("resolved_at"):
-                alert.resolved_at = datetime.fromisoformat(data["resolved_at"])
+                alert.resolved_at = _parse_datetime_tz_aware(data["resolved_at"])
             alert.assigned_to = data.get("assigned_to")
             return alert
         except Exception as e:
@@ -336,14 +481,15 @@ class FollowUpSystemService:
                         "requires_immediate_response"
                     ],
                 )
-                alert.created_at = datetime.fromisoformat(alert_dict["created_at"])
+                # FIX P1-006: Use timezone-aware parsing
+                alert.created_at = _parse_datetime_tz_aware(alert_dict["created_at"])
                 alert.acknowledged_at = (
-                    datetime.fromisoformat(alert_dict["acknowledged_at"])
+                    _parse_datetime_tz_aware(alert_dict["acknowledged_at"])
                     if alert_dict.get("acknowledged_at")
                     else None
                 )
                 alert.resolved_at = (
-                    datetime.fromisoformat(alert_dict["resolved_at"])
+                    _parse_datetime_tz_aware(alert_dict["resolved_at"])
                     if alert_dict.get("resolved_at")
                     else None
                 )

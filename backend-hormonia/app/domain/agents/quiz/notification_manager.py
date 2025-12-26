@@ -4,18 +4,28 @@ Notification Manager - Handles all quiz-related messaging and notifications.
 Manages message composition, personalization, and delivery for quiz interactions.
 """
 
+from __future__ import annotations
+
+# Standard library imports
 import logging
-from typing import Optional, TYPE_CHECKING
 from datetime import datetime, timezone
 from enum import Enum
+from typing import TYPE_CHECKING, Optional
 
+# Third-party imports
 from sqlalchemy.orm import Session
+
+# Local application imports
+from app.domain.messaging.delivery import MessageSender
+from app.models.message import (
+    Message,
+    MessageDirection,
+    MessageStatus,
+    MessageType,
+)
 
 if TYPE_CHECKING:
     from app.domain.agents.quiz.session_coordinator import QuizContext
-
-from app.models.message import Message, MessageType, MessageDirection, MessageStatus
-from app.domain.messaging.delivery import MessageSender
 
 
 class QuizAdaptationType(Enum):
@@ -33,12 +43,14 @@ class NotificationManager:
     """
     Manages all quiz notifications and messages.
 
-    Responsibilities:
-    - Send quiz introductions
-    - Send completion messages
-    - Send clarification requests
-    - Send adaptation messages
-    - Personalize message tone based on context
+    Handles personalized message composition and delivery for
+    quiz interactions, including introductions, completions,
+    clarifications, and adaptations.
+
+    Attributes:
+        db_session: Database session.
+        message_sender: Message delivery service.
+        agent_id: ID of owning agent.
     """
 
     def __init__(
@@ -48,11 +60,19 @@ class NotificationManager:
         agent_id: str,
         logger: Optional[logging.Logger] = None,
     ):
-        """Initialize notification manager."""
+        """
+        Initialize notification manager.
+
+        Args:
+            db_session: Database session.
+            message_sender: Message delivery service.
+            agent_id: Agent identifier.
+            logger: Logger instance.
+        """
         self.db_session = db_session
         self.message_sender = message_sender
         self.agent_id = agent_id
-        self.logger = logger or logging.getLogger(__name__)
+        self._logger = logger or logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     async def send_quiz_introduction(
         self, context: "QuizContext", max_questions: int, stress_threshold: float
@@ -108,7 +128,7 @@ class NotificationManager:
             await self.message_sender.send_message(message)
 
         except Exception as e:
-            self.logger.error(f"Failed to send quiz introduction: {e}")
+            self._logger.error(f"Failed to send quiz introduction: {e}")
 
     async def send_completion_message(self, context: "QuizContext"):
         """Send personalized completion message."""
@@ -150,7 +170,7 @@ class NotificationManager:
             await self.message_sender.send_message(message)
 
         except Exception as e:
-            self.logger.error(f"Failed to send completion message: {e}")
+            self._logger.error(f"Failed to send completion message: {e}")
 
     async def send_clarification_message(
         self, context: "QuizContext", error_message: str
@@ -179,7 +199,7 @@ class NotificationManager:
             await self.message_sender.send_message(message)
 
         except Exception as e:
-            self.logger.error(f"Failed to send clarification message: {e}")
+            self._logger.error(f"Failed to send clarification message: {e}")
 
     async def send_adaptation_message(
         self, context: "QuizContext", adaptation: QuizAdaptationType

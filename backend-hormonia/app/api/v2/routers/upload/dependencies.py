@@ -45,7 +45,8 @@ def generate_cache_key(prefix: str, **kwargs) -> str:
     """Generate cache key from parameters."""
     sorted_params = sorted(kwargs.items())
     param_str = json.dumps(sorted_params, default=str, sort_keys=True)
-    param_hash = hashlib.md5(param_str.encode()).hexdigest()[:12]
+    # Use SHA-256 instead of MD5 for better collision resistance
+    param_hash = hashlib.sha256(param_str.encode()).hexdigest()[:16]
     return f"upload:{prefix}:{param_hash}"
 
 

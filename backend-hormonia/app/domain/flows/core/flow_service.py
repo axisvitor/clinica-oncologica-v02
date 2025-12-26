@@ -1,36 +1,44 @@
 """
 Flow Service Orchestrator.
+
 Main service that coordinates all flow operations using specialized modules.
+This is the primary entry point for flow processing operations.
 """
 
+from __future__ import annotations
+
+# Standard library imports
 import logging
-from typing import Optional, Any, Tuple
 from datetime import datetime, timezone
+from typing import Any, Optional, Tuple
 from uuid import UUID
+
+# Third-party imports
 from sqlalchemy.orm import Session
 
-from app.services.enhanced_flow_engine import EnhancedFlowEngine, FlowType
-from app.domain.messaging.scheduling import MessageScheduler
+# Local application imports
 from app.domain.messaging.delivery import MessageSender
-from app.services.template_loader import EnhancedTemplateLoader
-from app.services.analytics import FlowAnalyticsService
-from app.repositories.patient import PatientRepository
+from app.domain.messaging.scheduling import MessageScheduler
 from app.repositories.flow import FlowStateRepository
+from app.repositories.patient import PatientRepository
+from app.services.analytics import FlowAnalyticsService
+from app.services.enhanced_flow_engine import EnhancedFlowEngine, FlowType
+from app.services.template_loader import EnhancedTemplateLoader
 
-# Import our new focused modules
-from .state_machine import FlowIntegrityService
-from .message_handler import MessageHandler
-from .scheduling import FlowScheduler
-from .message_template_loader import MessageTemplateLoader
 from .analytics_tracker import AnalyticsTracker
-
-logger = logging.getLogger(__name__)
+from .message_handler import MessageHandler
+from .message_template_loader import MessageTemplateLoader
+from .scheduling import FlowScheduler
+from .state_machine import FlowIntegrityService
 
 
 class FlowService:
     """
-    Enhanced flow engine integration service that connects AI-powered flow processing
-    with message scheduling and delivery systems.
+    Domain service for flow operations.
+
+    Implements core business logic for patient treatment flow management,
+    coordinating AI-powered flow processing with message scheduling and
+    delivery systems.
 
     This is the main orchestrator that delegates to specialized modules:
     - StateMachine: Flow state validation and transitions
@@ -38,6 +46,17 @@ class FlowService:
     - FlowScheduler: Timing and scheduling logic
     - TemplateManager: Template loading and fallbacks
     - AnalyticsTracker: Metrics and response processing
+
+    Attributes:
+        db: Database session.
+        enhanced_flow_engine: AI-powered flow engine.
+        state_machine: Flow state validation service.
+        message_handler: Message creation and delivery handler.
+        scheduler: Flow scheduling coordinator.
+        template_manager: Message template loader.
+        analytics_tracker: Analytics and metrics tracker.
+        patient_repo: Patient data repository.
+        flow_state_repo: Flow state repository.
     """
 
     def __init__(
@@ -54,15 +73,16 @@ class FlowService:
         Initialize flow service with all dependencies.
 
         Args:
-            db: Database session
-            enhanced_flow_engine: Enhanced flow engine instance
-            message_scheduler: Message scheduler instance
-            message_sender: Message sender instance (deprecated)
-            template_loader: Template loader instance
-            analytics_service: Flow analytics service instance
-            use_unified_service: Whether to use UnifiedWhatsAppService (recommended)
+            db: Database session.
+            enhanced_flow_engine: Enhanced flow engine instance.
+            message_scheduler: Message scheduler instance.
+            message_sender: Message sender instance (deprecated).
+            template_loader: Template loader instance.
+            analytics_service: Flow analytics service instance.
+            use_unified_service: Whether to use UnifiedWhatsAppService.
         """
         self.db = db
+        self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
         # Initialize core dependencies
         self.enhanced_flow_engine = enhanced_flow_engine or EnhancedFlowEngine(db)
@@ -88,7 +108,7 @@ class FlowService:
         self.patient_repo = PatientRepository(db)
         self.flow_state_repo = FlowStateRepository(db)
 
-        logger.info("Flow Service initialized with specialized modules")
+        self._logger.info("Flow Service initialized with specialized modules")
 
     async def process_daily_flows(self, limit: int = 1000) -> dict[str, Any]:
         """

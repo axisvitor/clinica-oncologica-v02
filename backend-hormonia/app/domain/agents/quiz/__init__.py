@@ -1,5 +1,10 @@
 """
 Quiz Agent Package - Modular quiz conduction system.
+"""
+
+from __future__ import annotations
+
+"""
 
 This package provides a refactored, modular quiz conduction system that replaces
 the monolithic quiz_conductor.py with 6 focused modules:

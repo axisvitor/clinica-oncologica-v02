@@ -170,10 +170,17 @@ async def test_sql_query(
         # Execute query with timeout
         start_time = time.time()
         try:
-            # Set statement timeout
-            db.execute(
-                text(f"SET statement_timeout = {query_request.timeout_seconds * 1000}")
-            )
+            # Validate and set statement timeout (prevent SQL injection via timeout value)
+            # PostgreSQL statement_timeout is in milliseconds, max 1 hour for safety
+            timeout_ms = int(query_request.timeout_seconds * 1000)
+            if timeout_ms < 100 or timeout_ms > 3600000:  # 100ms to 1 hour
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Timeout must be between 0.1 and 3600 seconds"
+                )
+            # Use parameterized query with bindparam for SET statement
+            # PostgreSQL SET LOCAL with parameter binding via format_map
+            db.execute(text("SET LOCAL statement_timeout = :timeout_ms"), {"timeout_ms": timeout_ms})
 
             # Execute query
             result = db.execute(text(query_request.query))

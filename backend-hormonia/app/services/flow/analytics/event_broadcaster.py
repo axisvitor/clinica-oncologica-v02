@@ -11,20 +11,19 @@ Migration Note:
     - Various event listeners scattered across flow services
 """
 
-from typing import Dict, List, Callable, Optional
-from uuid import UUID, uuid4
-from collections import defaultdict
-import logging
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
+from __future__ import annotations
 
-from ..types import (
-    FlowEvent,
-    FlowEventType,
-    FlowContext,
-    FlowStepData,
-)
+# Standard library imports
+import asyncio
+import logging
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
+from typing import Callable, Dict, List, Optional
+from uuid import UUID, uuid4
+
+# Local application imports
 from ..config import get_flow_config
+from ..types import FlowContext, FlowEvent, FlowEventType, FlowStepData
 
 
 logger = logging.getLogger(__name__)
@@ -36,9 +35,18 @@ class FlowEventBroadcaster:
 
     Manages event subscriptions and broadcasts events to all subscribers.
     Supports both synchronous and asynchronous event handlers.
+
+    Attributes:
+        config: Analytics configuration.
+        _subscribers: Event type-specific subscribers.
+        _wildcard_subscribers: Subscribers to all events.
+        _event_queue: Queue of recent events.
+        _max_queue_size: Maximum event queue size.
+        _executor: Thread pool for async handlers.
+        _is_processing: Processing status flag.
     """
 
-    def __init__(self, max_workers: int = 5):
+    def __init__(self, max_workers: int = 5) -> None:
         """
         Initialize event broadcaster.
 
@@ -373,7 +381,10 @@ class FlowEventBroadcaster:
         Args:
             event: Event to add.
         """
-        if len(self._event_queue) >= self._max_queue_size:
+        from ..constants import FlowEngine
+
+        # Use constant for max queue size comparison
+        if len(self._event_queue) >= FlowEngine.MAX_EVENT_QUEUE_SIZE:
             # Remove oldest event
             self._event_queue.pop(0)
             logger.warning("Event queue full, removed oldest event")

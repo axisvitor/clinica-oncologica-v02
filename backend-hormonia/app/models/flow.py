@@ -20,15 +20,10 @@ from sqlalchemy.sql import func
 import enum
 
 from app.models.base import BaseModel
+from app.models.enums import FlowState  # Consolidated enum
 
-
-class FlowState(enum.Enum):
-    """Standard flow states."""
-    ONBOARDING = "onboarding"
-    ACTIVE = "active"
-    PAUSED = "paused"
-    COMPLETED = "completed"
-    CANCELLED = "cancelled"
+# Re-export for backward compatibility
+# FlowState is now defined in app.models.enums
 
 
 class FlowKind(BaseModel):

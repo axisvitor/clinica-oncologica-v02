@@ -79,7 +79,8 @@ def get_cache_key(endpoint: str, **params) -> str:
     sorted_params = sorted(params.items())
     key_components = [endpoint] + [f"{k}={v}" for k, v in sorted_params]
     cache_string = ":".join(map(str, key_components))
-    return hashlib.md5(cache_string.encode()).hexdigest()
+    # Use SHA-256 instead of MD5 for better collision resistance
+    return hashlib.sha256(cache_string.encode()).hexdigest()[:32]
 
 
 async def get_cached_result(cache_key: str):

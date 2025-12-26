@@ -12,57 +12,63 @@ Migrated from: app/api/v2/routers/patients.py
 Lines: 50-372
 """
 
-from typing import Optional, List
-from datetime import date, datetime
-from uuid import UUID
+# Standard library imports
+# NOTE: Removed 'from __future__ import annotations' to fix Pydantic/FastAPI
+# OpenAPI schema generation issues with Query() and Depends() parameters
 import logging
+from datetime import date, datetime
+from typing import List, Optional
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Header
+# Third-party imports
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
-from app.database import get_db
-from app.repositories.patient import PatientRepository
-from app.services.patient import PatientIntegrityService
-from app.services.patient.crud_service import PatientCRUDService
-from app.models.user import UserRole
-from app.schemas.v2.patient import (
-    PatientV2Response,
-    PatientV2List,
-    PatientV2Create,
-    PatientV2Update,
-)
-from app.schemas.patient import PatientCreate, PatientUpdate as DomainPatientUpdate
+# Local application imports
 from app.api.v2.dependencies import (
-    get_pagination_params,
-    get_field_selection,
-    get_eager_load_params,
     apply_field_selection,
+    get_eager_load_params,
+    get_field_selection,
+    get_pagination_params,
 )
-from app.dependencies.auth_dependencies import get_current_user_from_session
-from app.utils.rate_limiter import limiter
 from app.core.authorization import (
-    require_permission,
-    require_doctor_or_admin,
     require_admin,
+    require_doctor_or_admin,
+    require_permission,
 )
 from app.core.permissions import Permission
+from app.database import get_db
+from app.dependencies.auth_dependencies import get_current_user_from_session
+from app.models.user import UserRole
+from app.repositories.patient import PatientRepository
+from app.schemas.patient import PatientCreate, PatientUpdate as DomainPatientUpdate
+from app.schemas.v2.patient import (
+    PatientV2Create,
+    PatientV2List,
+    PatientV2Response,
+    PatientV2Update,
+)
+from app.services.patient import PatientIntegrityService
+from app.services.patient.crud_service import PatientCRUDService
+from app.utils.rate_limiter import limiter
 
 # Import shared utilities from base module
 from .base import (
-    extract_user_context,
-    ensure_uuid,
     ensure_patient_access,
+    ensure_uuid,
+    extract_user_context,
     serialize_patient,
     serialize_patient_with_includes,
 )
 
-router = APIRouter()
 logger = logging.getLogger(__name__)
+router = APIRouter()
 
 
 @router.get(
     "/",
     response_model=PatientV2List,
+    status_code=status.HTTP_200_OK,
     summary="List patients with pagination",
     description="Get paginated list of patients with optional field selection and eager loading",
 )
@@ -108,67 +114,101 @@ async def list_patients(
     """
     List patients with advanced filtering and pagination.
 
-    Features:
-    - Cursor-based pagination for efficient large dataset handling
-    - Multiple filter options (status, treatment, dates, etc.)
-    - Field selection for optimized responses
-    - Eager loading for related data
-    - RBAC: Non-admin users only see their own patients
+    Args:
+        request: FastAPI request object.
+        db: Database session.
+        current_user: Authenticated user from session.
+        pagination: Pagination parameters (cursor, limit).
+        fields: Optional list of fields to include in response.
+        include: Optional list of relations to eager load.
+        search: Search query for name or email.
+        status_filter: Filter by patient flow state.
+        treatment_type: Filter by treatment type.
+        start_date_from: Filter by treatment start date (from).
+        start_date_to: Filter by treatment start date (to).
+        treatment_phase: Filter by treatment phase.
+        has_active_flow: Filter by active flow state.
+        created_after: Filter by creation date (after).
+        created_before: Filter by creation date (before).
+        sort_by: Field to sort by.
+        sort_order: Sort order (asc/desc).
+
+    Returns:
+        PatientV2List with paginated patient data.
+
+    Raises:
+        HTTPException: 403 if unable to determine user context (non-admin).
     """
-    repo = PatientRepository(db)
-    role_enum, user_id = extract_user_context(current_user)
-    current_user_uuid = ensure_uuid(user_id)
+    try:
+        repo = PatientRepository(db)
+        role_enum, user_id = await extract_user_context(current_user)
+        current_user_uuid = await ensure_uuid(user_id)
 
-    # Build filters
-    filters = {
-        "search": search,
-        "status": status_filter,
-        "treatment_type": treatment_type,
-        "treatment_phase": treatment_phase,
-        "start_date_from": start_date_from,
-        "start_date_to": start_date_to,
-        "has_active_flow": has_active_flow,
-        "created_after": created_after,
-        "created_before": created_before,
-    }
+        # Build filters
+        filters = {
+            "search": search,
+            "status": status_filter,
+            "treatment_type": treatment_type,
+            "treatment_phase": treatment_phase,
+            "start_date_from": start_date_from,
+            "start_date_to": start_date_to,
+            "has_active_flow": has_active_flow,
+            "created_after": created_after,
+            "created_before": created_before,
+        }
 
-    # RBAC: Non-admin users can only see their own patients
-    if role_enum != UserRole.ADMIN:
-        if not current_user_uuid:
-            raise HTTPException(
-                status_code=403, detail="Unable to determine user context"
-            )
-        filters["doctor_id"] = current_user_uuid
+        # RBAC: Non-admin users can only see their own patients
+        if role_enum != UserRole.ADMIN:
+            if not current_user_uuid:
+                logger.warning("Unable to determine user context for non-admin user")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Unable to determine user context",
+                )
+            filters["doctor_id"] = current_user_uuid
 
-    # Execute query via repository
-    patients, has_more, next_cursor, total = repo.list_v2(
-        filters=filters,
-        cursor_data=pagination["cursor_data"],
-        limit=pagination["limit"],
-        sort_by=sort_by,
-        sort_order=sort_order,
-        eager_load=include,
-    )
+        # Execute query via repository
+        patients, has_more, next_cursor, total = repo.list_v2(
+            filters=filters,
+            cursor_data=pagination["cursor_data"],
+            limit=pagination["limit"],
+            sort_by=sort_by,
+            sort_order=sort_order,
+            eager_load=include,
+        )
 
-    # Serialize response
-    patient_responses = []
-    for patient in patients:
-        patient_dict = serialize_patient_with_includes(patient, include)
+        # Serialize response
+        patient_responses = []
+        for patient in patients:
+            patient_dict = await serialize_patient_with_includes(patient, include)
 
-        if fields:
-            patient_dict = apply_field_selection(patient_dict, fields)
-        patient_responses.append(patient_dict)
+            if fields:
+                patient_dict = apply_field_selection(patient_dict, fields)
+            patient_responses.append(patient_dict)
 
-    return {
-        "data": patient_responses,
-        "next_cursor": next_cursor,
-        "has_more": has_more,
-        "total": total,
-    }
+        return {
+            "data": patient_responses,
+            "next_cursor": next_cursor,
+            "has_more": has_more,
+            "total": total,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error listing patients: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
 
 
 @router.get(
-    "/{patient_id}", response_model=PatientV2Response, summary="Get patient by ID"
+    "/{patient_id}",
+    response_model=PatientV2Response,
+    status_code=status.HTTP_200_OK,
+    summary="Get patient by ID",
+    description="Retrieve a single patient by their unique ID with optional field selection and eager loading",
 )
 @require_permission(Permission.PATIENT_READ)
 @limiter.limit("120/minute")
@@ -183,33 +223,60 @@ async def get_patient(
     """
     Get a single patient by ID.
 
-    Features:
-    - Field selection for optimized responses
-    - Eager loading for related data
-    - RBAC: Non-admin users can only access their own patients
+    Args:
+        request: FastAPI request object.
+        patient_id: Patient UUID as string.
+        db: Database session.
+        current_user: Authenticated user from session.
+        fields: Optional list of fields to include in response.
+        include: Optional list of relations to eager load.
+
+    Returns:
+        PatientV2Response with patient data.
+
+    Raises:
+        HTTPException: 400 if patient ID format is invalid.
+        HTTPException: 403 if user lacks permissions to access patient.
+        HTTPException: 404 if patient not found.
     """
     try:
         patient_uuid = UUID(patient_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid patient ID format")
-
-    repo = PatientRepository(db)
-    patient = repo.get_by_id(patient_uuid, eager_load=True)
-
-    if not patient:
+    except ValueError as e:
+        logger.warning(f"Invalid patient ID format: {patient_id}", extra={"error": str(e)})
         raise HTTPException(
-            status_code=404, detail=f"Patient with id {patient_id} not found"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid patient ID format",
         )
 
-    ensure_patient_access(current_user, patient.doctor_id)
+    try:
+        repo = PatientRepository(db)
+        patient = repo.get_by_id(patient_uuid, eager_load=True)
 
-    # Serialize
-    patient_dict = serialize_patient_with_includes(patient, include)
+        if not patient:
+            logger.warning(f"Patient not found: {patient_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Patient with id {patient_id} not found",
+            )
 
-    if fields:
-        patient_dict = apply_field_selection(patient_dict, fields)
+        await ensure_patient_access(current_user, patient.doctor_id)
 
-    return patient_dict
+        # Serialize
+        patient_dict = await serialize_patient_with_includes(patient, include)
+
+        if fields:
+            patient_dict = apply_field_selection(patient_dict, fields)
+
+        return patient_dict
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error retrieving patient {patient_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
 
 
 @router.post(
@@ -217,6 +284,7 @@ async def get_patient(
     response_model=PatientV2Response,
     status_code=status.HTTP_201_CREATED,
     summary="Create new patient",
+    description="Create a new patient with saga orchestration, WhatsApp registration, and idempotency support",
 )
 @require_doctor_or_admin()
 @limiter.limit("20/hour")
@@ -230,17 +298,19 @@ async def create_patient(
     """
     Create a new patient with full saga orchestration.
 
-    Features:
-    - Idempotency key support (database + Redis cache)
-    - Saga orchestration for reliable patient creation
-    - Automatic WhatsApp registration
-    - Flow state initialization
-    - RBAC: Doctors can only create patients for themselves
+    Args:
+        request: FastAPI request object.
+        patient_data: Patient creation data.
+        db: Database session.
+        current_user: Authenticated user from session.
+        x_idempotency_key: Optional idempotency key for duplicate request prevention.
 
-    Idempotency:
-    - Database-level check (primary, most reliable)
-    - Redis cache fallback (fast secondary check)
-    - 24-hour TTL for cache entries
+    Returns:
+        PatientV2Response with created patient data.
+
+    Raises:
+        HTTPException: 400 if doctor ID format is invalid or creation fails.
+        HTTPException: 403 if doctor tries to create patient for another doctor.
     """
     # QW-004: Database-level idempotency key support for duplicate request prevention
     if x_idempotency_key:
@@ -250,7 +320,7 @@ async def create_patient(
             logger.info(
                 f"Idempotency key {x_idempotency_key} already processed (DB), returning existing patient"
             )
-            return serialize_patient(existing)
+            return await serialize_patient(existing)
 
         # QW-006: Redis cache fallback for fast idempotency checks (secondary layer)
         from app.core.redis_client import get_redis_client
@@ -273,13 +343,17 @@ async def create_patient(
                 )
 
     try:
-        doctor_uuid = UUID(patient_data.doctor_id)
-    except ValueError:
+        # Handle both UUID and string types
+        if isinstance(patient_data.doctor_id, UUID):
+            doctor_uuid = patient_data.doctor_id
+        else:
+            doctor_uuid = UUID(str(patient_data.doctor_id))
+    except (ValueError, AttributeError):
         raise HTTPException(status_code=400, detail="Invalid doctor ID format")
 
     # Authorization: Doctors can only create patients for themselves
-    role_enum, user_id = extract_user_context(current_user)
-    current_user_uuid = ensure_uuid(user_id)
+    role_enum, user_id = await extract_user_context(current_user)
+    current_user_uuid = await ensure_uuid(user_id)
     if role_enum != UserRole.ADMIN:
         if not current_user_uuid or current_user_uuid != doctor_uuid:
             raise HTTPException(
@@ -319,7 +393,7 @@ async def create_patient(
             current_user=current_user,
             idempotency_key=x_idempotency_key,  # QW-004: Pass idempotency key to coordinator
         )
-        result = serialize_patient(created)
+        result = await serialize_patient(created)
 
         # QW-006: Store result with idempotency key in Redis (TTL: 24 hours) as secondary cache
         if x_idempotency_key:
@@ -342,7 +416,8 @@ async def create_patient(
     except Exception as e:
         if hasattr(e, "status_code"):
             raise e
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Error creating patient: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to create patient")
 
 
 @router.patch(
@@ -367,8 +442,12 @@ async def update_patient(
     - Uses CRUD service layer for business logic
     """
     try:
-        patient_uuid = UUID(patient_id)
-    except ValueError:
+        # Handle both UUID and string types
+        if isinstance(patient_id, UUID):
+            patient_uuid = patient_id
+        else:
+            patient_uuid = UUID(str(patient_id))
+    except (ValueError, AttributeError):
         raise HTTPException(status_code=400, detail="Invalid patient ID")
 
     # Initialize services
@@ -381,7 +460,7 @@ async def update_patient(
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
 
-    ensure_patient_access(current_user, patient.doctor_id)
+    await ensure_patient_access(current_user, patient.doctor_id)
 
     # Validate update data
     update_dict = patient_data.dict(exclude_unset=True)
@@ -400,11 +479,12 @@ async def update_patient(
                     if hasattr(patient_data, k):
                         setattr(patient_data, k, v)
         except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            logger.error(f"Error validating patient data: {e}", exc_info=True)
+            raise HTTPException(status_code=400, detail="Invalid patient data")
 
     # Handle doctor reassignment check
     if patient_data.doctor_id:
-        role_enum, user_id = extract_user_context(current_user)
+        role_enum, user_id = await extract_user_context(current_user)
         if role_enum != UserRole.ADMIN:
             if str(patient_data.doctor_id) != str(patient.doctor_id):
                 raise HTTPException(
@@ -418,12 +498,14 @@ async def update_patient(
     if not updated_patient:
         raise HTTPException(status_code=500, detail="Failed to update patient")
 
-    return serialize_patient(updated_patient)
+    return await serialize_patient(updated_patient)
 
 
 @router.delete("/{patient_id}", summary="Soft delete patient")
 @require_admin()
+@limiter.limit("10/hour")  # Strict rate limit for deletions
 async def delete_patient(
+    request: Request,  # Required for rate limiter
     patient_id: str,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user_from_session),
@@ -435,8 +517,12 @@ async def delete_patient(
     This preserves data for audit purposes.
     """
     try:
-        pid = UUID(patient_id)
-    except (ValueError, TypeError):
+        # Handle both UUID and string types
+        if isinstance(patient_id, UUID):
+            pid = patient_id
+        else:
+            pid = UUID(str(patient_id))
+    except (ValueError, TypeError, AttributeError):
         raise HTTPException(status_code=400, detail="Invalid patient_id UUID")
 
     # Initialize CRUD service
@@ -448,7 +534,7 @@ async def delete_patient(
     if not patient:
         raise HTTPException(status_code=404)
 
-    ensure_patient_access(current_user, patient.doctor_id)
+    await ensure_patient_access(current_user, patient.doctor_id)
 
     success = service.delete_patient(pid)
     if not success:

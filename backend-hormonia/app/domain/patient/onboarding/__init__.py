@@ -15,16 +15,18 @@ Phase 2 Simplification:
 - OnboardingCoordinator now uses SagaOrchestrator directly
 """
 
-from .validation_service import ValidationService
-from .notification_service import NotificationService
-from .completion_service import CompletionService
-from .creation_service import CreationService
-from .coordinator import OnboardingCoordinator
+from __future__ import annotations
+
+from app.domain.patient.onboarding.completion_service import CompletionService
+from app.domain.patient.onboarding.coordinator import OnboardingCoordinator
+from app.domain.patient.onboarding.creation_service import CreationService
+from app.domain.patient.onboarding.notification_service import NotificationService
+from app.domain.patient.onboarding.validation_service import ValidationService
 
 __all__ = [
-    "ValidationService",
-    "NotificationService",
     "CompletionService",
     "CreationService",
+    "NotificationService",
     "OnboardingCoordinator",
+    "ValidationService",
 ]

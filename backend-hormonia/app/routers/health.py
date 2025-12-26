@@ -303,11 +303,13 @@ async def startup_validation(
         ]
 
         for table in critical_tables:
+            # Use parameterized query to prevent SQL injection
             result = db.execute(
                 text(
-                    f"SELECT EXISTS (SELECT FROM information_schema.tables "
-                    f"WHERE table_schema = 'public' AND table_name = '{table}')"
-                )
+                    "SELECT EXISTS (SELECT FROM information_schema.tables "
+                    "WHERE table_schema = 'public' AND table_name = :table_name)"
+                ),
+                {"table_name": table}
             )
             exists = result.scalar()
 

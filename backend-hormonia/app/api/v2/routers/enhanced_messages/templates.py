@@ -115,7 +115,8 @@ async def create_template(
         return MessageTemplateV2Response(**template_dict)
 
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        logger.warning(f"Template validation error: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid template data")
     except Exception as e:
         logger.error(f"Error creating template: {str(e)}", exc_info=True)
         raise HTTPException(

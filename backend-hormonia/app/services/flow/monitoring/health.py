@@ -1,5 +1,14 @@
-"""Flow health monitoring exports."""
+"""
+Flow Health - Re-export health monitor.
 
-from ..analytics.monitor import FlowMonitor
+This module provides backwards compatibility by re-exporting
+the FlowMonitor from the analytics module.
+"""
 
-__all__ = ["FlowMonitor"]
+from __future__ import annotations
+
+# Local application imports
+from ..analytics.monitor import FlowMonitor, FlowHealthMetrics, HealthStatus
+
+
+__all__ = ["FlowMonitor", "FlowHealthMetrics", "HealthStatus"]

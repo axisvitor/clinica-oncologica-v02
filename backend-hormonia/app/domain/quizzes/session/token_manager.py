@@ -1,5 +1,7 @@
 """Token management for quiz sessions."""
 
+from __future__ import annotations
+
 import secrets
 import hashlib
 import jwt

@@ -406,5 +406,5 @@ class PerformanceService:
                 duration_ms=round(duration, 2),
             )
         except Exception as e:
-            logger.error(f"Vacuum failed: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
+            logger.error(f"Vacuum failed: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Database vacuum operation failed")

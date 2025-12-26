@@ -15,6 +15,8 @@ CRITICAL: These schemas handle quiz data used for patient monitoring and alerts.
 All validation rules must be thorough to prevent data integrity issues.
 """
 
+from __future__ import annotations
+
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID

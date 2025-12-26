@@ -4,6 +4,8 @@ Quiz Flow Helper Functions.
 Shared helper functions for quiz flow tasks.
 """
 
+from __future__ import annotations
+
 import logging
 from uuid import UUID
 
@@ -20,7 +22,7 @@ def _trigger_whatsapp_fallback(patient_id: UUID, quiz_session_id: UUID):
         patient_id: Patient UUID
         quiz_session_id: Quiz session UUID
     """
-    import asyncio
+    from asgiref.sync import async_to_sync
 
     try:
         with next(get_db()) as db:
@@ -64,13 +66,15 @@ def _trigger_whatsapp_fallback(patient_id: UUID, quiz_session_id: UUID):
                     session.quiz_template_id
                 )
 
-                fallback_result = asyncio.run(
-                    trigger_service._trigger_quiz_via_whatsapp(
-                        patient_id=patient_id,
-                        template=template,
-                        quiz_info=quiz_info,
-                        flow_state=flow_state,
-                    )
+                # FIX: Use async_to_sync instead of asyncio.run() to avoid
+                # event loop conflicts in Celery tasks
+                fallback_result = async_to_sync(
+                    trigger_service._trigger_quiz_via_whatsapp
+                )(
+                    patient_id=patient_id,
+                    template=template,
+                    quiz_info=quiz_info,
+                    flow_state=flow_state,
                 )
 
                 if fallback_result.get("success"):

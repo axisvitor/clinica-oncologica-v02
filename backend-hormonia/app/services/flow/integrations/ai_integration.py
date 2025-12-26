@@ -423,10 +423,15 @@ class AIFlowIntegration:
         self._ai_interactions[flow_instance_id].append(interaction)
 
         # Limit history size
-        if len(self._ai_interactions[flow_instance_id]) > 100:
+        from ..constants import FlowEngine
+
+        if (
+            len(self._ai_interactions[flow_instance_id])
+            > FlowEngine.MAX_AI_INTERACTION_HISTORY
+        ):
             self._ai_interactions[flow_instance_id] = self._ai_interactions[
                 flow_instance_id
-            ][-100:]
+            ][-FlowEngine.MAX_AI_INTERACTION_HISTORY :]
 
     def _record_ai_decision(
         self,
@@ -457,9 +462,11 @@ class AIFlowIntegration:
         self._ai_decisions[flow_instance_id].append(decision)
 
         # Limit history size
-        if len(self._ai_decisions[flow_instance_id]) > 50:
+        from ..constants import FlowEngine
+
+        if len(self._ai_decisions[flow_instance_id]) > FlowEngine.MAX_AI_DECISION_HISTORY:
             self._ai_decisions[flow_instance_id] = self._ai_decisions[flow_instance_id][
-                -50:
+                -FlowEngine.MAX_AI_DECISION_HISTORY :
             ]
 
     # ========================================================================

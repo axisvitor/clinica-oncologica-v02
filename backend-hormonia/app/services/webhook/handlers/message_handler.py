@@ -100,19 +100,46 @@ class MessageWebhookHandler:
 
             whatsapp_id = message_data["whatsapp_id"]
 
-            # Step 2: Idempotency check via Redis + DB fallback
+            # FIX: Validate whatsapp_id to prevent key collision with "None"
+            if not whatsapp_id:
+                logger.warning("WhatsApp ID is None or empty, skipping message")
+                if webhook_id and webhook_store:
+                    await webhook_store.mark_processed(
+                        webhook_id, False, "Missing WhatsApp ID"
+                    )
+                return None
+
+            # Step 2: Idempotency check via atomic SET NX + DB fallback
+            # FIX: Use atomic SET NX BEFORE any database operation to prevent race conditions
             redis_client = await get_async_redis()
             idempotency_key = f"webhook:message:{whatsapp_id}"
 
-            is_duplicate = await redis_client.exists(idempotency_key)
-            if is_duplicate:
-                logger.info(
-                    f"Duplicate webhook message detected (Redis): {whatsapp_id}"
-                )
-                existing_id = await redis_client.get(idempotency_key)
-                return existing_id.decode() if existing_id else None
+            # First, try to atomically acquire processing lock
+            acquired = await redis_client.set(
+                idempotency_key,
+                "processing",
+                nx=True,  # Only set if doesn't exist
+                ex=cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS
+            )
 
-            # DB fallback check
+            if not acquired:
+                # Key exists - check if it's completed or still processing
+                existing_value = await redis_client.get(idempotency_key)
+                if existing_value:
+                    existing_str = existing_value.decode() if isinstance(existing_value, bytes) else str(existing_value)
+                    if existing_str != "processing":
+                        # Already completed, return the message ID
+                        logger.info(
+                            f"Duplicate webhook message detected (Redis): {whatsapp_id}"
+                        )
+                        return existing_str
+                    else:
+                        # Another worker is processing, wait briefly and check DB
+                        logger.info(
+                            f"Message {whatsapp_id} being processed by another worker, checking DB"
+                        )
+
+            # DB fallback check (also catches race condition edge cases)
             existing_message = (
                 self.db.query(Message)
                 .filter(Message.whatsapp_id == whatsapp_id)
@@ -121,10 +148,11 @@ class MessageWebhookHandler:
 
             if existing_message:
                 logger.info(f"Duplicate webhook message detected (DB): {whatsapp_id}")
-                await redis_client.setex(
+                # Update Redis with actual message ID
+                await redis_client.set(
                     idempotency_key,
-                    cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS,
                     str(existing_message.id),
+                    ex=cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS
                 )
                 return str(existing_message.id)
 
@@ -155,11 +183,12 @@ class MessageWebhookHandler:
                 message_metadata=metadata,
             )
 
-            # Cache message_id in Redis
-            await redis_client.setex(
+            # FIX: Update Redis key with message ID (replacing "processing" value)
+            # This marks the message as fully processed with its actual ID
+            await redis_client.set(
                 idempotency_key,
-                cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS,
                 str(message.id),
+                ex=cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS
             )
 
             logger.info(

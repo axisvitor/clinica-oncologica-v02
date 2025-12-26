@@ -34,7 +34,7 @@ if (!IS_BUILD_PHASE) {
 
 export interface StoredQuizSession {
   token: string
-  sessionData: any
+  sessionData: Record<string, unknown>
   expires: number
 }
 
@@ -105,7 +105,7 @@ function decodeSession(raw: string | undefined): StoredQuizSession | null {
   }
 }
 
-export function createSessionCookie(token: string, sessionData: any) {
+export function createSessionCookie(token: string, sessionData: Record<string, unknown>) {
   const payload: StoredQuizSession = {
     token,
     sessionData,

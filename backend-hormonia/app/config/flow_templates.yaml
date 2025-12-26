@@ -33,6 +33,14 @@ default_treatment_template: "day_1_15"
 
 # Flow type mappings and configurations
 flow_types:
+  # Default daily check-in flow
+  daily_checkin:
+    name: "Daily Check-in"
+    description: "Standard daily patient check-in flow"
+    duration_days: 1
+    frequency: "daily"
+    priority: "normal"
+    tags: ["checkin", "daily", "standard"]
 
     timing:
       start_hour: 9

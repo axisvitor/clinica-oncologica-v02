@@ -20,7 +20,7 @@ class WebhookHandler:
         self,
         webhook_secret: Optional[str] = None,
         api_key: Optional[str] = None,
-        instance_name: str = "hormonia",
+        instance_name: str = "meuwhatsapp",
         environment: str = "development",
     ):
         """

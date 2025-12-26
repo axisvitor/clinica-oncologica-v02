@@ -1,5 +1,7 @@
 """Optimized Monthly Quiz service with fast 404 checks."""
 
+from __future__ import annotations
+
 import logging
 import time
 

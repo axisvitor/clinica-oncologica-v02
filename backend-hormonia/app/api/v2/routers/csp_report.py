@@ -8,12 +8,13 @@ from browsers to monitor security issues and potential attacks.
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Request, HTTPException, status
+from fastapi import APIRouter, Request, HTTPException, status, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ConfigDict
 
 from app.middleware.csp_nonce import csp_report_handler
 from app.utils.logging import get_logger
+from app.dependencies.auth_dependencies import get_current_active_admin
 
 logger = get_logger(__name__)
 
@@ -44,7 +45,6 @@ class CSPReportWrapper(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
-@router.post("")
 @router.post("/")
 async def receive_csp_report(request: Request) -> JSONResponse:
     """
@@ -91,14 +91,18 @@ async def receive_csp_report(request: Request) -> JSONResponse:
 
 @router.get("/violations")
 async def get_csp_violations(
-    limit: int = 100, severity: Optional[str] = None
+    current_user: Dict = Depends(get_current_active_admin),
+    limit: int = 100,
+    severity: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Get recent CSP violations (admin endpoint).
 
     This endpoint returns recent CSP violations for security monitoring.
+    Requires admin authentication.
 
     Args:
+        current_user: Authenticated admin user (injected by dependency)
         limit: Maximum number of violations to return (default: 100)
         severity: Filter by severity: "HIGH" or None for all
 
@@ -126,12 +130,18 @@ async def get_csp_violations(
 
 
 @router.get("/stats")
-async def get_csp_stats() -> Dict[str, Any]:
+async def get_csp_stats(
+    current_user: Dict = Depends(get_current_active_admin),
+) -> Dict[str, Any]:
     """
     Get CSP violation statistics (admin endpoint).
 
     Returns aggregated statistics about CSP violations for
     security monitoring and policy optimization.
+    Requires admin authentication.
+
+    Args:
+        current_user: Authenticated admin user (injected by dependency)
 
     Returns:
         CSP violation statistics
@@ -183,11 +193,17 @@ async def get_csp_stats() -> Dict[str, Any]:
 
 
 @router.delete("/violations")
-async def clear_csp_violations() -> Dict[str, str]:
+async def clear_csp_violations(
+    current_user: Dict = Depends(get_current_active_admin),
+) -> Dict[str, str]:
     """
     Clear CSP violation history (admin endpoint).
 
     Clears all stored CSP violation records.
+    Requires admin authentication.
+
+    Args:
+        current_user: Authenticated admin user (injected by dependency)
 
     Returns:
         Confirmation message

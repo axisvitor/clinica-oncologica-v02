@@ -86,31 +86,33 @@ Version: 1.0.0 (QW-023)
 Status: Production Ready
 """
 
+from __future__ import annotations
+
 # Import quiz services
 from .quiz_service import (
-    QuizService,
-    QuizTemplateService,
-    QuizSessionService,
-    QuizResponseService,
     MonthlyQuizService,
+    QuizResponseService,
+    QuizService,
+    QuizSessionService,
+    QuizTemplateService,
 )
 
 # Import quiz engine
 from .quiz_engine import (
-    QuizEvaluator,
-    QuizScorer,
     QuizAnalyzer,
-    ResponseUtils,
+    QuizEvaluator,
     QuizMetricsCollector,
     QuizReportGenerator,
+    QuizScorer,
+    ResponseUtils,
 )
 
 # Import template management
 from .quiz_templates import (
+    TemplateCache,
     TemplateLoader,
     TemplateValidator,
     TemplateVersionManager,
-    TemplateCache,
 )
 
 

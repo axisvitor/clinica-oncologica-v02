@@ -9,6 +9,14 @@ import json
 import logging
 from datetime import datetime, timezone
 
+from app.utils.version_utils import (
+    normalize_version,
+    is_valid_version,
+    compare_versions,
+    DEFAULT_VERSION,
+    VersionError,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -42,12 +50,22 @@ class VersionedTemplateLoader:
 
         Args:
             template_name: Name of the template
-            version: Optional version string
+            version: Optional version string (semantic version or integer)
 
         Returns:
             Template data dictionary or None if not found
         """
-        template_key = f"{template_name}_{version}" if version else template_name
+        # Normalize version to semantic format
+        if version:
+            try:
+                normalized_version = normalize_version(version)
+            except VersionError:
+                logger.warning(f"Invalid version format: {version}")
+                normalized_version = version  # Keep original for backward compat
+        else:
+            normalized_version = None
+
+        template_key = f"{template_name}_{normalized_version}" if normalized_version else template_name
 
         # Check cache first
         if template_key in self.templates_cache:
@@ -65,7 +83,8 @@ class VersionedTemplateLoader:
                 logger.error(f"Error loading template {template_key}: {e}")
 
         # Fallback to template without version
-        if version and template_name in self.templates_cache:
+        if normalized_version and template_name in self.templates_cache:
+            logger.debug(f"Falling back to non-versioned template: {template_name}")
             return self.templates_cache[template_name]
 
         return None
@@ -75,7 +94,7 @@ class VersionedTemplateLoader:
         return {
             name: {
                 "name": name,
-                "version": data.get("version", "1.0.0"),
+                "version": normalize_version(data.get("version", DEFAULT_VERSION)),
                 "description": data.get("description", ""),
                 "created_at": data.get("created_at", datetime.now(timezone.utc).isoformat()),
             }
@@ -91,16 +110,24 @@ class VersionedTemplateLoader:
         Args:
             name: Template name
             data: Template data
-            version: Optional version string
+            version: Optional version string (semantic version or integer)
 
         Returns:
             True if successful
         """
         try:
-            template_key = f"{name}_{version}" if version else name
+            # Normalize version
+            normalized_version = normalize_version(version) if version else DEFAULT_VERSION
 
-            # Add metadata
-            data["version"] = version or "1.0.0"
+            # Validate version format
+            if not is_valid_version(normalized_version):
+                logger.error(f"Invalid version format: {version}")
+                return False
+
+            template_key = f"{name}_{normalized_version}"
+
+            # Add metadata with normalized version
+            data["version"] = normalized_version
             data["created_at"] = datetime.now(timezone.utc).isoformat()
             data["name"] = name
 
@@ -126,13 +153,15 @@ class VersionedTemplateLoader:
 
         Args:
             name: Template name
-            version: Optional version string
+            version: Optional version string (semantic version or integer)
 
         Returns:
             True if successful
         """
         try:
-            template_key = f"{name}_{version}" if version else name
+            # Normalize version if provided
+            normalized_version = normalize_version(version) if version else None
+            template_key = f"{name}_{normalized_version}" if normalized_version else name
 
             # Remove from cache
             if template_key in self.templates_cache:
@@ -152,18 +181,34 @@ class VersionedTemplateLoader:
             return False
 
     def get_latest_version(self, template_name: str) -> Optional[str]:
-        """Get the latest version of a template"""
+        """
+        Get the latest version of a template using semantic version comparison.
+
+        Args:
+            template_name: Name of the template
+
+        Returns:
+            Latest version string in semantic format, or None if no versions found
+        """
         versions = []
         for key in self.templates_cache.keys():
             if key.startswith(template_name):
                 if "_" in key:
-                    version = key.split("_", 1)[1]
-                    versions.append(version)
+                    version_str = key.split("_", 1)[1]
+                    try:
+                        # Normalize and validate version
+                        normalized = normalize_version(version_str)
+                        versions.append(normalized)
+                    except VersionError:
+                        logger.warning(f"Invalid version in cache key: {key}")
+                        continue
 
         if versions:
-            # Sort versions and return the latest
-            versions.sort()
-            return versions[-1]
+            # Sort versions using semantic version comparison
+            versions.sort(key=lambda v: tuple(map(int, v.split('.'))))
+            latest = versions[-1]
+            logger.debug(f"Latest version for {template_name}: {latest}")
+            return latest
 
         return None
 

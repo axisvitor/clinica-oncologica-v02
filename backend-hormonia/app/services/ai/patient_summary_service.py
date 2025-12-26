@@ -9,6 +9,7 @@ Author: AI Architect
 Date: January 2025
 """
 
+import asyncio
 import json
 import logging
 import time
@@ -176,8 +177,12 @@ class PatientSummaryService:
         ]
 
         try:
-            # Call Gemini
-            response = await self.model.ainvoke(messages)
+            # FIX: Add timeout to prevent hanging indefinitely on network issues
+            # Call Gemini with timeout protection
+            response = await asyncio.wait_for(
+                self.model.ainvoke(messages),
+                timeout=settings.AI_GEMINI_TIMEOUT_SECONDS
+            )
 
             # Parse response
             content_text = response.content
@@ -345,21 +350,24 @@ class PatientSummaryService:
         return None
 
     async def _save_summary(self, response: PatientSummaryResponse) -> None:
-        """Save summary to database."""
-        summary = PatientSummary(
-            id=response.summary_id,
-            patient_id=response.patient_id,
-            generated_by=response.generated_by,
-            start_date=response.start_date,
-            end_date=response.end_date,
-            content=response.content.model_dump(),
-            token_usage=response.token_usage,
-            model_used=response.model_used,
-            generation_time_ms=response.generation_time_ms,
-        )
+        """Save summary to database with transaction management."""
+        from app.utils.transaction_manager import async_transaction
 
-        self.db.add(summary)
-        await self.db.commit()
+        async with async_transaction(self.db):
+            summary = PatientSummary(
+                id=response.summary_id,
+                patient_id=response.patient_id,
+                generated_by=response.generated_by,
+                start_date=response.start_date,
+                end_date=response.end_date,
+                content=response.content.model_dump(),
+                token_usage=response.token_usage,
+                model_used=response.model_used,
+                generation_time_ms=response.generation_time_ms,
+            )
+
+            self.db.add(summary)
+            # Transaction manager handles commit/rollback automatically
 
         logger.info(f"Saved summary {response.summary_id} to database")
 

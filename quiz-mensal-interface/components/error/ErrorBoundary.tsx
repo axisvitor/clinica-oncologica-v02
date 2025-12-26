@@ -66,14 +66,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, State> {
   }
 
   handleReset = (): void => {
+    // Clear error state to allow re-render attempt without full page reload
     this.setState({
       hasError: false,
       error: null,
       errorInfo: null,
     });
-
-    // Reload the page to ensure clean state
-    window.location.reload();
+    // Note: If the error persists, it will be caught again and shown
   };
 
   render(): ReactNode {

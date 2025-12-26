@@ -3,6 +3,8 @@ Report rendering and PDF generation.
 Handles conversion of quiz analysis results into formatted reports.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Any, Dict
 

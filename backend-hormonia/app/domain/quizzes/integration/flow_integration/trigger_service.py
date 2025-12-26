@@ -2,6 +2,8 @@
 Quiz trigger service for monthly quiz initiation within flow system.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Any, Optional
 from datetime import datetime, timedelta, timezone
@@ -149,19 +151,25 @@ class QuizTriggerService:
             enrollment_date = patient.enrollment_date or patient.created_at
             days_since_enrollment = (datetime.now(timezone.utc) - enrollment_date).days
 
-            # Check if it's a monthly quiz day (every 30 days after day 45)
+            # Use centralized quiz trigger policy
+            from app.domain.quizzes.quiz_trigger_policy import QuizTriggerPolicy
+
+            # Get flow type from flow state
+            flow_type = flow_state.flow_type if flow_state else "monthly_recurring"
+
+            # Calculate monthly cycle using centralized logic
+            monthly_cycle, days_in_current_cycle = QuizTriggerPolicy.calculate_monthly_cycle(
+                days_since_enrollment
+            )
+
+            # Check if patient is in monthly phase and it's quiz day
             if days_since_enrollment < 45:
                 return False, {"reason": "Patient not yet in monthly phase"}
 
-            # Calculate which monthly cycle we're in
-            days_in_monthly_phase = days_since_enrollment - 45
-            monthly_cycle = (days_in_monthly_phase // 30) + 1
-            days_in_current_cycle = days_in_monthly_phase % 30
-
-            # Quiz should be triggered on day 15 of each monthly cycle
-            quiz_day = 15
-
-            if days_in_current_cycle != quiz_day:
+            # Check using centralized policy
+            if not QuizTriggerPolicy.is_quiz_day(
+                days_in_current_cycle, flow_type, days_since_enrollment
+            ):
                 return False, {
                     "reason": f"Not quiz day (day {days_in_current_cycle} of cycle {monthly_cycle})"
                 }
@@ -170,16 +178,33 @@ class QuizTriggerService:
             quiz_info = {
                 "monthly_cycle": monthly_cycle,
                 "template_name": f"monthly_checkup_cycle_{monthly_cycle}",
-                "trigger_reason": f"Monthly quiz day {quiz_day} of cycle {monthly_cycle}",
+                "trigger_reason": f"Monthly quiz day {QuizTriggerPolicy.MONTHLY_QUIZ_DAY} of cycle {monthly_cycle}",
             }
 
-            # Check for existing quiz session this month
+            # FIX: Check for ANY existing quiz session this month (not just completed)
+            # Bug: Previous code only checked for completed sessions, allowing
+            # concurrent quiz sessions for same patient in same cycle
             existing_session = await self._get_current_month_quiz_session(
                 flow_state.patient_id, monthly_cycle
             )
 
-            if existing_session and existing_session.status == "completed":
-                return False, {**quiz_info, "already_completed": True}
+            if existing_session:
+                # Check status to provide appropriate message
+                session_status = getattr(existing_session, 'status', None)
+                if session_status == "completed":
+                    return False, {**quiz_info, "already_completed": True}
+                elif session_status in ("pending", "in_progress", "started"):
+                    # Quiz already in progress - don't trigger another
+                    logger.info(
+                        f"Quiz already in progress for patient {flow_state.patient_id}, "
+                        f"cycle {monthly_cycle}, status: {session_status}"
+                    )
+                    return False, {
+                        **quiz_info,
+                        "already_in_progress": True,
+                        "existing_session_id": str(existing_session.id),
+                        "existing_status": session_status,
+                    }
 
             return True, quiz_info
 
@@ -526,14 +551,18 @@ class QuizTriggerService:
 
             session = await self.quiz_session_service.start_quiz_session(session_data)
 
-            # Update session metadata with monthly cycle info
-            {
+            # FIX: Session metadata was created but NEVER assigned to session
+            # Bug: Dict was created on line 538-544 but not stored in session.session_metadata
+            session_metadata = {
                 "monthly_cycle": quiz_info["monthly_cycle"],
                 "triggered_by": "flow_system",
                 "trigger_date": datetime.now(timezone.utc).isoformat(),
                 "flow_state_id": str(flow_state.id),
                 "delivery_method": "whatsapp_conversational",
             }
+            # Merge with existing metadata if any
+            existing_metadata = getattr(session, 'session_metadata', None) or {}
+            session.session_metadata = {**existing_metadata, **session_metadata}
 
             # Update flow state to indicate quiz in progress
             flow_state.state_data = flow_state.state_data or {}

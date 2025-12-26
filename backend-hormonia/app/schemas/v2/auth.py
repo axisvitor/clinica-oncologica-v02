@@ -3,6 +3,8 @@ Auth schemas for API v2
 Enhanced authentication models with field selection and eager loading support.
 """
 
+from __future__ import annotations
+
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
@@ -463,7 +465,7 @@ class FirebaseTokenVerifyResponse(BaseModel):
     """Response after verifying Firebase token"""
 
     valid: bool
-    # user: Optional[UserV2Response] = None
+    user: Optional["UserV2Response"] = None
     session_id: Optional[str] = None
     message: Optional[str] = None
 

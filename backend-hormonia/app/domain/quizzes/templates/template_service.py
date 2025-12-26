@@ -3,6 +3,8 @@ Quiz template service for loading and managing quiz templates from PostgreSQL da
 Replaces YAML-based QuizTemplateLoader with database-backed service.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta, timezone

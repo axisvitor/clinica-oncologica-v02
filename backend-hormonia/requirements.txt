@@ -28,6 +28,7 @@ celery[redis]>=5.3.4,<6.0.0  # Celery with Redis broker support
 redis>=6.0.0,<7.0.0  # Redis 6.x required for ssl_context parameter (5.x uses 'ssl' param)
 certifi>=2023.7.22,<2025.0.0  # CA certificates for Redis SSL/TLS validation
 apscheduler>=3.10.4,<4.0.0  # Scheduled jobs (audit cleanup, etc.)
+asgiref>=3.7.0,<4.0.0  # Async utilities for Celery tasks (async_to_sync)
 
 # Celery monitoring
 flower==2.0.1  # Web-based Celery monitoring UI

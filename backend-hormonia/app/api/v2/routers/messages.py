@@ -157,7 +157,8 @@ async def list_messages(
             try:
                 cursor_data = CursorEncoder.decode(cursor)
             except ValueError as e:
-                raise HTTPException(status_code=400, detail=str(e))
+                logger.warning(f"Invalid cursor format: {e}")
+                raise HTTPException(status_code=400, detail="Invalid cursor format")
 
         include_patient = False
         include_sender = False
@@ -436,7 +437,8 @@ async def get_patient_conversation(
         try:
             cursor_data = CursorEncoder.decode(cursor)
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            logger.warning(f"Invalid cursor format: {e}")
+            raise HTTPException(status_code=400, detail="Invalid cursor format")
 
     from app.repositories.message import MessageRepository
 

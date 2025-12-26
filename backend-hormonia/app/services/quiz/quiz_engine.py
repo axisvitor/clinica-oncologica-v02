@@ -10,20 +10,43 @@ Consolidates:
 Total: 4 files → 1 file
 """
 
-from typing import Dict, Any, List
+from __future__ import annotations
+
+# Standard library imports
+import logging
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+# Third-party imports
+from sqlalchemy.ext.asyncio import AsyncSession
+
+# Local application imports
+from app.core.exceptions import NotFoundError, ValidationError
 from app.models.quiz import QuizResponse, QuizSession, QuizTemplate
 from app.repositories.quiz import QuizResponseRepository, QuizSessionRepository
 from app.schemas.quiz import QuizQuestion, QuestionType
 
 
 class QuizEvaluator:
-    """Service for evaluating quiz responses."""
+    """
+    Service for evaluating quiz responses.
 
-    def __init__(self, db: Any):
+    Handles evaluation of different question types including
+    multiple choice, text, and scale responses.
+
+    Attributes:
+        db: Database session.
+        response_repo: Quiz response repository.
+    """
+
+    def __init__(
+        self,
+        db: AsyncSession,
+        repository: Optional[QuizResponseRepository] = None,
+    ):
         self.db = db
-        self.response_repo = QuizResponseRepository(db)
+        self.response_repo = repository or QuizResponseRepository(db)
+        self._logger = logging.getLogger(__name__)
 
     def evaluate_response(
         self, response: QuizResponse, question: QuizQuestion
@@ -73,11 +96,25 @@ class QuizEvaluator:
 
 
 class QuizScorer:
-    """Service for scoring quiz sessions."""
+    """
+    Service for scoring quiz sessions.
 
-    def __init__(self, db: Any):
+    Calculates total scores, percentages, and correct answer
+    counts for completed quiz sessions.
+
+    Attributes:
+        db: Database session.
+        evaluator: Quiz evaluator for response scoring.
+    """
+
+    def __init__(
+        self,
+        db: AsyncSession,
+        evaluator: Optional[QuizEvaluator] = None,
+    ):
         self.db = db
-        self.evaluator = QuizEvaluator(db)
+        self.evaluator = evaluator or QuizEvaluator(db)
+        self._logger = logging.getLogger(__name__)
 
     def calculate_session_score(
         self, session: QuizSession, template: QuizTemplate
@@ -111,11 +148,25 @@ class QuizScorer:
 
 
 class QuizAnalyzer:
-    """Service for quiz analytics and insights."""
+    """
+    Service for quiz analytics and insights.
 
-    def __init__(self, db: Any):
+    Provides analytical data for patient quiz performance
+    including completion rates and average scores.
+
+    Attributes:
+        db: Database session.
+        session_repo: Quiz session repository.
+    """
+
+    def __init__(
+        self,
+        db: AsyncSession,
+        repository: Optional[QuizSessionRepository] = None,
+    ):
         self.db = db
-        self.session_repo = QuizSessionRepository(db)
+        self.session_repo = repository or QuizSessionRepository(db)
+        self._logger = logging.getLogger(__name__)
 
     def get_patient_analytics(self, patient_id: UUID) -> Dict[str, Any]:
         """Get analytics for a patient."""
@@ -160,11 +211,25 @@ class ResponseUtils:
 
 
 class QuizMetricsCollector:
-    """Service for collecting quiz metrics."""
+    """
+    Service for collecting quiz metrics.
 
-    def __init__(self, db: Any):
+    Collects and calculates metrics for quiz sessions
+    including duration and completion rates.
+
+    Attributes:
+        db: Database session.
+        session_repo: Quiz session repository.
+    """
+
+    def __init__(
+        self,
+        db: AsyncSession,
+        repository: Optional[QuizSessionRepository] = None,
+    ):
         self.db = db
-        self.session_repo = QuizSessionRepository(db)
+        self.session_repo = repository or QuizSessionRepository(db)
+        self._logger = logging.getLogger(__name__)
 
     def collect_metrics(self, session_id: UUID) -> Dict[str, Any]:
         """Collect metrics for a quiz session."""
@@ -193,12 +258,28 @@ class QuizMetricsCollector:
 
 
 class QuizReportGenerator:
-    """Service for generating quiz reports."""
+    """
+    Service for generating quiz reports.
 
-    def __init__(self, db: Any):
+    Generates comprehensive reports for quiz sessions
+    including scores and completion data.
+
+    Attributes:
+        db: Database session.
+        scorer: Quiz scorer for score calculation.
+        analyzer: Quiz analyzer for analytics.
+    """
+
+    def __init__(
+        self,
+        db: AsyncSession,
+        scorer: Optional[QuizScorer] = None,
+        analyzer: Optional[QuizAnalyzer] = None,
+    ):
         self.db = db
-        self.scorer = QuizScorer(db)
-        self.analyzer = QuizAnalyzer(db)
+        self.scorer = scorer or QuizScorer(db)
+        self.analyzer = analyzer or QuizAnalyzer(db)
+        self._logger = logging.getLogger(__name__)
 
     def generate_session_report(self, session_id: UUID) -> Dict[str, Any]:
         """Generate comprehensive report for a quiz session."""

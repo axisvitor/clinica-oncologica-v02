@@ -54,17 +54,17 @@ const MetricsDashboardPage: React.FC = () => {
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - 30); // Last 30 days
 
-      const response = await fetch('/api/v2/metrics/export', {
-        method: 'POST',
-        credentials: 'include', // Use httpOnly cookies
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          start_date: startDate.toISOString(),
-          end_date: endDate.toISOString(),
-          format: 'json'
-        })
+      // Use enhanced-analytics/export endpoint instead of non-existent /metrics/export
+      const params = new URLSearchParams()
+      const startDateStr = startDate.toISOString().split('T')[0]
+      const endDateStr = endDate.toISOString().split('T')[0]
+      if (startDateStr) params.append('start_date', startDateStr)
+      if (endDateStr) params.append('end_date', endDateStr)
+      params.append('format', 'json')
+
+      const response = await fetch(`/api/v2/enhanced-analytics/export?${params.toString()}`, {
+        method: 'GET',
+        credentials: 'include'
       });
 
       if (response.ok) {
@@ -78,6 +78,24 @@ const MetricsDashboardPage: React.FC = () => {
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
+      } else {
+        // Fallback: export from dashboard/main data
+        const dashboardResponse = await fetch('/api/v2/dashboard/main', {
+          credentials: 'include'
+        });
+        if (dashboardResponse.ok) {
+          const data = await dashboardResponse.json();
+          const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = url;
+          a.download = `dashboard-export-${new Date().toISOString().split('T')[0]}.json`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+        }
       }
     } catch (err) {
       logger.error('Error exporting metrics', { error: err });

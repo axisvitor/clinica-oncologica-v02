@@ -14,24 +14,27 @@ ISSUE-005 Phase 4:
 - 100% dependency injection for testability
 """
 
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
-from typing import Optional, TYPE_CHECKING
-from uuid import UUID
-import logging
+from __future__ import annotations
 
+# Standard library imports
+import asyncio
+import logging
+from concurrent.futures import ThreadPoolExecutor
+from typing import TYPE_CHECKING, Optional
+from uuid import UUID
+
+# Third-party imports
 from sqlalchemy.orm import Session
 
+# Local application imports
+from app.infrastructure.cache import get_unified_cache_manager as get_cache_manager
 from app.models.patient import Patient
 from app.schemas.patient import PatientCreate
-from app.infrastructure.cache import get_unified_cache_manager as get_cache_manager
 
 if TYPE_CHECKING:
+    from app.domain.patient.onboarding.notification_service import NotificationService
     from app.models.user import User
     from app.services.patient.flow_service import PatientFlowService
-    from app.domain.patient.onboarding.notification_service import NotificationService
-
-logger = logging.getLogger(__name__)
 
 
 class CompletionService:
@@ -44,6 +47,13 @@ class CompletionService:
     - Saga failed after patient creation
     - Patient exists but onboarding incomplete
     - Flow or notifications need to be (re)initialized
+
+    Attributes:
+        db: Database session.
+        flow_service: Service for patient flow management.
+        notification_service: Service for notification delivery.
+        _logger: Service logger (private).
+        _executor: Thread pool executor for sync operations.
     """
 
     def __init__(
@@ -57,10 +67,10 @@ class CompletionService:
         Initialize CompletionService with dependency injection.
 
         Args:
-            db: Database session
-            flow_service: Service for patient flow management
-            notification_service: Service for notification delivery
-            executor: Optional ThreadPoolExecutor for sync operations
+            db: Database session for operations.
+            flow_service: Service for patient flow management.
+            notification_service: Service for notification delivery.
+            executor: Optional ThreadPoolExecutor for sync operations.
         """
         self.db = db
         self.flow_service = flow_service
@@ -68,6 +78,7 @@ class CompletionService:
         self._executor = executor or ThreadPoolExecutor(
             max_workers=5, thread_name_prefix="completion_sync"
         )
+        self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     async def complete_partial_onboarding(
         self,
@@ -90,26 +101,26 @@ class CompletionService:
         5. Publish completion event
 
         Args:
-            existing_patient: The existing patient record
-            patient_data: New patient data to update/complete
-            current_user: Current authenticated user
+            existing_patient: The existing patient record.
+            patient_data: New patient data to update/complete.
+            current_user: Current authenticated user.
 
         Returns:
-            Updated patient object with completed onboarding
+            Updated patient object with completed onboarding.
 
         Raises:
-            Exception: If critical updates fail
+            Exception: If critical updates fail.
         """
         try:
-            logger.info(
-                f"Completing partial onboarding for patient: {existing_patient.id}",
+            self._logger.info(
+                "Completing partial onboarding for patient",
                 extra={
                     "patient_id": str(existing_patient.id),
                     "current_flow_state": existing_patient.flow_state.value
                     if hasattr(existing_patient.flow_state, "value")
                     else str(existing_patient.flow_state),
                     "doctor_id": str(existing_patient.doctor_id),
-                },
+                }
             )
 
             # 1. Update patient data with any new information (preserve existing)
@@ -126,7 +137,7 @@ class CompletionService:
                     action="onboarding_completed",
                 )
             except Exception as e:
-                logger.warning(f"Failed to publish WebSocket event: {e}")
+                self._logger.warning("Failed to publish WebSocket event", extra={"error": str(e)})
 
             # 4. Send welcome message if needed
             try:
@@ -134,38 +145,42 @@ class CompletionService:
                     existing_patient, current_user
                 )
                 if success:
-                    logger.info(
-                        f"Welcome message sent to existing patient: {existing_patient.id}"
+                    self._logger.info(
+                        "Welcome message sent to existing patient",
+                        extra={"patient_id": str(existing_patient.id)}
                     )
                 else:
-                    logger.info(
-                        f"Welcome message already sent to patient: {existing_patient.id}"
+                    self._logger.info(
+                        "Welcome message already sent to patient",
+                        extra={"patient_id": str(existing_patient.id)}
                     )
             except Exception as e:
-                logger.error(
-                    f"Failed to send welcome message to patient {existing_patient.id}: {e}"
+                self._logger.error(
+                    "Failed to send welcome message",
+                    extra={"patient_id": str(existing_patient.id), "error": str(e)}
                 )
                 # Don't fail completion if WhatsApp fails
 
             # 5. Initialize flow if not already initialized
             await self._initialize_flow_if_needed(existing_patient, current_user)
 
-            logger.info(
-                f"Successfully completed partial onboarding for patient: {existing_patient.id}",
+            self._logger.info(
+                "Successfully completed partial onboarding",
                 extra={
                     "patient_id": str(existing_patient.id),
                     "final_flow_state": existing_patient.flow_state.value
                     if hasattr(existing_patient.flow_state, "value")
                     else str(existing_patient.flow_state),
-                },
+                }
             )
 
             return existing_patient
 
         except Exception as e:
-            logger.error(
-                f"Error completing partial onboarding for patient {existing_patient.id}: {e}",
+            self._logger.error(
+                "Error completing partial onboarding",
                 exc_info=True,
+                extra={"patient_id": str(existing_patient.id)}
             )
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(self._executor, self.db.rollback)
@@ -178,11 +193,11 @@ class CompletionService:
         Update patient data with new information (preserve existing).
 
         Args:
-            existing_patient: Existing patient record
-            patient_data: New patient data
+            existing_patient: Existing patient record.
+            patient_data: New patient data.
 
         Returns:
-            True if any updates were made, False otherwise
+            True if any updates were made, False otherwise.
         """
         updated = False
 
@@ -218,11 +233,12 @@ class CompletionService:
                 await loop.run_in_executor(
                     self._executor, lambda: self.db.refresh(existing_patient)
                 )
-                logger.info(f"Updated patient data: {existing_patient.id}")
-            except Exception as e:
-                logger.error(
-                    f"Failed to commit patient updates in executor: {e}", exc_info=True
+                self._logger.info(
+                    "Updated patient data",
+                    extra={"patient_id": str(existing_patient.id)}
                 )
+            except Exception as e:
+                self._logger.error("Failed to commit patient updates in executor", exc_info=True)
                 raise
 
         return updated
@@ -234,11 +250,11 @@ class CompletionService:
         Initialize patient flow if not already initialized.
 
         Args:
-            patient: Patient to initialize flow for
-            current_user: Current authenticated user
+            patient: Patient to initialize flow for.
+            current_user: Current authenticated user.
 
         Returns:
-            True if flow was initialized, False if already exists
+            True if flow was initialized, False if already exists.
         """
         from app.models.flow import PatientFlowState
 
@@ -259,14 +275,23 @@ class CompletionService:
                 await self.flow_service.initialize_default_flow(
                     patient, current_user_id
                 )
-                logger.info(f"Initialized flow for existing patient: {patient.id}")
+                self._logger.info(
+                    "Initialized flow for existing patient",
+                    extra={"patient_id": str(patient.id)}
+                )
                 return True
             except Exception as e:
-                logger.error(f"Failed to initialize flow for patient {patient.id}: {e}")
+                self._logger.error(
+                    "Failed to initialize flow",
+                    extra={"patient_id": str(patient.id), "error": str(e)}
+                )
                 # Don't fail completion if flow initialization fails
                 return False
         else:
-            logger.info(f"Flow already initialized for patient: {patient.id}")
+            self._logger.info(
+                "Flow already initialized for patient",
+                extra={"patient_id": str(patient.id)}
+            )
             return False
 
     async def _invalidate_cache(self, doctor_id: UUID) -> None:
@@ -274,21 +299,27 @@ class CompletionService:
         Invalidate patient list cache for doctor.
 
         Args:
-            doctor_id: Doctor ID
+            doctor_id: Doctor ID for cache invalidation.
         """
         cache_manager = get_cache_manager()
         cache_manager.invalidate_pattern(
             f"patient_list:*:{doctor_id}*", namespace="cache"
         )
-        logger.debug(f"Invalidated patient list cache for doctor: {doctor_id}")
+        self._logger.debug(
+            "Invalidated patient list cache",
+            extra={"doctor_id": str(doctor_id)}
+        )
 
     def shutdown(self, wait: bool = True) -> None:
         """
         Shutdown the completion service gracefully.
 
         Args:
-            wait: Whether to wait for pending operations to complete
+            wait: Whether to wait for pending operations to complete.
         """
         if self._executor:
             self._executor.shutdown(wait=wait)
-            logger.info(f"CompletionService executor shutdown (wait={wait})")
+            self._logger.info(
+                "CompletionService executor shutdown",
+                extra={"wait": wait}
+            )

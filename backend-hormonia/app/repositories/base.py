@@ -86,15 +86,23 @@ class BaseRepository(Generic[ModelType]):
 
         return self.db.query(self.model).offset(skip).limit(limit).all()
 
-    def create(self, obj_in: Dict[str, Any]) -> ModelType:
+    def create(self, obj_in: Dict[str, Any], auto_commit: bool = True) -> ModelType:
         """
         Create new record with automatic cache invalidation.
 
         CACHE INVALIDATION: Invalidates related caches after creation.
+
+        Args:
+            obj_in: Dictionary with record data.
+            auto_commit: If True (default), commits the transaction immediately.
+                         Set to False when using within a saga/Unit of Work pattern.
         """
         db_obj = self.model(**obj_in)
         self.db.add(db_obj)
-        self.db.commit()
+        if auto_commit:
+            self.db.commit()
+        else:
+            self.db.flush()
         self.db.refresh(db_obj)
 
         # Invalidate caches after mutation
@@ -102,18 +110,29 @@ class BaseRepository(Generic[ModelType]):
 
         return db_obj
 
-    def update(self, db_obj: ModelType, obj_in: Dict[str, Any]) -> ModelType:
+    def update(
+        self, db_obj: ModelType, obj_in: Dict[str, Any], auto_commit: bool = True
+    ) -> ModelType:
         """
         Update existing record with automatic cache invalidation.
 
         CACHE INVALIDATION: Invalidates related caches after update.
+
+        Args:
+            db_obj: Existing record instance to update.
+            obj_in: Dictionary with updated data.
+            auto_commit: If True (default), commits the transaction immediately.
+                         Set to False when using within a saga/Unit of Work pattern.
         """
         for field, value in obj_in.items():
             if hasattr(db_obj, field):
                 setattr(db_obj, field, value)
 
         self.db.add(db_obj)
-        self.db.commit()
+        if auto_commit:
+            self.db.commit()
+        else:
+            self.db.flush()
         self.db.refresh(db_obj)
 
         # Invalidate caches after mutation

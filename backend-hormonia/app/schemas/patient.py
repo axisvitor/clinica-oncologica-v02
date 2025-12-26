@@ -115,19 +115,32 @@ class PatientBase(BaseModel):
     @field_validator("phone")
     @classmethod
     def validate_phone(cls, v):
-        # Basic phone validation with E.164 normalization
-        if not v.startswith("+"):
-            raise ValueError("Phone number must start with country code (+)")
-        # Normalize to E.164 format (remove spaces, dashes, parentheses)
-        normalized = re.sub(r"[\s\-\(\)]", "", v)
-        return normalized
+        """
+        Validate phone number in E.164 format.
+
+        This validator enforces strict E.164 format for v1 API compatibility.
+        Phone must start with + followed by country code and digits.
+
+        Examples:
+            - Valid: "+5511987654321"
+            - Invalid: "11987654321" (missing country code)
+
+        See: app/schemas/validators/phone.py for implementation details
+        """
+        from app.schemas.validators.phone import validate_phone_e164
+
+        return validate_phone_e164(v, allow_none=False)
 
     @field_validator("emergency_contact_phone")
     @classmethod
     def validate_emergency_phone(cls, v):
-        if v and not v.startswith("+"):
-            raise ValueError("Emergency contact phone must start with country code (+)")
-        return v
+        """Validate emergency contact phone in E.164 format."""
+        if not v:
+            return v
+
+        from app.schemas.validators.phone import validate_phone_e164
+
+        return validate_phone_e164(v, allow_none=True)
 
     @field_validator("birth_date")
     @classmethod
@@ -269,19 +282,24 @@ class PatientUpdate(BaseModel):
     @field_validator("emergency_contact_phone")
     @classmethod
     def validate_emergency_phone(cls, v):
-        if v and not v.startswith("+"):
-            raise ValueError("Emergency contact phone must start with country code (+)")
-        return v
+        """Validate emergency contact phone in E.164 format."""
+        if not v:
+            return v
+
+        from app.schemas.validators.phone import validate_phone_e164
+
+        return validate_phone_e164(v, allow_none=True)
 
     @field_validator("phone")
     @classmethod
     def validate_phone(cls, v):
-        if v and not v.startswith("+"):
-            raise ValueError("Phone number must start with country code (+)")
-        # Normalize to E.164 format (remove spaces, dashes, parentheses)
-        if v:
-            v = re.sub(r"[\s\-\(\)]", "", v)
-        return v
+        """Validate phone number in E.164 format."""
+        if not v:
+            return v
+
+        from app.schemas.validators.phone import validate_phone_e164
+
+        return validate_phone_e164(v, allow_none=True)
 
     @field_validator("birth_date")
     @classmethod

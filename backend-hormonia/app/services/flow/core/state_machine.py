@@ -7,20 +7,36 @@ execution engine can remain stateless.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+# Standard library imports
 import logging
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional
 
-from ..types import FlowContext, FlowStatus, FlowTransitionType
+# Local application imports
 from ..execution.conditions import ConditionEvaluator
+from ..types import FlowContext, FlowStatus, FlowTransitionType
 
 logger = logging.getLogger(__name__)
 
 
 class FlowStateMachine:
-    """Determines state transitions for flow executions."""
+    """
+    Determines state transitions for flow executions.
+
+    Manages the logic for transitioning between flow steps based on
+    template transitions and conditions.
+
+    Attributes:
+        condition_evaluator: Handler for evaluating transition conditions.
+    """
 
     def __init__(self, condition_evaluator: Optional[ConditionEvaluator] = None):
+        """
+        Initialize the flow state machine.
+
+        Args:
+            condition_evaluator: Optional condition evaluator instance.
+        """
         self.condition_evaluator = condition_evaluator or ConditionEvaluator()
 
     def get_next_step(
@@ -32,6 +48,15 @@ class FlowStateMachine:
     ) -> Optional[str]:
         """
         Determine the next step that should run based on template transitions.
+
+        Args:
+            current_step_id: Current step identifier.
+            template: Flow template containing transitions.
+            context: Flow execution context.
+            transition_type: Type of transition (automatic/manual).
+
+        Returns:
+            Next step ID or None if no valid transition exists.
         """
         transitions = template.get("transitions", [])
         for transition in transitions:
@@ -77,7 +102,18 @@ class FlowStateMachine:
         to_step: Optional[str],
         transition_type: FlowTransitionType = FlowTransitionType.AUTOMATIC,
     ) -> FlowContext:
-        """Apply transition effects to FlowContext."""
+        """
+        Apply transition effects to FlowContext.
+
+        Args:
+            context: Flow execution context.
+            from_step: Current step identifier.
+            to_step: Next step identifier (None if completing).
+            transition_type: Type of transition.
+
+        Returns:
+            Updated flow context with transition applied.
+        """
         logger.info(
             "State transition %s -> %s (type=%s)",
             from_step,

@@ -64,15 +64,15 @@ class EvolutionClient:
         else:
             self.base_url = (
                 base_url
-                or getattr(settings, "EVOLUTION_API_URL", "https://api.evolution.dev")
+                or getattr(settings, "WHATSAPP_EVOLUTION_API_URL", "http://localhost:8080")
             ).rstrip("/")
 
         self.instance_name = instance_name or getattr(
-            settings, "EVOLUTION_INSTANCE_NAME", "hormonia"
+            settings, "WHATSAPP_EVOLUTION_INSTANCE_NAME", "meuwhatsapp"
         )
-        self.api_key = api_key or getattr(settings, "EVOLUTION_API_KEY", None)
+        self.api_key = api_key or getattr(settings, "WHATSAPP_EVOLUTION_API_KEY", None)
         self.webhook_secret = webhook_secret or getattr(
-            settings, "EVOLUTION_WEBHOOK_SECRET", None
+            settings, "WHATSAPP_EVOLUTION_WEBHOOK_SECRET", None
         )
         self.timeout = timeout
         self.max_retries = max_retries
@@ -302,21 +302,80 @@ class EvolutionClient:
         return health_status
 
 
-# Global client instance
+# Global client instance with thread safety
+import asyncio
+import atexit
+
 _evolution_client: Optional[EvolutionClient] = None
+_client_lock: asyncio.Lock = asyncio.Lock()
+_shutdown_registered: bool = False
+
+
+def _sync_cleanup_evolution_client() -> None:
+    """
+    Synchronous cleanup handler for atexit.
+
+    Called automatically when the Python interpreter exits to ensure
+    proper cleanup of HTTP client resources.
+    """
+    global _evolution_client
+
+    if _evolution_client is not None:
+        logger.info("Shutdown: Cleaning up Evolution API client")
+        try:
+            # Try to get or create an event loop for async cleanup
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                # No running loop - create a new one for cleanup
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(_evolution_client.close())
+                finally:
+                    loop.close()
+            else:
+                # Running loop exists - schedule cleanup
+                loop.create_task(_evolution_client.close())
+        except Exception as e:
+            logger.warning(f"Error during Evolution client cleanup: {e}")
+        finally:
+            _evolution_client = None
 
 
 async def get_evolution_client() -> EvolutionClient:
     """
-    Get global Evolution API client instance.
+    Get global Evolution API client instance with thread-safe initialization.
 
     Returns:
         Configured Evolution API client
-    """
-    global _evolution_client
 
-    if _evolution_client is None:
-        _evolution_client = EvolutionClient()
+    Thread-safe: Uses asyncio.Lock to prevent race conditions during initialization
+
+    Resource Management:
+    - Registers atexit handler on first initialization
+    - Ensures proper cleanup on application shutdown
+    """
+    global _evolution_client, _shutdown_registered
+
+    # Fast path: client already initialized
+    if _evolution_client is not None:
+        return _evolution_client
+
+    # Slow path: need to initialize (thread-safe)
+    async with _client_lock:
+        # Double-check after acquiring lock
+        if _evolution_client is None:
+            logger.info("Initializing global Evolution API client")
+            _evolution_client = EvolutionClient()
+
+            # Register shutdown handler on first initialization
+            if not _shutdown_registered:
+                atexit.register(_sync_cleanup_evolution_client)
+                _shutdown_registered = True
+                logger.debug("Registered Evolution client atexit cleanup handler")
+
+            logger.info("Evolution API client initialized successfully")
 
     return _evolution_client
 

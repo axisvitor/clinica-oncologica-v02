@@ -5,6 +5,10 @@ These agents specialize in patient monitoring, flow coordination,
 and alert analysis for oncology treatment workflows.
 """
 
-from .flow_coordinator import FlowCoordinatorAgent
+from __future__ import annotations
 
-__all__ = ["FlowCoordinatorAgent"]
+from app.agents.patient.flow_coordinator import FlowCoordinatorAgent
+
+__all__ = [
+    "FlowCoordinatorAgent",
+]

@@ -3,6 +3,8 @@ Quiz report generator service.
 Main service for generating comprehensive medical reports from quiz analysis.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Any
 from uuid import UUID

@@ -5,11 +5,112 @@
  * for the Monthly Quiz interface system.
  */
 
+// Type definitions for Sentry SDK (optional dependency)
+interface SentrySDK {
+  init: (options: SentryInitOptions) => void;
+  setUser: (user: SentryUser | null) => void;
+  setTag: (key: string, value: string) => void;
+  setContext: (name: string, context: Record<string, unknown> | null) => void;
+  addBreadcrumb: (breadcrumb: SentryBreadcrumb) => void;
+  captureException: (error: Error, options?: SentryCaptureOptions) => string;
+  captureMessage: (message: string, options?: SentryCaptureOptions) => string;
+  startTransaction: (options: SentryTransactionOptions) => SentryTransaction;
+  nextRouterInstrumentation: () => unknown;
+  withSentryConfig: <T>(config: T) => T;
+  SDK_VERSION?: string;
+}
+
+interface SentryInitOptions {
+  dsn: string;
+  environment: string;
+  integrations: unknown[];
+  tracesSampleRate: number;
+  beforeSend: (event: SentryEvent, hint: SentryEventHint) => SentryEvent | null;
+  beforeSendTransaction: (event: SentryEvent) => SentryEvent | null;
+  release?: string;
+  maxBreadcrumbs?: number;
+  attachStacktrace?: boolean;
+  autoSessionTracking?: boolean;
+  sendDefaultPii?: boolean;
+  ignoreErrors?: string[];
+  denyUrls?: RegExp[];
+}
+
+interface SentryUser {
+  id?: string;
+  email?: string;
+  sessionId?: string;
+}
+
+interface SentryBreadcrumb {
+  message: string;
+  category: string;
+  level: 'info' | 'warning' | 'error';
+  data?: Record<string, unknown>;
+}
+
+interface SentryCaptureOptions {
+  level?: 'info' | 'warning' | 'error';
+  tags?: Record<string, string>;
+  extra?: Record<string, unknown>;
+}
+
+interface SentryTransactionOptions {
+  name: string;
+  op: string;
+  tags?: Record<string, string | undefined>;
+}
+
+interface SentryTransaction {
+  finish: () => void;
+}
+
+interface SentryEvent {
+  tags?: Record<string, string>;
+  contexts?: Record<string, unknown>;
+  transaction?: string;
+  timestamp?: number;
+  start_timestamp?: number;
+}
+
+interface SentryEventHint {
+  originalException?: Error | unknown;
+}
+
+interface BrowserTracingConfig {
+  new (options: {
+    routingInstrumentation: unknown;
+    enableWebVitals: boolean;
+    beforeNavigate: (context: NavigationContext) => NavigationContext;
+  }): unknown;
+}
+
+interface NavigationContext {
+  location: { pathname: string };
+  name?: string;
+  tags?: Record<string, string>;
+}
+
+interface ReplayConfig {
+  new (options: {
+    sessionSampleRate: number;
+    errorSampleRate: number;
+    maskAllText: boolean;
+    maskAllInputs: boolean;
+    blockAllMedia: boolean;
+    mask: string[];
+  }): unknown;
+}
+
+interface CaptureConsoleConfig {
+  new (options: { levels: string[] }): unknown;
+}
+
 // Optional Sentry imports - gracefully handle missing dependencies
-let Sentry: any = null;
-let BrowserTracing: any = null;
-let CaptureConsole: any = null;
-let Replay: any = null;
+let Sentry: SentrySDK | null = null;
+let BrowserTracing: BrowserTracingConfig | null = null;
+let CaptureConsole: CaptureConsoleConfig | null = null;
+let Replay: ReplayConfig | null = null;
 
 try {
   Sentry = require('@sentry/nextjs');
@@ -38,6 +139,7 @@ interface QuizContext {
   totalQuestions?: number;
   startTime: string;
   userAgent: string;
+  [key: string]: unknown; // Allow additional properties for Record compatibility
 }
 
 interface UserContext {
@@ -72,19 +174,19 @@ export class QuizSentryMonitoring {
       return;
     }
 
-    Sentry.init({
+    Sentry!.init({
       dsn: SENTRY_DSN,
       environment: ENVIRONMENT,
 
       integrations: [
         // Browser tracing for client-side performance
-        new BrowserTracing({
+        new BrowserTracing!({
           // Track page navigation and interactions
-          routingInstrumentation: Sentry.nextRouterInstrumentation(),
+          routingInstrumentation: Sentry!.nextRouterInstrumentation(),
           enableWebVitals: true,
 
           // Custom transaction names for quiz flow
-          beforeNavigate: (context: any) => ({
+          beforeNavigate: (context: NavigationContext) => ({
             ...context,
             name: this.getTransactionName(context.location.pathname),
             tags: {
@@ -95,7 +197,7 @@ export class QuizSentryMonitoring {
         }),
 
         // Session replay for quiz debugging
-        new Replay({
+        new Replay!({
           sessionSampleRate: SENTRY_REPLAYS_SESSION_SAMPLE_RATE,
           errorSampleRate: SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE,
           // Mask sensitive quiz data
@@ -107,7 +209,7 @@ export class QuizSentryMonitoring {
         }),
 
         // Console integration
-        new CaptureConsole({
+        new CaptureConsole!({
           levels: ['error', 'warn'],
         }),
       ],
@@ -190,7 +292,7 @@ export class QuizSentryMonitoring {
   /**
    * Filter events before sending to Sentry
    */
-  private static beforeSendFilter(event: any, hint: any): any | null {
+  private static beforeSendFilter(event: SentryEvent, hint: SentryEventHint): SentryEvent | null {
     // Skip development noise
     if (ENVIRONMENT === 'development') {
       const error = hint.originalException;
@@ -225,7 +327,7 @@ export class QuizSentryMonitoring {
   /**
    * Filter performance transactions before sending
    */
-  private static beforeSendTransactionFilter(event: any): any | null {
+  private static beforeSendTransactionFilter(event: SentryEvent): SentryEvent | null {
     // Skip very fast transactions in production
     if (ENVIRONMENT === 'production') {
       const duration = (event.timestamp || 0) - (event.start_timestamp || 0);
@@ -249,14 +351,14 @@ export class QuizSentryMonitoring {
   static setUserContext(user: UserContext): void {
     if (!this.isSentryAvailable()) return;
 
-    Sentry.setUser({
+    Sentry!.setUser({
       id: user.id,
       email: user.email,
       sessionId: user.sessionId,
     });
 
-    Sentry.setTag('user_role', user.role || 'quiz_taker');
-    Sentry.addBreadcrumb({
+    Sentry!.setTag('user_role', user.role || 'quiz_taker');
+    Sentry!.addBreadcrumb({
       message: 'User context set for quiz',
       category: 'auth',
       level: 'info',
@@ -276,11 +378,11 @@ export class QuizSentryMonitoring {
       ...context,
     } as QuizContext;
 
-    Sentry.setContext('quiz', this.currentQuizContext);
-    Sentry.setTag('quiz_id', this.currentQuizContext.quizId);
-    Sentry.setTag('quiz_session', this.currentQuizContext.sessionId);
+    Sentry!.setContext('quiz', this.currentQuizContext);
+    Sentry!.setTag('quiz_id', this.currentQuizContext.quizId);
+    Sentry!.setTag('quiz_session', this.currentQuizContext.sessionId);
 
-    Sentry.addBreadcrumb({
+    Sentry!.addBreadcrumb({
       message: 'Quiz context updated',
       category: 'quiz',
       level: 'info',
@@ -291,7 +393,7 @@ export class QuizSentryMonitoring {
   /**
    * Track quiz start event
    */
-  static trackQuizStart(quizId: string, metadata?: Record<string, any>): void {
+  static trackQuizStart(quizId: string, metadata?: Record<string, unknown>): void {
     const sessionId = crypto.randomUUID();
 
     this.setQuizContext({
@@ -302,7 +404,7 @@ export class QuizSentryMonitoring {
       ...metadata,
     });
 
-    Sentry.addBreadcrumb({
+    Sentry!.addBreadcrumb({
       message: `Quiz started: ${quizId}`,
       category: 'quiz_flow',
       level: 'info',
@@ -323,14 +425,14 @@ export class QuizSentryMonitoring {
     questionNumber: number,
     totalQuestions: number,
     action: 'viewed' | 'answered' | 'skipped',
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): void {
     this.setQuizContext({
       currentQuestion: questionNumber,
       totalQuestions,
     });
 
-    Sentry.addBreadcrumb({
+    Sentry!.addBreadcrumb({
       message: `Question ${action}: ${questionNumber}/${totalQuestions}`,
       category: 'quiz_interaction',
       level: 'info',
@@ -359,7 +461,7 @@ export class QuizSentryMonitoring {
     score: number,
     totalQuestions: number,
     completionTime: number,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): void {
     const completionData = {
       score,
@@ -369,7 +471,7 @@ export class QuizSentryMonitoring {
       ...metadata,
     };
 
-    Sentry.addBreadcrumb({
+    Sentry!.addBreadcrumb({
       message: `Quiz completed: ${score}/${totalQuestions} (${completionData.percentage}%)`,
       category: 'quiz_completion',
       level: 'info',
@@ -385,13 +487,13 @@ export class QuizSentryMonitoring {
   static trackQuizError(
     errorType: 'validation' | 'submission' | 'loading' | 'timeout',
     error: string,
-    context?: Record<string, any>
+    context?: Record<string, unknown>
   ): void {
-    Sentry.captureMessage(`Quiz Error: ${errorType}`, {
+    Sentry!.captureMessage(`Quiz Error: ${errorType}`, {
       level: 'error',
       tags: {
         quiz_error_type: errorType,
-        quiz_id: this.currentQuizContext?.quizId,
+        quiz_id: this.currentQuizContext?.quizId ?? 'unknown',
       },
       extra: {
         error,
@@ -417,7 +519,7 @@ export class QuizSentryMonitoring {
     duration: number,
     success: boolean
   ): void {
-    Sentry.addBreadcrumb({
+    Sentry!.addBreadcrumb({
       message: `API ${method} ${endpoint} - ${status}`,
       category: 'api',
       level: success ? 'info' : 'error',
@@ -432,7 +534,7 @@ export class QuizSentryMonitoring {
     });
 
     if (!success) {
-      Sentry.captureMessage(`Quiz API Error: ${method} ${endpoint}`, {
+      Sentry!.captureMessage(`Quiz API Error: ${method} ${endpoint}`, {
         level: 'error',
         tags: {
           api_endpoint: endpoint,
@@ -450,8 +552,8 @@ export class QuizSentryMonitoring {
   /**
    * Track general quiz events
    */
-  static trackEvent(eventName: string, data: Record<string, any> = {}): void {
-    Sentry.addBreadcrumb({
+  static trackEvent(eventName: string, data: Record<string, unknown> = {}): void {
+    Sentry!.addBreadcrumb({
       message: `Quiz Event: ${eventName}`,
       category: 'quiz_event',
       level: 'info',
@@ -468,7 +570,7 @@ export class QuizSentryMonitoring {
    * Track performance metrics for quiz interactions
    */
   static trackPerformance(metricName: string, value: number, unit: string = 'ms'): void {
-    Sentry.addBreadcrumb({
+    Sentry!.addBreadcrumb({
       message: `Quiz Performance: ${metricName}`,
       category: 'performance',
       level: 'info',
@@ -487,7 +589,7 @@ export class QuizSentryMonitoring {
    */
   static clearQuizContext(): void {
     if (this.currentQuizContext) {
-      Sentry.addBreadcrumb({
+      Sentry!.addBreadcrumb({
         message: 'Quiz session ended',
         category: 'quiz_flow',
         level: 'info',
@@ -499,15 +601,15 @@ export class QuizSentryMonitoring {
     }
 
     this.currentQuizContext = null;
-    Sentry.setContext('quiz', null);
+    Sentry!.setContext('quiz', null);
   }
 
   /**
    * Start a custom transaction for quiz operations
    */
-  static startTransaction(name: string, op: string = 'quiz'): any {
+  static startTransaction(name: string, op: string = 'quiz'): SentryTransaction | null {
     if (!this.isSentryAvailable()) return null;
-    return Sentry.startTransaction({
+    return Sentry!.startTransaction({
       name,
       op,
       tags: {
@@ -520,20 +622,20 @@ export class QuizSentryMonitoring {
   /**
    * Capture custom exception with quiz context
    */
-  static captureException(error: Error, context?: Record<string, any>): string {
+  static captureException(error: Error, context?: Record<string, unknown>): string {
     if (!this.isSentryAvailable()) {
       console.error('Quiz Error:', error, context);
       return '';
     }
 
-    return Sentry.captureException(error, {
+    return Sentry!.captureException(error, {
       extra: {
         quiz_context: this.currentQuizContext,
         ...context,
       },
       tags: {
         error_source: 'quiz_interface',
-        quiz_id: this.currentQuizContext?.quizId,
+        quiz_id: this.currentQuizContext?.quizId ?? 'unknown',
         ...(context?.tags || {}),
       },
     });
@@ -556,7 +658,7 @@ export class QuizSentryMonitoring {
   /**
    * Get monitoring health status
    */
-  static getHealthStatus(): Record<string, any> {
+  static getHealthStatus(): Record<string, unknown> {
     return {
       sentry_enabled: !!SENTRY_DSN,
       environment: ENVIRONMENT,
@@ -564,7 +666,7 @@ export class QuizSentryMonitoring {
       replays_session_rate: SENTRY_REPLAYS_SESSION_SAMPLE_RATE,
       replays_error_rate: SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE,
       current_quiz_session: this.currentQuizContext?.sessionId,
-      sdk_version: Sentry.SDK_VERSION,
+      sdk_version: Sentry?.SDK_VERSION,
     };
   }
 }
@@ -572,7 +674,7 @@ export class QuizSentryMonitoring {
 // Export Sentry components for Next.js integration (with fallbacks)
 export const captureException = Sentry?.captureException || ((error: Error) => { console.error(error); return ''; });
 export const captureMessage = Sentry?.captureMessage || ((message: string) => { console.log(message); return ''; });
-export const withSentryConfig = Sentry?.withSentryConfig || ((config: any) => config);
+export const withSentryConfig = Sentry?.withSentryConfig || (<T>(config: T): T => config);
 
 // Initialize Sentry when module is imported (client-side only)
 if (typeof window !== 'undefined') {

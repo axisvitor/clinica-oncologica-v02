@@ -23,6 +23,12 @@ from ..types import (
     FlowTransitionType,
 )
 from ..config import get_flow_config
+from ..constants import (
+    TemplateValidation,
+    TreatmentFlow,
+    FlowErrorMessages,
+)
+from app.utils.version_utils import is_semantic_version, is_valid_version
 
 
 logger = logging.getLogger(__name__)
@@ -137,24 +143,45 @@ class FlowTemplateValidator:
         # Check required fields
         for field in self.required_step_fields:
             if field not in step:
-                errors.append(f"Step missing required field: {field}")
+                errors.append(
+                    FlowErrorMessages.format(
+                        FlowErrorMessages.VALIDATION_MISSING_FIELD,
+                        field=field,
+                    )
+                )
 
         # Validate step type
         if "type" in step:
             try:
                 FlowStepType(step["type"])
             except ValueError:
-                errors.append(f"Invalid step type: {step['type']}")
+                errors.append(
+                    FlowErrorMessages.format(
+                        FlowErrorMessages.VALIDATION_INVALID_TYPE,
+                        type_name="step",
+                        value=step["type"],
+                    )
+                )
 
         # Validate step ID
         if "step_id" in step:
             if not step["step_id"] or not isinstance(step["step_id"], str):
-                errors.append(f"Invalid step_id: {step.get('step_id')}")
+                errors.append(
+                    FlowErrorMessages.format(
+                        FlowErrorMessages.STEP_INVALID_ID,
+                        step_id=step.get("step_id"),
+                    )
+                )
 
         # Validate step name
         if "name" in step:
             if not step["name"] or not isinstance(step["name"], str):
-                errors.append(f"Invalid step name: {step.get('name')}")
+                errors.append(
+                    FlowErrorMessages.format(
+                        FlowErrorMessages.STEP_INVALID_NAME,
+                        step_name=step.get("name"),
+                    )
+                )
 
         # Type-specific validation
         if "type" in step:
@@ -188,37 +215,50 @@ class FlowTemplateValidator:
 
         # Validate template ID
         if not template.template_id:
-            errors.append("Template ID is required")
+            errors.append(FlowErrorMessages.TEMPLATE_ID_REQUIRED)
 
         # Validate flow type
         if not template.flow_type:
-            errors.append("Flow type is required")
+            errors.append(FlowErrorMessages.FLOW_TYPE_REQUIRED)
 
         # Validate version format
         if not template.version:
-            warnings.append("Template version not specified")
+            warnings.append(FlowErrorMessages.TEMPLATE_VERSION_MISSING)
         elif not self._is_valid_version_format(template.version):
-            warnings.append(f"Invalid version format: {template.version}")
+            warnings.append(
+                FlowErrorMessages.format(
+                    FlowErrorMessages.TEMPLATE_VERSION_INVALID,
+                    version=template.version,
+                )
+            )
 
         # Validate steps exist
         if not template.steps or len(template.steps) == 0:
-            errors.append("Template must have at least one step")
+            errors.append(FlowErrorMessages.TEMPLATE_STEPS_REQUIRED)
 
         # Validate timeout settings
         if template.default_timeout_minutes <= 0:
-            errors.append("Default timeout must be positive")
+            errors.append(FlowErrorMessages.TEMPLATE_TIMEOUT_INVALID)
 
         if template.default_timeout_minutes > self.config.max_template_versions * 60:
             warnings.append(
-                f"Default timeout ({template.default_timeout_minutes}min) is very high"
+                FlowErrorMessages.format(
+                    FlowErrorMessages.TEMPLATE_TIMEOUT_TOO_HIGH,
+                    timeout=template.default_timeout_minutes,
+                )
             )
 
         # Validate max retries
         if template.max_retries < 0:
-            errors.append("Max retries cannot be negative")
+            errors.append(FlowErrorMessages.TEMPLATE_RETRIES_NEGATIVE)
 
-        if template.max_retries > 10:
-            warnings.append(f"Max retries ({template.max_retries}) is very high")
+        if template.max_retries > TemplateValidation.MAX_RETRIES:
+            warnings.append(
+                FlowErrorMessages.format(
+                    FlowErrorMessages.TEMPLATE_RETRIES_TOO_HIGH,
+                    retries=template.max_retries,
+                )
+            )
 
         return FlowValidationResult(
             is_valid=len(errors) == 0,
@@ -479,10 +519,12 @@ class FlowTemplateValidator:
         warnings: List[str] = []
 
         # Check maximum steps
-        if len(template.steps) > 50:
+        if len(template.steps) > TemplateValidation.MAX_TEMPLATE_STEPS:
             warnings.append(
-                f"Flow has many steps ({len(template.steps)}), "
-                f"consider breaking into smaller flows"
+                FlowErrorMessages.format(
+                    FlowErrorMessages.FLOW_TOO_MANY_STEPS,
+                    count=len(template.steps),
+                )
             )
 
         # Check for recommended patterns
@@ -491,13 +533,19 @@ class FlowTemplateValidator:
         # Onboarding flows should have questions
         if template.flow_type == FlowType.ONBOARDING:
             if FlowStepType.QUESTION.value not in step_types:
-                warnings.append("ONBOARDING flow should include QUESTION steps")
+                warnings.append(FlowErrorMessages.ONBOARDING_MISSING_QUESTIONS)
 
         # Emergency protocols should be fast
         if template.flow_type == FlowType.EMERGENCY_PROTOCOL:
-            if template.default_timeout_minutes > 15:
+            if (
+                template.default_timeout_minutes
+                > TemplateValidation.EMERGENCY_PROTOCOL_MAX_TIMEOUT
+            ):
                 warnings.append(
-                    "EMERGENCY_PROTOCOL should have shorter timeout (< 15 min)"
+                    FlowErrorMessages.format(
+                        FlowErrorMessages.EMERGENCY_TIMEOUT_TOO_HIGH,
+                        max_timeout=TemplateValidation.EMERGENCY_PROTOCOL_MAX_TIMEOUT,
+                    )
                 )
 
         # Check for error handling
@@ -505,7 +553,7 @@ class FlowTemplateValidator:
             step.get("on_error") or step.get("error_handler") for step in template.steps
         )
         if not has_error_handling:
-            warnings.append("Flow should include error handling steps")
+            warnings.append(FlowErrorMessages.FLOW_MISSING_ERROR_HANDLING)
 
         return FlowValidationResult(
             is_valid=len(errors) == 0,
@@ -519,7 +567,7 @@ class FlowTemplateValidator:
 
     def _is_valid_version_format(self, version: str) -> bool:
         """
-        Check if version follows semantic versioning.
+        Check if version follows semantic versioning using standardized utilities.
 
         Args:
             version: Version string to validate.
@@ -527,15 +575,8 @@ class FlowTemplateValidator:
         Returns:
             True if valid, False otherwise.
         """
-        try:
-            parts = version.split(".")
-            if len(parts) != 3:
-                return False
-            for part in parts:
-                int(part)
-            return True
-        except (ValueError, AttributeError):
-            return False
+        # Use the centralized version utility
+        return is_valid_version(version) and is_semantic_version(version)
 
     def _has_valid_step_order(self, steps: List[Dict[str, Any]]) -> bool:
         """
@@ -712,12 +753,25 @@ class FlowTemplateValidator:
         """
         Check for orphaned steps (unreachable from start).
 
+        Note: This validation is fully handled in _validate_flow_graph()
+        (lines 448-498) which performs a comprehensive reachability analysis
+        using graph traversal. This method is kept for backward compatibility
+        with external validators that may call it directly.
+
+        The comprehensive graph validation includes:
+        - Start step detection
+        - End step detection
+        - Cycle detection
+        - Reachability analysis (which covers orphaned steps)
+
         Args:
             template: Flow template.
             step_ids: Set of all step IDs.
             warnings: List to append warnings to.
         """
-        # This is handled in _validate_flow_graph
+        # Implementation deliberately empty - all orphaned step detection
+        # is now handled by _validate_flow_graph() for better accuracy
+        # and to avoid duplicate validation logic.
         pass
 
 

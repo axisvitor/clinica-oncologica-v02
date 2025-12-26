@@ -140,7 +140,7 @@ async def verify_firebase_token(
             logger.warning(f"Firebase sync validation failed: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=str(e)
+                detail="Access denied: Invalid user configuration"
             )
 
         # Check account lock status with proper transaction handling
@@ -262,7 +262,7 @@ async def verify_firebase_token(
         logger.warning(f"Invalid Firebase token: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid Firebase token: {str(e)}",
+            detail="Invalid or expired authentication token",
         )
     except Exception as e:
         if isinstance(e, HTTPException):
@@ -274,10 +274,10 @@ async def verify_firebase_token(
         # Improve reliability by rolling back if session is active
         try:
             db.rollback()
-        except:
-            pass
+        except Exception as rollback_err:
+            logger.warning(f"Rollback failed during auth error recovery: {rollback_err}")
             
-        raise HTTPException(status_code=500, detail=f"Authentication failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Authentication failed. Please try again later.")
 
 
 @router.get("/verify-session", response_model=SessionV2Response)

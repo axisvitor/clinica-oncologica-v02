@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 # In-memory registry used by test fixtures to bypass Firebase validation.
 # SECURITY: This registry is ONLY used when APP_ENABLE_DEBUG=True
 # In production, test tokens are NEVER accepted
-TEST_TOKEN_REGISTRY: Dict[str, User] = {}
 
 def _is_test_mode_enabled() -> bool:
     """Check if test/debug mode is enabled (NEVER in production)."""
@@ -37,6 +36,24 @@ def _is_test_mode_enabled() -> bool:
     if app_env in ("production", "prod"):
         return False
     return debug_enabled
+
+# SECURITY: Fail fast in production - prevent TEST_TOKEN_REGISTRY from being created
+_app_environment = getattr(settings, "APP_ENVIRONMENT", "development").lower()
+if _app_environment in ("production", "prod"):
+    logger.critical(
+        "SECURITY VIOLATION: TEST_TOKEN_REGISTRY attempted initialization in production. "
+        "This is a development/testing utility and is FORBIDDEN in production environments."
+    )
+    raise RuntimeError(
+        "SECURITY ERROR: TEST_TOKEN_REGISTRY is forbidden in production. "
+        "This authentication bypass mechanism must not exist in production deployments. "
+        "Check APP_ENVIRONMENT configuration."
+    )
+
+# Only create registry in development/test environments
+TEST_TOKEN_REGISTRY: Optional[Dict[str, User]] = (
+    {} if _app_environment in ("development", "test", "dev", "testing") else None
+)
 
 security = HTTPBearer(auto_error=False)
 
@@ -378,10 +395,13 @@ async def get_current_user_from_session(
                 headers={"WWW-Authenticate": "Session"},
             )
 
-        # Validate Firebase UID format to prevent injection attacks
+        # SECURITY FIX P0-1: Validate Firebase UID BEFORE cache lookup
+        # This prevents potential session hijacking if Redis is compromised
+        # Moving validation before cache ensures we never trust unchecked UIDs
         _validate_firebase_uid(firebase_uid)
 
         # Layer 2: Get user from cache (~2-5ms on hit, ~50-100ms on miss)
+        # NOW SAFE: UID has been validated above
         user_data = await redis_cache.get_user_by_uid(firebase_uid)
 
         if not user_data:
@@ -530,12 +550,15 @@ async def get_current_user(
         and getattr(settings, "APP_ENVIRONMENT", "development").lower() != "production"
     )
 
-    cached_local = TEST_TOKEN_REGISTRY.get(token_value) if allow_test_tokens else None
+    # Check test token registry (only exists in non-production environments)
+    cached_local = None
+    if allow_test_tokens and TEST_TOKEN_REGISTRY is not None:
+        cached_local = TEST_TOKEN_REGISTRY.get(token_value)
     if cached_local:
         return cached_local
 
     # Fast-path for local/testing tokens used by contract tests
-    if allow_test_tokens and token_value.startswith(("admin_token_", "test_token_")):
+    if allow_test_tokens and TEST_TOKEN_REGISTRY is not None and token_value.startswith(("admin_token_", "test_token_")):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Unregistered test token. Use TEST_TOKEN_REGISTRY in tests.",

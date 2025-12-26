@@ -38,6 +38,10 @@ from app.api.v2.dependencies import (
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.utils.rate_limiter import limiter
 from app.core.redis_unified import get_sync_redis
+from app.api.v2.utils.auth_helpers import (
+    extract_user_context as _extract_user_context,
+    is_admin as _is_admin,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -46,40 +50,6 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # Helper Functions
 # ============================================================================
-
-
-def _extract_user_context(current_user) -> tuple[Optional[UserRole], Optional[str]]:
-    """Extract role and user_id from current_user (dict or model)."""
-    role = None
-    user_id = None
-
-    if isinstance(current_user, dict):
-        role = current_user.get("role")
-        user_id = current_user.get("id")
-    else:
-        user_id = getattr(current_user, "id", None)
-        role = getattr(current_user, "role", None)
-
-    if isinstance(role, UserRole):
-        role_enum = role
-    elif isinstance(role, str):
-        try:
-            role_enum = UserRole(role.lower())
-        except ValueError:
-            role_enum = None
-    else:
-        role_enum = None
-
-    if user_id is not None:
-        user_id = str(user_id)
-
-    return role_enum, user_id
-
-
-def _is_admin(current_user) -> bool:
-    """Check if current user is admin."""
-    role_enum, _ = _extract_user_context(current_user)
-    return role_enum == UserRole.ADMIN
 
 
 def _calculate_workload_level(patient_count: int) -> WorkloadLevel:

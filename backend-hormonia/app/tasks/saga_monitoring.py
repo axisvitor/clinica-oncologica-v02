@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.patient_onboarding_saga import PatientOnboardingSaga, SagaStatus
-from app.core.monitoring import capture_message, capture_exception
+from app.core.monitoring_config import capture_message, capture_exception
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +47,9 @@ def check_orphaned_sagas() -> dict:
             SagaStatus.COMPENSATED,
         ]
 
-        # Define threshold for orphan detection (24 hours)
-        orphan_threshold = datetime.now(timezone.utc) - timedelta(hours=24)
+        # Define threshold for orphan detection (4 hours - reduced from 24h for faster detection)
+        # Healthcare context requires faster intervention for stuck sagas
+        orphan_threshold = datetime.now(timezone.utc) - timedelta(hours=4)
 
         # Query for orphaned sagas
         orphaned_sagas = (

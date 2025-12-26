@@ -33,12 +33,27 @@ All sensitive Personal Identifiable Information (PII) is encrypted **at rest**.
 ## 2. Audit Trails (HIPAA/LGPD)
 
 ### Architecture
-We implement an **Immutable Audit Log** system.
+We implement an **Immutable Audit Log** system with multiple specialized tables.
 
--   **Table:** `audit_logs`
+#### Security Audit: `audit_logs`
+-   **Purpose:** Security event tracking (30+ event types)
 -   **Trigger:** Automated checksums prevents undetected tampering.
--   **Retention:** 6 years (Partitioned by year in `audit_logs_archive`).
+-   **Retention:** 6-7 years (HIPAA requirement).
 -   **Scope:** Tracks `WHO` (User ID), `WHAT` (Resource/Action), `WHEN` (Timestamp), `WHERE` (IP/Context).
+-   **Event Types:** login_success/failure, access_denied, password_changed, account_locked, suspicious_activity, etc.
+
+#### LGPD Data Access: `lgpd_audit_logs`
+-   **Purpose:** PII access tracking (PRIMARY LGPD compliance table)
+-   **Key Fields:** `user_id`, `patient_id`, `action` (LGPDActionType), `data_category` (LGPDDataCategory), `fields_accessed`, `legal_basis`, `purpose`
+-   **Action Types:** view, create, update, delete, export, anonymize, consent_granted/revoked
+-   **Data Categories:** personal_basic, health, genetic, biometric, financial
+-   **Retention:** 5-7 years with `retention_until` and `can_be_deleted` columns
+
+#### Data Subject Requests: `lgpd_data_access_requests`
+-   **Purpose:** DSAR (Data Subject Access Request) management
+-   **Request Types:** access, rectification, erasure, portability
+-   **Key Fields:** `patient_id`, `request_type`, `status`, `deadline_at` (15-day LGPD limit), `evidence_hash`
+-   **Compliance:** LGPD Articles 18 & 19
 
 ### Middleware
 `app/middleware/hipaa_middleware.py` automatically captures:

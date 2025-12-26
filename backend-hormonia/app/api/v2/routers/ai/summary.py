@@ -17,22 +17,24 @@ Author: AI Architect
 Date: January 2025
 """
 
+# Standard library imports
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
+# Third-party imports
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db
+# Local application imports
+from app.dependencies import get_db, get_patient_service, validate_patient_access
 from app.models.user import User
 from app.schemas.v2.patient_summary import (
     GenerateSummaryRequest,
-    PatientSummaryResponse,
     PatientSummaryListResponse,
+    PatientSummaryResponse,
 )
-from app.services.ai.patient_summary_service import (
-    get_patient_summary_service,
-)
+from app.services.ai.patient_summary_service import get_patient_summary_service
+
 from .dependencies import verify_physician_or_admin
 
 logger = logging.getLogger(__name__)
@@ -68,8 +70,14 @@ async def generate_patient_summary(
     Generate AI-powered patient summary.
 
     Requires physician or admin role.
+    Validates patient access before generating summary (HIPAA compliance).
     """
     try:
+        # FIX: Validate patient access before generating summary (HIPAA compliance)
+        patient = await validate_patient_access(
+            request.patient_id, current_user, get_patient_service(db)
+        )
+
         service = get_patient_summary_service(db)
 
         response = await service.generate_summary(
@@ -89,7 +97,7 @@ async def generate_patient_summary(
         logger.warning(f"Summary generation failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
+            detail="Patient not found or insufficient data for summary",
         )
     except Exception as e:
         logger.error(f"Summary generation error: {e}", exc_info=True)
@@ -177,7 +185,7 @@ async def export_summary_pdf(
         logger.warning(f"PDF export failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
+            detail="Summary not found or cannot be exported",
         )
     except Exception as e:
         logger.error(f"PDF export error: {e}", exc_info=True)

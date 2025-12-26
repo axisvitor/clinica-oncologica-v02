@@ -1,8 +1,15 @@
 """
 Core CRUD operations for Patient repository.
+
+This module provides base CRUD operations for the Patient model,
+including create, update, read, and delete operations with
+LGPD compliance and Redis caching support.
 """
 
-from typing import List, Optional, Dict, Any
+from __future__ import annotations
+
+import logging
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from sqlalchemy.orm import Session, joinedload, selectinload
@@ -10,15 +17,33 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from app.models.patient import Patient
 from app.repositories.base import BaseRepository
 
+logger = logging.getLogger(__name__)
+
 
 class PatientRepositoryBase(BaseRepository[Patient]):
     """
     Base patient repository with core CRUD operations.
+
+    Handles all database interactions for patients including
+    CRUD operations with LGPD compliance, Redis caching support,
+    and optimized query execution.
+
+    Attributes:
+        db: SQLAlchemy database session.
+        model: Patient model class.
+        _redis_client: Optional Redis client for caching.
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session) -> None:
+        """
+        Initialize the patient repository.
+
+        Args:
+            db: SQLAlchemy database session.
+        """
         super().__init__(db, Patient)
         self._redis_client = None
+        self._logger = logger
 
     @property
     def redis(self):
@@ -28,17 +53,35 @@ class PatientRepositoryBase(BaseRepository[Patient]):
                 from app.core.redis_unified import get_redis_client
 
                 self._redis_client = get_redis_client("sync")
-            except Exception:
+            except Exception as e:
                 # Redis optional - gracefully degrade if unavailable
+                logger.debug(f"Redis client not available, caching disabled: {e}")
                 self._redis_client = False
         return self._redis_client if self._redis_client else None
 
-    def create(self, obj_in: Dict[str, Any]) -> Patient:
+    def create(self, obj_in: Dict[str, Any], auto_commit: bool = True) -> Patient:
+        """
+        Create a new patient record.
+
+        Args:
+            obj_in: Dictionary with patient data.
+            auto_commit: If True (default), commits the transaction immediately.
+                         Set to False when using within a saga/Unit of Work pattern
+                         where the caller manages the transaction commit.
+
+        Returns:
+            The created Patient instance.
+
+        Note:
+            When auto_commit=False, the caller is responsible for calling
+            db.commit() after all saga steps complete successfully.
+        """
         data = dict(obj_in)
 
         phone = data.pop("phone", None)
         email = data.pop("email", None)
         cpf = data.pop("cpf", None)
+        is_active = data.pop("is_active", None)
         timezone = data.pop("timezone", None)
 
         allergies = data.pop("allergies", None)
@@ -126,8 +169,14 @@ class PatientRepositoryBase(BaseRepository[Patient]):
 
         try:
             self.db.add(patient)
-            self.db.commit()
-            self.db.refresh(patient)
+            if auto_commit:
+                # Standard behavior: commit immediately
+                self.db.commit()
+                self.db.refresh(patient)
+            else:
+                # Saga/Unit of Work pattern: flush only, caller commits
+                self.db.flush()
+                self.db.refresh(patient)
         except Exception:
             self.db.rollback()
             raise
@@ -135,17 +184,33 @@ class PatientRepositoryBase(BaseRepository[Patient]):
         self._invalidate_caches_for_model(patient)
         return patient
 
-    def update(self, db_obj: Patient, obj_in: Dict[str, Any]) -> Patient:
+    def update(
+        self, db_obj: Patient, obj_in: Dict[str, Any], auto_commit: bool = True
+    ) -> Patient:
+        """
+        Update an existing patient record.
+
+        Args:
+            db_obj: Existing Patient instance to update.
+            obj_in: Dictionary with updated patient data.
+            auto_commit: If True (default), commits the transaction immediately.
+                         Set to False when using within a saga/Unit of Work pattern.
+
+        Returns:
+            The updated Patient instance.
+        """
         data = dict(obj_in)
 
         phone_present = "phone" in data
         email_present = "email" in data
         cpf_present = "cpf" in data
+        is_active_present = "is_active" in data
         timezone_present = "timezone" in data
 
         phone = data.pop("phone", None)
         email = data.pop("email", None)
         cpf = data.pop("cpf", None)
+        is_active = data.pop("is_active", None)
         timezone = data.pop("timezone", None)
 
         allergies = data.pop("allergies", None)
@@ -257,8 +322,14 @@ class PatientRepositoryBase(BaseRepository[Patient]):
 
         try:
             self.db.add(db_obj)
-            self.db.commit()
-            self.db.refresh(db_obj)
+            if auto_commit:
+                # Standard behavior: commit immediately
+                self.db.commit()
+                self.db.refresh(db_obj)
+            else:
+                # Saga/Unit of Work pattern: flush only, caller commits
+                self.db.flush()
+                self.db.refresh(db_obj)
         except Exception:
             self.db.rollback()
             raise

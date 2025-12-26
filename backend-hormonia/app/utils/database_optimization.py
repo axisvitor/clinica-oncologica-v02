@@ -2,6 +2,7 @@
 Database query optimization utilities and connection pooling configuration.
 """
 
+import os
 import time
 from typing import Any, List, Optional, TypeVar
 from contextlib import asynccontextmanager
@@ -171,6 +172,10 @@ def get_db_optimizer() -> DatabaseOptimizer:
 
 def create_optimized_engine(database_url: str, **kwargs):
     """Create database engine with optimized connection pooling."""
+    # Read debug setting directly from environment to avoid circular imports
+    # (settings.APP_ENABLE_DEBUG causes circular dependency during module initialization)
+    debug_mode = os.getenv("APP_ENABLE_DEBUG", "false").lower() in ("true", "1", "yes", "on")
+
     # Default optimization settings
     default_settings = {
         "poolclass": QueuePool,
@@ -179,8 +184,8 @@ def create_optimized_engine(database_url: str, **kwargs):
         "pool_pre_ping": True,  # Validate connections before use
         "pool_recycle": 3600,  # Recycle connections after 1 hour
         "pool_timeout": 30,  # Timeout for getting connection from pool
-        "echo": settings.APP_ENABLE_DEBUG,  # Log SQL queries in debug mode
-        "echo_pool": settings.APP_ENABLE_DEBUG,  # Log connection pool events
+        "echo": debug_mode,  # Log SQL queries in debug mode
+        "echo_pool": debug_mode,  # Log connection pool events
     }
 
     # Merge with provided kwargs
@@ -219,36 +224,94 @@ def create_optimized_engine(database_url: str, **kwargs):
 
 
 class QueryOptimizer:
-    """Utilities for optimizing database queries."""
+    """
+    Utilities for optimizing database queries.
+
+    Security Note:
+    --------------
+    All query modifications use SQLAlchemy's query builder methods.
+    NEVER concatenate strings into SQL queries - always use parameterized
+    queries or SQLAlchemy's API to prevent SQL injection.
+    """
 
     @staticmethod
     def add_pagination_hints(query, page: int, size: int, max_size: int = 100):
-        """Add pagination with performance hints."""
-        # Limit page size to prevent large queries
-        size = min(size, max_size)
+        """
+        Add pagination with performance hints.
+
+        Args:
+            query: SQLAlchemy query object
+            page: Page number (1-indexed)
+            size: Items per page
+            max_size: Maximum allowed page size
+
+        Returns:
+            Query with limit/offset applied via SQLAlchemy API (safe from SQL injection)
+        """
+        # Validate and sanitize inputs
+        page = max(1, int(page))  # Ensure positive integer
+        size = min(int(size), max_size)  # Enforce max size limit
+        size = max(1, size)  # Ensure at least 1
 
         # Calculate offset
         offset = (page - 1) * size
 
-        # Add limit and offset
+        # Use SQLAlchemy API - NO string concatenation
         return query.limit(size).offset(offset)
 
     @staticmethod
     def add_index_hints(query, table_name: str, index_name: str):
-        """Add database-specific index hints."""
+        """
+        Add database-specific index hints as query comments.
+
+        Security: Uses SQLAlchemy prefix_with() - safe from injection.
+
+        Args:
+            query: SQLAlchemy query object
+            table_name: Table name (validated)
+            index_name: Index name (validated)
+
+        Returns:
+            Query with hint comment
+        """
+        # Validate inputs - only allow alphanumeric and underscores
+        import re
+        if not re.match(r'^[a-zA-Z0-9_]+$', table_name):
+            raise ValueError(f"Invalid table name: {table_name}")
+        if not re.match(r'^[a-zA-Z0-9_]+$', index_name):
+            raise ValueError(f"Invalid index name: {index_name}")
+
         # PostgreSQL doesn't have explicit index hints like MySQL
-        # But we can add query comments for monitoring
+        # But we can add query comments for monitoring (safe - not executed as SQL)
         return query.prefix_with(f"/* INDEX_HINT: {table_name}.{index_name} */")
 
     @staticmethod
     def optimize_joins(query):
-        """Add join optimization hints."""
+        """
+        Add join optimization hints via query comments.
+
+        Security: Uses SQLAlchemy prefix_with() - safe from injection.
+        """
         # Add query comment for join optimization
         return query.prefix_with("/* OPTIMIZE_JOINS */")
 
     @staticmethod
     def add_query_timeout(query, timeout_seconds: int = 30):
-        """Add query timeout (PostgreSQL specific)."""
+        """
+        Add query timeout hint (PostgreSQL specific).
+
+        Security: Uses SQLAlchemy prefix_with() - safe from injection.
+
+        Args:
+            query: SQLAlchemy query object
+            timeout_seconds: Timeout in seconds
+
+        Returns:
+            Query with timeout hint comment
+        """
+        # Validate timeout is positive integer
+        timeout_seconds = max(1, int(timeout_seconds))
+
         return query.prefix_with(f"/* TIMEOUT: {timeout_seconds}s */")
 
 

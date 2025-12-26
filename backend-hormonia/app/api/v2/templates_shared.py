@@ -40,12 +40,38 @@ RATE_LIMIT_SEARCH = "30/minute"
 
 
 async def _get_current_user_simple(
-    session_cookie_id: str = Cookie(None, alias="session_id"),
-    x_session_id: str = Header(None, alias="X-Session-ID"),
+    session_cookie_id: Optional[str] = Cookie(None, alias="session_id"),
+    x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),
     db: Session = Depends(get_db),
     redis_cache=Depends(get_redis_cache),
 ) -> Dict[str, Any]:
-    """Simplified session validation for template operations."""
+    """Simplified session validation for template operations.
+
+    Validates user session from cookie or header and retrieves user data
+    from cache or database. Used as dependency for template endpoints.
+
+    Args:
+        session_cookie_id: Session ID from cookie. Defaults to None.
+        x_session_id: Session ID from X-Session-ID header. Defaults to None.
+        db: Database session from dependency injection.
+        redis_cache: Redis cache instance from dependency injection.
+
+    Returns:
+        Dictionary containing user data (id, firebase_uid, email, full_name, role, is_active)
+
+    Raises:
+        HTTPException: 401 if session invalid/expired or user not found
+        HTTPException: 403 if user account is inactive
+
+    Example:
+        >>> user = await _get_current_user_simple(
+        ...     session_cookie_id="abc123",
+        ...     db=db_session,
+        ...     redis_cache=cache
+        ... )
+        >>> print(user["email"])
+        "user@example.com"
+    """
     final_session_id = session_cookie_id or x_session_id
     if not final_session_id:
         raise HTTPException(
@@ -94,7 +120,25 @@ async def _get_current_user_simple(
 def _extract_user_context(
     current_user: Dict[str, Any],
 ) -> Tuple[UserRole, Optional[UUID]]:
-    """Extract role and user UUID from current_user dict."""
+    """Extract role and user UUID from current_user dictionary.
+
+    Normalizes user role from various formats (str, UserRole enum) and
+    extracts UUID from user ID field.
+
+    Args:
+        current_user: User data dictionary from authentication
+
+    Returns:
+        Tuple of (UserRole enum, UUID or None)
+
+    Example:
+        >>> user_data = {"id": "550e8400-e29b-41d4-a716-446655440000", "role": "admin"}
+        >>> role, user_uuid = _extract_user_context(user_data)
+        >>> role == UserRole.ADMIN
+        True
+        >>> isinstance(user_uuid, UUID)
+        True
+    """
     role_value = current_user.get("role", "doctor")
     user_id = current_user.get("id")
 
@@ -114,13 +158,44 @@ def _extract_user_context(
 
 
 def _is_admin_or_doctor(current_user: Dict[str, Any]) -> bool:
-    """Check if user has admin or doctor role."""
+    """Check if user has admin or doctor role.
+
+    Args:
+        current_user: User data dictionary from authentication
+
+    Returns:
+        True if user is admin or doctor, False otherwise
+
+    Example:
+        >>> user = {"role": "admin"}
+        >>> _is_admin_or_doctor(user)
+        True
+        >>> user = {"role": "patient"}
+        >>> _is_admin_or_doctor(user)
+        False
+    """
     role, _ = _extract_user_context(current_user)
     return role in [UserRole.ADMIN, UserRole.DOCTOR]
 
 
 def _check_write_permission(current_user: Dict[str, Any]) -> None:
-    """Ensure user has write permissions (admin or doctor)."""
+    """Ensure user has write permissions (admin or doctor).
+
+    Args:
+        current_user: User data dictionary from authentication
+
+    Raises:
+        HTTPException: 403 if user lacks write permissions
+
+    Example:
+        >>> user = {"role": "admin"}
+        >>> _check_write_permission(user)  # No exception
+        >>> user = {"role": "patient"}
+        >>> _check_write_permission(user)  # Raises HTTPException
+        Traceback (most recent call last):
+        ...
+        HTTPException: 403
+    """
     if not _is_admin_or_doctor(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -128,15 +203,45 @@ def _check_write_permission(current_user: Dict[str, Any]) -> None:
         )
 
 
-def _get_cache_key(prefix: str, **params) -> str:
-    """Generate cache key from prefix and parameters."""
+def _get_cache_key(prefix: str, **params: Any) -> str:
+    """Generate deterministic cache key from prefix and parameters.
+
+    Uses SHA-256 hash of sorted JSON parameters for collision resistance.
+
+    Args:
+        prefix: Cache key prefix (e.g., "flow_templates", "quiz_list")
+        **params: Arbitrary keyword arguments to include in cache key
+
+    Returns:
+        Formatted cache key string
+
+    Example:
+        >>> key = _get_cache_key("flow", kind_id="abc", version=1)
+        >>> key.startswith("templates:v2:flow:")
+        True
+        >>> len(key.split(":")[-1]) == 32  # Hash length
+        True
+    """
     param_str = json.dumps(params, sort_keys=True, default=str)
-    param_hash = hashlib.md5(param_str.encode()).hexdigest()
+    # Use SHA-256 instead of MD5 for better collision resistance
+    param_hash = hashlib.sha256(param_str.encode()).hexdigest()[:32]
     return f"templates:v2:{prefix}:{param_hash}"
 
 
-async def _get_cached_result(cache_key: str):
-    """Get cached result from Redis."""
+async def _get_cached_result(cache_key: str) -> Optional[Dict[str, Any]]:
+    """Get cached result from Redis.
+
+    Args:
+        cache_key: Cache key to retrieve
+
+    Returns:
+        Cached data as dictionary, or None if not found or cache unavailable
+
+    Example:
+        >>> result = await _get_cached_result("templates:v2:flow:abc123")
+        >>> if result:
+        ...     print(result["template_name"])
+    """
     try:
         from app.core.redis_unified import get_async_redis
 
@@ -153,8 +258,21 @@ async def _get_cached_result(cache_key: str):
         return None
 
 
-async def _set_cached_result(cache_key: str, data: dict, ttl: int):
-    """Set cached result in Redis."""
+async def _set_cached_result(cache_key: str, data: Dict[str, Any], ttl: int) -> None:
+    """Set cached result in Redis with TTL.
+
+    Args:
+        cache_key: Cache key to store under
+        data: Dictionary data to cache
+        ttl: Time to live in seconds
+
+    Example:
+        >>> await _set_cached_result(
+        ...     "templates:v2:flow:abc",
+        ...     {"name": "Flow 1", "version": 1},
+        ...     ttl=1800
+        ... )
+    """
     try:
         from app.core.redis_unified import get_async_redis
 
@@ -169,8 +287,24 @@ async def _set_cached_result(cache_key: str, data: dict, ttl: int):
 
 async def _invalidate_template_cache(
     template_type: str, template_id: Optional[UUID] = None
-):
-    """Invalidate template-related cache entries."""
+) -> None:
+    """Invalidate template-related cache entries.
+
+    Removes cached data for a specific template type and optionally
+    a specific template ID. Uses pattern matching to clear all related caches.
+
+    Args:
+        template_type: Type of template (flow_template, quiz_template, etc.)
+        template_id: Optional specific template ID to invalidate. Defaults to None.
+
+    Example:
+        >>> # Invalidate all flow template caches
+        >>> await _invalidate_template_cache("flow_template")
+        >>>
+        >>> # Invalidate specific template
+        >>> template_uuid = UUID("550e8400-e29b-41d4-a716-446655440000")
+        >>> await _invalidate_template_cache("flow_template", template_uuid)
+    """
     try:
         from app.core.redis_unified import get_async_redis
 
@@ -194,7 +328,24 @@ async def _invalidate_template_cache(
 
 
 def _serialize_flow_template(template: FlowTemplateVersion) -> Dict[str, Any]:
-    """Serialize FlowTemplateVersion to API-friendly dict."""
+    """Serialize FlowTemplateVersion model to API-friendly dictionary.
+
+    Converts database model to JSON-serializable format with ISO timestamps
+    and string UUIDs.
+
+    Args:
+        template: FlowTemplateVersion model instance
+
+    Returns:
+        Dictionary with template data for API response
+
+    Example:
+        >>> from app.models.flow import FlowTemplateVersion
+        >>> template = db.query(FlowTemplateVersion).first()
+        >>> result = _serialize_flow_template(template)
+        >>> "id" in result and "template_name" in result
+        True
+    """
     return {
         "id": str(template.id),
         "flow_kind_id": str(template.kind_id),
@@ -217,7 +368,24 @@ def _serialize_flow_template(template: FlowTemplateVersion) -> Dict[str, Any]:
 
 
 def _serialize_quiz_template(template: QuizTemplate) -> Dict[str, Any]:
-    """Serialize QuizTemplate to API-friendly dict."""
+    """Serialize QuizTemplate model to API-friendly dictionary.
+
+    Converts database model to JSON-serializable format with ISO timestamps
+    and normalized fields.
+
+    Args:
+        template: QuizTemplate model instance
+
+    Returns:
+        Dictionary with quiz template data for API response
+
+    Example:
+        >>> from app.models.quiz import QuizTemplate
+        >>> quiz = db.query(QuizTemplate).first()
+        >>> result = _serialize_quiz_template(quiz)
+        >>> "id" in result and "questions" in result
+        True
+    """
     return {
         "id": str(template.id),
         "name": template.name,
@@ -236,9 +404,29 @@ def _serialize_quiz_template(template: QuizTemplate) -> Dict[str, Any]:
 
 
 def _serialize_flow_kind(
-    kind: FlowKind, version_stats: Optional[Dict] = None
+    kind: FlowKind,
+    version_stats: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
-    """Serialize FlowKind to API-friendly dict with optional version statistics."""
+    """Serialize FlowKind model to API-friendly dictionary with optional stats.
+
+    Converts database model to JSON-serializable format, optionally including
+    version statistics like total versions, published count, etc.
+
+    Args:
+        kind: FlowKind model instance
+        version_stats: Optional dictionary with version statistics. Defaults to None.
+
+    Returns:
+        Dictionary with flow kind data for API response
+
+    Example:
+        >>> from app.models.flow import FlowKind
+        >>> kind = db.query(FlowKind).first()
+        >>> stats = {"total": 5, "published": 3, "draft": 2}
+        >>> result = _serialize_flow_kind(kind, stats)
+        >>> result["total_versions"]
+        5
+    """
     result = {
         "id": str(kind.id),
         "kind_key": kind.kind_key,
@@ -262,8 +450,31 @@ def _serialize_flow_kind(
     return result
 
 
-def _compare_templates(old_data: Dict, new_data: Dict) -> Dict[str, Any]:
-    """Compare two template versions and generate diff."""
+def _compare_templates(
+    old_data: Dict[str, Any],
+    new_data: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Compare two template versions and generate unified diff.
+
+    Creates a unified diff showing additions and removals between
+    two template versions in JSON format.
+
+    Args:
+        old_data: Original template data dictionary
+        new_data: Updated template data dictionary
+
+    Returns:
+        Dictionary containing diff string, list of changes, and total count
+
+    Example:
+        >>> old = {"name": "Template", "version": 1}
+        >>> new = {"name": "Template v2", "version": 2}
+        >>> diff = _compare_templates(old, new)
+        >>> diff["total_changes"] > 0
+        True
+        >>> "added" in diff["changes"][0]["type"] or "removed" in diff["changes"][0]["type"]
+        True
+    """
     old_json = json.dumps(old_data, indent=2, sort_keys=True)
     new_json = json.dumps(new_data, indent=2, sort_keys=True)
 

@@ -4,22 +4,27 @@ Session Coordinator - Manages quiz session lifecycle.
 Handles session creation, context building, completion, and state management.
 """
 
+from __future__ import annotations
+
+# Standard library imports
 import logging
-from typing import Dict, List, Optional, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from uuid import UUID
 
+# Third-party imports
 from sqlalchemy.orm import Session
+
+# Local application imports
+from app.agents.base import MessagePriority
+from app.models.patient import Patient
+from app.models.quiz import QuizSession, QuizTemplate
+from app.repositories.patient import PatientRepository
+from app.schemas.quiz import QuizSessionCreate
+from app.services.quiz import QuizSessionService, QuizTemplateService
 
 if TYPE_CHECKING:
     from app.domain.agents.quiz.progress_tracker import ProgressTracker
     from app.domain.agents.quiz.question_presenter import QuestionPresenter
-
-from app.models.patient import Patient
-from app.models.quiz import QuizTemplate, QuizSession
-from app.schemas.quiz import QuizSessionCreate
-from app.services.quiz import QuizTemplateService, QuizSessionService
-from app.repositories.patient import PatientRepository
-from app.agents.base import MessagePriority
 
 
 def _get_knowledge_graph():
@@ -34,9 +39,28 @@ def _get_knowledge_graph():
 
 
 class QuizContext:
-    """Context for quiz conduction and adaptation."""
+    """
+    Context for quiz conduction and adaptation.
+
+    Contains all state and metadata for an active quiz session,
+    including patient data, progress tracking, and adaptation history.
+
+    Attributes:
+        patient_id: Patient UUID.
+        session: Active quiz session.
+        template: Quiz template being used.
+        patient_data: Patient information.
+        current_question_index: Current question number.
+        responses_so_far: List of previous responses.
+        mood_indicators: Analyzed mood data.
+        stress_level: Calculated stress level (0-1).
+        engagement_score: Calculated engagement score (0-1).
+        knowledge_context: Knowledge graph context.
+        adaptation_history: List of applied adaptations.
+    """
 
     def __init__(self):
+        """Initialize quiz context with default values."""
         self.patient_id: Optional[UUID] = None
         self.session: Optional[QuizSession] = None
         self.template: Optional[QuizTemplate] = None
@@ -54,13 +78,16 @@ class SessionCoordinator:
     """
     Coordinates quiz session lifecycle and state management.
 
-    Responsibilities:
-    - Build comprehensive quiz context
-    - Create and initialize quiz sessions
-    - Complete quiz sessions
-    - Manage session state and metadata
-    - Trigger comprehensive analysis
-    - Coordinate with knowledge graph
+    Manages quiz session creation, context building, completion,
+    and integration with knowledge graph.
+
+    Attributes:
+        db_session: Database session.
+        quiz_template_service: Template service.
+        quiz_session_service: Session service.
+        patient_repo: Patient repository.
+        agent_id: ID of owning agent.
+        knowledge_graph: Knowledge graph instance.
     """
 
     def __init__(
@@ -72,13 +99,23 @@ class SessionCoordinator:
         agent_id: str,
         logger: Optional[logging.Logger] = None,
     ):
-        """Initialize session coordinator."""
+        """
+        Initialize session coordinator.
+
+        Args:
+            db_session: Database session.
+            quiz_template_service: Quiz template service.
+            quiz_session_service: Quiz session service.
+            patient_repo: Patient repository.
+            agent_id: Agent identifier.
+            logger: Logger instance.
+        """
         self.db_session = db_session
         self.quiz_template_service = quiz_template_service
         self.quiz_session_service = quiz_session_service
         self.patient_repo = patient_repo
         self.agent_id = agent_id
-        self.logger = logger or logging.getLogger(__name__)
+        self._logger = logger or logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
         # Knowledge graph (initialized during start)
         self.knowledge_graph = None
@@ -91,7 +128,7 @@ class SessionCoordinator:
                 self.knowledge_graph = KnowledgeGraph(self.db_session)
                 await self.knowledge_graph.initialize()
         except Exception as e:
-            self.logger.error(f"Failed to initialize knowledge graph: {e}")
+            self._logger.error(f"Failed to initialize knowledge graph: {e}")
 
     async def build_quiz_context(
         self, patient_id: UUID, quiz_type: str, progress_tracker: "ProgressTracker"
@@ -121,7 +158,7 @@ class SessionCoordinator:
                     await self.knowledge_graph.get_patient_context(patient_id)
                 )
             except Exception as e:
-                self.logger.error(f"Failed to get knowledge context: {e}")
+                self._logger.error(f"Failed to get knowledge context: {e}")
                 context.knowledge_context = {}
 
         # Analyze patient state using progress tracker
@@ -153,7 +190,7 @@ class SessionCoordinator:
             )
 
             if not template:
-                self.logger.error(f"Failed to get quiz template for type: {quiz_type}")
+                self._logger.error(f"Failed to get quiz template for type: {quiz_type}")
                 return None
 
             # Create session
@@ -186,7 +223,7 @@ class SessionCoordinator:
             return session
 
         except Exception as e:
-            self.logger.error(f"Failed to create quiz session: {e}")
+            self._logger.error(f"Failed to create quiz session: {e}")
             return None
 
     async def complete_quiz_session(self, context: QuizContext, send_message_callback):
@@ -208,14 +245,14 @@ class SessionCoordinator:
                         context.patient_id
                     )
                     if patterns:
-                        self.logger.info(
+                        self._logger.info(
                             f"Discovered {len(patterns)} new patterns for patient {context.patient_id}"
                         )
                 except Exception as e:
-                    self.logger.error(f"Failed to update knowledge graph: {e}")
+                    self._logger.error(f"Failed to update knowledge graph: {e}")
 
         except Exception as e:
-            self.logger.error(f"Quiz completion failed: {e}")
+            self._logger.error(f"Quiz completion failed: {e}")
 
     async def trigger_comprehensive_analysis(
         self, context: QuizContext, send_message_callback
@@ -247,7 +284,7 @@ class SessionCoordinator:
                     MessagePriority.NORMAL,
                 )
             except Exception as e:
-                self.logger.error(f"Failed to request analysis from {agent_id}: {e}")
+                self._logger.error(f"Failed to request analysis from {agent_id}: {e}")
 
     async def get_session_responses(self, session_id: UUID) -> List[Dict]:
         """Get responses for current session."""

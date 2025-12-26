@@ -1,16 +1,31 @@
-"""
-Consensus Manager - Handles agent consensus and coordination.
-"""
+"""Consensus Manager - Handles agent consensus and coordination."""
 
+from __future__ import annotations
+
+# Standard library
 import logging
-from typing import Dict, Any, Callable
+from datetime import datetime, timezone
+from typing import Any, Callable, Dict
 
+# Local
 from app.agents.base import MessagePriority
+
 from .models import FlowContext
 
 
 class ConsensusManager:
-    """Manages agent consensus for critical decisions."""
+    """
+    Manages agent consensus for critical decisions.
+
+    Coordinates with other agents to reach consensus on
+    important decisions and escalates interventions when needed.
+
+    Attributes:
+        agent_id: Unique agent identifier.
+        logger: Logger instance.
+        send_message_fn: Function to send messages to other agents.
+        consensus_threshold: Threshold for consensus approval.
+    """
 
     def __init__(
         self,
@@ -87,7 +102,3 @@ class ConsensusManager:
             alert_data,
             MessagePriority.CRITICAL,
         )
-
-
-# Import datetime for escalate_intervention
-from datetime import datetime, timezone

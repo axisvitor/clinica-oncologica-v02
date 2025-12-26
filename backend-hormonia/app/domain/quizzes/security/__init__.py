@@ -1,5 +1,7 @@
 """Quiz security features including token rotation."""
 
+from __future__ import annotations
+
 from .token_rotation import (
     _validate_token_with_grace_period,
     submit_quiz_response_with_rotation,

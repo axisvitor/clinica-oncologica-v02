@@ -1,5 +1,7 @@
 """Factory for creating quiz sessions."""
 
+from __future__ import annotations
+
 from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID

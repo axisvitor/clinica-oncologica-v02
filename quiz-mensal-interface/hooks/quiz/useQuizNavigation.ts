@@ -1,9 +1,8 @@
 import { useToast } from "@/hooks/use-toast"
-import { quizAPI } from "@/lib/api"
 import type { SingleAnswer, MultipleAnswer } from "@/types/quiz"
 
 interface UseQuizNavigationProps {
-  currentToken: string
+  currentToken?: string // Deprecated: token handled by httpOnly cookies
   currentQuestionIndex: number
   currentQuestionId: string
   isLastQuestion: boolean
@@ -43,12 +42,32 @@ export function useQuizNavigation(props: UseQuizNavigationProps) {
     try {
       const { answerValue, otherText } = props.prepareAnswerPayload(props.selectedAnswer)
 
-      const response = await quizAPI.submitAnswer(
-        props.currentToken,
-        props.currentQuestionId,
-        answerValue,
-        { question_index: props.currentQuestionIndex, other_text: otherText }
-      )
+      // SECURITY FIX: Use API route with httpOnly cookie authentication
+      // Get CSRF token
+      const csrfResponse = await fetch('/api/csrf-token')
+      const { csrfToken } = await csrfResponse.json()
+
+      // Submit answer via API route (cookie sent automatically)
+      const answerResponse = await fetch('/api/quiz/submit-answer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken
+        },
+        body: JSON.stringify({
+          question_id: props.currentQuestionId,
+          response_value: answerValue,
+          response_metadata: { question_index: props.currentQuestionIndex, other_text: otherText }
+        }),
+        credentials: 'include' // Important: include cookies
+      })
+
+      if (!answerResponse.ok) {
+        const errorData = await answerResponse.json()
+        throw new Error(errorData.error || 'Failed to submit answer')
+      }
+
+      const response = await answerResponse.json()
 
       // SECURITY: Token rotation handled by httpOnly cookies
       // No need to update token in JavaScript anymore

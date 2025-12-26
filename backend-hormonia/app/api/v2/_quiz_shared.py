@@ -5,6 +5,8 @@ This module contains common authentication, authorization, and configuration
 used across all quiz extension endpoints.
 """
 
+from __future__ import annotations
+
 from uuid import UUID
 from fastapi import Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session
@@ -25,18 +27,24 @@ CACHE_TTL_QUIZ_LIST = 300  # 5 minutes for quiz lists
 
 def _get_current_user_simple(
     session_id: str = Header(None, alias="X-Session-ID"),
+    authorization: str = Header(None),
     db: Session = Depends(get_db),
 ) -> User:
     """Simplified session validation for V2 endpoints."""
-    if not session_id:
+    # Support both X-Session-ID and Authorization: Bearer headers
+    final_session_id = session_id
+    if not final_session_id and authorization and authorization.startswith("Bearer "):
+        final_session_id = authorization.split(" ")[1]
+
+    if not final_session_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session ID not provided in X-Session-ID header",
+            detail="Session ID not provided",
         )
 
     # For now, we'll use a simple lookup. In production, validate against Redis/session store
     # This is a placeholder - replace with actual session validation
-    user = db.query(User).filter(User.id == session_id).first()
+    user = db.query(User).filter(User.id == final_session_id).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

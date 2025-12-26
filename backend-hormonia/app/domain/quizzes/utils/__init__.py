@@ -1,5 +1,7 @@
 """Quiz utility functions."""
 
+from __future__ import annotations
+
 from .response_utils import (
     normalize_other_value,
     serialize_response_value,

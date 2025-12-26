@@ -307,7 +307,7 @@ class AppointmentRepository(BaseRepository[Appointment]):
                 joinedload(Appointment.patient), joinedload(Appointment.practitioner)
             )
 
-        return query.all()
+        return query.limit(100).all()  # FIX: Prevent unbounded query
 
     def find_conflicts(
         self,

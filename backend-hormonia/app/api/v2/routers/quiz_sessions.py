@@ -1,4 +1,6 @@
-from typing import Optional, List, Tuple
+
+# NOTE: Removed 'from __future__ import annotations' to fix Pydantic/FastAPI OpenAPI issues
+from typing import Optional, List
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import joinedload
@@ -7,7 +9,6 @@ from sqlalchemy import and_, func
 from app.database import get_db
 from app.models.quiz import QuizSession, QuizTemplate
 from app.models.patient import Patient
-from app.models.user import UserRole
 from app.schemas.v2.quiz import (
     QuizV2Response,
     QuizV2List,
@@ -20,6 +21,12 @@ from app.api.v2.dependencies import (
     get_eager_load_params,
     apply_field_selection,
 )
+from app.api.v2.utils.auth_helpers import (
+    extract_user_context as _extract_user_context,
+    is_admin,
+    ensure_uuid as _ensure_uuid,
+)
+from app.models.user import UserRole
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.utils.rate_limiter import limiter
 from app.core.distributed_lock import acquire_lock_sync, LockAcquisitionError, LockKeys
@@ -27,50 +34,12 @@ from app.core.distributed_lock import acquire_lock_sync, LockAcquisitionError, L
 router = APIRouter()
 
 
-def _extract_user_context(current_user) -> Tuple[Optional[UserRole], Optional[str]]:
-    role = None
-    user_id = None
-    if isinstance(current_user, dict):
-        role = current_user.get("role")
-        user_id = current_user.get("id")
-    else:
-        user_id = getattr(current_user, "id", None)
-        role = getattr(current_user, "role", None)
-
-    if isinstance(role, UserRole):
-        role_enum = role
-    elif isinstance(role, str):
-        try:
-            role_enum = UserRole(role.lower())
-        except ValueError:
-            role_enum = None
-    else:
-        role_enum = None
-
-    if user_id is not None:
-        user_id = str(user_id)
-    return role_enum, user_id
-
-
-def _is_admin(current_user) -> bool:
-    role_enum, _ = _extract_user_context(current_user)
-    return role_enum == UserRole.ADMIN
-
-
-def _ensure_uuid(value: Optional[str]):
-    if value is None:
-        return None
-    try:
-        return UUID(str(value))
-    except (TypeError, ValueError):
-        return None
-
-
 def _ensure_patient_owner(current_user, doctor_id):
-    if _is_admin(current_user):
+    """Verify user has access to patient's data."""
+    if is_admin(current_user):
         return
-    _, user_id = _extract_user_context(current_user)
-    user_uuid = _ensure_uuid(user_id)
+    _, user_id = extract_user_context(current_user)
+    user_uuid = ensure_uuid(user_id)
     if user_uuid is None or doctor_id != user_uuid:
         raise HTTPException(status_code=403, detail="Not enough permissions")
 

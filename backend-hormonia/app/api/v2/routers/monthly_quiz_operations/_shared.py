@@ -2,6 +2,8 @@
 Shared imports and utilities for monthly quiz operations.
 """
 
+# NOTE: Removed 'from __future__ import annotations' to fix Pydantic/FastAPI OpenAPI issues
+
 import logging
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
@@ -53,8 +55,8 @@ def get_pagination_params(cursor: str = None, limit: int = 20):
         import json
         try:
             cursor_data = json.loads(base64.b64decode(cursor).decode())
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Invalid pagination cursor: {e}")
     return {"cursor_data": cursor_data, "limit": min(limit, 100)}
 
 

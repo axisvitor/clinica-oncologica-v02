@@ -9,19 +9,22 @@ LOC: ~150
 Responsibility: Patient validation and duplicate detection
 """
 
+from __future__ import annotations
+
+# Standard library imports
 import asyncio
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 from uuid import UUID
-import logging
 
+# Third-party imports
 from sqlalchemy.orm import Session
 
+# Local application imports
+from app.exceptions import ValidationError
 from app.models.patient import Patient
 from app.schemas.patient import PatientCreate
-from app.exceptions import ValidationError
-
-logger = logging.getLogger(__name__)
 
 
 class ValidationService:
@@ -32,6 +35,11 @@ class ValidationService:
 
     This service extracts validation logic from OnboardingService,
     following the Single Responsibility Principle (SRP).
+
+    Attributes:
+        db: Database session.
+        _logger: Service logger (private).
+        _executor: Thread pool executor for sync operations.
     """
 
     def __init__(
@@ -43,13 +51,14 @@ class ValidationService:
         Initialize ValidationService with dependency injection.
 
         Args:
-            db: Database session
-            executor: Thread pool executor for sync operations (optional)
+            db: Database session for operations.
+            executor: Thread pool executor for sync operations (optional).
         """
         self.db = db
         self._executor = executor or ThreadPoolExecutor(
             max_workers=5, thread_name_prefix="validation_sync"
         )
+        self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     async def find_existing_patient(
         self,
@@ -65,13 +74,13 @@ class ValidationService:
         all unique identifiers with proper database constraints.
 
         Args:
-            cpf: Patient's CPF (may be None)
-            email: Patient's email (may be None)
-            phone: Patient's phone (required)
-            doctor_id: Doctor's ID for scoped uniqueness
+            cpf: Patient's CPF (may be None).
+            email: Patient's email (may be None).
+            phone: Patient's phone (required).
+            doctor_id: Doctor's ID for scoped uniqueness.
 
         Returns:
-            Existing Patient object or None
+            Existing Patient object or None.
 
         Note:
             Uses database unique constraints:
@@ -88,9 +97,9 @@ class ValidationService:
                     self._executor, lambda: self._query_by_cpf(cpf, doctor_id)
                 )
                 if patient:
-                    logger.info(
-                        f"Found existing patient by CPF: {patient.id}",
-                        extra={"cpf": cpf, "doctor_id": str(doctor_id)},
+                    self._logger.info(
+                        "Found existing patient by CPF",
+                        extra={"patient_id": str(patient.id), "doctor_id": str(doctor_id)}
                     )
                     return patient
 
@@ -100,9 +109,9 @@ class ValidationService:
                     self._executor, lambda: self._query_by_email(email, doctor_id)
                 )
                 if patient:
-                    logger.info(
-                        f"Found existing patient by email: {patient.id}",
-                        extra={"email": email, "doctor_id": str(doctor_id)},
+                    self._logger.info(
+                        "Found existing patient by email",
+                        extra={"patient_id": str(patient.id), "doctor_id": str(doctor_id)}
                     )
                     return patient
 
@@ -112,24 +121,24 @@ class ValidationService:
                     self._executor, lambda: self._query_by_phone(phone, doctor_id)
                 )
                 if patient:
-                    logger.info(
-                        f"Found existing patient by phone: {patient.id}",
-                        extra={"phone": phone, "doctor_id": str(doctor_id)},
+                    self._logger.info(
+                        "Found existing patient by phone",
+                        extra={"patient_id": str(patient.id), "doctor_id": str(doctor_id)}
                     )
                     return patient
 
             return None
 
         except Exception as e:
-            logger.error(
-                f"Error finding existing patient: {e}",
+            self._logger.error(
+                "Error finding existing patient",
                 extra={
                     "cpf": cpf,
                     "email": email,
                     "phone": phone,
                     "doctor_id": str(doctor_id),
                 },
-                exc_info=True,
+                exc_info=True
             )
             # On error, return None to allow creation attempt
             # Database constraints will catch any actual duplicates
@@ -140,11 +149,11 @@ class ValidationService:
         Query patient by CPF and doctor ID.
 
         Args:
-            cpf: Patient's CPF
-            doctor_id: Doctor's ID
+            cpf: Patient's CPF.
+            doctor_id: Doctor's ID.
 
         Returns:
-            Patient object or None
+            Patient object or None.
         """
         # LGPD: Use cpf_hash for lookup (plaintext column removed in migration 030)
         from app.services.encryption import get_cpf_encryption_service
@@ -169,11 +178,11 @@ class ValidationService:
         LGPD Compliance: Uses email_hash for lookup (plaintext column removed in migration 030).
 
         Args:
-            email: Patient's email
-            doctor_id: Doctor's ID
+            email: Patient's email.
+            doctor_id: Doctor's ID.
 
         Returns:
-            Patient object or None
+            Patient object or None.
         """
         from app.services.encryption import get_lgpd_encryption_service
 
@@ -195,11 +204,11 @@ class ValidationService:
         Query patient by phone and doctor ID.
 
         Args:
-            phone: Patient's phone
-            doctor_id: Doctor's ID
+            phone: Patient's phone.
+            doctor_id: Doctor's ID.
 
         Returns:
-            Patient object or None
+            Patient object or None.
         """
         # LGPD: Use phone_hash for lookup (plaintext column removed in migration 030)
         from app.services.encryption import get_lgpd_encryption_service
@@ -226,11 +235,11 @@ class ValidationService:
         Validate that patient doesn't already exist.
 
         Args:
-            patient_data: Patient creation data
-            doctor_id: Doctor's ID
+            patient_data: Patient creation data.
+            doctor_id: Doctor's ID.
 
         Raises:
-            ValidationError: If patient already exists
+            ValidationError: If patient already exists.
         """
         existing_patient = await self.find_existing_patient(
             cpf=patient_data.cpf,
@@ -250,10 +259,10 @@ class ValidationService:
         Validate phone number format.
 
         Args:
-            phone: Phone number to validate
+            phone: Phone number to validate.
 
         Raises:
-            ValidationError: If phone format is invalid
+            ValidationError: If phone format is invalid.
         """
         if not phone:
             raise ValidationError("Phone number is required")
@@ -272,10 +281,10 @@ class ValidationService:
         Validate CPF format (Brazilian tax ID).
 
         Args:
-            cpf: CPF to validate (optional)
+            cpf: CPF to validate (optional).
 
         Raises:
-            ValidationError: If CPF format is invalid
+            ValidationError: If CPF format is invalid.
         """
         if not cpf:
             return  # CPF is optional
@@ -298,10 +307,10 @@ class ValidationService:
         Validate email format.
 
         Args:
-            email: Email to validate (optional)
+            email: Email to validate (optional).
 
         Raises:
-            ValidationError: If email format is invalid
+            ValidationError: If email format is invalid.
         """
         if not email:
             return  # Email is optional
@@ -331,16 +340,21 @@ class ValidationService:
         - Email format (if provided)
 
         Args:
-            patient_data: Patient creation data
+            patient_data: Patient creation data.
 
         Raises:
-            ValidationError: If any validation fails
+            ValidationError: If any validation fails.
         """
         await self.validate_phone_format(patient_data.phone)
         await self.validate_cpf_format(patient_data.cpf)
         await self.validate_email_format(patient_data.email)
 
-    def shutdown(self, wait: bool = True):
-        """Shutdown executor gracefully."""
+    def shutdown(self, wait: bool = True) -> None:
+        """
+        Shutdown executor gracefully.
+
+        Args:
+            wait: Whether to wait for pending operations to complete.
+        """
         self._executor.shutdown(wait=wait)
-        logger.info("ValidationService executor shutdown complete")
+        self._logger.info("ValidationService executor shutdown complete")

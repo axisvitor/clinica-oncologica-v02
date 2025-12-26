@@ -336,9 +336,13 @@ class FlowValidator:
                 )
 
         elif step_type_str == FlowStepType.BRANCH.value:
+            from ..constants import FlowEngine
+
             branches = step_definition.get("branches", [])
-            if len(branches) < 2:
-                warnings.append(f"Branch step {step_id} has less than 2 branches")
+            if len(branches) < FlowEngine.MIN_BRANCH_PATHS:
+                warnings.append(
+                    f"Branch step {step_id} has less than {FlowEngine.MIN_BRANCH_PATHS} branches"
+                )
 
         elif step_type_str == FlowStepType.LOOP.value:
             if not step_definition.get("loop_to_step"):

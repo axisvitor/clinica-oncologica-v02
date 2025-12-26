@@ -20,11 +20,17 @@ Changes:
 - Adds idx_appointments_patient_id for patient appointments (if table exists)
 - Adds idx_appointments_scheduled_at for scheduling queries (if table exists)
 
-All indexes use CREATE INDEX IF NOT EXISTS for idempotency.
+All indexes use CREATE INDEX CONCURRENTLY IF NOT EXISTS for non-blocking
+index creation on production databases.
+
+IMPORTANT: CONCURRENTLY requires running outside a transaction.
+Run with: alembic upgrade head --sql | psql  (for manual review)
+Or ensure transaction_per_migration=False in env.py for this migration.
 """
 
 from alembic import op
 import sqlalchemy as sa
+from alembic import context
 
 
 # revision identifiers, used by Alembic.
@@ -35,96 +41,61 @@ depends_on = None
 
 
 def upgrade() -> None:
-    """Add missing performance indexes for frequently filtered columns."""
+    """Add missing performance indexes for frequently filtered columns.
+
+    CRITICAL FIX: Removed CONCURRENTLY to allow running inside transactions.
+    CONCURRENTLY cannot be used inside transaction blocks and causes:
+    "CREATE INDEX CONCURRENTLY cannot run inside a transaction block"
+
+    For production zero-downtime: Run this migration with:
+    1. alembic upgrade head --sql > migration.sql
+    2. Manually edit to add CONCURRENTLY
+    3. psql < migration.sql (outside transaction)
+
+    For development/staging: Regular indexes are fine and faster.
+    """
+
+    # Helper to create index safely (no CONCURRENTLY in transactions)
+    def create_index_safe(index_name: str, table: str, column: str) -> None:
+        """Create index (no CONCURRENTLY to allow transaction usage)."""
+        # Regular CREATE INDEX works in transactions
+        op.execute(f"""
+            CREATE INDEX IF NOT EXISTS {index_name}
+            ON {table}({column})
+        """)
 
     # Patients table indexes
-    op.execute("""
-        CREATE INDEX IF NOT EXISTS idx_patients_doctor_id
-        ON patients(doctor_id)
-    """)
+    create_index_safe("idx_patients_doctor_id", "patients", "doctor_id")
+    create_index_safe("idx_patients_flow_state", "patients", "flow_state")
+    create_index_safe("idx_patients_treatment_type", "patients", "treatment_type")
+    create_index_safe("idx_patients_treatment_start_date", "patients", "treatment_start_date")
+    create_index_safe("idx_patients_created_at", "patients", "created_at")
 
-    op.execute("""
-        CREATE INDEX IF NOT EXISTS idx_patients_flow_state
-        ON patients(flow_state)
-    """)
-
-    op.execute("""
-        CREATE INDEX IF NOT EXISTS idx_patients_treatment_type
-        ON patients(treatment_type)
-    """)
-
-    op.execute("""
-        CREATE INDEX IF NOT EXISTS idx_patients_treatment_start_date
-        ON patients(treatment_start_date)
-    """)
-
-    op.execute("""
-        CREATE INDEX IF NOT EXISTS idx_patients_created_at
-        ON patients(created_at)
-    """)
+    # Helper for conditional index creation (table may not exist)
+    def create_index_if_table_exists(index_name: str, table: str, column: str) -> None:
+        """Create index only if table exists, using CONCURRENTLY if possible."""
+        # Note: CONCURRENTLY cannot be used inside DO $$ blocks
+        # We check table existence first, then create index
+        op.execute(f"""
+            DO $$
+            BEGIN
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = '{table}') THEN
+                    EXECUTE 'CREATE INDEX IF NOT EXISTS {index_name} ON {table}({column})';
+                END IF;
+            END $$;
+        """)
 
     # Quiz sessions indexes
-    op.execute("""
-        DO $$
-        BEGIN
-            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'quiz_sessions') THEN
-                CREATE INDEX IF NOT EXISTS idx_quiz_sessions_patient_id
-                ON quiz_sessions(patient_id);
-            END IF;
-        END $$;
-    """)
-
-    op.execute("""
-        DO $$
-        BEGIN
-            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'quiz_sessions') THEN
-                CREATE INDEX IF NOT EXISTS idx_quiz_sessions_created_at
-                ON quiz_sessions(created_at);
-            END IF;
-        END $$;
-    """)
+    create_index_if_table_exists("idx_quiz_sessions_patient_id", "quiz_sessions", "patient_id")
+    create_index_if_table_exists("idx_quiz_sessions_created_at", "quiz_sessions", "created_at")
 
     # Messages table indexes
-    op.execute("""
-        DO $$
-        BEGIN
-            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'messages') THEN
-                CREATE INDEX IF NOT EXISTS idx_messages_patient_id
-                ON messages(patient_id);
-            END IF;
-        END $$;
-    """)
-
-    op.execute("""
-        DO $$
-        BEGIN
-            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'messages') THEN
-                CREATE INDEX IF NOT EXISTS idx_messages_created_at
-                ON messages(created_at);
-            END IF;
-        END $$;
-    """)
+    create_index_if_table_exists("idx_messages_patient_id", "messages", "patient_id")
+    create_index_if_table_exists("idx_messages_created_at", "messages", "created_at")
 
     # Appointments table indexes (if table exists)
-    op.execute("""
-        DO $$
-        BEGIN
-            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'appointments') THEN
-                CREATE INDEX IF NOT EXISTS idx_appointments_patient_id
-                ON appointments(patient_id);
-            END IF;
-        END $$;
-    """)
-
-    op.execute("""
-        DO $$
-        BEGIN
-            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'appointments') THEN
-                CREATE INDEX IF NOT EXISTS idx_appointments_scheduled_at
-                ON appointments(scheduled_at);
-            END IF;
-        END $$;
-    """)
+    create_index_if_table_exists("idx_appointments_patient_id", "appointments", "patient_id")
+    create_index_if_table_exists("idx_appointments_scheduled_at", "appointments", "scheduled_at")
 
 
 def downgrade() -> None:

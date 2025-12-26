@@ -9,8 +9,9 @@
 
 - **Database:** PostgreSQL 14+ on Amazon RDS (sa-east-1)
 - **Total Tables:** 77 (Core + Partições de Auditoria)
+- **Total Indexes:** 479+
 - **ORM:** SQLAlchemy 2.0+ (Async)
-- **Migration Head:** `ac193e8656c1` (Sessions Table)
+- **Migration Head:** `034_add_performance_indexes`
 
 ### Flows & Quiz Domain (V2 Standardized)
 
@@ -69,10 +70,66 @@ Autenticação e Segurança.
 
 | Change | Description | Migration |
 |--------|-------------|-----------|
+| **Performance Indexes** | Índices CONCURRENTLY para patients, quiz, messages, appointments | `034` |
+| **User Sync Log Fix** | Schema Firebase sync com novos campos | `033` |
 | **Sessions Table** | Persistência de sessões de usuário | `ac193e8656c1` |
-| **Account Lockout** | Colunas de segurança para usuários | 032 |
-| **Performance** | Otimização massiva de índices (479 total) | 031 |
-| **LGPD Complete** | Encrypt Email/Phone. Plaintext removido. | 028, 030 |
+| **Account Lockout** | Colunas de segurança para usuários | `032` |
+| **Performance** | Otimização massiva de índices (479 total) | `031` |
+| **LGPD Complete** | Encrypt Email/Phone. Plaintext removido. | `028`, `030` |
+
+---
+
+## 6. Centralized Enums (app/models/enums.py)
+
+Enums compartilhados foram consolidados para evitar duplicação:
+
+```python
+# FlowState - Estados do fluxo do paciente
+class FlowState(enum.Enum):
+    ONBOARDING = "onboarding"
+    ACTIVE = "active"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+# SagaStatus - Status de transações distribuídas
+class SagaStatus(enum.Enum):
+    STARTED = "STARTED"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    COMPENSATING = "COMPENSATING"
+    COMPENSATED = "COMPENSATED"
+```
+
+*Importado em:* `patient.py`, `flow.py`, `patient_onboarding_saga.py`
+
+---
+
+## 7. Additional Key Tables
+
+### `patient_onboarding_saga`
+Gerenciamento de transações distribuídas para onboarding.
+- **PK:** `id` (UUID)
+- **FK:** `patient_id` → `patients.id` (CASCADE)
+- **Status:** `status` (SagaStatus enum)
+- **Tracking:** `current_step`, `steps_completed` (JSONB), `error_message`
+- **Indexes:** `patient_id`, `status`, `created_at`
+- **Utility:** Saga pattern, orphan detection, compensation handling
+
+### Webhook Tables
+- **`webhook_endpoints`**: Configuração de webhooks (URL, secret, retry)
+- **`webhook_deliveries`**: Tentativas de entrega com status e response_time
+- **`webhook_logs`**: Audit trail de mudanças administrativas
+- **`webhook_idempotency`**: Prevenção de processamento duplicado
+
+### A/B Testing Tables (6 tables)
+- **`ab_experiments`**: Configurações com compliance HIPAA
+- **`ab_variant_assignments`**: Atribuições anônimas de variantes
+- **`ab_experiment_metrics`**: Métricas de eventos
+- **`ab_experiment_results`**: Análise estatística (p-value, Cohen's d)
+- **`ab_experiment_audit`**: Audit trail HIPAA/GDPR
+- **`ab_experiment_monitoring`**: Monitoramento em tempo real
 
 ---
 

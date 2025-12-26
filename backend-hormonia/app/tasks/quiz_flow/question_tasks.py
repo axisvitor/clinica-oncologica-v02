@@ -4,6 +4,8 @@ Quiz Question Tasks.
 Handles quiz question delivery and progress updates.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Any
 from uuid import UUID
@@ -37,7 +39,7 @@ def send_quiz_question_task(
     Raises:
         Exception: If question sending fails after all retries
     """
-    import asyncio
+    from asgiref.sync import async_to_sync
 
     try:
         with next(get_db()) as db:
@@ -59,14 +61,12 @@ def send_quiz_question_task(
             template_service = QuizTemplateService(db)
             template = template_service.get_template(active_session.quiz_template_id)
 
-            # Send next question using async method
-            asyncio.run(
-                quiz_flow_service._send_next_question(
-                    patient_id=UUID(patient_id),
-                    session=active_session,
-                    questions=template.questions,
-                    question_index=question_index,
-                )
+            # Send next question using async method (async_to_sync for Celery compatibility)
+            async_to_sync(quiz_flow_service._send_next_question)(
+                patient_id=UUID(patient_id),
+                session=active_session,
+                questions=template.questions,
+                question_index=question_index,
             )
 
             logger.info(f"Quiz question {question_index} sent to patient {patient_id}")
@@ -117,7 +117,7 @@ def send_quiz_progress_update_task(
     Raises:
         Exception: If progress update fails after all retries
     """
-    import asyncio
+    from asgiref.sync import async_to_sync
 
     try:
         with next(get_db()) as db:
@@ -149,8 +149,8 @@ def send_quiz_progress_update_task(
                     },
                 )
 
-                # Send via UnifiedWhatsAppService
-                success = asyncio.run(whatsapp_service.send_message(message))
+                # Send via UnifiedWhatsAppService (async_to_sync for Celery compatibility)
+                success = async_to_sync(whatsapp_service.send_message)(message)
 
                 logger.info(f"Quiz progress update sent to patient {patient_id}")
 

@@ -301,6 +301,7 @@ class FlowAnalyticsService:
             )
 
             # Calculate average response time
+            # FIX: Add limit to prevent unbounded query results
             response_times = (
                 query.filter(
                     and_(
@@ -309,6 +310,7 @@ class FlowAnalyticsService:
                     )
                 )
                 .with_entities(FlowAnalytics.response_time_seconds)
+                .limit(10000)
                 .all()
             )
 
@@ -319,6 +321,7 @@ class FlowAnalyticsService:
                 metrics.average_response_time = timedelta(seconds=avg_response_time)
 
             # Calculate sentiment distribution
+            # FIX: Add limit to prevent unbounded query results
             sentiment_data = (
                 query.filter(
                     and_(
@@ -327,6 +330,7 @@ class FlowAnalyticsService:
                     )
                 )
                 .with_entities(FlowAnalytics.sentiment_score)
+                .limit(10000)
                 .all()
             )
 
@@ -366,9 +370,11 @@ class FlowAnalyticsService:
                 metrics.completion_rates[flow_type_name] = completion_rate
 
             # Calculate overall engagement score
+            # FIX: Add limit to prevent unbounded query results
             engagement_scores = (
                 query.filter(FlowAnalytics.engagement_score.isnot(None))
                 .with_entities(FlowAnalytics.engagement_score)
+                .limit(10000)
                 .all()
             )
 

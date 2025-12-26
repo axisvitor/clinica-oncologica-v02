@@ -12,6 +12,8 @@ INTEGRATION INSTRUCTIONS:
 5. Update frontend to handle new_token in responses
 """
 
+from __future__ import annotations
+
 import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Tuple

@@ -55,6 +55,23 @@ Statistics (e.g., "Messages by Status") use `GROUP BY` SQL queries rather than l
 **Fix:** Implemented `asyncio.gather` for parallel execution.
 **Gain:** 50-75% reduction in wait time.
 
+#### 4. User Search N+1 (Fixed 22/12/2025)
+**Issue:** `search_users()` in `user_queries.py` called `get_user_summary(user.id)` for each user in results, causing 21 queries for 20 users.
+**Fix:** Added `joinedload(User.patients)` and built summaries directly from loaded users.
+**Gain:** 21 queries → 1 query (95% reduction).
+**File:** `app/services/admin/admin_user_service/user_queries.py:115-146`
+
+#### 5. Role Statistics N+1 (Fixed 22/12/2025)
+**Issue:** `get_user_statistics()` executed separate COUNT query for each UserRole (5 queries).
+**Fix:** Single `GROUP BY` query with `func.count(User.id)`.
+**Gain:** 5 queries → 1 query (80% reduction).
+**File:** `app/services/admin/admin_user_service/user_queries.py:172-184`
+
+#### 6. Unbounded Queries (Fixed 22/12/2025)
+**Issue:** 9 repository methods called `.all()` without LIMIT, risking memory exhaustion.
+**Fix:** Added LIMIT clauses (50-500 depending on use case).
+**Files:** `alert.py`, `consent.py`, `appointment.py`, `notification.py`
+
 ---
 
 ## 4. Indexing Strategy

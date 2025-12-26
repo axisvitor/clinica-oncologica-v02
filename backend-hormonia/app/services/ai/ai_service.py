@@ -19,21 +19,25 @@ Date: 20 Jan 2025
 Version: 2.0.0 (Consolidated)
 """
 
+# Standard library imports
+import asyncio
 import logging
-from typing import Dict, List, Optional, Any, Tuple
-from enum import Enum
 from dataclasses import dataclass
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
 
+# Local application imports
+from app.exceptions import ExternalServiceError
 from app.integrations.openai_client import (
     LangChainOrchestrator,
     MessagePersonalizationRequest,
-    SentimentAnalysisRequest,
     PersonalizationResponse,
+    SentimentAnalysisRequest,
     SentimentAnalysisResponse,
     SentimentType,
     get_langchain_orchestrator,
 )
-from app.exceptions import ExternalServiceError
+from app.services.circuit_breaker import get_ai_circuit_breaker
 from app.utils.token_limiter import TokenLimiter, get_token_limiter
 
 from .cache_layer import CacheLayer, CacheOperation, get_cache_layer
@@ -128,6 +132,8 @@ class AIService:
         self.orchestrator = orchestrator
         self.cache = cache_layer
         self.token_limiter = token_limiter or get_token_limiter()
+        # Circuit breaker for AI service protection
+        self._circuit_breaker = get_ai_circuit_breaker()
         self._initialized = False
 
         logger.info("AIService initialized")
@@ -214,7 +220,8 @@ class AIService:
             logger.error(
                 f"Message humanization failed for patient {patient_context.patient_id}: {e}"
             )
-            raise ExternalServiceError(f"Failed to humanize message: {str(e)}")
+            # FIX P2-001: Chain exception to preserve original traceback
+            raise ExternalServiceError(f"Failed to humanize message: {str(e)}") from e
 
     async def _humanize_with_ai(
         self, template_message: str, patient_context: PatientContext, message_type: str
@@ -367,12 +374,17 @@ class AIService:
             logger.error(
                 f"Sentiment analysis failed for patient {patient_context.patient_id}: {e}"
             )
-            raise ExternalServiceError(f"Failed to analyze sentiment: {str(e)}")
+            # FIX P2-001: Chain exception to preserve original traceback
+            raise ExternalServiceError(f"Failed to analyze sentiment: {str(e)}") from e
 
-    async def _analyze_sentiment_with_ai(
+    async def _analyze_sentiment_internal(
         self, patient_message: str, patient_context: PatientContext
     ) -> Tuple[SentimentAnalysisResponse, ConcernLevel]:
-        """Call AI service to analyze sentiment."""
+        """
+        Internal method to analyze sentiment.
+
+        This method is wrapped with circuit breaker in _analyze_sentiment_with_ai.
+        """
         # Limit message to prevent exceeding token budget
         limited_message = self.token_limiter.truncate_to_tokens(
             patient_message,
@@ -404,6 +416,19 @@ class AIService:
         enhanced_response = self._enhance_medical_analysis(response, patient_context)
 
         return enhanced_response, concern_level
+
+    async def _analyze_sentiment_with_ai(
+        self, patient_message: str, patient_context: PatientContext
+    ) -> Tuple[SentimentAnalysisResponse, ConcernLevel]:
+        """Call AI service to analyze sentiment with circuit breaker protection."""
+        # Call through circuit breaker with fallback
+        result = await self._circuit_breaker.call_sentiment_analysis(
+            self._analyze_sentiment_internal,
+            patient_message,
+            patient_context
+        )
+
+        return result
 
     def _determine_concern_level(
         self, analysis: SentimentAnalysisResponse, context: PatientContext
@@ -706,9 +731,9 @@ class AIService:
         key_parts = [operation] + [str(arg) for arg in args]
         key_string = ":".join(key_parts)
 
-        # Hash if too long
+        # Hash if too long (using SHA-256 for better collision resistance)
         if len(key_string) > 100:
-            key_hash = hashlib.md5(key_string.encode()).hexdigest()
+            key_hash = hashlib.sha256(key_string.encode()).hexdigest()[:32]
             return f"{operation}:{key_hash}"
 
         return key_string
@@ -756,22 +781,33 @@ class AIService:
         )
 
 
-# Singleton instance
+# Singleton instance with thread-safe initialization
 _ai_service: Optional[AIService] = None
+_ai_service_lock: asyncio.Lock = asyncio.Lock()
 
 
 async def get_ai_service() -> AIService:
     """
-    Get or create singleton AIService instance.
+    Get or create singleton AIService instance (thread-safe).
+
+    Uses asyncio.Lock to prevent race conditions during initialization.
 
     Returns:
         Initialized AIService instance
     """
     global _ai_service
 
-    if _ai_service is None:
-        _ai_service = AIService()
-        await _ai_service.initialize()
+    # Fast path - already initialized
+    if _ai_service is not None:
+        return _ai_service
+
+    # Thread-safe initialization
+    async with _ai_service_lock:
+        # Double-check after acquiring lock
+        if _ai_service is None:
+            service = AIService()
+            await service.initialize()
+            _ai_service = service
 
     return _ai_service
 
@@ -779,4 +815,5 @@ async def get_ai_service() -> AIService:
 async def reset_ai_service():
     """Reset singleton instance (for testing)."""
     global _ai_service
-    _ai_service = None
+    async with _ai_service_lock:
+        _ai_service = None

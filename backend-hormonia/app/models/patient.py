@@ -24,19 +24,14 @@ from typing import Dict, Any, Optional, TYPE_CHECKING
 from datetime import date, timedelta
 
 from app.models.base import BaseModel
+from app.models.enums import FlowState  # Consolidated enum
 
 if TYPE_CHECKING:
     pass
 
 
-class FlowState(enum.Enum):
-    """Patient flow state enumeration - matches Supabase enum."""
-
-    ONBOARDING = "onboarding"
-    ACTIVE = "active"
-    PAUSED = "paused"
-    COMPLETED = "completed"
-    CANCELLED = "cancelled"
+# Re-export for backward compatibility
+# FlowState is now defined in app.models.enums
 
 
 class Patient(BaseModel):

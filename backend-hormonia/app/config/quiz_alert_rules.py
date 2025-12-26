@@ -7,6 +7,8 @@ and generate alerts when risk thresholds are exceeded.
 Sprint 2 - Week 1, Task 3: Automatic Alert Evaluation
 """
 
+from __future__ import annotations
+
 from enum import Enum
 from typing import Dict, Any, List, Callable, Optional
 import logging

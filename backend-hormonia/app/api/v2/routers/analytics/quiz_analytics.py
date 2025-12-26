@@ -3,6 +3,8 @@ Quiz Analytics Module
 Handles quiz-related analytics, status distribution and completion trends.
 """
 
+# NOTE: Removed 'from __future__ import annotations' to fix Pydantic/FastAPI OpenAPI issues
+
 from typing import Optional
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Query

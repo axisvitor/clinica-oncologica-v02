@@ -4,6 +4,8 @@ Advanced quiz endpoints with branching logic, risk scoring, and adaptive flows.
 Delegates logic to EnhancedQuizService.
 """
 
+# NOTE: Removed 'from __future__ import annotations' to fix Pydantic/FastAPI OpenAPI issues
+
 from typing import Optional, Dict, Any, Tuple
 from datetime import datetime
 from uuid import UUID
@@ -39,6 +41,7 @@ from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.utils.rate_limiter import limiter
 from app.utils.logging import get_logger
 from app.services.enhanced_quiz_service import EnhancedQuizService
+from app.api.v2.utils.auth_helpers import extract_user_context, ensure_uuid
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -49,33 +52,9 @@ def get_enhanced_quiz_service(db=Depends(get_db)) -> EnhancedQuizService:
 
 
 def _extract_user_context(current_user) -> Tuple[Optional[UserRole], Optional[UUID]]:
-    role = None
-    user_id = None
-    if isinstance(current_user, dict):
-        role = current_user.get("role")
-        user_id = current_user.get("id")
-    else:
-        user_id = getattr(current_user, "id", None)
-        role = getattr(current_user, "role", None)
-
-    if isinstance(role, UserRole):
-        role_enum = role
-    elif isinstance(role, str):
-        try:
-            role_enum = UserRole(role.lower())
-        except ValueError:
-            role_enum = None
-    else:
-        role_enum = None
-
-    if user_id is not None:
-        try:
-            user_uuid = UUID(str(user_id))
-        except (TypeError, ValueError):
-            user_uuid = None
-    else:
-        user_uuid = None
-
+    """Extract user context with UUID conversion."""
+    role_enum, user_id = extract_user_context(current_user)
+    user_uuid = ensure_uuid(user_id) if user_id else None
     return role_enum, user_uuid
 
 

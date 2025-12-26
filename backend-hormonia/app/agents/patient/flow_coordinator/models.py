@@ -1,17 +1,25 @@
-"""
-Flow Coordinator Models - Data models for flow coordination.
-"""
+"""Flow Coordinator Models - Data models for flow coordination."""
 
+from __future__ import annotations
+
+# Standard library
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from app.models.patient import Patient
+# Local
 from app.models.flow import PatientFlowState
+from app.models.patient import Patient
 
 
 class FlowDecision(Enum):
-    """Types of flow decisions."""
+    """
+    Types of flow decisions.
+
+    Defines all possible decisions the flow coordinator
+    can make regarding patient treatment flow progression.
+    """
 
     CONTINUE_CURRENT = "continue_current"
     ADVANCE_PHASE = "advance_phase"
@@ -22,16 +30,32 @@ class FlowDecision(Enum):
     RESUME_FLOW = "resume_flow"
 
 
+@dataclass
 class FlowContext:
-    """Context for flow decision making."""
+    """
+    Represents comprehensive context for flow decision making.
 
-    def __init__(self):
-        self.patient_id: Optional[UUID] = None
-        self.current_day: Optional[int] = None
-        self.flow_state: Optional[PatientFlowState] = None
-        self.patient_data: Optional[Patient] = None
-        self.recent_interactions: List[Dict] = []
-        self.mood_indicators: Dict[str, Any] = {}
-        self.adherence_metrics: Dict[str, float] = {}
-        self.risk_factors: List[str] = []
-        self.knowledge_context: Dict[str, Any] = {}
+    Aggregates all relevant patient data, flow state, interactions,
+    and metrics needed for intelligent flow decisions.
+
+    Attributes:
+        patient_id: Patient UUID.
+        current_day: Current day in treatment flow.
+        flow_state: Current flow state record.
+        patient_data: Patient record.
+        recent_interactions: Recent patient interactions.
+        mood_indicators: Mood tracking data.
+        adherence_metrics: Treatment adherence metrics.
+        risk_factors: Identified risk factors.
+        knowledge_context: Knowledge graph context.
+    """
+
+    patient_id: Optional[UUID] = None
+    current_day: Optional[int] = None
+    flow_state: Optional[PatientFlowState] = None
+    patient_data: Optional[Patient] = None
+    recent_interactions: List[Dict] = field(default_factory=list)
+    mood_indicators: Dict[str, Any] = field(default_factory=dict)
+    adherence_metrics: Dict[str, float] = field(default_factory=dict)
+    risk_factors: List[str] = field(default_factory=list)
+    knowledge_context: Dict[str, Any] = field(default_factory=dict)

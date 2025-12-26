@@ -448,6 +448,49 @@ def setup_query_logging(engine: Engine, log_all: bool = False) -> None:
             logger.warning(f"Slow query ({total_time_ms:.2f}ms): {statement[:200]}...")
 
 
+def _sanitize_query_for_explain(query_str: str) -> str:
+    """
+    Sanitize a query string for use in EXPLAIN statements.
+
+    Prevents SQL injection by validating the query structure.
+    Only allows SELECT, INSERT, UPDATE, DELETE statements.
+
+    Args:
+        query_str: The compiled query string
+
+    Returns:
+        Sanitized query string
+
+    Raises:
+        ValueError: If query contains potentially malicious content
+    """
+    # Strip and normalize whitespace
+    normalized = " ".join(query_str.strip().split())
+
+    # Only allow specific statement types for EXPLAIN
+    allowed_prefixes = ("SELECT ", "INSERT ", "UPDATE ", "DELETE ", "WITH ")
+    upper_query = normalized.upper()
+
+    if not any(upper_query.startswith(prefix) for prefix in allowed_prefixes):
+        raise ValueError(f"Only SELECT, INSERT, UPDATE, DELETE, or WITH statements can be analyzed")
+
+    # Check for dangerous patterns that could indicate SQL injection
+    dangerous_patterns = [
+        ";",  # Multiple statements
+        "--",  # SQL comments
+        "/*",  # Block comments
+        "*/",
+        "EXPLAIN",  # Nested EXPLAIN (prevent recursion)
+        "\\x",  # Hex escape sequences
+    ]
+
+    for pattern in dangerous_patterns:
+        if pattern in query_str:
+            raise ValueError(f"Query contains potentially dangerous pattern: {pattern}")
+
+    return query_str
+
+
 def analyze_query_plan(session: Session, query: Query) -> Dict[str, Any]:
     """
     Analyze query execution plan (PostgreSQL specific).
@@ -467,9 +510,14 @@ def analyze_query_plan(session: Session, query: Query) -> Dict[str, Any]:
             )
         )
 
-        # Execute EXPLAIN ANALYZE
+        # Sanitize query to prevent SQL injection in EXPLAIN
+        sanitized_query = _sanitize_query_for_explain(query_str)
+
+        # Execute EXPLAIN ANALYZE with sanitized query
+        # Note: EXPLAIN doesn't support parameter binding for the query itself,
+        # so we rely on sanitization above
         result = session.execute(
-            text(f"EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) {query_str}")
+            text(f"EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) {sanitized_query}")
         )
 
         plan = result.fetchone()[0]

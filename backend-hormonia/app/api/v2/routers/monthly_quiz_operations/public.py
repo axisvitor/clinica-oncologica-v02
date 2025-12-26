@@ -7,13 +7,17 @@ Endpoints:
 - GET /monthly/public/{quiz_id}/results - View aggregate quiz results
 """
 
+# NOTE: Do NOT use `from __future__ import annotations` here
+# It breaks FastAPI/Pydantic path parameter validation with UUID type
+
 import base64
 import json
+from uuid import UUID
+from datetime import datetime, timezone
+from typing import Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 
 from ._shared import (
-    UUID,
-    datetime,
     logger,
     defaultdict,
     get_db,

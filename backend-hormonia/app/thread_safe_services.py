@@ -21,15 +21,15 @@ from app.services.auth import AuthService
 from app.services.patient import PatientIntegrityService
 from app.services.quiz import QuizService
 from app.services.reporting import ReportService
-from app.services.analytics import AnalyticsService
+from app.domain.analytics.analytics_service import AnalyticsService
 from app.domain.messaging.core import MessageService
 from app.domain.flows.core import FlowService
 from app.services.enhanced_flow_engine import EnhancedFlowEngine
-from app.services.notification import NotificationService
+from app.services.notification_service import NotificationService
 from app.services.file import FileService
-from app.domain.quizzes import MonthlyQuizService
-from app.services.metrics_collector import MetricsCollectorService
-from app.services.metrics_redis_storage import MetricsRedisStorage
+from app.services.quiz.quiz_service import MonthlyQuizService
+from app.services.analytics.metrics_collector import MetricsCollectorService
+from app.services.analytics.metrics_redis_storage import MetricsRedisStorage
 
 # Import repositories
 from app.repositories.user import UserRepository
@@ -211,14 +211,25 @@ class ThreadSafeServiceProvider:
                 user_repository=self.user_repository,
                 redis_client=self.redis_client,
             )
-        except TypeError:
+        except TypeError as e:
             # Fallback to original constructor for backward compatibility
-            with self.get_db_session() as session:
-                return AuthService(
-                    db=session,
-                    user_repository=self.user_repository,
-                    redis_client=self.redis_client,
+            logger.warning(
+                f"AuthService initialization failed with new pattern, trying fallback: {e}",
+                exc_info=True
+            )
+            try:
+                with self.get_db_session() as session:
+                    return AuthService(
+                        db=session,
+                        user_repository=self.user_repository,
+                        redis_client=self.redis_client,
+                    )
+            except Exception as fallback_error:
+                logger.critical(
+                    f"AuthService fallback initialization also failed: {fallback_error}",
+                    exc_info=True
                 )
+                raise
 
     @property
     def flow_engine(self) -> EnhancedFlowEngine:
@@ -231,10 +242,21 @@ class ThreadSafeServiceProvider:
         try:
             # Try new constructor pattern
             return EnhancedFlowEngine(db=self.db_session_factory())
-        except TypeError:
+        except TypeError as e:
             # Fallback to original constructor
-            with self.get_db_session() as session:
-                return EnhancedFlowEngine(db=session)
+            logger.warning(
+                f"FlowEngine initialization failed with new pattern, trying fallback: {e}",
+                exc_info=True
+            )
+            try:
+                with self.get_db_session() as session:
+                    return EnhancedFlowEngine(db=session)
+            except Exception as fallback_error:
+                logger.critical(
+                    f"FlowEngine fallback initialization also failed: {fallback_error}",
+                    exc_info=True
+                )
+                raise
 
     @property
     def patient_integrity_service(self) -> PatientIntegrityService:

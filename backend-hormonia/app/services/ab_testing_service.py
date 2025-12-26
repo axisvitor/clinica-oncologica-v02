@@ -102,7 +102,8 @@ class ABTestingService:
 
     def _get_cache_key(self, endpoint: str, **params) -> str:
         param_str = json.dumps(params, sort_keys=True, default=str)
-        param_hash = hashlib.md5(param_str.encode()).hexdigest()
+        # Use SHA-256 instead of MD5 for better collision resistance
+        param_hash = hashlib.sha256(param_str.encode()).hexdigest()[:32]
         return f"ab_testing:v2:{endpoint}:{param_hash}"
 
     def _serialize_experiment(self, exp: ABExperiment) -> dict:

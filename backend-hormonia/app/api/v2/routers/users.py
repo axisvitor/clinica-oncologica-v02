@@ -70,9 +70,12 @@ def _serialize_user(user: User, include_relationships: bool = False) -> dict:
 
 
 def _get_user_preferences(user: User) -> UserPreferencesV2:
-    if hasattr(user, "metadata") and user.metadata:
-        prefs = user.metadata.get("preferences", {})
-        return UserPreferencesV2(**prefs)
+    """Get user preferences from firebase_custom_claims or return defaults."""
+    # Note: "metadata" is a reserved SQLAlchemy attribute, so we check firebase_custom_claims instead
+    if hasattr(user, "firebase_custom_claims") and user.firebase_custom_claims:
+        prefs = user.firebase_custom_claims.get("preferences", {})
+        if prefs:
+            return UserPreferencesV2(**prefs)
     return UserPreferencesV2()
 
 

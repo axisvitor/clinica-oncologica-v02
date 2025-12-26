@@ -16,8 +16,18 @@ from .flow_template_cache import (
     FlowTemplateCacheService,
     get_flow_template_cache,
 )
+from .invalidation_service import (
+    CacheInvalidationService,
+    InvalidationStrategy,
+    CacheBackend,
+)
+from .key_builder import CacheKeyBuilder
 
 __all__ = [
     "FlowTemplateCacheService",
     "get_flow_template_cache",
+    "CacheInvalidationService",
+    "InvalidationStrategy",
+    "CacheBackend",
+    "CacheKeyBuilder",
 ]

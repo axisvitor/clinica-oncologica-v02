@@ -29,6 +29,7 @@ from app.api.v2.patients_utils import (
     _extract_user_context,
     _ensure_uuid,
 )
+from app.api.v2.utils.auth_helpers import is_admin
 from app.dependencies.auth_dependencies import (
     get_current_user_from_session,
     get_redis_cache,
@@ -39,8 +40,8 @@ logger = logging.getLogger(__name__)
 
 
 def _is_admin(current_user) -> bool:
-    role_enum, _ = _extract_user_context(current_user)
-    return role_enum == UserRole.ADMIN
+    """Check if current user is admin."""
+    return is_admin(current_user)
 
 
 def _ensure_medication_access(
@@ -419,7 +420,8 @@ async def create_medication(
     try:
         new_med = service.create_medication(medication_data, prescribed_by, tid)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error creating medication: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to create medication")
 
     try:
         await redis_cache.delete_pattern(f"medications:list:{user_id}:*")
@@ -465,7 +467,8 @@ async def update_medication(
     try:
         updated = service.update_medication(mid, medication_data)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error updating medication: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to update medication")
 
     try:
         await redis_cache.delete(f"medication:{medication_id}:*")

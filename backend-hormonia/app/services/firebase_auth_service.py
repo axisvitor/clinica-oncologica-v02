@@ -5,7 +5,9 @@ Replaces Supabase Auth with Firebase Authentication.
 """
 
 import logging
+import os
 from typing import Optional, Dict, Any
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 import firebase_admin
 from firebase_admin import credentials, auth
 from fastapi import HTTPException, status
@@ -40,8 +42,12 @@ class FirebaseAuthService:
             self._initialize_firebase()
 
     def _initialize_firebase(self):
-        """Initialize Firebase Admin SDK with service account credentials."""
-        try:
+        """Initialize Firebase Admin SDK with service account credentials and timeout protection."""
+        # Get timeout from environment variable, default to 10 seconds
+        timeout = int(os.getenv("FIREBASE_INIT_TIMEOUT", "10"))
+
+        def _init_firebase_app():
+            """Internal function to initialize Firebase app."""
             # Format private key (handle escaped newlines)
             formatted_key = self.private_key.replace("\\n", "\n")
 
@@ -66,11 +72,32 @@ class FirebaseAuthService:
                 FirebaseAuthService._app = firebase_admin.get_app()
                 logger.info("Using existing Firebase Admin SDK instance")
 
-            FirebaseAuthService._initialized = True
+            return True
+
+        try:
+            # Execute initialization with timeout protection
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(_init_firebase_app)
+                try:
+                    future.result(timeout=timeout)
+                    FirebaseAuthService._initialized = True
+                except FuturesTimeoutError:
+                    logger.warning(
+                        f"Firebase initialization timed out after {timeout}s. "
+                        "Application will continue but Firebase authentication may be unavailable."
+                    )
+                    # Mark as not initialized to allow retry on next request
+                    FirebaseAuthService._initialized = False
+                    return
 
         except Exception as e:
             logger.error(f"Failed to initialize Firebase Admin SDK: {str(e)}")
-            raise RuntimeError(f"Firebase initialization failed: {str(e)}")
+            # Log error but don't raise - allow app to continue
+            logger.warning(
+                "Firebase authentication will be unavailable. "
+                "Please check Firebase credentials and network connectivity."
+            )
+            FirebaseAuthService._initialized = False
 
     async def verify_token(self, token: str) -> Dict[str, Any]:
         """

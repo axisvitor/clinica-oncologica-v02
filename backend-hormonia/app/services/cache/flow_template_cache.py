@@ -246,4 +246,57 @@ def get_flow_template_cache() -> FlowTemplateCacheService:
     return _cache_service
 
 
-__all__ = ["FlowTemplateCacheService", "get_flow_template_cache"]
+def cleanup_flow_template_cache() -> None:
+    """
+    Clean up the flow template cache singleton.
+
+    Call this during application shutdown to:
+    - Invalidate all cached templates
+    - Reset in-memory counters
+    - Clear the singleton reference
+
+    Usage:
+        # In application shutdown handler
+        from app.services.cache.flow_template_cache import cleanup_flow_template_cache
+        cleanup_flow_template_cache()
+    """
+    global _cache_service
+
+    if _cache_service is not None:
+        try:
+            # Invalidate all cached templates in Redis
+            deleted_count = _cache_service.invalidate_all()
+
+            # Log final cache statistics before cleanup
+            stats = _cache_service.get_cache_stats()
+            logger.info(
+                f"Flow template cache cleanup: invalidated {deleted_count} templates. "
+                f"Final stats - hits: {stats['hits']}, misses: {stats['misses']}, "
+                f"hit_rate: {stats['hit_rate_percent']}%"
+            )
+        except Exception as e:
+            logger.warning(f"Error during flow template cache cleanup: {e}")
+        finally:
+            # Clear the singleton reference
+            _cache_service = None
+            logger.info("Flow template cache singleton cleared")
+
+
+def reset_flow_template_cache() -> None:
+    """
+    Reset the cache service (for testing purposes).
+
+    Unlike cleanup_flow_template_cache(), this does NOT invalidate Redis keys,
+    only resets the singleton so a new instance is created on next access.
+    """
+    global _cache_service
+    _cache_service = None
+    logger.debug("Flow template cache singleton reset")
+
+
+__all__ = [
+    "FlowTemplateCacheService",
+    "get_flow_template_cache",
+    "cleanup_flow_template_cache",
+    "reset_flow_template_cache",
+]

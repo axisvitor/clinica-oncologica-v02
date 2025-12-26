@@ -28,6 +28,7 @@ from app.core.redis_client import get_async_redis_client
 from app.utils.rate_limiter import limiter
 from app.utils.logging import get_logger
 from app.config import settings
+from app.api.v2.utils.auth_helpers import is_admin as _is_admin
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -48,20 +49,6 @@ async def _get_redis_client():
     except Exception as e:
         logger.warning(f"Failed to get Redis client: {e}")
         return None
-
-
-def _is_admin(current_user) -> bool:
-    """Check if user has admin role."""
-    from app.models.user import UserRole
-
-    if isinstance(current_user, dict):
-        role = current_user.get("role")
-    else:
-        role = getattr(current_user, "role", None)
-
-    if isinstance(role, UserRole):
-        return role == UserRole.ADMIN
-    return str(role).upper() == "ADMIN"
 
 
 # ============================================================================
@@ -260,8 +247,8 @@ async def restart_component(
         if redis:
             try:
                 await redis.delete("system:components", "system:health")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Cache invalidation failed: {e}")
 
         logger.info(
             f"Component {component} restarted successfully in {duration_ms:.2f}ms"

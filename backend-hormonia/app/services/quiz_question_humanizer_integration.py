@@ -3,6 +3,8 @@ Quiz Question Humanizer Integration
 Integrates intelligent humanization into quiz questions for better patient experience
 """
 
+from __future__ import annotations
+
 import logging
 import asyncio
 from concurrent.futures import ThreadPoolExecutor

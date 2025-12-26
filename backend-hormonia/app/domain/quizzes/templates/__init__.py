@@ -1,5 +1,7 @@
 """Quiz template management domain."""
 
+from __future__ import annotations
+
 from .template_service import (
     QuizTemplateService,
     QuizTemplateLoadError,

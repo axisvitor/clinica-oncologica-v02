@@ -217,6 +217,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
           return undefined
         }
 
+        // PERFORMANCE FIX: Check backend session FIRST before waiting for Firebase
+        // This prevents the "logout on refresh" bug caused by Firebase's async state restoration
+        // The httpOnly session cookie is sent automatically, providing immediate session validation
+        let sessionValidatedFromCookie = false
+        try {
+          logger.log('Checking server session via httpOnly cookie (fast path)...')
+          const { authenticated, user: sessionUser } = await apiClient.auth.checkAuth()
+          if (authenticated && sessionUser) {
+            logger.log('Session restored from httpOnly cookie:', sessionUser.email)
+            setUser(sessionUser)
+            setSession({ access_token: '' }) // Token will be updated when Firebase loads
+            sessionValidatedFromCookie = true
+            // CRITICAL: Set isInitializing to false immediately so UI can render
+            // Firebase will sync in background and update the token
+            setIsInitializing(false)
+            logger.log('User authenticated via cookie - UI ready, Firebase syncing in background')
+          }
+        } catch (error) {
+          logger.debug('Cookie session check failed (will rely on Firebase):', error)
+          // Continue with Firebase authentication - this is expected on first login
+        }
+
         // Set up Firebase auth state listener (lazy loaded)
         const unsubscribe = await firebaseAuthLazy.onAuthStateChanged(async (firebaseUser) => {
           if (firebaseUser) {
@@ -252,14 +274,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
               wsManager.disconnect()
             }
           } else {
-            logger.log('No Firebase user signed in')
-            setUser(null)
-            setSession(null)
-            apiClient.clearAuthToken()
+            // CRITICAL FIX: Only clear session if we didn't validate from cookie
+            // Firebase may fire null initially while still loading persisted state
+            if (!sessionValidatedFromCookie) {
+              logger.log('No Firebase user signed in')
+              setUser(null)
+              setSession(null)
+              apiClient.clearAuthToken()
 
-            // Disconnect WebSocket when user logs out
-            logger.log('Disconnecting WebSocket...')
-            wsManager.disconnect()
+              // Disconnect WebSocket when user logs out
+              logger.log('Disconnecting WebSocket...')
+              wsManager.disconnect()
+            } else {
+              logger.log('Firebase not ready yet, but session validated from cookie - keeping user logged in')
+              // Reset flag so future "null" events (actual logout) work correctly
+              sessionValidatedFromCookie = false
+            }
           }
           setIsInitializing(false)
         })
@@ -295,7 +325,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     init()
   }, [transformFirebaseUser])
 
-  const login = async (email: string, password: string, rememberMe: boolean = false) => {
+  const login = useCallback(async (email: string, password: string, rememberMe: boolean = false) => {
     setIsAuthenticating(true)
     try {
       logger.log('Attempting login:', email)
@@ -398,7 +428,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setIsAuthenticating(false)
     }
-  }
+  }, [])
 
   const logout = useCallback(async () => {
     try {

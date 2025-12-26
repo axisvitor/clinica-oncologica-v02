@@ -29,67 +29,16 @@ from app.schemas.v2.templates import (
 )
 from app.utils.rate_limiter import limiter
 
+# Import shared helpers and constants from templates_shared module
+from app.api.v2.templates_shared import (
+    _get_current_user_simple,
+    RATE_LIMIT_READ,
+    RATE_LIMIT_SEARCH,
+)
+from app.utils.audit_logger import AuditLogger, AuditAction
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-# Rate limits (requests per minute)
-RATE_LIMIT_READ = "60/minute"
-RATE_LIMIT_SEARCH = "30/minute"
-
-
-# ==================== Helper Functions ====================
-
-
-async def _get_current_user_simple(
-    session_cookie_id: str = Cookie(None, alias="session_id"),
-    x_session_id: str = Header(None, alias="X-Session-ID"),
-    db=Depends(get_db),
-    redis_cache=Depends(get_redis_cache),
-) -> Dict[str, Any]:
-    """Simplified session validation for template operations."""
-    final_session_id = session_cookie_id or x_session_id
-    if not final_session_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Session ID not provided"
-        )
-
-    session_data = await redis_cache.get_session(final_session_id)
-    if not session_data:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session",
-        )
-
-    firebase_uid = session_data.get("firebase_uid")
-    if not firebase_uid:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session data"
-        )
-
-    # Get user from cache or DB
-    user_data = await redis_cache.get_user_by_uid(firebase_uid)
-    if not user_data:
-        user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
-            )
-        user_data = {
-            "id": str(user.id),
-            "firebase_uid": user.firebase_uid,
-            "email": user.email,
-            "full_name": user.full_name,
-            "role": user.role.value if hasattr(user.role, "value") else str(user.role),
-            "is_active": user.is_active,
-        }
-        await redis_cache.cache_user_data(firebase_uid, user_data, ttl=900)
-
-    if not user_data.get("is_active", False):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive"
-        )
-
-    return user_data
 
 
 # ==================== Template Search & Validation ====================
@@ -172,6 +121,23 @@ async def search_templates(
                     }
                 )
 
+        # Audit log for search operations
+        user_id = current_user.get("uid") or current_user.get("user_id") or "anonymous"
+        user_role = current_user.get("role")
+        AuditLogger.log(
+            action=AuditAction.SEARCH,
+            resource_type="template",
+            resource_id="search",
+            user_id=str(user_id),
+            user_role=user_role,
+            details={
+                "query": q,
+                "template_type": template_type,
+                "results_count": len(results),
+            },
+            ip_address=request.client.host if request.client else None,
+        )
+
         return {"query": q, "results": results[:limit], "total": len(results)}
 
     except Exception as e:
@@ -235,6 +201,24 @@ async def validate_template(
             errors.append(f"Invalid template type: {template_type}")
 
         is_valid = len(errors) == 0
+
+        # Audit log for validation operations
+        user_id = current_user.get("uid") or current_user.get("user_id") or "anonymous"
+        user_role = current_user.get("role")
+        AuditLogger.log(
+            action=AuditAction.VALIDATE,
+            resource_type=template_type,
+            resource_id="validation",
+            user_id=str(user_id),
+            user_role=user_role,
+            details={
+                "template_type": template_type,
+                "is_valid": is_valid,
+                "errors_count": len(errors),
+                "warnings_count": len(warnings),
+            },
+            ip_address=request.client.host if request.client else None,
+        )
 
         return {"valid": is_valid, "errors": errors, "warnings": warnings}
 

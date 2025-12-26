@@ -8,17 +8,80 @@ SECURITY:
 - Custom claims validation required before user creation
 - Comprehensive audit logging for all operations
 - Automatic rejection of unauthorized access attempts
+
+PERFORMANCE:
+- Redis cache for verified users (5 min TTL)
+- Reduces DB queries on repeated logins
 """
 
 from typing import Optional, Dict, Any, Tuple
 from datetime import datetime, timezone
 import logging
+import json
 
 from app.models.user import User, UserRole, AuthProvider
 from app.services.firebase_auth_service import FirebaseAuthService
 from app.config import get_firebase_security_config
 
 logger = logging.getLogger(__name__)
+
+# Redis cache configuration
+USER_CACHE_TTL = 300  # 5 minutes
+USER_CACHE_PREFIX = "user:firebase:"
+
+
+async def _get_redis_client():
+    """Get Redis client for caching."""
+    try:
+        from app.core.redis_manager import get_redis
+        return await get_redis()
+    except Exception as e:
+        logger.debug(f"Redis not available for user cache: {e}")
+        return None
+
+
+def _serialize_user_for_cache(user: User) -> str:
+    """Serialize user object for Redis cache."""
+    return json.dumps({
+        "id": str(user.id),
+        "email": user.email,
+        "full_name": user.full_name,
+        "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
+        "firebase_uid": user.firebase_uid,
+        "firebase_custom_claims": user.firebase_custom_claims,
+        "is_active": user.is_active,
+        "is_locked": getattr(user, "is_locked", False),
+        "cached_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+
+def _deserialize_user_from_cache(data: str, db) -> Optional[User]:
+    """Deserialize user from Redis cache and attach to session."""
+    try:
+        cached = json.loads(data)
+        # Fetch fresh user from DB but use cache to skip validation
+        user = db.query(User).filter(User.id == cached["id"]).first()
+        if user:
+            logger.debug(f"User cache hit: {cached['email']}")
+        return user
+    except Exception as e:
+        logger.debug(f"Cache deserialize failed: {e}")
+        return None
+
+
+async def _cache_user(redis_client, firebase_uid: str, user: User) -> bool:
+    """Cache user in Redis for faster subsequent logins."""
+    if not redis_client:
+        return False
+    try:
+        cache_key = f"{USER_CACHE_PREFIX}{firebase_uid}"
+        cache_data = _serialize_user_for_cache(user)
+        await redis_client.setex(cache_key, USER_CACHE_TTL, cache_data)
+        logger.debug(f"Cached user {user.email} for {USER_CACHE_TTL}s")
+        return True
+    except Exception as e:
+        logger.debug(f"Failed to cache user: {e}")
+        return False
 
 
 class FirebaseUserSyncService:
@@ -60,6 +123,7 @@ class FirebaseUserSyncService:
         Sync Firebase user to database with security validation.
 
         Process:
+        0. Check Redis cache for verified user (PERFORMANCE OPTIMIZATION)
         1. Validate email domain (security check)
         2. Validate custom claims (security check)
         3. Try to find user by Firebase UID
@@ -90,6 +154,24 @@ class FirebaseUserSyncService:
             raise ValueError("Firebase user missing email")
 
         email_lower = email.strip().lower()
+
+        # PERFORMANCE OPTIMIZATION: Check Redis cache first
+        cache_key = f"{USER_CACHE_PREFIX}{firebase_uid}"
+        redis_client = await _get_redis_client()
+
+        if redis_client:
+            try:
+                cached_data = await redis_client.get(cache_key)
+                if cached_data:
+                    cached_user = _deserialize_user_from_cache(cached_data, self.db)
+                    if cached_user and cached_user.is_active:
+                        logger.info(f"Redis cache hit for user: {email_lower}")
+                        # Update last sign-in timestamp (lightweight update)
+                        cached_user.firebase_last_sign_in = datetime.now()
+                        self.db.commit()
+                        return cached_user, False
+            except Exception as cache_err:
+                logger.debug(f"Cache lookup failed (continuing normally): {cache_err}")
 
         try:
             # SECURITY VALIDATION STEP 1: Validate email domain
@@ -139,6 +221,8 @@ class FirebaseUserSyncService:
                 self._log_sync(
                     firebase_uid, user.id, "update", "firebase_to_pg", {}, True
                 )
+                # Cache user for faster subsequent logins
+                await _cache_user(redis_client, firebase_uid, user)
                 return user, False
 
             # 2. Try to find by email (migration case)
@@ -148,6 +232,8 @@ class FirebaseUserSyncService:
                 self._log_sync(
                     firebase_uid, user.id, "link", "firebase_to_pg", {}, True
                 )
+                # Cache user for faster subsequent logins
+                await _cache_user(redis_client, firebase_uid, user)
                 return user, False
 
             # 3. Create new user if allowed and validated
@@ -163,6 +249,8 @@ class FirebaseUserSyncService:
             self._log_sync(
                 firebase_uid, new_user.id, "create", "firebase_to_pg", {}, True
             )
+            # Cache new user for faster subsequent logins
+            await _cache_user(redis_client, firebase_uid, new_user)
             return new_user, True
 
         except ValueError as e:
@@ -662,8 +750,8 @@ class FirebaseUserSyncService:
             logger.error(f"Failed to store audit event: {str(e)}")
             try:
                 self.db.rollback()
-            except:
-                pass
+            except Exception as rollback_err:
+                logger.warning(f"Rollback failed during audit event storage: {rollback_err}")
 
     def _store_audit_event(self, event_data: Dict[str, Any]):
         """
@@ -740,8 +828,8 @@ class FirebaseUserSyncService:
             logger.error(f"Failed to log sync operation: {str(e)}")
             try:
                 self.db.rollback()
-            except:
-                pass
+            except Exception as rollback_err:
+                logger.warning(f"Rollback failed during sync log operation: {rollback_err}")
             # Don't raise - logging failure shouldn't break sync
 
     async def get_or_create_user(

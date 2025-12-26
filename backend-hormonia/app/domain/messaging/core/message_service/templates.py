@@ -2,13 +2,33 @@
 Message Templates - Monthly Quiz Message Templates (QW-022).
 
 This module contains message template constants used by MessageFactory.
+
+SECURITY: All user input MUST be sanitized before template rendering.
+Use app.utils.template_sanitizer.get_template_sanitizer() for safe rendering.
 """
 
 from typing import Dict
 
 
 class MessageTemplates:
-    """Container for message template strings."""
+    """
+    Container for message template strings.
+
+    Security Warning:
+    -----------------
+    These templates use {placeholder} syntax. ALL user-provided values
+    (patient_name, link, etc.) MUST be sanitized before rendering to
+    prevent injection attacks.
+
+    Always use:
+        from app.utils.template_sanitizer import get_template_sanitizer
+        sanitizer = get_template_sanitizer()
+        safe_context = sanitizer.sanitize_template_context(context)
+        message = template.format(**safe_context)
+
+    Never use:
+        message = template.format(patient_name=user_input)  # UNSAFE!
+    """
 
     # Message templates for monthly quiz links
     MONTHLY_QUIZ_TEMPLATES: Dict[str, str] = {

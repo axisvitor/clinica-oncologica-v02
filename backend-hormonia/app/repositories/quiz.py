@@ -1,3 +1,5 @@
+
+from __future__ import annotations
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, timezone
@@ -260,6 +262,38 @@ class QuizResponseRepository(BaseRepository[QuizResponse]):
             .all()
         )
 
+    def get_by_session(
+        self, session_id: UUID, eager_load: bool = False
+    ) -> List[QuizResponse]:
+        """
+        Get all responses for a specific quiz session.
+
+        Note: Eager loading is disabled by default since the session is usually
+        already loaded. Enable if you need related entities.
+
+        Args:
+            session_id: UUID of the quiz session
+            eager_load: Enable eager loading of related entities
+
+        Returns:
+            List of quiz responses for the session, ordered by response time
+        """
+        from sqlalchemy.orm import joinedload
+
+        query = (
+            self.db.query(QuizResponse)
+            .filter(QuizResponse.quiz_session_id == session_id)
+            .order_by(QuizResponse.responded_at.asc())
+        )
+
+        if eager_load:
+            query = query.options(
+                joinedload(QuizResponse.patient),
+                joinedload(QuizResponse.quiz_template),
+            )
+
+        return query.all()
+
 
 class QuizSessionRepository(BaseRepository[QuizSession]):
     """Repository for QuizSession model"""
@@ -395,6 +429,48 @@ class QuizSessionRepository(BaseRepository[QuizSession]):
             .filter(QuizSession.started_at < cutoff_time)
             .all()
         )
+
+    def get_patient_template_sessions(
+        self, patient_id: UUID, template_id: UUID, limit: int = 5, eager_load: bool = True
+    ) -> List[QuizSession]:
+        """
+        Get completed sessions for a patient and specific template with eager loading.
+
+        PERFORMANCE OPTIMIZATION: Eager loading enabled by default to prevent N+1 queries.
+
+        Relationships loaded when eager_load=True:
+        - responses: Quiz responses in session (selectinload - 1:many)
+        - quiz_template: Quiz template used (joinedload - 1:1)
+
+        This is used for trend analysis and comparison across historical sessions.
+
+        Args:
+            patient_id: UUID of the patient
+            template_id: UUID of the quiz template
+            limit: Maximum sessions to return (default: 5 for trend analysis)
+            eager_load: Enable eager loading (default: True for performance)
+
+        Returns:
+            List of completed quiz sessions with responses pre-loaded
+        """
+        from sqlalchemy.orm import joinedload, selectinload
+
+        query = (
+            self.db.query(QuizSession)
+            .filter(QuizSession.patient_id == patient_id)
+            .filter(QuizSession.quiz_template_id == template_id)
+            .filter(QuizSession.status == "completed")
+            .order_by(QuizSession.completed_at.desc())
+        )
+
+        if eager_load:
+            # PERFORMANCE: Eager load responses to prevent N+1 queries in trend analysis
+            query = query.options(
+                selectinload(QuizSession.responses),
+                joinedload(QuizSession.quiz_template),
+            )
+
+        return query.limit(limit).all()
 
 
 class UnifiedQuizRepository:

@@ -1,25 +1,43 @@
-"""
-Message Generator - Generates and personalizes flow messages.
-"""
+"""Message Generator - Generates and personalizes flow messages."""
 
+from __future__ import annotations
+
+# Standard library
 import logging
-from typing import Dict, Optional, Any
 from datetime import datetime, timezone
+from typing import Any, Dict, Optional
 
+# Third-party
 from sqlalchemy.orm import Session
 
+# Local
+from app.integrations.gemini_client import get_gemini_client
 from app.services.template_loader import (
     EnhancedTemplateLoader,
     FlowTemplateData,
     MessageTemplate,
 )
-from app.integrations.gemini_client import get_gemini_client
 from app.utils.template_variables import TemplateVariableProcessor
+
 from .models import FlowContext
 
 
 class MessageGenerator:
-    """Generates and personalizes flow messages."""
+    """
+    Generates and personalizes flow messages.
+
+    Loads flow templates and generates personalized messages
+    using AI-powered content generation and context-aware
+    personalization.
+
+    Attributes:
+        db_session: Database session.
+        agent_id: Unique agent identifier.
+        logger: Logger instance.
+        template_loader: Template loader instance.
+        flow_templates: Loaded flow templates.
+        gemini_client: Gemini AI client for content generation.
+    """
 
     def __init__(
         self,

@@ -6,6 +6,8 @@ Responsibilities: Input validation, answer checking, response value normalizatio
 encryption handling, and validation rules enforcement.
 """
 
+from __future__ import annotations
+
 import json
 from typing import Any, Dict, Optional, List
 from datetime import datetime, timezone

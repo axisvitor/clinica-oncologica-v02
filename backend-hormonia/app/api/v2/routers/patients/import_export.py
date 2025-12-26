@@ -10,48 +10,51 @@ Migrated from: app/api/v2/routers/patients_import.py
 Lines: 45-434
 """
 
-from typing import Optional, List
-from datetime import date, datetime, timezone
-from uuid import UUID
+# Standard library imports
 import csv
 import io
 import logging
+from datetime import date, datetime, timezone
+from typing import List, Optional
+from uuid import UUID
 
+# Third-party imports
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
+    File,
     HTTPException,
-    status,
     Query,
     Request,
     UploadFile,
-    File,
-    BackgroundTasks,
+    status,
 )
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+# Local application imports
 from app.database import get_db
-from app.models.patient import Patient, FlowState
-from app.models.user import UserRole
 from app.dependencies.auth_dependencies import (
     get_current_user_from_session,
     get_redis_cache,
 )
+from app.models.patient import FlowState, Patient
+from app.models.user import UserRole
+from app.utils.phone_validator import normalize_phone
 from app.utils.rate_limiter import limiter
 
-from app.utils.phone_validator import normalize_phone
 from .base import (
     ImportError,
     ImportResponse,
-    extract_user_context,
     ensure_uuid,
+    extract_user_context,
     normalize_cpf,
     parse_flow_state_filter,
 )
 
-router = APIRouter()
 logger = logging.getLogger(__name__)
+router = APIRouter()
 
 
 @router.get(
@@ -90,8 +93,8 @@ async def export_patients(
     - Includes all patient fields
     - Redis caching for 5 minutes
     """
-    role_enum, user_id = extract_user_context(current_user)
-    current_user_uuid = ensure_uuid(user_id)
+    role_enum, user_id = await extract_user_context(current_user)
+    current_user_uuid = await ensure_uuid(user_id)
 
     # Build query with filters
     query = db.query(Patient).filter(Patient.deleted_at.is_(None))
@@ -123,7 +126,7 @@ async def export_patients(
 
     # Apply status filter
     if status_filter:
-        target_state = parse_flow_state_filter(status_filter)
+        target_state = await parse_flow_state_filter(status_filter)
         query = query.filter(Patient.flow_state == target_state)
 
     # Apply date range filters
@@ -254,8 +257,8 @@ async def import_patients(
     - Phone format: E.164 format (+5511987654321)
     - CPF format: 11 digits (formatting optional)
     """
-    role_enum, user_id = extract_user_context(current_user)
-    current_user_uuid = ensure_uuid(user_id)
+    role_enum, user_id = await extract_user_context(current_user)
+    current_user_uuid = await ensure_uuid(user_id)
 
     if current_user_uuid is None:
         raise HTTPException(
@@ -364,7 +367,7 @@ async def import_patients(
 
             # Parse optional fields
             email = row.get("Email", "").strip() or None
-            cpf = normalize_cpf(row.get("CPF", "").strip()) if row.get("CPF") else None
+            cpf = await normalize_cpf(row.get("CPF", "").strip()) if row.get("CPF") else None
             treatment_type = row.get("Treatment Type", "").strip() or None
             diagnosis = row.get("Diagnosis", "").strip() or None
             treatment_phase = row.get("Treatment Phase", "").strip() or None

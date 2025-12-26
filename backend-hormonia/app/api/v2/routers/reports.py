@@ -87,7 +87,8 @@ def _get_role_and_user(current_user) -> tuple[UserRole, Optional[UUID]]:
 def _get_cache_key(endpoint: str, **params) -> str:
     """Generate cache key from endpoint and parameters."""
     param_str = json.dumps(params, sort_keys=True, default=str)
-    param_hash = hashlib.md5(param_str.encode()).hexdigest()
+    # Use SHA-256 instead of MD5 for better collision resistance
+    param_hash = hashlib.sha256(param_str.encode()).hexdigest()[:32]
     return f"reports:v2:{endpoint}:{param_hash}"
 
 

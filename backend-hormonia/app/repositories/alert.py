@@ -235,6 +235,7 @@ class AlertRepository(BaseRepository[Alert]):
                     )
                 )
                 .order_by(Alert.created_at.desc(), Alert.id)
+                .limit(100)  # FIX: Prevent unbounded query
                 .all()
             )
         except Exception as e:
@@ -455,6 +456,7 @@ class AlertRepository(BaseRepository[Alert]):
                 self.db.query(Alert)
                 .filter(Alert.data.op("->>")("quiz_session_id") == str(quiz_session_id))
                 .order_by(Alert.created_at.desc(), Alert.id)
+                .limit(100)  # FIX: Prevent unbounded query
                 .all()
             )
         except Exception as e:
@@ -481,6 +483,7 @@ class AlertRepository(BaseRepository[Alert]):
                 self.db.query(Alert)
                 .filter(Alert.acknowledged == acknowledged)
                 .order_by(Alert.created_at.desc(), Alert.id)
+                .limit(100)  # FIX: Prevent unbounded query
                 .all()
             )
         except Exception as e:

@@ -5,6 +5,8 @@ Handles token expiry monitoring, automatic link regeneration,
 fallback mechanisms, and retry logic for quiz reminders.
 """
 
+from __future__ import annotations
+
 import logging
 import hashlib
 import asyncio

@@ -5,6 +5,8 @@ Provides audit logging methods specific to quiz link management,
 access control, and LGPD compliance.
 """
 
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Optional
 from uuid import UUID

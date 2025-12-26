@@ -9,29 +9,32 @@ LOC: ~150
 Responsibility: Database patient creation
 """
 
-from typing import Optional, TYPE_CHECKING
-from uuid import UUID
-from concurrent.futures import ThreadPoolExecutor
-import logging
+from __future__ import annotations
 
-from sqlalchemy.orm import Session
+# Standard library imports
+import logging
+from concurrent.futures import ThreadPoolExecutor
+from typing import TYPE_CHECKING, Optional
+from uuid import UUID
+
+# Third-party imports
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from app.models.patient import Patient
-from app.schemas.patient import PatientCreate
+# Local application imports
 from app.exceptions import ValidationError
 from app.infrastructure.cache import get_unified_cache_manager as get_cache_manager
+from app.models.patient import Patient
+from app.schemas.patient import PatientCreate
 
 if TYPE_CHECKING:
-    from app.models.user import User
-    from app.services.patient.integrity_service import PatientIntegrityService
-    from app.domain.patient.onboarding.validation_service import ValidationService
-    from app.domain.patient.onboarding.notification_service import NotificationService
     from app.domain.patient.onboarding.completion_service import CompletionService
+    from app.domain.patient.onboarding.notification_service import NotificationService
+    from app.domain.patient.onboarding.validation_service import ValidationService
+    from app.models.user import User
     from app.services.patient.flow_service import PatientFlowService
-
-logger = logging.getLogger(__name__)
+    from app.services.patient.integrity_service import PatientIntegrityService
 
 
 class CreationService:
@@ -45,6 +48,16 @@ class CreationService:
     - Database transaction management
     - Cache invalidation
     - Integration with notification and flow services
+
+    Attributes:
+        db: Database session.
+        integrity_service: Service for patient data integrity.
+        completion_service: Service for partial onboarding completion.
+        notification_service: Service for notification delivery.
+        validation_service: Optional validation service.
+        flow_service: Optional flow service.
+        executor: Optional thread pool executor for background tasks.
+        _logger: Service logger (private).
     """
 
     def __init__(
@@ -61,13 +74,13 @@ class CreationService:
         Initialize CreationService with dependency injection.
 
         Args:
-            db: Database session
-            integrity_service: Service for patient data integrity
-            completion_service: Service for partial onboarding completion
-            notification_service: Service for notification delivery
-            validation_service: Optional validation service
-            flow_service: Optional flow service
-            executor: Optional thread pool executor for background tasks
+            db: Database session for operations.
+            integrity_service: Service for patient data integrity.
+            completion_service: Service for partial onboarding completion.
+            notification_service: Service for notification delivery.
+            validation_service: Optional validation service.
+            flow_service: Optional flow service.
+            executor: Optional thread pool executor for background tasks.
         """
         self.db = db
         self.integrity_service = integrity_service
@@ -76,6 +89,7 @@ class CreationService:
         self.validation_service = validation_service
         self.flow_service = flow_service
         self.executor = executor
+        self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     async def create_patient_direct(
         self,
@@ -94,16 +108,15 @@ class CreationService:
         5. Initialize flow
 
         Args:
-            patient_data: Patient creation data
-            doctor_id: Doctor ID
-            current_user: Current user (optional)
+            patient_data: Patient creation data.
+            doctor_id: Doctor ID.
+            current_user: Current user (optional).
 
         Returns:
-            Created Patient object
+            Created Patient object.
 
         Raises:
-            ValidationError: If validation fails
-            IntegrityError: If database integrity constraints are violated
+            ValidationError: If validation fails or database integrity constraints are violated.
         """
         try:
             # Prepare patient data
@@ -124,30 +137,33 @@ class CreationService:
 
             repository = PatientRepository(self.db)
 
-            logger.info(
+            self._logger.info(
                 "Creating new patient",
                 extra={
                     "has_cpf": bool(patient_data.cpf),
                     "has_email": bool(patient_data.email),
                     "has_phone": bool(patient_data.phone),
                     "doctor_id": str(doctor_id),
-                },
+                }
             )
 
             # Use FastAPI's global thread pool (prevents thread leak)
             try:
                 patient = await run_in_threadpool(repository.create, patient_dict)
             except Exception as e:
-                logger.error(f"Failed to create patient: {e}", exc_info=True)
+                self._logger.error("Failed to create patient", exc_info=True)
                 raise
 
             # Invalidate caches
             await self._invalidate_cache(doctor_id)
 
-            logger.info(f"Patient created successfully (direct): {patient.id}")
+            self._logger.info(
+                "Patient created successfully (direct)",
+                extra={"patient_id": str(patient.id)}
+            )
 
         except ValidationError as e:
-            logger.error(f"Patient validation failed: {e}")
+            self._logger.error("Patient validation failed", extra={"error": str(e)})
             raise
         except IntegrityError as e:
             await run_in_threadpool(self.db.rollback)
@@ -172,13 +188,13 @@ class CreationService:
                     code="duplicate_email",
                 )
             else:
-                logger.error(f"Database integrity error during patient creation: {e}")
+                self._logger.error("Database integrity error during patient creation", exc_info=True)
                 raise ValidationError(
                     "Patient creation failed due to data integrity constraints",
                     code="integrity_error"
                 )
         except Exception as e:
-            logger.error(f"Unexpected error during patient creation: {e}")
+            self._logger.error("Unexpected error during patient creation", exc_info=True)
             await run_in_threadpool(self.db.rollback)
             raise
 
@@ -188,13 +204,16 @@ class CreationService:
                 patient=patient, doctor_id=doctor_id, action="created"
             )
         except Exception as e:
-            logger.warning(f"Failed to publish WebSocket event: {e}")
+            self._logger.warning("Failed to publish WebSocket event", extra={"error": str(e)})
 
         # Send welcome message
         try:
             await self.notification_service.send_welcome_message(patient, current_user)
         except Exception as e:
-            logger.error(f"Failed to send welcome message to patient {patient.id}: {e}")
+            self._logger.error(
+                "Failed to send welcome message",
+                extra={"patient_id": str(patient.id), "error": str(e)}
+            )
             # Don't fail patient creation if WhatsApp fails
 
         # Initialize flow (if flow_service available)
@@ -205,7 +224,10 @@ class CreationService:
                     patient, current_user_id
                 )
             except Exception as e:
-                logger.error(f"Failed to initialize flow for patient {patient.id}: {e}")
+                self._logger.error(
+                    "Failed to initialize flow",
+                    extra={"patient_id": str(patient.id), "error": str(e)}
+                )
                 # Don't fail patient creation if flow initialization fails
 
         return patient
@@ -215,10 +237,13 @@ class CreationService:
         Invalidate patient list cache.
 
         Args:
-            doctor_id: Doctor ID
+            doctor_id: Doctor ID for cache invalidation.
         """
         cache_manager = get_cache_manager()
         cache_manager.invalidate_pattern(
             f"patient_list:*:{doctor_id}*", namespace="cache"
         )
-        logger.debug(f"Invalidated patient list cache for doctor: {doctor_id}")
+        self._logger.debug(
+            "Invalidated patient list cache",
+            extra={"doctor_id": str(doctor_id)}
+        )

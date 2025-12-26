@@ -148,11 +148,11 @@ async def verify_monthly_quiz_token(
         payload = services.monthly_quiz_service._verify_token(token)
         return payload
     except ValidationError as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid quiz token")
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid quiz token: {str(e)}",
+            detail="Invalid or expired quiz token",
         )
 
 

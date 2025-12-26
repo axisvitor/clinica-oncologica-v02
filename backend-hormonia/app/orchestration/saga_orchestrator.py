@@ -110,7 +110,10 @@ class SagaOrchestrator:
         # 16 chars = 64 bits → 50% collision at ~5 billion entries
         # 32 chars = 128 bits → 50% collision at ~18 quintillion entries
         phone_hash = hashlib.sha256(normalized_phone.encode()).hexdigest()[:32]
-        lock_key = f"saga:onboarding:{str(doctor_id)[:8]}:{phone_hash}"
+        # FIX: Use full doctor_id instead of truncated 8 chars to prevent collision
+        # when different doctors have similar UUID prefixes (e.g., both starting with
+        # "a1b2c3d4"). Full UUID ensures unique lock per doctor+phone combination.
+        lock_key = f"saga:onboarding:{str(doctor_id)}:{phone_hash}"
 
         # Acquire distributed lock to prevent concurrent saga execution for same patient
         # TTL of 60s covers the entire saga execution with margin
@@ -128,7 +131,10 @@ class SagaOrchestrator:
                 started_at=datetime.now(timezone.utc),
             )
             self.db.add(saga)
-            # Use flush() instead of commit() - get ID without committing transaction
+            # FIX: Use flush() instead of commit() to persist saga without ending transaction
+            # This maintains atomicity - saga is visible within transaction but can be
+            # rolled back if any step fails. Previous double-commit broke atomicity.
+            # Note: Saga will be committed along with all other changes at line 159
             self.db.flush()
 
             logger.info(
@@ -169,15 +175,37 @@ class SagaOrchestrator:
                 # Rollback entire transaction on any failure
                 self.db.rollback()
 
-                saga.status = SagaStatus.FAILED
-                saga.error_message = str(e)
-                saga.error_type = type(e).__name__
-                saga.failed_at = datetime.now(timezone.utc)
-                # Commit the failure state separately
-                self.db.commit()
+                # FIX: Create NEW saga record for failure tracking since rollback removed original
+                # Previous approach tried to re-fetch but saga was never committed (only flushed)
+                # This ensures we have a failure record even when all steps are rolled back
+                try:
+                    failure_saga = PatientOnboardingSaga(
+                        id=saga_id,  # Keep same ID for traceability
+                        doctor_id=doctor_id,
+                        patient_data=patient_data.model_dump(mode="json"),
+                        status=SagaStatus.FAILED,
+                        current_step=0,
+                        started_at=datetime.now(timezone.utc),
+                        failed_at=datetime.now(timezone.utc),
+                        error_message=str(e),
+                        error_type=type(e).__name__,
+                    )
+                    self.db.add(failure_saga)
+                    self.db.commit()
+                    logger.info(f"Saga {saga_id} failure record created")
 
-                # Trigger compensation
-                await self._compensate_saga(saga)
+                    # Trigger compensation (best effort, saga already failed)
+                    try:
+                        await self._compensate_saga(failure_saga)
+                    except Exception as comp_err:
+                        logger.error(f"Saga {saga_id} compensation failed: {comp_err}")
+
+                except Exception as record_err:
+                    logger.error(
+                        f"Failed to create saga {saga_id} failure record: {record_err}",
+                        exc_info=True
+                    )
+
                 return None
 
     async def resume_saga(self, saga_id: UUID) -> Dict[str, Any]:
@@ -192,22 +220,27 @@ class SagaOrchestrator:
 
         Note:
             Uses distributed lock to prevent concurrent resume attempts.
+            FIX: Saga is re-fetched AFTER lock acquisition to prevent TOCTOU
+            (Time-of-Check to Time-of-Use) vulnerability where saga state
+            could change between initial check and lock acquisition.
         """
-        saga = (
-            self.db.query(PatientOnboardingSaga)
-            .filter(PatientOnboardingSaga.id == saga_id)
-            .first()
-        )
-        if not saga:
-            return {"status": "error", "error": "Saga not found"}
-
-        # Acquire lock to prevent concurrent resume
-        lock_key = f"saga:resume:{saga.id}"
+        # Acquire lock BEFORE fetching saga to prevent TOCTOU vulnerability
+        # Another process could modify the saga between fetch and lock
+        lock_key = f"saga:resume:{saga_id}"
         try:
             async with acquire_lock(lock_key, timeout=5.0, ttl=60):
+                # FIX: Fetch saga INSIDE lock to get current state
+                saga = (
+                    self.db.query(PatientOnboardingSaga)
+                    .filter(PatientOnboardingSaga.id == saga_id)
+                    .first()
+                )
+                if not saga:
+                    return {"status": "error", "error": "Saga not found"}
+
                 return await self._resume_saga_internal(saga)
         except LockAcquisitionError:
-            logger.warning(f"Could not acquire lock for saga resume: {saga.id}")
+            logger.warning(f"Could not acquire lock for saga resume: {saga_id}")
             return {"status": "error", "error": "Saga resume already in progress"}
 
     async def _resume_saga_internal(
@@ -309,15 +342,27 @@ class SagaOrchestrator:
                 patient_dict["idempotency_key"] = idempotency_key
 
             # Save via Repo (expects dict)
-            patient = self.patient_repo.create(patient_dict)
+            # Use auto_commit=False to support saga Unit of Work pattern
+            # The saga will commit all changes at the end
+            patient = self.patient_repo.create(patient_dict, auto_commit=False)
 
             # Update Saga
             saga.patient_id = patient.id
             saga.current_step = 1  # Mapped to STEP_1_PATIENT_CREATED effectively
             saga.status = SagaStatus.STEP_1_PATIENT_CREATED
             saga.add_log_entry(1, "create_patient", "success")
-            # Use flush() instead of commit() - persist to DB but don't commit transaction
-            self.db.flush()
+
+            # BUG FIX 4: Add error handling for flush operation
+            try:
+                # Use flush() instead of commit() - persist to DB but don't commit transaction
+                self.db.flush()
+            except Exception as flush_error:
+                logger.warning(
+                    f"Saga {saga.id}: Flush failed in create_patient step: {flush_error}",
+                    exc_info=True
+                )
+                # Don't fail the step - flush failure will be caught on commit
+                # This allows the transaction to continue and fail atomically if needed
 
             return patient
 
@@ -338,17 +383,30 @@ class SagaOrchestrator:
             )
 
             # Initialize default flow
-            await self.flow_service.initialize_default_flow(patient, current_user_id)
+            # Use auto_commit=False to support saga Unit of Work pattern
+            await self.flow_service.initialize_default_flow(
+                patient, current_user_id, auto_commit=False
+            )
 
             # Also activate the patient
-            await self.flow_service.activate_patient(patient.id)
+            # Use auto_commit=False to support saga Unit of Work pattern
+            await self.flow_service.activate_patient(patient.id, auto_commit=False)
 
             # Update Saga
             saga.current_step = 3  # Mapped to STEP_3_FLOW_INITIALIZED
             saga.status = SagaStatus.STEP_3_FLOW_INITIALIZED
             saga.add_log_entry(3, "initialize_flow", "success")
-            # Use flush() instead of commit() - persist to DB but don't commit transaction
-            self.db.flush()
+
+            # BUG FIX 4: Add error handling for flush operation
+            try:
+                # Use flush() instead of commit() - persist to DB but don't commit transaction
+                self.db.flush()
+            except Exception as flush_error:
+                logger.warning(
+                    f"Saga {saga.id}: Flush failed in initialize_flow step: {flush_error}",
+                    exc_info=True
+                )
+                # Don't fail the step - flush failure will be caught on commit
 
         except Exception as e:
             logger.error(f"Step 2 (Flow) failed: {type(e).__name__}", exc_info=True)
@@ -429,8 +487,17 @@ class SagaOrchestrator:
                         else None,
                         "welcome_send_failed_at": datetime.now(timezone.utc).isoformat(),
                     }
-                    # Use flush() instead of commit() - persist to DB but don't commit transaction
-                    self.db.flush()
+
+                    # BUG FIX 4: Add error handling for flush operation
+                    try:
+                        # Use flush() instead of commit() - persist to DB but don't commit transaction
+                        self.db.flush()
+                    except Exception as flush_error:
+                        logger.warning(
+                            f"Saga {saga.id}: Flush failed updating message metadata: {flush_error}",
+                            exc_info=True
+                        )
+                        # Don't fail the step - message metadata is non-critical
                 except Exception as update_exc:
                     logger.warning(
                         f"Saga {saga.id}: Failed to keep welcome message pending: {type(update_exc).__name__}",
@@ -449,8 +516,17 @@ class SagaOrchestrator:
                     "failed_nonfatal",
                     str(send_error) if send_error else "send_message returned False",
                 )
-            # Use flush() instead of commit() - persist to DB but don't commit transaction
-            self.db.flush()
+
+            # BUG FIX 4: Add error handling for flush operation
+            try:
+                # Use flush() instead of commit() - persist to DB but don't commit transaction
+                self.db.flush()
+            except Exception as flush_error:
+                logger.warning(
+                    f"Saga {saga.id}: Flush failed in send_welcome_message step: {flush_error}",
+                    exc_info=True
+                )
+                # Don't fail the step - message sending is already non-fatal
 
         except Exception as e:
             logger.error(f"Step 3 (Message) failed: {type(e).__name__}", exc_info=True)
@@ -460,9 +536,9 @@ class SagaOrchestrator:
             try:
                 # Use flush() instead of commit() - persist to DB but don't commit transaction
                 self.db.flush()
-            except Exception:
+            except Exception as flush_err:
                 # If flush fails, we'll let it rollback with the main transaction
-                logger.error("Failed to flush message step state", exc_info=True)
+                logger.error(f"Failed to flush message step state: {flush_err}", exc_info=True)
             return
 
     async def _track_compensation_failure(
@@ -515,9 +591,17 @@ class SagaOrchestrator:
         try:
             async with acquire_lock(lock_key, timeout=5.0, ttl=120):
                 await self._compensate_saga_internal(saga)
-        except LockAcquisitionError:
-            logger.warning(f"Saga {saga.id}: Compensation already in progress")
-            return
+        except LockAcquisitionError as lock_error:
+            # BUG FIX 1: Propagate lock acquisition errors instead of silent return
+            logger.error(
+                f"Saga {saga.id}: Failed to acquire compensation lock - concurrent compensation in progress",
+                exc_info=True
+            )
+            raise SagaCompensationError(
+                f"Saga {saga.id}: Cannot acquire compensation lock (concurrent operation)",
+                original_error=lock_error,
+                saga_id=saga.id
+            )
 
     async def _compensate_saga_internal(self, saga: PatientOnboardingSaga):
         """Internal compensation logic within lock context."""
@@ -560,8 +644,27 @@ class SagaOrchestrator:
                 )
 
             saga.status = SagaStatus.FAILED  # End state
-            # Atomic commit of all compensations
-            self.db.commit()
+
+            # BUG FIX 3: Add transaction isolation protection for final commit
+            try:
+                # Atomic commit of all compensations
+                self.db.commit()
+                logger.info(f"Saga {saga.id}: Compensation transaction committed successfully")
+            except Exception as commit_error:
+                logger.error(
+                    f"Saga {saga.id}: CRITICAL - Compensation commit failed: {commit_error}",
+                    exc_info=True
+                )
+                # Rollback the failed compensation transaction
+                self.db.rollback()
+                # Track the critical failure
+                await self._track_compensation_failure(saga.id, 0, commit_error)
+                # Re-raise as compensation error
+                raise SagaCompensationError(
+                    f"Saga {saga.id}: Failed to commit compensation transaction",
+                    original_error=commit_error,
+                    saga_id=saga.id,
+                )
 
             # QW-002: Raise compensation errors if any occurred
             if compensation_errors:
@@ -643,15 +746,24 @@ class SagaOrchestrator:
 
         Note: WhatsApp messages cannot be unsent, but we mark as cancelled
         in our database for audit trail and to prevent retries.
+
+        FIX P1-008: Made idempotent - checks if already compensated before updating.
         """
         try:
-            # Find messages sent by this saga
+            # FIX P1-008: Check if already compensated
+            compensated_steps = saga.step_data.get("compensated_steps", []) if saga.step_data else []
+            if "message" in compensated_steps:
+                logger.info(f"Saga {saga.id}: Message compensation already done, skipping")
+                return
+
+            # Find messages sent by this saga that are NOT already cancelled
             # Note: Using JSONB key access with .astext for reliable comparison
             messages = (
                 self.db.query(Message)
                 .filter(
                     Message.patient_id == saga.patient_id,
                     Message.message_metadata["saga_id"].astext == str(saga.id),
+                    Message.status != MessageStatus.CANCELLED,  # FIX P1-008: Only non-cancelled
                 )
                 .all()
             )
@@ -664,12 +776,18 @@ class SagaOrchestrator:
                     "cancelled_at": datetime.now(timezone.utc).isoformat(),
                 }
 
+            # FIX P1-008: Mark step as compensated
+            saga.step_data = {
+                **(saga.step_data or {}),
+                "compensated_steps": compensated_steps + ["message"],
+            }
+
             if messages:
                 logger.info(
                     f"Saga {saga.id}: Marked {len(messages)} message(s) as cancelled"
                 )
             else:
-                logger.info(f"Saga {saga.id}: No messages found to compensate")
+                logger.info(f"Saga {saga.id}: No messages found to compensate (or already done)")
 
         except Exception as e:
             logger.error(f"Saga {saga.id}: Message compensation error: {e}")
@@ -681,10 +799,23 @@ class SagaOrchestrator:
 
         Removes the flow state created for the patient to ensure
         clean state for any future retry.
+
+        FIX P1-008: Made idempotent - checks if already compensated before deleting.
         """
         try:
+            # FIX P1-008: Check if already compensated
+            compensated_steps = saga.step_data.get("compensated_steps", []) if saga.step_data else []
+            if "flow" in compensated_steps:
+                logger.info(f"Saga {saga.id}: Flow compensation already done, skipping")
+                return
+
             if not saga.patient_id:
                 logger.info(f"Saga {saga.id}: No patient_id to compensate flow")
+                # Still mark as done to prevent future retries
+                saga.step_data = {
+                    **(saga.step_data or {}),
+                    "compensated_steps": compensated_steps + ["flow"],
+                }
                 return
 
             # Find and delete flow states for this patient
@@ -697,10 +828,16 @@ class SagaOrchestrator:
             for flow_state in flow_states:
                 self.db.delete(flow_state)
 
+            # FIX P1-008: Mark step as compensated
+            saga.step_data = {
+                **(saga.step_data or {}),
+                "compensated_steps": compensated_steps + ["flow"],
+            }
+
             if flow_states:
                 logger.info(f"Saga {saga.id}: Deleted {len(flow_states)} flow state(s)")
             else:
-                logger.info(f"Saga {saga.id}: No flow states found to compensate")
+                logger.info(f"Saga {saga.id}: No flow states found to compensate (or already done)")
 
         except Exception as e:
             logger.error(f"Saga {saga.id}: Flow compensation error: {e}")
@@ -712,10 +849,23 @@ class SagaOrchestrator:
 
         This is a hard delete since the patient was never fully onboarded.
         For LGPD compliance, we ensure all related data is also removed.
+
+        FIX P1-008: Made idempotent - checks if already compensated before deleting.
         """
         try:
+            # FIX P1-008: Check if already compensated
+            compensated_steps = saga.step_data.get("compensated_steps", []) if saga.step_data else []
+            if "patient" in compensated_steps:
+                logger.info(f"Saga {saga.id}: Patient compensation already done, skipping")
+                return
+
             if not saga.patient_id:
                 logger.info(f"Saga {saga.id}: No patient_id to compensate")
+                # Still mark as done to prevent future retries
+                saga.step_data = {
+                    **(saga.step_data or {}),
+                    "compensated_steps": compensated_steps + ["patient"],
+                }
                 return
 
             patient = self.patient_repo.get_by_id(saga.patient_id)
@@ -723,11 +873,22 @@ class SagaOrchestrator:
                 logger.info(
                     f"Saga {saga.id}: Patient {saga.patient_id} already deleted"
                 )
+                # FIX P1-008: Mark as done even if already deleted
+                saga.step_data = {
+                    **(saga.step_data or {}),
+                    "compensated_steps": compensated_steps + ["patient"],
+                }
                 return
 
             # Use repository's delete which handles cascades properly
             # Note: Related messages and flow_states should already be compensated
             self.db.delete(patient)
+
+            # FIX P1-008: Mark step as compensated
+            saga.step_data = {
+                **(saga.step_data or {}),
+                "compensated_steps": compensated_steps + ["patient"],
+            }
 
             logger.info(f"Saga {saga.id}: Deleted patient {saga.patient_id}")
 

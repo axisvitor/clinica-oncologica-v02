@@ -109,6 +109,7 @@ class Settings(
         boolean_fields = [
             # Base
             "APP_ENABLE_DEBUG",
+            "ALLOW_AI_SIMULATION",
             # Security
             "SESSION_ENABLE_COOKIE_SECURE",
             "SESSION_ENABLE_COOKIE_HTTPONLY",
@@ -279,6 +280,16 @@ class Settings(
             if self.APP_ENABLE_DEBUG:
                 errors.append(
                     "APP_ENABLE_DEBUG must be False in production environment"
+                )
+
+            # AI simulation should be disabled in production (warning, not error)
+            if self.ALLOW_AI_SIMULATION:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    "AI simulation mode is enabled in production environment. "
+                    "This will use mock data instead of real AI services. "
+                    "Set ALLOW_AI_SIMULATION=False in production to require real AI integration."
                 )
 
             # Redis SSL validation (optional - some Redis Cloud instances don't use SSL)

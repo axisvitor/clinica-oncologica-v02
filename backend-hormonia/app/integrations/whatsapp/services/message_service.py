@@ -77,18 +77,42 @@ class MessageQueue:
             await self.redis_client.lpush(self.queue_name, json.dumps(message_payload))
 
     async def dequeue_message(self, timeout: int = 30) -> Optional[Dict[str, Any]]:
-        """Dequeue message for processing."""
+        """
+        Dequeue message for processing.
+
+        Returns:
+            Dict with message data if available
+            None if queue is empty (timeout)
+
+        Raises:
+            redis.ConnectionError: If Redis is unavailable (caller should handle)
+        """
         await self.connect()
 
         # First check for scheduled messages that are ready
-        await self._process_scheduled_messages()
+        try:
+            await self._process_scheduled_messages()
+        except Exception as e:
+            # Log but continue - scheduled processing is optional
+            logger.warning(f"Failed to process scheduled messages: {e}")
 
         # Then get next message from main queue
-        result = await self.redis_client.brpop(self.queue_name, timeout=timeout)
-        if result:
-            _, message_data = result
-            return json.loads(message_data)
-        return None
+        # FIX: Distinguish between timeout (queue empty) and Redis error
+        try:
+            result = await self.redis_client.brpop(self.queue_name, timeout=timeout)
+            if result:
+                _, message_data = result
+                return json.loads(message_data)
+            # Timeout - queue is empty, this is normal
+            return None
+        except redis.ConnectionError as e:
+            # Redis connection lost - raise to caller for proper handling
+            logger.error(f"Redis connection error in dequeue: {e}")
+            raise
+        except redis.TimeoutError as e:
+            # Redis operation timeout - raise to caller
+            logger.warning(f"Redis timeout in dequeue: {e}")
+            raise
 
     async def retry_message(
         self, message_payload: Dict[str, Any], delay_seconds: int = 60
@@ -262,26 +286,59 @@ class WhatsAppMessageService:
         )
 
     async def process_message_queue(self):
-        """Process messages from queue."""
+        """Process messages from queue with proper error handling."""
         if self._processing:
             return
 
         self._processing = True
         logger.info("Starting message queue processing")
 
+        # Backoff configuration for Redis connection errors
+        base_backoff = 1.0  # seconds
+        max_backoff = 60.0  # seconds
+        current_backoff = base_backoff
+        consecutive_errors = 0
+        max_consecutive_errors = 10
+
         try:
             while True:
-                message_payload = await self.message_queue.dequeue_message()
-                if not message_payload:
-                    continue
-
                 try:
-                    await self._process_message(message_payload)
-                except Exception as e:
+                    message_payload = await self.message_queue.dequeue_message()
+
+                    # Reset backoff on successful dequeue (even if None)
+                    current_backoff = base_backoff
+                    consecutive_errors = 0
+
+                    if not message_payload:
+                        # Queue is empty, wait briefly before checking again
+                        await asyncio.sleep(0.1)
+                        continue
+
+                    try:
+                        await self._process_message(message_payload)
+                    except Exception as e:
+                        logger.error(
+                            f"Error processing message {message_payload.get('id')}: {e}"
+                        )
+                        await self.message_queue.retry_message(message_payload)
+
+                except (redis.ConnectionError, redis.TimeoutError) as redis_err:
+                    # FIX: Handle Redis errors with exponential backoff
+                    # instead of spinning in a busy loop
+                    consecutive_errors += 1
                     logger.error(
-                        f"Error processing message {message_payload.get('id')}: {e}"
+                        f"Redis error in queue processing (attempt {consecutive_errors}): {redis_err}"
                     )
-                    await self.message_queue.retry_message(message_payload)
+
+                    if consecutive_errors >= max_consecutive_errors:
+                        logger.critical(
+                            f"Too many consecutive Redis errors ({consecutive_errors}), stopping queue processor"
+                        )
+                        raise
+
+                    # Exponential backoff
+                    await asyncio.sleep(current_backoff)
+                    current_backoff = min(current_backoff * 2, max_backoff)
 
         except asyncio.CancelledError:
             logger.info("Message queue processing cancelled")

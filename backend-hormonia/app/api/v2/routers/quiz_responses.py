@@ -16,6 +16,8 @@ Features:
 Migrated from V1: quiz_responses.py (3 endpoints)
 """
 
+# NOTE: Removed 'from __future__ import annotations' to fix Pydantic/FastAPI OpenAPI issues
+
 from typing import Optional
 from datetime import datetime
 from uuid import UUID

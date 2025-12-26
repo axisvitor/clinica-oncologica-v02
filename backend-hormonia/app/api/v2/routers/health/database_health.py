@@ -57,8 +57,8 @@ async def check_database_health(db: Any) -> DatabaseHealth:
                 )
             ).fetchone()
             rls_enabled = rls_result[0] > 0 if rls_result else False
-        except Exception:
-            pass  # RLS check is non-critical
+        except Exception as e:
+            logger.warning(f"RLS check failed: {e}")
 
         db_status = HealthStatus.HEALTHY
         if latency_ms > 1000 or utilization > 90:

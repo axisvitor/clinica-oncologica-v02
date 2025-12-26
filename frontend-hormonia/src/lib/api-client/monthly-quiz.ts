@@ -149,7 +149,7 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
      * Create quiz link for a single patient
      */
     createLink: async (data: QuizLinkCreate): Promise<QuizLink> => {
-      return client.post<QuizLink>('/api/v2/monthly-quiz/links', data)
+      return client.post<QuizLink>('/api/v2/monthly-quiz/links/', data)
     },
 
     /**
@@ -161,7 +161,7 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
       links: QuizLink[]
       errors?: Array<{ patient_id: string; error: string }>
     }> => {
-      return client.post('/api/v2/monthly-quiz/links/bulk', data)
+      return client.post('/api/v2/monthly-quiz/links/bulk/', data)
     },
 
     /**
@@ -194,7 +194,7 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
       doctor_id?: string
       template_id?: string
     }): Promise<QuizStats> => {
-      return client.get<QuizStats>('/api/v2/monthly-quiz/stats/dashboard', params)
+      return client.get<QuizStats>('/api/v2/monthly-quiz/stats/dashboard/', params)
     },
 
     /**
@@ -205,7 +205,7 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
       doctor_id?: string
       template_id?: string
     }): Promise<QuizLink[]> => {
-      return client.get<QuizLink[]>('/api/v2/monthly-quiz/links/active', filters)
+      return client.get<QuizLink[]>('/api/v2/monthly-quiz/links/active/', filters)
     },
 
     /**
@@ -223,7 +223,7 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
         created_before?: string
       }
     ): Promise<PaginatedResponse<QuizLink>> => {
-      return client.get<PaginatedResponse<QuizLink>>('/api/v2/monthly-quiz/links', {
+      return client.get<PaginatedResponse<QuizLink>>('/api/v2/monthly-quiz/links/', {
         page,
         size,
         ...filters
@@ -269,7 +269,7 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
      * List available quiz templates
      */
     listTemplates: async (activeOnly: boolean = true): Promise<QuizTemplate[]> => {
-      return client.get<QuizTemplate[]>('/api/v2/monthly-quiz/templates', {
+      return client.get<QuizTemplate[]>('/api/v2/monthly-quiz/templates/', {
         active_only: activeOnly
       })
     },
@@ -312,7 +312,7 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
       completed: number
       completion_rate: number
     }>> => {
-      return client.get('/api/v2/monthly-quiz/stats/completion-trend', params)
+      return client.get('/api/v2/monthly-quiz/stats/completion-trend/', params)
     },
 
     /**
@@ -333,7 +333,7 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
         completion_rate: number
       }>
     }> => {
-      return client.get('/api/v2/monthly-quiz/stats/engagement', params)
+      return client.get('/api/v2/monthly-quiz/stats/engagement/', params)
     },
 
     /**
@@ -402,7 +402,7 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
       delivery_method?: 'whatsapp' | 'email' | 'sms'
       expiry_hours?: number
     }): Promise<{ schedule_id: string; message: string }> => {
-      return client.post('/api/v2/monthly-quiz/schedules', data)
+      return client.post('/api/v2/monthly-quiz/schedules/', data)
     },
 
     /**
@@ -418,7 +418,7 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
       is_active: boolean
       created_at: string
     }>> => {
-      return client.get('/api/v2/monthly-quiz/schedules')
+      return client.get('/api/v2/monthly-quiz/schedules/')
     },
 
     /**

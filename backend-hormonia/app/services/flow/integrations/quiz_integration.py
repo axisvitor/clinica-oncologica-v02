@@ -11,6 +11,8 @@ Migration Note:
     - Various quiz-related flow handlers
 """
 
+from __future__ import annotations
+
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta, timezone
 from uuid import UUID

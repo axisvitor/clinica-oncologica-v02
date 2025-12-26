@@ -9,15 +9,17 @@ the layered architecture described in QW-021.
 
 from __future__ import annotations
 
-from typing import Dict, Any, Optional, Tuple
+# Standard library imports
 import logging
+from typing import Any, Dict, Optional, Tuple
 
-from ..types import FlowContext, FlowStepData, FlowTransitionType
+# Local application imports
 from ..config import get_flow_config
-from ..execution.executor import FlowStepExecutor, ExecutionResult
-from ..execution.scheduler import FlowScheduler
 from ..execution.conditions import ConditionEvaluator
+from ..execution.executor import ExecutionResult, FlowStepExecutor
+from ..execution.scheduler import FlowScheduler
 from ..execution.transitions import TransitionPlanner
+from ..types import FlowContext, FlowStepData, FlowTransitionType
 from .state_machine import FlowStateMachine
 
 logger = logging.getLogger(__name__)
@@ -29,6 +31,15 @@ class FlowEngine:
 
     FlowManager passes FlowContext plus template fragments and the engine
     returns updated contexts along with the executed step metadata.
+
+    Attributes:
+        db: Optional database session for transaction management.
+        config: Flow configuration settings.
+        executor: Step execution handler.
+        scheduler: Flow scheduling handler.
+        state_machine: State transition handler.
+        condition_evaluator: Condition evaluation handler.
+        transition_planner: Transition planning handler.
 
     Transaction Safety:
         While the engine itself doesn't directly interact with the database,
@@ -78,15 +89,15 @@ class FlowEngine:
         be persisted, ensuring consistency.
 
         Args:
-            context: Flow execution context
-            step_definition: Step definition from template
+            context: Flow execution context.
+            step_definition: Step definition from template.
 
         Returns:
-            Tuple of updated context and step execution data
+            Tuple of updated context and step execution data.
 
         Raises:
             Exception: Any exception from step execution is propagated
-                      to allow the caller to handle rollback
+                to allow the caller to handle rollback.
         """
         try:
             result: ExecutionResult = await self.executor.execute(context, step_definition)
@@ -108,7 +119,18 @@ class FlowEngine:
         context: FlowContext,
         transition_type: FlowTransitionType = FlowTransitionType.AUTOMATIC,
     ) -> Optional[str]:
-        """Return the next step using the transition planner."""
+        """
+        Return the next step using the transition planner.
+
+        Args:
+            current_step_id: Current step identifier.
+            template: Flow template containing transitions.
+            context: Flow execution context.
+            transition_type: Type of transition (automatic/manual).
+
+        Returns:
+            Next step ID or None if flow is complete.
+        """
         return self.transition_planner.next_step(
             current_step_id=current_step_id,
             template=template,
@@ -132,17 +154,17 @@ class FlowEngine:
         be persisted, ensuring consistency.
 
         Args:
-            context: Flow execution context
-            from_step: Current step ID
-            to_step: Next step ID (None if flow is completing)
-            transition_type: Type of transition
+            context: Flow execution context.
+            from_step: Current step ID.
+            to_step: Next step ID (None if flow is completing).
+            transition_type: Type of transition.
 
         Returns:
-            Updated flow context
+            Updated flow context.
 
         Raises:
             Exception: Any exception from transition is propagated
-                      to allow the caller to handle rollback
+                to allow the caller to handle rollback.
         """
         try:
             updated_context = await self.transition_planner.apply(
@@ -183,14 +205,14 @@ class FlowEngine:
         it behaves the same as execute_step.
 
         Args:
-            context: Flow execution context
-            step_definition: Step definition from template
+            context: Flow execution context.
+            step_definition: Step definition from template.
 
         Returns:
-            Tuple of updated context and step execution data
+            Tuple of updated context and step execution data.
 
         Raises:
-            Exception: Any exception from step execution after rollback
+            Exception: Any exception from step execution after rollback.
         """
         if not self.db:
             # No database session, just execute normally
@@ -241,16 +263,16 @@ class FlowEngine:
         it behaves the same as transition_state.
 
         Args:
-            context: Flow execution context
-            from_step: Current step ID
-            to_step: Next step ID (None if flow is completing)
-            transition_type: Type of transition
+            context: Flow execution context.
+            from_step: Current step ID.
+            to_step: Next step ID (None if flow is completing).
+            transition_type: Type of transition.
 
         Returns:
-            Updated flow context
+            Updated flow context.
 
         Raises:
-            Exception: Any exception from transition after rollback
+            Exception: Any exception from transition after rollback.
         """
         if not self.db:
             # No database session, just execute normally

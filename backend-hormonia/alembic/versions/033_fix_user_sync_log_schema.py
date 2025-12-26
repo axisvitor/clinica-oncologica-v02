@@ -14,6 +14,11 @@ Changes:
 - Adds changes column (JSONB)
 - Adds success column (BOOLEAN)
 - Drops legacy Supabase columns safely
+
+Index Creation Note:
+- Indexes are created with IF NOT EXISTS for idempotency
+- For production with live traffic, consider running indexes separately
+  with CONCURRENTLY to avoid table locks
 """
 
 from alembic import op
@@ -121,17 +126,17 @@ def upgrade() -> None:
         server_default=sa.text('now()')
     )
 
-    # Create index on created_at if not exists
-    try:
-        op.create_index('ix_user_sync_log_created_at', 'user_sync_log', ['created_at'])
-    except Exception:
-        pass  # Index may already exist
+    # Create indexes with IF NOT EXISTS for idempotency
+    # Using raw SQL for proper IF NOT EXISTS support
+    op.execute("""
+        CREATE INDEX IF NOT EXISTS ix_user_sync_log_created_at
+        ON user_sync_log(created_at)
+    """)
 
-    # Create index on firebase_uid if not exists
-    try:
-        op.create_index('ix_user_sync_log_firebase_uid', 'user_sync_log', ['firebase_uid'])
-    except Exception:
-        pass  # Index may already exist
+    op.execute("""
+        CREATE INDEX IF NOT EXISTS ix_user_sync_log_firebase_uid
+        ON user_sync_log(firebase_uid)
+    """)
 
     # Make old columns nullable (they are no longer used by the new model)
     if 'sync_action' in existing_columns:

@@ -2,6 +2,8 @@
 Health check endpoint for quiz operations.
 """
 
+# NOTE: Removed 'from __future__ import annotations' to fix Pydantic/FastAPI OpenAPI issues
+
 from fastapi import APIRouter
 
 router = APIRouter()

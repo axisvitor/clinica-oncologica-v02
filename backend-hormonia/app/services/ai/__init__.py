@@ -81,6 +81,16 @@ from .batch_processor import (
     reset_batch_processor,
 )
 
+from .patient_summary_service import (
+    PatientSummaryService,
+    get_patient_summary_service,
+)
+
+from .summary_data_aggregator import (
+    SummaryDataAggregator,
+    AggregatedPatientData,
+)
+
 __all__ = [
     # Core AI Service
     "AIService",
@@ -104,6 +114,11 @@ __all__ = [
     "BatchResult",
     "get_batch_processor",
     "reset_batch_processor",
+    # Patient Summary
+    "PatientSummaryService",
+    "get_patient_summary_service",
+    "SummaryDataAggregator",
+    "AggregatedPatientData",
 ]
 
 __version__ = "2.0.0"  # Version 2.0 - Consolidated
@@ -138,6 +153,9 @@ __all__.extend(
         "AIHumanizer",
         "SentimentAnalyzer",
         "ContextBuilder",
+        # Additional exports
+        "reset_cache_layer",
+        "reset_batch_processor",
     ]
 )
 

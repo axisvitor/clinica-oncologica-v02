@@ -357,4 +357,4 @@ class NotificationRepository(BaseRepository[Notification]):
                 selectinload(Notification.related_patient),
             )
 
-        return query.all()
+        return query.limit(500).all()  # FIX: Prevent unbounded query (larger limit for batch processing)

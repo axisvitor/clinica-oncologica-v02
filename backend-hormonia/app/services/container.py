@@ -141,7 +141,7 @@ class ServiceContainer:
     def get_monthly_quiz_service(self):
         """Get MonthlyQuizService with fresh dependencies."""
         if "monthly_quiz_service" not in self._services_cache:
-            from app.domain.quizzes import MonthlyQuizService
+            from app.services.quiz.quiz_service import MonthlyQuizService
 
             self._services_cache["monthly_quiz_service"] = MonthlyQuizService(self._db)
         return self._services_cache["monthly_quiz_service"]

@@ -529,6 +529,45 @@ class WebSocketEventBroadcaster:
             logger.error(f"Error broadcasting message event: {e}")
             return 0
 
+    async def publish_patient_event(
+        self,
+        event_type: WebSocketEventType,
+        patient_id: UUID,
+        data: Dict[str, Any],
+    ) -> int:
+        """
+        Publish patient-specific event.
+
+        Broadcasts to the patient's room with arbitrary event data.
+        Used for patient lifecycle events (registration, status changes, etc.)
+
+        Args:
+            event_type: Event type
+            patient_id: Patient UUID
+            data: Event data dictionary
+
+        Returns:
+            Number of connections reached
+        """
+        try:
+            message = {
+                "type": event_type.value,
+                "patient_id": str(patient_id),
+                "data": data,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            sent_count = await self.manager.broadcast_to_patient_room(
+                message, str(patient_id)
+            )
+            logger.info(
+                f"Published patient event {event_type.value} for {patient_id} "
+                f"to {sent_count} connections"
+            )
+            return sent_count
+        except Exception as e:
+            logger.error(f"Error publishing patient event: {e}")
+            return 0
+
 
 # Global instances
 connection_manager = WebSocketConnectionManager()

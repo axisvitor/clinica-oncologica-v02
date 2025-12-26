@@ -2,6 +2,8 @@
 Utility functions for quiz response processing.
 """
 
+from __future__ import annotations
+
 import json
 from typing import Union, List, Dict, Any
 

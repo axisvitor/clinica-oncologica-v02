@@ -29,6 +29,7 @@ from app.schemas.v2.enhanced_analytics import (
 )
 from app.utils.logging import get_logger
 from app.services.analytics import EnhancedAnalyticsService
+from app.api.v2.utils.auth_helpers import extract_user_context, ensure_uuid
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -39,27 +40,13 @@ def get_enhanced_analytics_service(db=Depends(get_db)) -> EnhancedAnalyticsServi
 
 
 def _extract_user_context(current_user) -> Tuple[UserRole, Optional[UUID]]:
-    if isinstance(current_user, dict):
-        role_value = current_user.get("role", "doctor")
-        user_id = current_user.get("id")
-    else:
-        role_value = getattr(current_user, "role", "doctor")
-        user_id = getattr(current_user, "id", None)
-
-    if isinstance(role_value, UserRole):
-        role = role_value
-    elif isinstance(role_value, str):
-        role = UserRole.ADMIN if role_value.lower() == "admin" else UserRole.DOCTOR
-    else:
-        role = UserRole.DOCTOR
-
-    user_uuid = None
-    if user_id:
-        try:
-            user_uuid = UUID(str(user_id))
-        except (TypeError, ValueError) as e:
-            logger.warning(f"Failed to parse user_id as UUID: {user_id}, error: {e}")
-    return role, user_uuid
+    """Extract user context with UUID conversion."""
+    role_enum, user_id = extract_user_context(current_user)
+    user_uuid = ensure_uuid(user_id) if user_id else None
+    # Default to DOCTOR if role not determined
+    if role_enum is None:
+        role_enum = UserRole.DOCTOR
+    return role_enum, user_uuid
 
 
 @router.get("/dashboard-enhanced", response_model=EnhancedDashboardMetrics)

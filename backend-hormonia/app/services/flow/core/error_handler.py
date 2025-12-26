@@ -1,5 +1,10 @@
 """
 Backward compatibility shim for flow error handling.
+"""
+
+from __future__ import annotations
+
+"""
 
 Legacy imports reference ``app.services.flow.core.error_handler`` while the
 consolidated implementation lives under ``app.services.flow.errors.handler``.

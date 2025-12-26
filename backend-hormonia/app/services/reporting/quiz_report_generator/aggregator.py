@@ -3,6 +3,8 @@ Data aggregation and analysis for quiz responses.
 Handles metrics calculation, trend analysis, and health score computation.
 """
 
+from __future__ import annotations
+
 import logging
 import statistics
 from typing import Any, List, Optional, Tuple
@@ -209,7 +211,9 @@ class QuizDataAggregator:
             question_responses = {}
 
             for session in historical_sessions:
-                session_responses = self.response_repo.get_by_session(session.id)  # type: ignore[attr-defined]
+                # PERFORMANCE FIX: Use eager-loaded responses from session instead of N+1 query
+                # The get_patient_template_sessions() now uses selectinload(QuizSession.responses)
+                session_responses = session.responses if hasattr(session, 'responses') else []
                 for response in session_responses:
                     question_id = response.question_id
                     if question_id not in question_responses:

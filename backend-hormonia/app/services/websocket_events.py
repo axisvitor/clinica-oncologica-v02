@@ -441,6 +441,149 @@ class WebSocketEventService:
         }
         return await self.broadcast_quiz_event(event_type, quiz_data)
 
+    # =========================================================================
+    # Missing methods - Added to fix 17 files with broken WebSocket calls
+    # These are aliases/wrappers for the existing broadcast_* methods
+    # =========================================================================
+
+    async def publish_alert_event(
+        self, event_type: WebSocketEventType, alert_data: dict[str, Any]
+    ) -> int:
+        """Alias for broadcast_alert_event for backwards compatibility."""
+        return await self.broadcast_alert_event(event_type, alert_data)
+
+    async def publish_flow_event(
+        self,
+        event_type: WebSocketEventType,
+        patient_id: UUID,
+        flow_data: dict[str, Any],
+    ) -> int:
+        """Alias for broadcast_flow_event for backwards compatibility."""
+        return await self.broadcast_flow_event(event_type, patient_id, flow_data)
+
+    async def publish_message_event(
+        self, event_type: WebSocketEventType, message_data: dict[str, Any]
+    ) -> int:
+        """Alias for broadcast_message_event for backwards compatibility."""
+        return await self.broadcast_message_event(event_type, message_data)
+
+    async def publish_report_event(
+        self, event_type: WebSocketEventType, report_data: dict[str, Any]
+    ) -> int:
+        """Alias for broadcast_report_event for backwards compatibility."""
+        return await self.broadcast_report_event(event_type, report_data)
+
+    async def publish_patient_event(
+        self,
+        event_type: WebSocketEventType,
+        patient_id: UUID,
+        data: dict[str, Any],
+    ) -> int:
+        """
+        Publish patient-specific event.
+
+        Broadcasts to the patient's room with arbitrary event data.
+        Used for patient lifecycle events (registration, status changes, etc.)
+        """
+        try:
+            message = {
+                "type": event_type.value,
+                "patient_id": str(patient_id),
+                "data": data,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            sent_count = await connection_manager.broadcast_to_patient_room(
+                message, str(patient_id)
+            )
+            logger.info(
+                f"Published patient event {event_type.value} for {patient_id} to {sent_count} connections"
+            )
+            return sent_count
+        except Exception as e:
+            logger.error(f"Error publishing patient event: {e}")
+            return 0
+
+    async def broadcast_event(
+        self,
+        event_type: WebSocketEventType,
+        data: dict[str, Any],
+    ) -> int:
+        """
+        Generic broadcast method for any event type.
+
+        Broadcasts to all authenticated connections.
+        Used as a catch-all for events that don't fit other categories.
+        """
+        try:
+            message = {
+                "type": event_type.value,
+                "data": data,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            sent_count = await connection_manager.broadcast_to_all_authenticated(message)
+            logger.info(
+                f"Broadcast event {event_type.value} to {sent_count} connections"
+            )
+            return sent_count
+        except Exception as e:
+            logger.error(f"Error broadcasting event: {e}")
+            return 0
+
+    async def emit(
+        self,
+        event_type: WebSocketEventType,
+        data: dict[str, Any],
+        target_user_id: Optional[str] = None,
+        target_role: Optional[str] = None,
+    ) -> int:
+        """
+        Emit event to specific target (user, role, or all).
+
+        Args:
+            event_type: Type of event to emit
+            data: Event data payload
+            target_user_id: Optional specific user to target
+            target_role: Optional role to target (e.g., "admin", "doctor")
+
+        Returns:
+            Number of connections reached
+        """
+        try:
+            message = {
+                "type": event_type.value,
+                "data": data,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+
+            sent_count = 0
+
+            # Target specific user
+            if target_user_id:
+                sent_count = await connection_manager.broadcast_to_user(
+                    message, target_user_id
+                )
+            # Target role (broadcast to all, clients filter by role)
+            elif target_role:
+                message["target_role"] = target_role
+                sent_count = await connection_manager.broadcast_to_all_authenticated(
+                    message
+                )
+            # Broadcast to all
+            else:
+                sent_count = await connection_manager.broadcast_to_all_authenticated(
+                    message
+                )
+
+            logger.debug(
+                f"Emitted {event_type.value} to {sent_count} connections "
+                f"(user={target_user_id}, role={target_role})"
+            )
+            return sent_count
+
+        except Exception as e:
+            logger.error(f"Error emitting event: {e}")
+            return 0
+
 
 # Global instance for easy import
 # This will be initialized with Redis connection when the app starts

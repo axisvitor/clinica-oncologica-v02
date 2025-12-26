@@ -40,6 +40,12 @@ class BaseAppSettings(BaseSettings):
         description="Admin dashboard base URL for links in notifications",
     )
 
+    # AI Simulation Control
+    ALLOW_AI_SIMULATION: bool = Field(
+        default=True,
+        description="Allow AI simulation mode (mock data). Should be False in production.",
+    )
+
     @model_validator(mode="before")
     @classmethod
     def parse_boolean_fields(cls, data: Any) -> Any:
@@ -55,7 +61,7 @@ class BaseAppSettings(BaseSettings):
                 if isinstance(v, str):
                     data[k] = _strip_wrapping_quotes(v)
 
-        boolean_fields = ["APP_ENABLE_DEBUG"]
+        boolean_fields = ["APP_ENABLE_DEBUG", "ALLOW_AI_SIMULATION"]
 
         for field in boolean_fields:
             if field in data:

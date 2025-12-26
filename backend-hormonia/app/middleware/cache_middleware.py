@@ -106,6 +106,12 @@ class CacheMiddleware(BaseHTTPMiddleware):
             cached_etag = cached_data.get("etag")
             cached_body = cached_data.get("body")
             cached_headers = cached_data.get("headers", {})
+            is_compressed = cached_data.get("is_compressed", False)
+
+            # Decode base64 for compressed data
+            if is_compressed and cached_body:
+                import base64
+                cached_body = base64.b64decode(cached_body)
 
             # Check ETag match for 304 Not Modified
             if if_none_match and if_none_match == cached_etag:
@@ -145,12 +151,25 @@ class CacheMiddleware(BaseHTTPMiddleware):
             is_authenticated = self._is_authenticated(request)
             ttl = self._get_ttl_for_path(request.url.path, is_authenticated)
 
-            # Cache the response
-            cache_data = {
-                "body": body.decode("utf-8") if body else "",
-                "headers": dict(response.headers),
-                "etag": etag,
-            }
+            # Cache the response - handle compressed data
+            # Check if response is gzip compressed (0x1f 0x8b magic bytes)
+            is_compressed = body and len(body) >= 2 and body[0] == 0x1f and body[1] == 0x8b
+            if is_compressed:
+                # Store compressed body as base64
+                import base64
+                cache_data = {
+                    "body": base64.b64encode(body).decode("ascii"),
+                    "headers": dict(response.headers),
+                    "etag": etag,
+                    "is_compressed": True,
+                }
+            else:
+                cache_data = {
+                    "body": body.decode("utf-8") if body else "",
+                    "headers": dict(response.headers),
+                    "etag": etag,
+                    "is_compressed": False,
+                }
 
             self.cache_manager.set(
                 cache_key, cache_data, ttl=ttl, namespace="http_cache"
@@ -283,8 +302,8 @@ class CacheMiddleware(BaseHTTPMiddleware):
                         payload_part += '=' * padding
                     payload = json.loads(base64.urlsafe_b64decode(payload_part))
                     return payload.get('sub') or payload.get('user_id')
-                except Exception:
-                    pass
+                except Exception as decode_err:
+                    logger.debug(f"Failed to decode JWT for cache key: {decode_err}")
 
             # Try to get from request state (set by auth middleware)
             if hasattr(request.state, 'user_id'):

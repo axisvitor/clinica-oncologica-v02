@@ -30,6 +30,7 @@ from app.api.v2.patients_utils import (
     _extract_user_context,
     _ensure_uuid,
 )
+from app.api.v2.utils.auth_helpers import is_admin
 from app.dependencies.auth_dependencies import (
     get_current_user_from_session,
     get_redis_cache,
@@ -41,8 +42,8 @@ logger = logging.getLogger(__name__)
 
 
 def _is_admin(current_user) -> bool:
-    role_enum, _ = _extract_user_context(current_user)
-    return role_enum == UserRole.ADMIN
+    """Check if current user is admin."""
+    return is_admin(current_user)
 
 
 def _ensure_appointment_access(current_user, appointment: Appointment):
@@ -407,9 +408,10 @@ async def create_appointment(
     try:
         new_appt = service.create_appointment(appointment_data)
     except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        logger.warning(f"Appointment creation conflict: {e}")
+        raise HTTPException(status_code=409, detail="Appointment scheduling conflict detected")
     except Exception as e:
-        logger.error(f"Error creating appointment: {e}")
+        logger.error(f"Error creating appointment: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to create appointment")
 
     try:
@@ -452,9 +454,10 @@ async def update_appointment(
     try:
         updated_appt = service.update_appointment(aid, appointment_data)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))  # Conflict or invalid state
+        logger.warning(f"Appointment update conflict: {e}")
+        raise HTTPException(status_code=400, detail="Invalid appointment update or scheduling conflict")
     except Exception as e:
-        logger.error(f"Error updating appointment: {e}")
+        logger.error(f"Error updating appointment: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to update appointment")
 
     try:

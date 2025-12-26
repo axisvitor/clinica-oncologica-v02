@@ -4,32 +4,45 @@ Question Presenter - Handles question delivery and personalization.
 Manages question presentation, personalization, and template management.
 """
 
-import logging
-from typing import Dict, List, Optional, Any, TYPE_CHECKING
-from datetime import datetime, timezone
+from __future__ import annotations
 
+# Standard library imports
+import logging
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+# Third-party imports
 from sqlalchemy.orm import Session
+
+# Local application imports
+from app.domain.messaging.delivery import MessageSender
+from app.models.message import (
+    Message,
+    MessageDirection,
+    MessageStatus,
+    MessageType,
+)
+from app.models.quiz import QuizTemplate
+from app.services.quiz import QuizTemplateService
 
 if TYPE_CHECKING:
     from app.domain.agents.quiz.session_coordinator import QuizContext
-
-from app.models.quiz import QuizTemplate
-from app.models.message import Message, MessageType, MessageDirection, MessageStatus
-from app.services.quiz import QuizTemplateService
-from app.domain.messaging.delivery import MessageSender
 
 
 class QuestionPresenter:
     """
     Presents quiz questions with intelligent personalization.
 
-    Responsibilities:
-    - Send quiz questions
-    - Personalize question content
-    - Apply AI-based personalization
-    - Load and manage quiz templates
-    - Create adaptive quizzes from templates
-    - Determine question inclusion based on context
+    Handles question delivery with context-aware personalization,
+    template management, and AI-enhanced question adaptation.
+
+    Attributes:
+        db_session: Database session.
+        quiz_template_service: Template service.
+        message_sender: Message delivery service.
+        agent_id: ID of owning agent.
+        gemini_client: AI client for personalization.
+        quiz_templates: Cached quiz templates.
     """
 
     def __init__(
@@ -41,13 +54,23 @@ class QuestionPresenter:
         gemini_client=None,
         logger: Optional[logging.Logger] = None,
     ):
-        """Initialize question presenter."""
+        """
+        Initialize question presenter.
+
+        Args:
+            db_session: Database session.
+            quiz_template_service: Quiz template service.
+            message_sender: Message delivery service.
+            agent_id: Agent identifier.
+            gemini_client: Gemini AI client.
+            logger: Logger instance.
+        """
         self.db_session = db_session
         self.quiz_template_service = quiz_template_service
         self.message_sender = message_sender
         self.agent_id = agent_id
         self.gemini_client = gemini_client
-        self.logger = logger or logging.getLogger(__name__)
+        self._logger = logger or logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
         # Template cache
         self.quiz_templates: Dict[str, Dict[str, Any]] = {}
@@ -97,7 +120,7 @@ class QuestionPresenter:
             }
 
         except Exception as e:
-            self.logger.error(f"Failed to send quiz question: {e}")
+            self._logger.error(f"Failed to send quiz question: {e}")
             return {"success": False, "error": str(e)}
 
     async def personalize_question(
@@ -143,7 +166,7 @@ class QuestionPresenter:
             return {"content": content, "personalization_level": personalization_level}
 
         except Exception as e:
-            self.logger.error(f"Question personalization failed: {e}")
+            self._logger.error(f"Question personalization failed: {e}")
             return {"content": base_text, "personalization_level": "standard"}
 
     async def load_quiz_templates(self) -> None:
@@ -163,16 +186,16 @@ class QuestionPresenter:
                     self.quiz_templates[template_name] = template_payload
                     cached += 1
                 except Exception as exc:
-                    self.logger.warning(
+                    self._logger.warning(
                         "Could not cache quiz template '%s': %s",
                         getattr(template, "name", "unknown"),
                         exc,
                     )
 
-            self.logger.info("Cached %s quiz templates from database", cached)
+            self._logger.info("Cached %s quiz templates from database", cached)
 
         except Exception as e:
-            self.logger.error(f"Failed to load quiz templates from database: {e}")
+            self._logger.error(f"Failed to load quiz templates from database: {e}")
 
     def get_quiz_template(self, template_name: str) -> Optional[Dict[str, Any]]:
         """Get quiz template by name."""
@@ -201,7 +224,7 @@ class QuestionPresenter:
                     template_response.id
                 )
             except Exception as e:
-                self.logger.warning(
+                self._logger.warning(
                     f"Failed to get quiz template '{template_name}': {e}", exc_info=True
                 )
 
@@ -210,7 +233,7 @@ class QuestionPresenter:
             return None
 
         except Exception as e:
-            self.logger.error(f"Failed to get/create quiz template: {e}")
+            self._logger.error(f"Failed to get/create quiz template: {e}")
             return None
 
     async def create_adaptive_quiz_from_template(
@@ -248,7 +271,7 @@ class QuestionPresenter:
             }
 
         except Exception as e:
-            self.logger.error(
+            self._logger.error(
                 f"Failed to create adaptive quiz from template {template_name}: {e}"
             )
             return None
@@ -322,7 +345,7 @@ class QuestionPresenter:
             return personalized_question
 
         except Exception as e:
-            self.logger.error(f"Failed to personalize question: {e}")
+            self._logger.error(f"Failed to personalize question: {e}")
             return question  # Return original if personalization fails
 
     async def apply_ai_personalization(
@@ -359,6 +382,6 @@ class QuestionPresenter:
                     return personalized_question
 
         except Exception as e:
-            self.logger.error(f"AI personalization failed: {e}")
+            self._logger.error(f"AI personalization failed: {e}")
 
         return None

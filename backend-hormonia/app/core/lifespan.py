@@ -10,6 +10,9 @@ Provides a clean lifespan context manager that handles:
 """
 
 import time
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Callable, Optional
 import redis.asyncio as redis
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -51,7 +54,12 @@ async def lifespan(app: FastAPI):
 
 async def _startup(app: FastAPI) -> object:
     """
-    Handle application startup procedures.
+    Handle application startup procedures with parallel initialization.
+
+    Optimizations:
+    - Phase 1: Independent services in parallel (monitoring, Redis, AI, validation)
+    - Phase 2: Dependent services (WebSocket, Pub/Sub, sessions, follow-up)
+    - Target: <15s startup time (down from 56s)
 
     Args:
         app: FastAPI application instance
@@ -59,7 +67,7 @@ async def _startup(app: FastAPI) -> object:
     Returns:
         logger: Logger instance for use during shutdown
     """
-    # Setup logging first
+    # Setup logging first (must be synchronous)
     setup_logging()
     logger = get_logger(__name__)
 
@@ -71,34 +79,62 @@ async def _startup(app: FastAPI) -> object:
     # Record startup time
     app.state.start_time = time.time()
     logger.info(
-        "Starting Hormonia Backend System", extra={"event_type": "application_startup"}
+        "Starting Hormonia Backend System (parallel initialization)",
+        extra={"event_type": "application_startup"}
     )
 
-    # Initialize monitoring system
-    await _initialize_monitoring(app, logger)
+    try:
+        # PHASE 1: Parallel initialization of independent services
+        # These services have no dependencies on each other
+        logger.info("Phase 1: Initializing independent services in parallel...")
+        phase1_start = time.time()
 
-    # Initialize Redis and WebSocket events
-    await _initialize_redis_websocket_events(app, logger)
+        await asyncio.gather(
+            _initialize_monitoring(app, logger),
+            _initialize_redis_websocket_events(app, logger),
+            _initialize_ai_services(app, logger),
+            _initialize_enum_validation(app, logger),
+            return_exceptions=True  # Don't fail entire startup on single service failure
+        )
 
-    # Initialize unified WebSocket manager with lifecycle
-    await _initialize_websocket_manager(app, logger)
+        phase1_time = time.time() - phase1_start
+        logger.info(f"Phase 1 completed in {phase1_time:.2f}s")
 
-    # Initialize Redis Pub/Sub for horizontal WebSocket scaling
-    await _initialize_redis_pubsub(app, logger)
+        # PHASE 2: Initialize services that depend on Phase 1
+        # These need Redis client and other Phase 1 services
+        logger.info("Phase 2: Initializing dependent services...")
+        phase2_start = time.time()
 
-    # Initialize thread-safe session management
-    await _initialize_session_manager(app, logger)
+        # WebSocket manager can run in parallel with session manager
+        await asyncio.gather(
+            _initialize_websocket_manager(app, logger),
+            _initialize_session_manager(app, logger),
+            return_exceptions=True
+        )
 
-    # Initialize AI services
-    await _initialize_ai_services(app, logger)
+        # Redis Pub/Sub needs WebSocket manager, so it runs after
+        await _initialize_redis_pubsub(app, logger)
 
-    # Initialize enum validation middleware
-    await _initialize_enum_validation(app, logger)
+        # Follow-up system needs both database and Redis
+        await _initialize_follow_up_system(app, logger)
 
-    # Initialize follow-up system with Redis state rehydration
-    await _initialize_follow_up_system(app, logger)
+        phase2_time = time.time() - phase2_start
+        logger.info(f"Phase 2 completed in {phase2_time:.2f}s")
 
-    logger.info("Hormonia Backend System startup completed successfully")
+        total_time = time.time() - app.state.start_time
+        logger.info(
+            f"Hormonia Backend System startup completed successfully in {total_time:.2f}s",
+            extra={
+                "total_time": total_time,
+                "phase1_time": phase1_time,
+                "phase2_time": phase2_time
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Critical error during startup: {e}", exc_info=True)
+        raise
+
     return logger
 
 
@@ -141,26 +177,30 @@ async def _shutdown(app: FastAPI, logger) -> None:
 
 
 async def _initialize_monitoring(app: FastAPI, logger) -> None:
-    """Initialize monitoring system."""
+    """Initialize monitoring system with timing."""
+    start = time.time()
     try:
         from app.monitoring.manager import initialize_monitoring, start_monitoring
 
-        logger.info("[DIAG] Monitoring: Starting initialization...")
+        logger.info("Monitoring: Starting initialization...")
         monitoring_manager = await initialize_monitoring()
-        logger.info("[DIAG] Monitoring: initialize_monitoring() completed, calling start_monitoring()...")
         await start_monitoring()
         app.state.monitoring_manager = monitoring_manager
-        logger.info("✓ Monitoring system started successfully")
+
+        elapsed = time.time() - start
+        logger.info(f"✓ Monitoring system started successfully ({elapsed:.2f}s)")
 
     except Exception as e:
-        logger.error(f"Failed to initialize monitoring system: {e}")
+        elapsed = time.time() - start
+        logger.error(f"Failed to initialize monitoring system ({elapsed:.2f}s): {e}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
         app.state.monitoring_manager = None
 
 
 async def _initialize_websocket_manager(app: FastAPI, logger) -> None:
-    """Initialize unified WebSocket manager with lifecycle."""
+    """Initialize unified WebSocket manager with lifecycle and timing."""
+    start = time.time()
     try:
         from app.services.websocket import get_websocket_manager
 
@@ -175,60 +215,80 @@ async def _initialize_websocket_manager(app: FastAPI, logger) -> None:
         # Store in app state for access during shutdown
         app.state.websocket_manager = ws_manager
 
-        logger.info("✓ Unified WebSocket manager started successfully")
+        elapsed = time.time() - start
+        logger.info(f"✓ Unified WebSocket manager started successfully ({elapsed:.2f}s)")
         logger.info("  - Heartbeat monitoring: active")
         logger.info("  - Automatic cleanup: enabled")
         logger.info("  - Firebase + JWT authentication: ready")
 
     except Exception as e:
-        logger.error(f"Failed to initialize WebSocket manager: {e}")
+        elapsed = time.time() - start
+        logger.error(f"Failed to initialize WebSocket manager ({elapsed:.2f}s): {e}")
         logger.warning("WebSocket features may be degraded")
         app.state.websocket_manager = None
 
 
 async def _initialize_redis_websocket_events(app: FastAPI, logger) -> None:
-    """Initialize Redis connection and WebSocket events service."""
+    """Initialize Redis connection and WebSocket events service with timing."""
+    from app.core.initialization_helpers import initialize_with_timeout
+
+    start = time.time()
     redis_client = None
 
     try:
-        # Get Redis manager
-        redis_manager = get_redis_manager()
+        # Get Redis manager with fast-fail timeout (2s instead of 5s)
+        redis_client = await initialize_with_timeout(
+            func=lambda: get_redis_manager().get_async_client(),
+            timeout=2.0,  # Reduced from implicit 5s to fast-fail 2s
+            service_name="Redis",
+            logger=logger,
+            fallback=None,
+            critical=False  # Continue without Redis if it fails
+        )
 
-        # Get async Redis client through manager
-        redis_client = await redis_manager.get_async_client()
+        if redis_client is None:
+            logger.warning("Redis initialization returned None - continuing without WebSocket events")
+            app.state.redis_client = None
+            app.state.redis_manager = None
+            return
 
         # Initialize websocket_events service
         await _setup_websocket_events(redis_client, logger)
 
         # Store both the client and manager in app state
         app.state.redis_client = redis_client
-        app.state.redis_manager = redis_manager
+        app.state.redis_manager = get_redis_manager()
 
         redis_url = settings.REDIS_URL
         masked_url = mask_sensitive_url(redis_url)
+        elapsed = time.time() - start
         logger.info(
-            f"✓ WebSocket events service initialized with Redis at {masked_url}"
+            f"✓ WebSocket events service initialized with Redis at {masked_url} ({elapsed:.2f}s)"
         )
 
     except redis.ConnectionError as e:
-        logger.error(f"Redis connection failed: {e}")
+        elapsed = time.time() - start
+        logger.error(f"Redis connection failed ({elapsed:.2f}s): {e}")
         logger.warning(
             "Continuing without WebSocket events - real-time features unavailable"
         )
         await _cleanup_redis_client(redis_client, logger)
 
     except redis.TimeoutError as e:
-        logger.error(f"Redis connection timeout: {e}")
+        elapsed = time.time() - start
+        logger.error(f"Redis connection timeout ({elapsed:.2f}s): {e}")
         logger.warning("Redis timeout - continuing without WebSocket events")
         await _cleanup_redis_client(redis_client, logger)
 
     except redis.AuthenticationError as e:
-        logger.error(f"Redis authentication failed: {e}")
+        elapsed = time.time() - start
+        logger.error(f"Redis authentication failed ({elapsed:.2f}s): {e}")
         logger.warning("Redis auth failed - continuing without WebSocket events")
         await _cleanup_redis_client(redis_client, logger)
 
     except Exception as e:
-        logger.error(f"Unexpected error initializing WebSocket events: {e}")
+        elapsed = time.time() - start
+        logger.error(f"Unexpected error initializing WebSocket events ({elapsed:.2f}s): {e}")
         logger.warning("Continuing without WebSocket events")
         await _cleanup_redis_client(redis_client, logger)
 
@@ -251,7 +311,8 @@ async def _setup_websocket_events(redis_client, logger) -> None:
 
 
 async def _initialize_session_manager(app: FastAPI, logger) -> None:
-    """Initialize thread-safe session manager."""
+    """Initialize thread-safe session manager with timing."""
+    start = time.time()
     logger.info("Initializing thread-safe session manager...")
 
     try:
@@ -268,8 +329,9 @@ async def _initialize_session_manager(app: FastAPI, logger) -> None:
         if not session_manager:
             raise RuntimeError("Session manager initialization returned None")
 
+        elapsed = time.time() - start
         logger.info(
-            "✓ Thread-safe session manager initialized with proper lifecycle management"
+            f"✓ Thread-safe session manager initialized with proper lifecycle management ({elapsed:.2f}s)"
         )
         logger.info(
             f"Session manager instance: {type(session_manager).__name__} (id: {hex(id(session_manager))})"
@@ -300,16 +362,8 @@ async def _initialize_session_manager(app: FastAPI, logger) -> None:
         logger.error("This will cause database session management issues")
         logger.error("Ensure database is accessible and Redis is properly configured")
 
-        # Log more details for debugging
-        try:
-            from app.database import test_connection
-
-            logger.info("Testing database connectivity...")
-            db_status = test_connection()
-            logger.info(f"Database connectivity test result: {db_status}")
-        except Exception as db_error:
-            logger.error(f"Database connectivity test failed: {db_error}")
-            logger.error(f"Database error type: {type(db_error).__name__}")
+        # Note: Database connectivity test removed to avoid blocking during startup
+        # Use health check endpoint /health/database instead for connectivity testing
 
         # Log environment information that might help debug
         import os
@@ -331,7 +385,8 @@ async def _initialize_session_manager(app: FastAPI, logger) -> None:
 
 
 async def _initialize_redis_pubsub(app: FastAPI, logger) -> None:
-    """Initialize Redis Pub/Sub for horizontal WebSocket scaling."""
+    """Initialize Redis Pub/Sub for horizontal WebSocket scaling with timing."""
+    start = time.time()
     try:
         from app.services.redis_pubsub_manager import (
             RedisPubSubManager,
@@ -344,7 +399,8 @@ async def _initialize_redis_pubsub(app: FastAPI, logger) -> None:
         redis_client = getattr(app.state, "redis_client", None)
 
         if not redis_client:
-            logger.warning("Redis client not available - Redis Pub/Sub disabled")
+            elapsed = time.time() - start
+            logger.warning(f"Redis client not available - Redis Pub/Sub disabled ({elapsed:.2f}s)")
             logger.warning("WebSocket scaling will be limited to single instance")
             app.state.pubsub_manager = None
             return
@@ -369,47 +425,56 @@ async def _initialize_redis_pubsub(app: FastAPI, logger) -> None:
         app.state.pubsub_manager = pubsub_manager
         set_pubsub_manager(pubsub_manager)
 
-        logger.info(f"✓ Redis Pub/Sub initialized (instance: {instance_id})")
+        elapsed = time.time() - start
+        logger.info(f"✓ Redis Pub/Sub initialized (instance: {instance_id}) ({elapsed:.2f}s)")
         logger.info("✓ WebSocket horizontal scaling enabled")
 
     except Exception as e:
-        logger.error(f"Failed to initialize Redis Pub/Sub: {e}")
+        elapsed = time.time() - start
+        logger.error(f"Failed to initialize Redis Pub/Sub ({elapsed:.2f}s): {e}")
         logger.warning("Continuing without Redis Pub/Sub - single instance mode only")
         app.state.pubsub_manager = None
 
 
 async def _initialize_ai_services(app: FastAPI, logger) -> None:
-    """Initialize AI services and integrations."""
+    """Initialize AI services and integrations with timing."""
+    start = time.time()
     try:
         from app.services.quiz_question_humanizer_integration import (
             integrate_humanization_into_quiz_service,
         )
 
         integrate_humanization_into_quiz_service()
-        logger.info("✓ AI question humanization integration initialized")
+        elapsed = time.time() - start
+        logger.info(f"✓ AI question humanization integration initialized ({elapsed:.2f}s)")
 
     except Exception as e:
-        logger.error(f"Failed to initialize AI services: {e}")
+        elapsed = time.time() - start
+        logger.error(f"Failed to initialize AI services ({elapsed:.2f}s): {e}")
         logger.info("Continuing without AI humanization features")
 
 
 async def _initialize_enum_validation(app: FastAPI, logger) -> None:
-    """Initialize enum validation middleware."""
+    """Initialize enum validation middleware with timing."""
+    start = time.time()
     try:
         from app.middleware.enum_validation import setup_enum_validation
 
         setup_enum_validation()
-        logger.info("✓ Enum validation middleware initialized")
+        elapsed = time.time() - start
+        logger.info(f"✓ Enum validation middleware initialized ({elapsed:.2f}s)")
 
     except Exception as e:
-        logger.error(f"Failed to initialize enum validation: {e}")
+        elapsed = time.time() - start
+        logger.error(f"Failed to initialize enum validation ({elapsed:.2f}s): {e}")
         logger.warning(
             "Continuing without enum validation - database enum errors may occur"
         )
 
 
 async def _initialize_follow_up_system(app: FastAPI, logger) -> None:
-    """Initialize follow-up system with Redis state rehydration."""
+    """Initialize follow-up system with Redis state rehydration and timing."""
+    start = time.time()
     try:
         from app.services.follow_up_system.service import FollowUpSystemService
         from app.database import SessionLocal
@@ -422,16 +487,18 @@ async def _initialize_follow_up_system(app: FastAPI, logger) -> None:
             result = await follow_up_service.rehydrate_from_redis()
             app.state.follow_up_service = follow_up_service
 
+            elapsed = time.time() - start
             logger.info(
                 f"✓ Follow-up system rehydrated: "
                 f"{result['pending_actions']} actions, "
-                f"{result['active_alerts']} alerts"
+                f"{result['active_alerts']} alerts ({elapsed:.2f}s)"
             )
         finally:
             db.close()
 
     except Exception as e:
-        logger.warning(f"Follow-up system initialization failed: {e}")
+        elapsed = time.time() - start
+        logger.warning(f"Follow-up system initialization failed ({elapsed:.2f}s): {e}")
         logger.info(
             "Continuing without follow-up system - will initialize on first use"
         )

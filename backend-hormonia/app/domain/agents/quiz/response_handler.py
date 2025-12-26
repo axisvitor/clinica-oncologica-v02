@@ -4,33 +4,43 @@ Response Handler - Processes and interprets patient responses.
 Handles response validation, AI-enhanced processing, and swarm analysis coordination.
 """
 
+from __future__ import annotations
+
+# Standard library imports
 import logging
 import re
-from typing import Dict, Optional, Any, TYPE_CHECKING
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Any, Dict, Optional
 from uuid import UUID
 
+# Third-party imports
 from sqlalchemy.orm import Session
+
+# Local application imports
+from app.agents.base import MessagePriority
+from app.schemas.quiz import QuestionType, QuizResponseCreate
+from app.services.quiz import QuizResponseService, QuizSessionService
 
 if TYPE_CHECKING:
     from app.domain.agents.quiz.session_coordinator import QuizContext
-
-from app.schemas.quiz import QuizResponseCreate, QuestionType
-from app.services.quiz import QuizSessionService, QuizResponseService
-from app.agents.base import MessagePriority
 
 
 class ResponseHandler:
     """
     Handles quiz response processing and interpretation.
 
-    Responsibilities:
-    - Process quiz responses
-    - Perform basic response validation
-    - Apply AI-enhanced interpretation
-    - Coordinate swarm analysis for complex responses
-    - Store validated responses
-    - Determine next actions (continue/complete quiz)
+    Processes patient responses with validation, AI-enhanced
+    interpretation, and multi-agent swarm analysis.
+
+    Attributes:
+        db_session: Database session.
+        quiz_session_service: Session service.
+        quiz_response_service: Response service.
+        agent_id: ID of owning agent.
+        gemini_client: AI client for interpretation.
+        knowledge_graph: Knowledge graph instance.
+        ai_interpretation_confidence_threshold: Threshold for AI processing.
+        require_human_review_threshold: Threshold for human review.
     """
 
     def __init__(
@@ -43,14 +53,25 @@ class ResponseHandler:
         knowledge_graph=None,
         logger: Optional[logging.Logger] = None,
     ):
-        """Initialize response handler."""
+        """
+        Initialize response handler.
+
+        Args:
+            db_session: Database session.
+            quiz_session_service: Quiz session service.
+            quiz_response_service: Quiz response service.
+            agent_id: Agent identifier.
+            gemini_client: Gemini AI client.
+            knowledge_graph: Knowledge graph instance.
+            logger: Logger instance.
+        """
         self.db_session = db_session
         self.quiz_session_service = quiz_session_service
         self.quiz_response_service = quiz_response_service
         self.agent_id = agent_id
         self.gemini_client = gemini_client
         self.knowledge_graph = knowledge_graph
-        self.logger = logger or logging.getLogger(__name__)
+        self._logger = logger or logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
         # Processing thresholds
         self.ai_interpretation_confidence_threshold = 0.8
@@ -102,7 +123,7 @@ class ResponseHandler:
 
         if not should_process:
             # Response debounced
-            self.logger.info(
+            self._logger.info(
                 f"Response debounced for patient {patient_id}",
                 extra={
                     "patient_id": str(patient_id),
@@ -159,7 +180,7 @@ class ResponseHandler:
             try:
                 await self.knowledge_graph.add_quiz_response_node(response)
             except Exception as e:
-                self.logger.error(f"Failed to update knowledge graph: {e}")
+                self._logger.error(f"Failed to update knowledge graph: {e}")
 
         # Determine next action
         if context.current_question_index >= len(context.template.questions) - 1:
@@ -398,7 +419,7 @@ class ResponseHandler:
             return None
 
         except Exception as e:
-            self.logger.error(f"AI response processing failed: {e}")
+            self._logger.error(f"AI response processing failed: {e}")
             return None
 
     async def request_swarm_analysis(
@@ -449,12 +470,12 @@ class ResponseHandler:
                     }
 
                 except Exception as e:
-                    self.logger.error(
+                    self._logger.error(
                         f"Failed to request {analysis_type} from {agent_id}: {e}"
                     )
 
             return swarm_analysis
 
         except Exception as e:
-            self.logger.error(f"Swarm analysis request failed: {e}")
+            self._logger.error(f"Swarm analysis request failed: {e}")
             return {}

@@ -4,6 +4,8 @@ SECURITY FIX: Replaces localStorage token storage with secure cookies
 CVSS 8.1 HIGH → RESOLVED
 """
 
+from __future__ import annotations
+
 from fastapi import APIRouter, Depends, HTTPException, Response, Cookie, status
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel, EmailStr

@@ -9,25 +9,30 @@ LOC: ~150
 Responsibility: Patient flow management
 """
 
+from __future__ import annotations
+
+# Standard library imports
+import logging
 from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import UUID
 
+# Third-party imports
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.patient import Patient
+# Local application imports
+from app.config import settings
+from app.config.template_loader import get_template_for_treatment
 from app.models.flow import PatientFlowState
-from app.models.patient import FlowState
+from app.models.patient import FlowState, Patient
+from app.schemas.websocket import WebSocketEventType
 from app.services.enhanced_flow_engine import (
     EnhancedFlowEngine,
     get_enhanced_flow_engine,
 )
 from app.services.flow_core import FlowType
-from app.services.websocket_events import websocket_events
-from app.schemas.websocket import WebSocketEventType
-from app.config import settings
-from app.config.template_loader import get_template_for_treatment
+from app.services.websocket_service import websocket_events
 from app.utils.db_retry import with_db_retry
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +57,13 @@ class PatientFlowService:
     ):
         self.db = db
         self.flow_engine = flow_engine or get_enhanced_flow_engine(db)
+        self._logger = logging.getLogger(__name__)
 
     async def initialize_default_flow(
         self,
         patient: Patient,
         current_user_id: Optional[UUID] = None,
+        auto_commit: bool = True,
     ) -> Optional[PatientFlowState]:
         """
         Initialize default flow for patient based on treatment type.
@@ -64,19 +71,22 @@ class PatientFlowService:
         Args:
             patient: Patient to initialize flow for
             current_user_id: ID of user creating the flow
+            auto_commit: If True (default), commits the transaction immediately.
+                         Set to False when using within a saga/Unit of Work pattern
+                         where the caller manages the transaction commit.
 
         Returns:
             Created PatientFlowState or None if auto-enrollment disabled
         """
         if not settings.FLOW_ENABLE_AUTO_ENROLLMENT:
-            logger.info(f"Auto-enrollment disabled for patient {patient.id}")
+            self._logger.info(f"Auto-enrollment disabled for patient {patient.id}")
             return None
 
         try:
             template_name = self._select_template(patient.treatment_type)
 
             if not template_name:
-                logger.warning(
+                self._logger.warning(
                     f"No template found for patient {patient.id} "
                     f"(treatment_type: {patient.treatment_type})"
                 )
@@ -95,16 +105,17 @@ class PatientFlowService:
                 try:
                     flow_type = FlowType(flow_config.enum_value)
                 except ValueError:
-                    logger.warning(
+                    self._logger.warning(
                         f"Invalid enum value {flow_config.enum_value} for template {template_name}"
                     )
 
             # Enroll patient using the new engine
+            # Pass auto_commit to support saga/Unit of Work pattern
             flow_state = await self.flow_engine.enroll_patient(
-                patient_id=patient.id, flow_type=flow_type
+                patient_id=patient.id, flow_type=flow_type, auto_commit=auto_commit
             )
 
-            logger.info(
+            self._logger.info(
                 f"Flow started for patient {patient.id} with type {flow_type.value} (template: {template_name})"
             )
 
@@ -123,12 +134,16 @@ class PatientFlowService:
                     else "system",
                 }
             )
-            self.db.commit()
+            # Respect auto_commit for saga/Unit of Work pattern support
+            if auto_commit:
+                self.db.commit()
+            else:
+                self.db.flush()
 
             return flow_state
 
         except Exception as e:
-            logger.error(f"Failed to start flow for patient {patient.id}: {e}")
+            self._logger.error(f"Failed to start flow for patient {patient.id}: {e}")
             # Store error in metadata but don't fail the request
             if not patient.patient_data:
                 patient.patient_data = {}
@@ -143,18 +158,35 @@ class PatientFlowService:
             )
 
             try:
-                self.db.commit()
+                # Respect auto_commit for saga/Unit of Work pattern support
+                if auto_commit:
+                    self.db.commit()
+                else:
+                    self.db.flush()
             except Exception as commit_error:
-                logger.error(
+                self._logger.error(
                     f"Failed to save flow error metadata for patient {patient.id}: "
                     f"{commit_error}"
                 )
 
+            # Re-raise the exception when in saga mode so the saga can handle compensation
+            if not auto_commit:
+                raise e
+
             return None
 
     @with_db_retry(max_retries=3)
-    async def activate_patient(self, patient_id: UUID) -> Optional[Patient]:
-        """Activate patient and set flow state to active."""
+    async def activate_patient(
+        self, patient_id: UUID, auto_commit: bool = True
+    ) -> Optional[Patient]:
+        """
+        Activate patient and set flow state to active.
+
+        Args:
+            patient_id: UUID of the patient to activate.
+            auto_commit: If True (default), commits immediately.
+                         Set to False when using within a saga/Unit of Work pattern.
+        """
         from app.repositories.patient import PatientRepository
 
         repository = PatientRepository(self.db)
@@ -163,17 +195,25 @@ class PatientFlowService:
             return None
 
         update_data = {"flow_state": FlowState.ACTIVE}
-        updated_patient = repository.update(patient, update_data)
+        updated_patient = repository.update(patient, update_data, auto_commit=auto_commit)
 
-        # Publish WebSocket event
-        await websocket_events.publish_patient_event(
-            event_type=WebSocketEventType.PATIENT_FLOW_CHANGED,
-            patient_id=patient_id,
-            patient_name=updated_patient.name,
-            doctor_id=updated_patient.doctor_id,
-            changes={"flow_state": FlowState.ACTIVE.value},
-            metadata={"action": "activated"},
-        )
+        # Publish WebSocket event (non-blocking, best-effort)
+        try:
+            await websocket_events.broadcast_flow_event(
+                event_type=WebSocketEventType.PATIENT_FLOW_CHANGED,
+                patient_id=patient_id,
+                flow_data={
+                    "flow_state": FlowState.ACTIVE.value,
+                    "action": "activated",
+                    "patient_name": updated_patient.name,
+                    "doctor_id": str(updated_patient.doctor_id),
+                    "changes": {"flow_state": FlowState.ACTIVE.value},
+                    "metadata": {"action": "activated"},
+                },
+            )
+        except Exception as ws_error:
+            # WebSocket events are non-critical - log and continue
+            logger.warning(f"Failed to broadcast flow event for patient {patient_id}: {ws_error}")
 
         return updated_patient
 
@@ -190,15 +230,23 @@ class PatientFlowService:
         update_data = {"flow_state": FlowState.PAUSED}
         updated_patient = repository.update(patient, update_data)
 
-        # Publish WebSocket event
-        await websocket_events.publish_patient_event(
-            event_type=WebSocketEventType.PATIENT_FLOW_CHANGED,
-            patient_id=patient_id,
-            patient_name=updated_patient.name,
-            doctor_id=updated_patient.doctor_id,
-            changes={"flow_state": FlowState.PAUSED.value},
-            metadata={"action": "paused"},
-        )
+        # Publish WebSocket event (non-blocking, best-effort)
+        try:
+            await websocket_events.broadcast_flow_event(
+                event_type=WebSocketEventType.PATIENT_FLOW_CHANGED,
+                patient_id=patient_id,
+                flow_data={
+                    "flow_state": FlowState.PAUSED.value,
+                    "action": "paused",
+                    "patient_name": updated_patient.name,
+                    "doctor_id": str(updated_patient.doctor_id),
+                    "changes": {"flow_state": FlowState.PAUSED.value},
+                    "metadata": {"action": "paused"},
+                },
+            )
+        except Exception as ws_error:
+            # WebSocket events are non-critical - log and continue
+            logger.warning(f"Failed to broadcast flow event for patient {patient_id}: {ws_error}")
 
         return updated_patient
 
@@ -250,11 +298,11 @@ class PatientFlowService:
                 for state in flow_states:
                     self.db.delete(state)
                 self.db.commit()
-                logger.info(
+                self._logger.info(
                     f"Deleted {len(flow_states)} flow states for patient {patient_id}"
                 )
                 return True
             return False
         except Exception as e:
-            logger.error(f"Failed to delete flow for patient {patient_id}: {e}")
+            self._logger.error(f"Failed to delete flow for patient {patient_id}: {e}")
             raise e

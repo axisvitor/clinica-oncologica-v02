@@ -7,6 +7,8 @@ and generates alerts when risk thresholds are exceeded.
 Sprint 2 - Week 1, Task 3: Automatic Alert Evaluation
 """
 
+from __future__ import annotations
+
 from typing import Dict, Any, List, Tuple
 from uuid import UUID
 from datetime import datetime, timezone

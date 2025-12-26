@@ -1,5 +1,7 @@
 """Build quiz link URLs."""
 
+from __future__ import annotations
+
 from app.core.monthly_quiz_config import get_monthly_quiz_config
 
 import logging

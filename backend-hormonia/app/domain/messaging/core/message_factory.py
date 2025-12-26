@@ -11,6 +11,7 @@ from enum import Enum
 from sqlalchemy.orm import Session
 
 from app.models.message import Message, MessageDirection, MessageType, MessageStatus
+from app.utils.template_sanitizer import get_template_sanitizer
 
 
 class MessageTemplate(Enum):
@@ -46,6 +47,7 @@ class MessageFactory:
             db: Database session
         """
         self.db = db
+        self.sanitizer = get_template_sanitizer()
 
         # Message templates for monthly quiz links
         self.monthly_quiz_templates = {
@@ -139,9 +141,13 @@ class MessageFactory:
         Returns:
             Created Message object
         """
-        content = self.monthly_quiz_templates["invitation"].format(
-            patient_name=patient_name, link=link_url, expiry_hours=expiry_hours
-        )
+        # Sanitize user input before template rendering
+        safe_context = self.sanitizer.sanitize_template_context({
+            "patient_name": patient_name,
+            "link": link_url,
+            "expiry_hours": expiry_hours
+        })
+        content = self.monthly_quiz_templates["invitation"].format(**safe_context)
 
         metadata = {
             "quiz_session_id": quiz_session_id,
@@ -183,9 +189,13 @@ class MessageFactory:
         Returns:
             Created Message object
         """
-        content = self.monthly_quiz_templates["reminder"].format(
-            patient_name=patient_name, link=link_url, hours_remaining=hours_remaining
-        )
+        # Sanitize user input before template rendering
+        safe_context = self.sanitizer.sanitize_template_context({
+            "patient_name": patient_name,
+            "link": link_url,
+            "hours_remaining": hours_remaining
+        })
+        content = self.monthly_quiz_templates["reminder"].format(**safe_context)
 
         metadata = {
             "quiz_session_id": quiz_session_id,
@@ -223,9 +233,11 @@ class MessageFactory:
         Returns:
             Created Message object
         """
-        content = self.monthly_quiz_templates["expired"].format(
-            patient_name=patient_name
-        )
+        # Sanitize user input before template rendering
+        safe_context = self.sanitizer.sanitize_template_context({
+            "patient_name": patient_name
+        })
+        content = self.monthly_quiz_templates["expired"].format(**safe_context)
 
         metadata = {
             "quiz_session_id": quiz_session_id,
@@ -261,9 +273,11 @@ class MessageFactory:
         Returns:
             Created Message object
         """
-        content = self.monthly_quiz_templates["completed"].format(
-            patient_name=patient_name
-        )
+        # Sanitize user input before template rendering
+        safe_context = self.sanitizer.sanitize_template_context({
+            "patient_name": patient_name
+        })
+        content = self.monthly_quiz_templates["completed"].format(**safe_context)
 
         metadata = {
             "quiz_session_id": quiz_session_id,

@@ -14,6 +14,9 @@ import type { QuizSession, QuestionType, QuizQuestion, SingleAnswer, MultipleAns
 import { useQuizState } from "@/hooks/quiz/useQuizState"
 import { useToast } from "@/hooks/use-toast"
 
+// Option type from QuizQuestion
+type QuizOption = string | { id?: string; value: string; text: string; allow_other?: boolean }
+
 interface QuizInterfaceProps {
   session: QuizSession
   token?: string
@@ -50,7 +53,7 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
     if (savedOtherText && savedAnswer && typeof savedAnswer === 'object' && 'value' in savedAnswer) {
       // Text is already in the OtherAnswer object
     }
-  }, [currentQuestionIndex, currentQuestion.id, answers, otherTexts])
+  }, [currentQuestionIndex, currentQuestion.id, answers, otherTexts, setSelectedAnswer])
 
   if (isCompleted) {
     return (
@@ -171,7 +174,7 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
         const otherTextValue = otherTexts.get(currentQuestion.id) || ""
 
         // Find the "other" option value dynamically
-        const otherOption = currentQuestion.options?.find((opt: any) => {
+        const otherOption = currentQuestion.options?.find((opt: QuizOption) => {
           if (typeof opt === 'string') return false
           return opt.allow_other === true || opt.value.toLowerCase() === 'other' || opt.value.toLowerCase() === 'outro' || opt.value.toLowerCase() === 'outra'
         })
@@ -190,12 +193,12 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
               }}
               className="space-y-3"
             >
-              {currentQuestion.options?.map((option: any, index: number) => {
+              {currentQuestion.options?.map((option: QuizOption, index: number) => {
                 const optionValue = typeof option === 'string' ? option : option.value
                 const optionText = typeof option === 'string' ? option : option.text
                 return (
                   <div
-                    key={typeof option === 'string' ? index : option.id}
+                    key={typeof option === 'string' ? index : option.id ?? index}
                     className="flex items-center space-x-3 p-4 rounded-xl border-2 border-border hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer"
                   >
                     <RadioGroupItem value={optionValue} id={`option-${index}`} />
@@ -243,7 +246,7 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
         let hasOtherSelected = false
 
         // Find the "other" option value dynamically for multiple choice
-        const multiOtherOption = currentQuestion.options?.find((opt: any) => {
+        const multiOtherOption = currentQuestion.options?.find((opt: QuizOption) => {
           if (typeof opt === 'string') return false
           return opt.allow_other === true || opt.value.toLowerCase() === 'other' || opt.value.toLowerCase() === 'outro' || opt.value.toLowerCase() === 'outra'
         })
@@ -262,12 +265,12 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
 
         return (
           <div className="space-y-3">
-            {currentQuestion.options?.map((option: any, index: number) => {
+            {currentQuestion.options?.map((option: QuizOption, index: number) => {
               const optionValue = typeof option === 'string' ? option : option.value
               const optionText = typeof option === 'string' ? option : option.text
               return (
                 <div
-                  key={typeof option === 'string' ? index : option.id}
+                  key={typeof option === 'string' ? index : option.id ?? index}
                   className="flex items-center space-x-3 p-4 rounded-xl border-2 border-border hover:border-primary/50 hover:bg-primary/5 transition-all"
                 >
                   <Checkbox

@@ -1,37 +1,50 @@
-"""
-Flow Coordinator Agent - Main coordinator class.
-"""
+"""Flow Coordinator Agent - Main coordinator class."""
 
-from typing import Dict, List, Optional, Any
+from __future__ import annotations
+
+# Standard library
 from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+# Third-party
 from sqlalchemy.orm import Session
 
+# Local
 from app.agents.base import BaseAgent
-from app.models.message import Message, MessageType, MessageDirection, MessageStatus
 from app.domain.messaging.delivery import MessageSender
-from app.services.template_loader import EnhancedTemplateLoader
+from app.models.message import Message, MessageDirection, MessageStatus, MessageType
 from app.services.enhanced_flow_engine import get_enhanced_flow_engine
+from app.services.template_loader import EnhancedTemplateLoader
 
-from .models import FlowDecision, FlowContext
-from .state_manager import StateManager
+from .consensus_manager import ConsensusManager
 from .decision_engine import DecisionEngine
 from .message_generator import MessageGenerator
+from .models import FlowContext, FlowDecision
+from .state_manager import StateManager
 from .transition_handler import TransitionHandler
-from .consensus_manager import ConsensusManager
 
 
 class FlowCoordinatorAgent(BaseAgent):
     """
-    Agent responsible for coordinating patient treatment flows.
+    Coordinates patient treatment flow progression.
+
+    Manages state transitions, consensus building, and
+    message generation for patient treatment flows.
 
     Key responsibilities:
-    - Analyze patient progress through treatment phases
-    - Make decisions on flow progression and timing
-    - Coordinate with other agents for consensus on critical decisions
-    - Adapt flows based on patient responses and patterns
-    - Manage transitions between different flow types
+    - Analyze patient progress through treatment phases.
+    - Make decisions on flow progression and timing.
+    - Coordinate with other agents for consensus on critical decisions.
+    - Adapt flows based on patient responses and patterns.
+    - Manage transitions between different flow types.
+
+    Attributes:
+        state_manager: Manages flow states and context.
+        decision_engine: Makes flow decisions.
+        message_generator: Generates and personalizes messages.
+        transition_handler: Handles phase transitions.
+        consensus_manager: Manages agent consensus.
     """
 
     def __init__(

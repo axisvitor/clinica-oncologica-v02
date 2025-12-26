@@ -389,11 +389,13 @@ class FlowConfig:
         if not self.feature_flags.use_consolidated_flows:
             return False
 
+        from .constants import FlowEngine
+
         rollout_pct = self.feature_flags.consolidated_flows_rollout_percentage
 
-        if rollout_pct == 0:
+        if rollout_pct == FlowEngine.ROLLOUT_DISABLED:
             return False
-        if rollout_pct == 100:
+        if rollout_pct == FlowEngine.ROLLOUT_FULL:
             return True
 
         # Deterministic selection based on flow_id hash

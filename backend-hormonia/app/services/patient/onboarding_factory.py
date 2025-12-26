@@ -6,23 +6,37 @@ This factory handles dependency injection for patient onboarding workflow.
 Phase 2 Simplification:
 - Removed SagaIntegrationService wrapper (0% business logic)
 - Now passes SagaOrchestrator directly to coordinator
+
+FIX: Uses TYPE_CHECKING to avoid circular import with SagaOrchestrator.
+The actual import happens at runtime inside the function.
 """
 
-from typing import Any, Optional
-from concurrent.futures import ThreadPoolExecutor
+from __future__ import annotations
 
-from app.repositories.patient import PatientRepository
-from app.services.patient.integrity_service import PatientIntegrityService
-from app.services.patient.flow_service import PatientFlowService
+# Standard library imports
+from concurrent.futures import ThreadPoolExecutor
+from typing import TYPE_CHECKING, Any, Optional
+
+# Third-party imports
+from sqlalchemy.ext.asyncio import AsyncSession
+
+# Local application imports
 from app.domain.messaging.core import MessageService
-from app.services.unified_whatsapp_service import UnifiedWhatsAppService
-from app.services.enhanced_flow_engine import get_enhanced_flow_engine
-from app.domain.patient.onboarding.coordinator import OnboardingCoordinator
-from app.domain.patient.onboarding.validation_service import ValidationService
-from app.domain.patient.onboarding.notification_service import NotificationService
 from app.domain.patient.onboarding.completion_service import CompletionService
+from app.domain.patient.onboarding.coordinator import OnboardingCoordinator
 from app.domain.patient.onboarding.creation_service import CreationService
-from app.orchestration.saga_orchestrator import SagaOrchestrator
+from app.domain.patient.onboarding.notification_service import NotificationService
+from app.domain.patient.onboarding.validation_service import ValidationService
+from app.repositories.patient import PatientRepository
+from app.services.enhanced_flow_engine import get_enhanced_flow_engine
+from app.services.patient.flow_service import PatientFlowService
+from app.services.patient.integrity_service import PatientIntegrityService
+from app.services.unified_whatsapp_service import UnifiedWhatsAppService
+
+# FIX: Use TYPE_CHECKING to avoid circular import
+# SagaOrchestrator imports PatientFlowService which causes circular import chain
+if TYPE_CHECKING:
+    from app.orchestration.saga_orchestrator import SagaOrchestrator
 
 # Global thread pool for sync operations in async context
 _onboarding_thread_pool = ThreadPoolExecutor(
@@ -31,7 +45,7 @@ _onboarding_thread_pool = ThreadPoolExecutor(
 
 
 def get_onboarding_coordinator(
-    db: Any, saga_orchestrator: Optional[SagaOrchestrator] = None
+    db: Any, saga_orchestrator: Optional["SagaOrchestrator"] = None
 ) -> OnboardingCoordinator:
     """
     Factory function to create a fully configured OnboardingCoordinator instance.

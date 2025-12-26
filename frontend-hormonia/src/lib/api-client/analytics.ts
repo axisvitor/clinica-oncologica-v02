@@ -271,7 +271,7 @@ export function createAnalyticsApi(client: ApiClientCore) {
 
     async treatmentDistribution(period: AnalyticsPeriod = '30d'): Promise<TreatmentDistribution> {
       const response = await client.get<TreatmentDistributionResponse>(
-        '/api/v2/analytics/treatment-distribution',
+        '/api/v2/analytics/treatment-distribution/',
         { period }
       )
       // Ensure colors exist
@@ -318,7 +318,7 @@ export function createAnalyticsApi(client: ApiClientCore) {
       if (params?.risk_level) query['risk_level'] = params.risk_level
       if (params?.limit) query['limit'] = params.limit
       if (params?.lookback_days) query['lookback_days'] = params.lookback_days
-      return client.get<RiskAssessmentResponse>('/api/v2/analytics/risk-assessment', query)
+      return client.get<RiskAssessmentResponse>('/api/v2/analytics/risk-assessment/', query)
     }
   }
 }

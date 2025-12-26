@@ -201,7 +201,7 @@ def _validate_and_format_phone(phone: str, strict: bool = True) -> str:
 
     except PhoneValidationError as e:
         if strict:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid phone number format")
         return None
 
 

@@ -4,11 +4,13 @@ Authentication and Authorization Helpers.
 Provides helper functions for:
 - User role validation (admin checks)
 - Redis client access for caching
+
+Note: Uses centralized auth_helpers for core logic.
 """
 
 from typing import Optional
 
-from app.models.user import UserRole
+from app.api.v2.utils.auth_helpers import is_admin as _is_admin_impl
 from app.core.redis_client import get_async_redis_client
 from app.utils.logging import get_logger
 
@@ -24,19 +26,8 @@ def _is_admin(current_user) -> bool:
 
     Returns:
         bool: True if user has admin role, False otherwise
-
-    Note:
-        Handles both User model instances and dict representations.
-        Compares against UserRole enum for type safety.
     """
-    if isinstance(current_user, dict):
-        role = current_user.get("role")
-    else:
-        role = getattr(current_user, "role", None)
-
-    if isinstance(role, UserRole):
-        return role == UserRole.ADMIN
-    return str(role).upper() == "ADMIN"
+    return _is_admin_impl(current_user)
 
 
 async def _get_redis_client() -> Optional[any]:

@@ -3,6 +3,8 @@ Quiz schemas for API v2
 Enhanced quiz models with field selection and eager loading support.
 """
 
+from __future__ import annotations
+
 from typing import Optional, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator, ConfigDict
@@ -28,7 +30,7 @@ class QuizV2Base(BaseModel):
     @field_validator("status")
     @classmethod
     def validate_status(cls, v):
-        allowed = {"started", "completed", "cancelled"}
+        allowed = {"started", "completed", "cancelled", "expired"}
         if v not in allowed:
             raise ValueError(f"Status must be one of: {allowed}")
         return v
@@ -76,7 +78,7 @@ class QuizV2Update(BaseModel):
     @classmethod
     def validate_status(cls, v):
         if v is not None:
-            allowed = {"started", "completed", "cancelled"}
+            allowed = {"started", "completed", "cancelled", "expired"}
             if v not in allowed:
                 raise ValueError(f"Status must be one of: {allowed}")
         return v

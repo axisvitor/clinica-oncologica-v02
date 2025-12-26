@@ -7,6 +7,8 @@ Implements a configurable time window to ignore duplicate responses within the d
 HIGH-005 Fix: Prevents multiple rapid messages being processed as different answers.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone

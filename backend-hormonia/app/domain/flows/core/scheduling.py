@@ -1,33 +1,50 @@
 """
 Scheduling Module.
+
 Handles flow scheduling, optimal send time calculation, and daily flow processing.
+Implements intelligent message timing and batch processing coordination.
 """
 
+from __future__ import annotations
+
+# Standard library imports
 import logging
-from typing import Any, Optional
 from datetime import datetime, timedelta, timezone
+from typing import Any, Optional
 from uuid import UUID
+
+# Third-party imports
 from sqlalchemy.orm import Session
 
+# Local application imports
 from app.models.flow import PatientFlowState
 from app.models.patient import Patient
-from app.repositories.patient import PatientRepository
 from app.repositories.flow import FlowStateRepository
-
-logger = logging.getLogger(__name__)
+from app.repositories.patient import PatientRepository
 
 
 class FlowScheduler:
-    """Manages flow scheduling, timing, and daily processing coordination."""
+    """
+    Domain service for flow scheduling operations.
+
+    Manages flow scheduling, optimal message timing, and daily processing
+    coordination for patient treatment flows.
+
+    Attributes:
+        db: Database session.
+        patient_repo: Patient repository.
+        flow_state_repo: Flow state repository.
+    """
 
     def __init__(self, db: Session):
         """
         Initialize flow scheduler.
 
         Args:
-            db: Database session
+            db: Database session.
         """
         self.db = db
+        self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.patient_repo = PatientRepository(db)
         self.flow_state_repo = FlowStateRepository(db)
 
@@ -139,14 +156,34 @@ class FlowScheduler:
             Dictionary with quiz trigger results
         """
         try:
-            # Only check quiz triggers for monthly recurring flows on day 30
-            from app.utils.constants import QUIZ_FLOW_CONSTANTS
+            # Use centralized quiz trigger policy
+            from app.domain.quizzes.quiz_trigger_policy import QuizTriggerPolicy
 
-            if (
-                flow_type != "monthly_recurring"
-                or current_day != QUIZ_FLOW_CONSTANTS["MONTHLY_QUIZ_DAY"]
-            ):
-                return {"triggered": False, "reason": "Not a quiz trigger day"}
+            # Get patient enrollment info
+            patient = self.patient_repo.get(patient_id)
+            if not patient:
+                return {"triggered": False, "error": "Patient not found"}
+
+            enrollment_date = patient.enrollment_date or patient.created_at
+            days_since_enrollment = (datetime.now(timezone.utc) - enrollment_date).days
+
+            # Check if quiz should be triggered using centralized policy
+            trigger_check = QuizTriggerPolicy.should_trigger_quiz(
+                flow_type=flow_type,
+                current_day=current_day,
+                days_since_enrollment=days_since_enrollment,
+                has_active_session=False,  # Will check below
+            )
+
+            if not trigger_check["should_trigger"]:
+                return {
+                    "triggered": False,
+                    "reason": trigger_check["reason"],
+                }
+
+            # Calculate monthly cycle
+            monthly_cycle = trigger_check.get("monthly_cycle", 1)
+            quiz_type = trigger_check.get("quiz_type", "monthly_assessment")
 
             # Import quiz flow integration service
             from app.domain.quizzes.integration.flow_integration import (
@@ -157,20 +194,12 @@ class FlowScheduler:
             quiz_trigger_service = QuizTriggerService(self.db)
             get_monthly_quiz_config()
 
-            # Prepare quiz info
-            patient = self.patient_repo.get(patient_id)
-            if not patient:
-                return {"triggered": False, "error": "Patient not found"}
-
-            enrollment_date = patient.enrollment_date or patient.created_at
-            days_since_enrollment = (datetime.now(timezone.utc) - enrollment_date).days
-            days_in_monthly_phase = days_since_enrollment - 45
-            monthly_cycle = (days_in_monthly_phase // 30) + 1
-
+            # Build quiz info from trigger check (already calculated above)
             quiz_info = {
                 "monthly_cycle": monthly_cycle,
-                "template_name": f"monthly_checkup_cycle_{monthly_cycle}",
-                "trigger_reason": f"Monthly quiz day {current_day} of cycle {monthly_cycle}",
+                "template_name": f"{quiz_type}_cycle_{monthly_cycle}",
+                "trigger_reason": trigger_check["reason"],
+                "quiz_type": quiz_type,
             }
 
             # Get flow state

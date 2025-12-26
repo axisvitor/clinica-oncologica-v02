@@ -11,29 +11,50 @@ Consolidates:
 Total: 5 files → 1 file
 """
 
-from typing import List, Optional, Dict, Any
-from uuid import UUID
-from datetime import datetime, timezone
-import json
-from pathlib import Path
+from __future__ import annotations
 
+# Standard library imports
+import json
+import logging
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+from uuid import UUID
+
+# Third-party imports
+from sqlalchemy.ext.asyncio import AsyncSession
+
+# Local application imports
+from app.core.exceptions import NotFoundError, ValidationError
 from app.models.quiz import QuizTemplate
 from app.repositories.quiz import QuizTemplateRepository
 from app.schemas.quiz import (
-    QuizQuestion,
     QuestionType,
-    QuizValidationResult,
+    QuizQuestion,
     QuizTemplateResponse,
+    QuizValidationResult,
 )
-from app.exceptions import NotFoundError, ValidationError
 
 
 class TemplateLoader:
-    """Service for loading quiz templates from various sources."""
+    """
+    Service for loading quiz templates from various sources.
 
-    def __init__(self, db: Any):
+    Supports loading templates from JSON files and dictionaries.
+
+    Attributes:
+        db: Database session.
+        repository: Quiz template repository.
+    """
+
+    def __init__(
+        self,
+        db: AsyncSession,
+        repository: Optional[QuizTemplateRepository] = None,
+    ):
         self.db = db
-        self.repository = QuizTemplateRepository(db)
+        self.repository = repository or QuizTemplateRepository(db)
+        self._logger = logging.getLogger(__name__)
 
     def load_from_file(self, file_path: str) -> QuizTemplate:
         """Load template from JSON file."""
@@ -61,10 +82,17 @@ class TemplateLoader:
 
 
 class TemplateValidator:
-    """Service for validating quiz templates."""
+    """
+    Service for validating quiz templates.
 
-    @staticmethod
-    def validate(questions: List[QuizQuestion]) -> QuizValidationResult:
+    Validates quiz templates for structure, content, and
+    compatibility between versions.
+    """
+
+    def __init__(self):
+        self._logger = logging.getLogger(__name__)
+
+    def validate(self, questions: List[QuizQuestion]) -> QuizValidationResult:
         """Validate quiz template questions."""
         errors = []
         warnings = []
@@ -107,9 +135,8 @@ class TemplateValidator:
             is_valid=len(errors) == 0, errors=errors, warnings=warnings
         )
 
-    @staticmethod
     def validate_template_compatibility(
-        old_version: QuizTemplate, new_version: QuizTemplate
+        self, old_version: QuizTemplate, new_version: QuizTemplate
     ) -> bool:
         """Validate if new version is compatible with old version."""
         old_question_ids = {q["id"] for q in old_version.questions}
@@ -120,17 +147,44 @@ class TemplateValidator:
 
 
 class TemplateVersionManager:
-    """Service for managing template versions."""
+    """
+    Service for managing template versions.
 
-    def __init__(self, db: Any):
+    Handles version creation, retrieval, and compatibility
+    checking for quiz templates.
+
+    Attributes:
+        db: Database session.
+        repository: Quiz template repository.
+    """
+
+    def __init__(
+        self,
+        db: AsyncSession,
+        repository: Optional[QuizTemplateRepository] = None,
+    ):
         self.db = db
-        self.repository = QuizTemplateRepository(db)
+        self.repository = repository or QuizTemplateRepository(db)
+        self._logger = logging.getLogger(__name__)
 
-    def create_version(
+    async def create_version(
         self, template_id: UUID, new_version: str
     ) -> QuizTemplateResponse:
-        """Create new version of template."""
-        original = self.repository.get(template_id)
+        """
+        Create new version of template.
+
+        Args:
+            template_id: Original template identifier.
+            new_version: New version string.
+
+        Returns:
+            Created template response.
+
+        Raises:
+            NotFoundError: If original template not found.
+            ValidationError: If version already exists.
+        """
+        original = await self.repository.get(template_id)
         if not original:
             raise NotFoundError(f"Template {template_id} not found")
 
@@ -172,12 +226,23 @@ class TemplateVersionManager:
 
 
 class TemplateCache:
-    """Simple in-memory cache for templates."""
+    """
+    Simple in-memory cache for templates.
+
+    Provides TTL-based caching for quiz templates to
+    reduce database queries.
+
+    Attributes:
+        _cache: Template cache dictionary.
+        _cache_times: Cache timestamp dictionary.
+        _ttl_seconds: Time-to-live in seconds.
+    """
 
     def __init__(self):
         self._cache: Dict[UUID, QuizTemplate] = {}
         self._cache_times: Dict[UUID, datetime] = {}
         self._ttl_seconds = 3600  # 1 hour
+        self._logger = logging.getLogger(__name__)
 
     def get(self, template_id: UUID) -> Optional[QuizTemplate]:
         """Get template from cache."""

@@ -3,6 +3,8 @@ Quiz response processing and medical report generation service.
 Handles quiz response collection, validation, trend analysis, and automated report generation.
 """
 
+from __future__ import annotations
+
 from app.services.reporting.quiz_report_generator.models import (
     TrendDirection,
     ConcernLevel,

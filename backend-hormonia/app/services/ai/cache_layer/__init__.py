@@ -3,22 +3,30 @@ Unified cache layer for AI services.
 
 Package version of cache_layer so that `app.services.ai.cache_layer`
 is importable both as a module (legacy `.py`) or as a package.
+
+Security Fix: Added bounded cache with LRU eviction to prevent memory exhaustion.
 """
 
 from __future__ import annotations
 
+# Standard library imports
 import asyncio
 import logging
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, Iterable, Optional, Set
 
+# Local application imports
 from app.infrastructure.cache import (
     CacheConfig,
     UnifiedCacheManager,
     get_unified_cache_manager,
 )
+
+# Maximum entries in local cache to prevent memory exhaustion
+MAX_LOCAL_CACHE_SIZE = 10000
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +115,9 @@ class CacheMetrics:
 class CacheLayer:
     """
     Async cache layer with Redis + in-memory fallback.
+
+    Security Fix: Uses bounded LRU cache to prevent memory exhaustion.
+    Maximum entries: MAX_LOCAL_CACHE_SIZE (default: 10000)
     """
 
     _OPERATION_TTLS: Dict[CacheOperation, int] = {
@@ -123,19 +134,23 @@ class CacheLayer:
         strategy: CacheStrategy = CacheStrategy.HYBRID,
         default_ttl: int = 900,
         redis_client: Any = None,
+        max_local_entries: int = MAX_LOCAL_CACHE_SIZE,
     ):
         self.strategy = strategy
         self.default_ttl = default_ttl
         self.redis_client = redis_client
+        self.max_local_entries = max_local_entries
 
         self.metrics = CacheMetrics()
-        self._entries: Dict[str, CacheEntry] = {}
+        # FIX: Use OrderedDict for LRU eviction support
+        self._entries: OrderedDict[str, CacheEntry] = OrderedDict()
         self._tag_index: Dict[str, Set[str]] = {}
         self._lock = asyncio.Lock()
         self._initialized = False
         self._cache_manager: Optional[UnifiedCacheManager] = None
         self._operation_cache_types: Dict[CacheOperation, str] = {}
         self._local_cache_enabled = self.strategy != CacheStrategy.REDIS
+        self._eviction_count = 0
 
     @property
     def initialized(self) -> bool:
@@ -286,6 +301,9 @@ class CacheLayer:
         stats = {
             "strategy": self.strategy.value,
             "local_cache_entries": len(self._entries),
+            "max_local_entries": self.max_local_entries,
+            "eviction_count": self._eviction_count,
+            "cache_utilization": len(self._entries) / self.max_local_entries if self.max_local_entries > 0 else 0,
             "metrics": self.metrics.as_dict(),
         }
         if self._cache_manager:
@@ -307,6 +325,10 @@ class CacheLayer:
         if entry and entry.is_expired():
             await self._pop_entry(cache_key)
             entry = None
+        elif entry:
+            # FIX: Move accessed entry to end for LRU tracking
+            async with self._lock:
+                self._entries.move_to_end(cache_key)
         return entry
 
     async def _store_local(
@@ -327,6 +349,19 @@ class CacheLayer:
             tags=set(tags or []),
         )
         async with self._lock:
+            # FIX: LRU eviction - remove oldest entries if at capacity
+            while len(self._entries) >= self.max_local_entries:
+                oldest_key, oldest_entry = self._entries.popitem(last=False)
+                # Clean up tag index for evicted entry
+                for tag in oldest_entry.tags:
+                    tag_set = self._tag_index.get(tag)
+                    if tag_set:
+                        tag_set.discard(oldest_key)
+                        if not tag_set:
+                            self._tag_index.pop(tag, None)
+                self._eviction_count += 1
+                logger.debug(f"LRU evicted cache entry: {oldest_key}")
+
             self._entries[cache_key] = entry
             for tag in entry.tags:
                 self._tag_index.setdefault(tag, set()).add(cache_key)
@@ -372,7 +407,32 @@ async def get_cache_layer() -> CacheLayer:
         return _cache_layer_instance
 
 
+async def reset_cache_layer_async() -> None:
+    """
+    Reset cache layer instance with proper async cleanup.
+
+    FIX: Properly awaits the close operation instead of creating orphaned tasks.
+    """
+    global _cache_layer_instance
+
+    async with _cache_layer_lock:
+        instance = _cache_layer_instance
+        _cache_layer_instance = None
+
+        if instance:
+            try:
+                await instance.close()
+                logger.debug("Cache layer reset and closed successfully")
+            except Exception as e:
+                logger.warning(f"Error closing cache layer during reset: {e}")
+
+
 def reset_cache_layer() -> None:
+    """
+    Reset cache layer instance (sync wrapper for backward compatibility).
+
+    FIX: Uses proper async cleanup when running loop is available.
+    """
     global _cache_layer_instance
     instance = _cache_layer_instance
     _cache_layer_instance = None
@@ -383,9 +443,18 @@ def reset_cache_layer() -> None:
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
+        # No running loop - safe to use asyncio.run
         asyncio.run(instance.close())
     else:
-        loop.create_task(instance.close())
+        # FIX: Schedule cleanup as a proper awaited coroutine
+        # Use asyncio.ensure_future with a wrapper that handles errors
+        async def _safe_close():
+            try:
+                await instance.close()
+            except Exception as e:
+                logger.warning(f"Error during cache layer cleanup: {e}")
+
+        asyncio.ensure_future(_safe_close())
 
 
 __all__ = [
@@ -396,4 +465,6 @@ __all__ = [
     "CacheEntry",
     "get_cache_layer",
     "reset_cache_layer",
+    "reset_cache_layer_async",
+    "MAX_LOCAL_CACHE_SIZE",
 ]

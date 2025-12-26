@@ -4,6 +4,8 @@ Quiz Flow Tasks Package.
 Backward compatibility layer - re-exports all tasks for existing imports.
 """
 
+from __future__ import annotations
+
 from app.tasks.quiz_flow.question_tasks import (
     send_quiz_question_task,
     send_quiz_progress_update_task,

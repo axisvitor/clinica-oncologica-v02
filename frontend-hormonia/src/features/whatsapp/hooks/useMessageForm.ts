@@ -17,7 +17,7 @@ export function useMessageForm(selectedInstance: string) {
 
   const sendMessageMutation = useMutation({
     mutationFn: (messageData: SendMessageData) =>
-      apiClient.request('/whatsapp/messages/send', {
+      apiClient.request('/api/v2/whatsapp/messages', {
         method: 'POST',
         body: JSON.stringify(messageData)
       }),

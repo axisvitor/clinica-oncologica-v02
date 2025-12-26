@@ -24,7 +24,7 @@ from app.services.notification_service import (
     get_notification_service,
 )
 from app.services.file import FileService
-from app.domain.quizzes import MonthlyQuizService
+from app.services.quiz.quiz_service import MonthlyQuizService
 from app.services.analytics.metrics_collector import MetricsCollectorService
 from app.services.analytics.metrics_redis_storage import MetricsRedisStorage
 from app.services.simple_session_service import SimpleSessionService

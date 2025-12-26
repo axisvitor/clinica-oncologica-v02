@@ -2,6 +2,8 @@
 Quiz and assessment schemas for Hormonia Backend System.
 """
 
+from __future__ import annotations
+
 from datetime import datetime
 from typing import List, Optional, Any, Union, Dict
 from uuid import UUID

@@ -2,6 +2,8 @@
 Quiz template loader for loading quiz templates from YAML files.
 """
 
+from __future__ import annotations
+
 import yaml
 import logging
 from typing import Dict, Any, Optional

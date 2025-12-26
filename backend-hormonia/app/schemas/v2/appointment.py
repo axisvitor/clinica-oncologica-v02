@@ -187,6 +187,15 @@ class AppointmentV2Response(BaseModel):
 
 
 class AppointmentV2List(CursorPaginatedResponse):
-    """Paginated list of appointments"""
+    """
+    Paginated list of appointments.
 
-    items: List[AppointmentV2Response]
+    Inherits from CursorPaginatedResponse which uses 'data' field.
+    FIX: Removed redundant 'items' field - use inherited 'data' instead.
+    This aligns with the router response format.
+    """
+
+    # Uses 'data' field from CursorPaginatedResponse base class
+    # data: List[AppointmentV2Response] is inherited but typed generically
+
+    model_config = ConfigDict(from_attributes=True)

@@ -42,6 +42,8 @@ class SagaStatus(str, Enum):
     STEP_3_FLOW_INITIALIZED = "STEP_3_FLOW_INITIALIZED"
     STEP_4_MESSAGE_SENT = "STEP_4_MESSAGE_SENT"
     COMPLETED = "COMPLETED"
+    # NEW: For sagas that completed but with non-critical issues (e.g., WhatsApp message failed)
+    COMPLETED_WITH_WARNINGS = "COMPLETED_WITH_WARNINGS"
     FAILED = "FAILED"
     COMPENSATING = "COMPENSATING"
     COMPENSATED = "COMPENSATED"

@@ -10,7 +10,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Request, HTTPException, Depends, BackgroundTasks
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from sqlalchemy import select
 import redis.asyncio as redis
 
@@ -129,7 +129,7 @@ async def evolution_webhook(
     instance_name: str,
     request: Request,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """
     Handle Evolution API webhooks for WhatsApp events.
@@ -158,13 +158,8 @@ async def evolution_webhook(
             event=payload.get("event", "unknown"),
         )
 
-        # Process webhook in background
-        background_tasks.add_task(
-            process_webhook_event,
-            webhook_data,
-            background_tasks,  # Pass background_tasks down
-            db,
-        )
+        # Process webhook synchronously with the request's db session
+        await process_webhook_event(webhook_data, background_tasks, db)
 
         return {"status": "received", "timestamp": datetime.now(timezone.utc)}
 
@@ -184,14 +179,15 @@ async def evolution_webhook(
 
 
 async def process_webhook_event(
-    webhook_data: WebhookPayload, background_tasks: BackgroundTasks, db: AsyncSession
+    webhook_data: WebhookPayload, background_tasks: BackgroundTasks, db
 ):
-    """Process webhook event in background."""
-    try:
-        event = webhook_data.event
-        data = webhook_data.data
-        instance_name = webhook_data.instance
+    """Process webhook event."""
+    # Normalize event name (Evolution sends UPPERCASE, we use lowercase)
+    event = webhook_data.event.lower().replace("_", ".")
+    data = webhook_data.data
+    instance_name = webhook_data.instance
 
+    try:
         # Route to appropriate handler based on event type
         if event == "messages.upsert":
             await handle_message_upsert(instance_name, data, background_tasks, db)
@@ -226,9 +222,9 @@ async def handle_message_upsert(
     instance_name: str,
     data: Dict[str, Any],
     background_tasks: BackgroundTasks,
-    db: AsyncSession,
+    db: Session,
 ):
-    """Handle incoming messages with idempotency protection."""
+    """Handle incoming messages with idempotency protection and proper transaction management."""
     try:
         messages = data if isinstance(data, list) else [data]
 
@@ -276,77 +272,101 @@ async def handle_message_upsert(
                 media_caption = message_info["videoMessage"].get("caption", "")
                 media_url = message_info["videoMessage"].get("url", "")
 
-            # Check if message already exists
-            stmt = select(WhatsAppMessage).where(
-                WhatsAppMessage.external_id == message_id
-            )
-            result = await db.execute(stmt)
-            existing_message = result.scalar_one_or_none()
-
-            if not existing_message:
-                # Create new message record
-                message = WhatsAppMessage(
-                    id=f"incoming_{message_id}",
-                    instance_name=instance_name,
-                    chat_id=chat_id,
-                    sender_id=sender_id,
-                    recipient_id="self",  # This is an incoming message
-                    message_type=message_type,
-                    content=content,
-                    media_url=media_url,
-                    media_caption=media_caption,
-                    status=MessageStatus.DELIVERED,
-                    external_id=message_id,
-                    created_at=datetime.fromtimestamp(
-                        message_data.get("messageTimestamp", 0)
-                    ),
-                    delivered_at=datetime.now(timezone.utc),
-                    message_data={"incoming": True, "message_data": message_data},
+            # Database transaction with proper error handling
+            try:
+                # Check if message already exists
+                stmt = select(WhatsAppMessage).where(
+                    WhatsAppMessage.external_id == message_id
                 )
+                result = db.execute(stmt)
+                existing_message = result.scalar_one_or_none()
 
-                db.add(message)
-                await db.commit()
-
-                logger.info(f"Stored incoming message {message_id} from {sender_id}")
-
-                # ---------------------------------------------------------
-                # REACTIVE FLOW TRIGGER (Refactored)
-                # ---------------------------------------------------------
-                try:
-                    # Clean phone number (remove suffix)
-                    phone_number = (
-                        sender_id.split("@")[0] if "@" in sender_id else sender_id
+                if not existing_message:
+                    # Create new message record
+                    message = WhatsAppMessage(
+                        id=f"incoming_{message_id}",
+                        instance_name=instance_name,
+                        chat_id=chat_id,
+                        sender_id=sender_id,
+                        recipient_id="self",  # This is an incoming message
+                        message_type=message_type,
+                        content=content,
+                        media_url=media_url,
+                        media_caption=media_caption,
+                        status=MessageStatus.DELIVERED,
+                        external_id=message_id,
+                        # FIX P1-006: Use timezone-aware datetime
+                        created_at=datetime.fromtimestamp(
+                            message_data.get("messageTimestamp", 0), tz=timezone.utc
+                        ),
+                        delivered_at=datetime.now(timezone.utc),
+                        message_data={"incoming": True, "message_data": message_data},
                     )
 
-                    # Find patient by phone (LGPD: use phone_hash lookup)
-                    from app.models.patient import Patient
-                    from app.services.encryption import get_lgpd_encryption_service
+                    db.add(message)
+                    # FIX P1-005: Use flush() first to get message ID, schedule background
+                    # task, then commit. This ensures both message storage and flow trigger
+                    # are part of the same logical transaction.
+                    db.flush()
 
-                    lgpd_service = get_lgpd_encryption_service()
-                    phone_hash = lgpd_service.hash_phone(phone_number)
-                    stmt = select(Patient).where(Patient.phone_hash == phone_hash)
-                    result = await db.execute(stmt)
-                    patient = result.scalar_one_or_none()
+                    logger.info(f"Stored incoming message {message_id} from {sender_id}")
 
-                    if patient:
-                        logger.info(
-                            f"Message from patient {patient.id} detected. Triggering flow engine in background."
+                    # ---------------------------------------------------------
+                    # REACTIVE FLOW TRIGGER (Refactored)
+                    # ---------------------------------------------------------
+                    flow_scheduled = False
+                    try:
+                        # Clean phone number (remove suffix)
+                        phone_number = (
+                            sender_id.split("@")[0] if "@" in sender_id else sender_id
                         )
 
-                        # Add to background tasks to avoid blocking the webhook response
-                        # and to manage the sync/async impedance mismatch separately
-                        background_tasks.add_task(
-                            _trigger_flow_response_async, patient.id, content
-                        )
-                    else:
-                        logger.debug(f"No patient found for phone {phone_number}")
+                        # Find patient by phone (LGPD: use phone_hash lookup)
+                        from app.models.patient import Patient
+                        from app.services.encryption import get_lgpd_encryption_service
 
-                except Exception as flow_error:
-                    logger.error(f"Error triggering flow engine: {flow_error}")
-                # ---------------------------------------------------------
+                        lgpd_service = get_lgpd_encryption_service()
+                        phone_hash = lgpd_service.hash_phone(phone_number)
+                        stmt = select(Patient).where(Patient.phone_hash == phone_hash)
+                        result = db.execute(stmt)
+                        patient = result.scalar_one_or_none()
+
+                        if patient:
+                            logger.info(
+                                f"Message from patient {patient.id} detected. Triggering flow engine in background."
+                            )
+
+                            # Add to background tasks to avoid blocking the webhook response
+                            # and to manage the sync/async impedance mismatch separately
+                            background_tasks.add_task(
+                                _trigger_flow_response_async, patient.id, content
+                            )
+                            flow_scheduled = True
+                        else:
+                            logger.debug(f"No patient found for phone {phone_number}")
+
+                    except Exception as flow_error:
+                        logger.error(f"Error triggering flow engine: {flow_error}")
+                    # ---------------------------------------------------------
+
+                    # FIX P1-005: Commit AFTER background task is scheduled to ensure
+                    # atomicity - if scheduling fails, we can rollback the message too
+                    db.commit()
+
+                    if flow_scheduled:
+                        logger.debug(f"Transaction committed with flow task scheduled for message {message_id}")
+
+            except Exception as db_error:
+                # Rollback transaction on error
+                db.rollback()
+                logger.error(
+                    f"Database error processing message {message_id}: {db_error}",
+                    exc_info=True,
+                )
+                raise
 
     except Exception as e:
-        logger.error(f"Error handling message upsert: {e}")
+        logger.error(f"Error handling message upsert: {e}", exc_info=True)
 
 
 async def _trigger_flow_response_async(patient_id: str, content: str):
@@ -401,9 +421,9 @@ async def _trigger_flow_response_async(patient_id: str, content: str):
 
 
 async def handle_message_update(
-    instance_name: str, data: Dict[str, Any], db: AsyncSession
+    instance_name: str, data: Dict[str, Any], db: Session
 ):
-    """Handle message status updates with idempotency protection."""
+    """Handle message status updates with idempotency protection and transaction management."""
     try:
         updates = data if isinstance(data, list) else [data]
 
@@ -432,31 +452,42 @@ async def handle_message_update(
 
             new_status = status_map.get(status_update, MessageStatus.SENT)
 
-            # Update message status
-            stmt = select(WhatsAppMessage).where(
-                WhatsAppMessage.external_id == message_id
-            )
-            result = await db.execute(stmt)
-            message = result.scalar_one_or_none()
+            # Database transaction with proper error handling
+            try:
+                # Update message status
+                stmt = select(WhatsAppMessage).where(
+                    WhatsAppMessage.external_id == message_id
+                )
+                result = db.execute(stmt)
+                message = result.scalar_one_or_none()
 
-            if message:
-                message.status = new_status
-                message.updated_at = datetime.now(timezone.utc)
+                if message:
+                    message.status = new_status
+                    message.updated_at = datetime.now(timezone.utc)
 
-                if new_status == MessageStatus.DELIVERED:
-                    message.delivered_at = datetime.now(timezone.utc)
-                elif new_status == MessageStatus.READ:
-                    message.read_at = datetime.now(timezone.utc)
+                    if new_status == MessageStatus.DELIVERED:
+                        message.delivered_at = datetime.now(timezone.utc)
+                    elif new_status == MessageStatus.READ:
+                        message.read_at = datetime.now(timezone.utc)
 
-                await db.commit()
-                logger.info(f"Updated message {message_id} status to {new_status}")
+                    db.commit()
+                    logger.info(f"Updated message {message_id} status to {new_status}")
+
+            except Exception as db_error:
+                # Rollback transaction on error
+                db.rollback()
+                logger.error(
+                    f"Database error updating message {message_id}: {db_error}",
+                    exc_info=True,
+                )
+                raise
 
     except Exception as e:
-        logger.error(f"Error handling message update: {e}")
+        logger.error(f"Error handling message update: {e}", exc_info=True)
 
 
 async def handle_send_message(
-    instance_name: str, data: Dict[str, Any], db: AsyncSession
+    instance_name: str, data: Dict[str, Any], db: Session
 ):
     """Handle outgoing message confirmation."""
     try:
@@ -470,14 +501,14 @@ async def handle_send_message(
                 WhatsAppMessage.external_id.is_(None),
                 WhatsAppMessage.status == MessageStatus.PENDING,
             )
-            result = await db.execute(stmt)
+            result = db.execute(stmt)
             message = result.first()
 
             if message:
                 message[0].external_id = message_id
                 message[0].status = MessageStatus.SENT
                 message[0].sent_at = datetime.now(timezone.utc)
-                await db.commit()
+                db.commit()
 
                 logger.info(f"Updated outgoing message with external ID {message_id}")
 
@@ -486,7 +517,7 @@ async def handle_send_message(
 
 
 async def handle_contact_upsert(
-    instance_name: str, data: Dict[str, Any], db: AsyncSession
+    instance_name: str, data: Dict[str, Any], db: Session
 ):
     """Handle contact updates."""
     try:
@@ -501,7 +532,7 @@ async def handle_contact_upsert(
                 WhatsAppContact.instance_name == instance_name,
                 WhatsAppContact.phone_number == phone_number,
             )
-            result = await db.execute(stmt)
+            result = db.execute(stmt)
             existing_contact = result.scalar_one_or_none()
 
             if existing_contact:
@@ -525,47 +556,58 @@ async def handle_contact_upsert(
                 )
                 db.add(contact)
 
-            await db.commit()
+            db.commit()
 
     except Exception as e:
         logger.error(f"Error handling contact upsert: {e}")
 
 
 async def handle_connection_update(
-    instance_name: str, data: Dict[str, Any], db: AsyncSession
+    instance_name: str, data: Dict[str, Any], db: Session
 ):
-    """Handle instance connection updates."""
+    """Handle instance connection updates with proper transaction management."""
     try:
         state = data.get("state", "")
 
-        # Update instance status
-        stmt = select(WhatsAppInstance).where(WhatsAppInstance.name == instance_name)
-        result = await db.execute(stmt)
-        instance = result.scalar_one_or_none()
+        # Database transaction with proper error handling
+        try:
+            # Update instance status
+            stmt = select(WhatsAppInstance).where(WhatsAppInstance.name == instance_name)
+            result = db.execute(stmt)
+            instance = result.scalar_one_or_none()
 
-        if instance:
-            instance.status = state
-            instance.is_connected = state == "open"
-            instance.last_activity = datetime.now(timezone.utc)
-            instance.updated_at = datetime.now(timezone.utc)
+            if instance:
+                instance.status = state
+                instance.is_connected = state == "open"
+                instance.last_activity = datetime.now(timezone.utc)
+                instance.updated_at = datetime.now(timezone.utc)
 
-            # Update phone number and profile if available
-            if "number" in data:
-                instance.phone_number = data["number"]
-            if "profileName" in data:
-                instance.profile_name = data["profileName"]
+                # Update phone number and profile if available
+                if "number" in data:
+                    instance.phone_number = data["number"]
+                if "profileName" in data:
+                    instance.profile_name = data["profileName"]
 
-            await db.commit()
-            logger.info(
-                f"Updated instance {instance_name} connection status to {state}"
+                db.commit()
+                logger.info(
+                    f"Updated instance {instance_name} connection status to {state}"
+                )
+
+        except Exception as db_error:
+            # Rollback transaction on error
+            db.rollback()
+            logger.error(
+                f"Database error updating connection for {instance_name}: {db_error}",
+                exc_info=True,
             )
+            raise
 
     except Exception as e:
-        logger.error(f"Error handling connection update: {e}")
+        logger.error(f"Error handling connection update: {e}", exc_info=True)
 
 
 async def handle_presence_update(
-    instance_name: str, data: Dict[str, Any], db: AsyncSession
+    instance_name: str, data: Dict[str, Any], db: Session
 ):
     """Handle presence updates (online/offline status)."""
     try:
@@ -580,22 +622,23 @@ async def handle_presence_update(
                 WhatsAppContact.instance_name == instance_name,
                 WhatsAppContact.phone_number == phone_number,
             )
-            result = await db.execute(stmt)
+            result = db.execute(stmt)
             contact = result.scalar_one_or_none()
 
             if contact:
                 last_seen_timestamp = presence.get("lastSeen")
                 if last_seen_timestamp:
-                    contact.last_seen = datetime.fromtimestamp(last_seen_timestamp)
+                    # FIX P1-006: Use timezone-aware datetime
+                    contact.last_seen = datetime.fromtimestamp(last_seen_timestamp, tz=timezone.utc)
                     contact.updated_at = datetime.now(timezone.utc)
-                    await db.commit()
+                    db.commit()
 
     except Exception as e:
         logger.error(f"Error handling presence update: {e}")
 
 
 async def handle_chat_upsert(
-    instance_name: str, data: Dict[str, Any], db: AsyncSession
+    instance_name: str, data: Dict[str, Any], db: Session
 ):
     """Handle chat updates."""
     try:
@@ -612,7 +655,7 @@ async def handle_chat_upsert(
                     WhatsAppContact.instance_name == instance_name,
                     WhatsAppContact.phone_number == phone_number,
                 )
-                result = await db.execute(stmt)
+                result = db.execute(stmt)
                 contact = result.scalar_one_or_none()
 
                 if contact:
@@ -620,7 +663,7 @@ async def handle_chat_upsert(
                     if "name" in chat_data:
                         contact.name = chat_data["name"]
                     contact.updated_at = datetime.now(timezone.utc)
-                    await db.commit()
+                    db.commit()
 
     except Exception as e:
         logger.error(f"Error handling chat upsert: {e}")
@@ -649,6 +692,7 @@ async def validate_webhook(request: Request):
             "timestamp": datetime.now(timezone.utc),
         }
     except Exception as e:
+        # FIX P2-001: Chain exception to preserve original traceback
         raise HTTPException(
             status_code=400, detail=f"Invalid webhook payload: {str(e)}"
-        )
+        ) from e

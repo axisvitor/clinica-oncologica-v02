@@ -1,0 +1,384 @@
+================================================================================
+ASYNC/AWAIT PATTERNS ANALYSIS - EXECUTIVE SUMMARY
+================================================================================
+
+PROJECT: backend-hormonia
+DATE: 2025-12-25
+TOTAL ISSUES FOUND: 12
+CRITICAL SEVERITY: 4
+HIGH SEVERITY: 3
+MEDIUM SEVERITY: 3
+LOW SEVERITY: 2
+
+================================================================================
+CRITICAL ISSUES (Fix Immediately)
+================================================================================
+
+ISSUE #1: asyncio.run() in Async Context
+Location: app/services/monthly_quiz_message_integration.py:207
+Severity: CRITICAL - RuntimeError on FastAPI async endpoint
+Impact: Quiz message delivery failures
+Fix Time: 2 hours
+Status: PENDING
+
+Pattern Issue:
+  def send_quiz_link_message(self, ...):
+      success = asyncio.run(self.message_sender.send_message(message))
+      ^ WRONG: Will crash if called from async endpoint
+
+Correct Pattern:
+  async def send_quiz_link_message(self, ...):
+      success = await self.message_sender.send_message(message)
+      ^ RIGHT: Use await in async context
+
+---
+
+ISSUE #2: Multiple asyncio.run() Calls in Sync Method
+Location: app/domain/quizzes/resilience/link_resilience.py:176-207
+Severity: CRITICAL - RuntimeError, Event loop exhaustion
+Impact: Quiz link resilience failures, event loop leaks
+Fix Time: 3 hours
+Status: PENDING
+
+Pattern Issue:
+  def handle_expired_token(self, session_id, ...):
+      return asyncio.run(self._fallback_to_whatsapp(...))  # Line 176
+      # ... more asyncio.run() calls ...
+      return asyncio.run(self._fallback_to_whatsapp(...))  # Line 205
+      ^ WRONG: Creates 3+ event loops, will crash in async context
+
+Correct Pattern:
+  async def handle_expired_token(self, session_id, ...):
+      return await self._fallback_to_whatsapp(...)
+      ^ RIGHT: Single async method, no asyncio.run() needed
+
+---
+
+ISSUE #3: Additional asyncio.run() Calls
+Location: app/domain/quizzes/resilience/link_resilience.py:256, 356
+Severity: CRITICAL - ResourceWarning, RuntimeError
+Impact: Event loop resource leak
+Fix Time: 1 hour
+Status: PENDING
+
+Pattern Issue:
+  asyncio.run(self._track_channel_health(...))  # Line 356
+  ^ WRONG: Creates separate event loop each call
+
+Correct Pattern:
+  await self._track_channel_health(...)
+  ^ RIGHT: Use await instead
+
+---
+
+ISSUE #4: Blocking time.sleep() in Async
+Location: app/resilience/retry/backoff.py:173
+Severity: CRITICAL - Event loop freeze
+Impact: All concurrent tasks blocked, timeouts, missed deadlines
+Fix Time: 1 hour
+Status: PENDING
+
+Pattern Issue:
+  def wait(self, attempt: int) -> None:
+      time.sleep(delay)  # LINE 173
+      ^ WRONG: Blocks entire event loop
+
+Correct Pattern:
+  async def await_delay(self, attempt: int) -> None:
+      await asyncio.sleep(delay)
+      ^ RIGHT: Non-blocking in async context
+
+---
+
+================================================================================
+HIGH SEVERITY ISSUES (Fix This Week)
+================================================================================
+
+ISSUE #5: time.sleep() in Dead Letter Queue Handler
+Location: app/resilience/retry/dead_letter.py:193
+Severity: HIGH - Thread leak, ungraceful shutdown
+Impact: Message loss on shutdown, daemon thread blocking
+
+Pattern Issue:
+  def _requeue_message(self, message):
+      def requeue_after_delay():
+          time.sleep(self.retry_backoff)  # LINE 193
+          self._queue.put_nowait(message.id)
+      thread = threading.Thread(target=requeue_after_delay, daemon=True)
+      ^ WRONG: Daemon thread with blocking sleep
+
+Correct Pattern:
+  def _requeue_message(self, message):
+      timer = threading.Timer(
+          self.retry_backoff,
+          self._do_requeue,
+          args=[message]
+      )
+      timer.daemon = False  # Allow graceful shutdown
+      self._pending_timers.append(timer)
+      timer.start()
+
+---
+
+ISSUE #6: Nested asyncio.run() in Humanizer
+Location: app/services/quiz_question_humanizer_integration.py:140-144
+Severity: HIGH - RuntimeError, Missing timeout
+Impact: Task failures, thread deadlock
+
+Pattern Issue:
+  humanized_text = _HUMANIZER_EXECUTOR.submit(
+      lambda: asyncio.run(_humanize())  # LINE 143
+  ).result()
+  ^ WRONG: No timeout on executor.result()
+
+Correct Pattern:
+  humanized_text = await loop.run_in_executor(
+      None,
+      sync_humanize_func
+  )
+
+---
+
+ISSUE #7: Orphan Tasks in Cleanup
+Location: app/services/ai/cache_layer/__init__.py:447, 457
+Severity: HIGH - Resource leak, Incomplete cleanup
+Impact: File handle leak, connection leak on shutdown
+
+Pattern Issue:
+  asyncio.ensure_future(_safe_close())  # LINE 457
+  ^ WRONG: Task fires but caller doesn't wait for completion
+
+Correct Pattern:
+  task = asyncio.create_task(_safe_close())
+  task.add_done_callback(lambda t: logger.info("Done"))
+  ^ RIGHT: Tracked completion
+
+---
+
+================================================================================
+MEDIUM SEVERITY ISSUES (Fix Next Sprint)
+================================================================================
+
+ISSUE #8: Sync Database in Async Function
+Location: app/services/monthly_quiz_message_integration.py:70
+Severity: MEDIUM - Event loop blocking, Poor concurrency
+Impact: Slow response times, timeout errors
+
+Pattern Issue:
+  async def send_quiz_link(self, patient_id, ...):
+      patient = self.db.query(Patient).filter(...).first()  # LINE 70
+      ^ WRONG: SQLAlchemy sync blocks event loop
+
+Correct Pattern:
+  async def send_quiz_link(self, patient_id, ...):
+      result = await self.db.execute(select(Patient).filter(...))
+      patient = result.scalar_one_or_none()
+      ^ RIGHT: AsyncSession with await
+
+---
+
+ISSUE #9: Poor Error Context Detection
+Location: app/celery_app.py:423-425
+Severity: MEDIUM - Confusing errors, Hidden failures
+Impact: Hard to debug, misleading error messages
+
+Pattern Issue:
+  try:
+      asyncio.get_running_loop()
+      raise RuntimeError("Cannot call from async")
+  except RuntimeError:
+      asyncio.run(coro)  # Catches BOTH errors!
+  ^ WRONG: Generic except catches the raise above
+
+Correct Pattern:
+  try:
+      loop = asyncio.get_running_loop()
+      raise RuntimeError("...")
+  except RuntimeError as e:
+      if "There is no current event loop" in str(e):
+          return asyncio.run(coro)
+      raise
+  ^ RIGHT: Specific error checking
+
+---
+
+ISSUE #10: Misleading Documentation Examples
+Location: app/api/v2/routers/docs/data_providers.py:236, 288
+Severity: MEDIUM - Developers copy blocking code
+Impact: Async anti-patterns propagate
+
+Pattern Issue:
+  # In docstring
+  time.sleep(2 ** i)  # Retry backoff
+  ^ WRONG: No warning about async context
+
+Correct Pattern:
+  """
+  ## Synchronous Retry
+  ```python
+  time.sleep(2 ** i)  # OK in sync
+  ```
+
+  ## Asynchronous Retry
+  ```python
+  await asyncio.sleep(2 ** i)  # Use in async!
+  ```
+  """
+
+---
+
+================================================================================
+LOW SEVERITY ISSUES (Code Quality)
+================================================================================
+
+ISSUE #11: ThreadPoolExecutor Leak
+Location: app/services/patient/crud_service.py:38-119
+Severity: LOW - Resource leak on shutdown
+Impact: Minor resource leak
+
+Pattern Issue:
+  _cache_executor = ThreadPoolExecutor(max_workers=2)
+  _cache_executor.submit(_run_in_thread)  # Fire and forget
+  ^ WRONG: Executor never shuts down
+
+Correct Pattern:
+  def __init__(self):
+      self._executor = ThreadPoolExecutor(max_workers=2)
+      self._pending = set()
+
+  async def cleanup(self):
+      for future in self._pending:
+          await asyncio.wait_for(asyncio.wrap_future(future), timeout=5)
+      self._executor.shutdown(wait=True)
+
+---
+
+ISSUE #12: Complex But Correct Pattern
+Location: app/core/async_context_manager.py:177
+Severity: LOW - Hard to understand
+Impact: Code clarity, maintenance difficulty
+
+Pattern Issue:
+  try:
+      loop = asyncio.get_running_loop()
+      task = loop.create_task(coro)
+  except RuntimeError:
+      asyncio.run(coro)
+      return None
+  ^ CORRECT but confusing
+
+Better Pattern:
+  """Safe pattern for dual-context (sync + async)
+  1. Try get_running_loop() - succeeds only if in async
+  2. If raises RuntimeError, we're in sync context
+  3. THEN asyncio.run() is safe
+  """
+
+---
+
+================================================================================
+PRIORITY IMPLEMENTATION PLAN
+================================================================================
+
+PHASE 1 (WEEK 1) - CRITICAL PATH
+  [ ] Issue #2: Convert handle_expired_token to async
+  [ ] Issue #4: Replace time.sleep() with await asyncio.sleep()
+  [ ] Issue #5: Replace thread+sleep with Timer
+  Time: 5 days, 16 hours
+
+PHASE 2 (WEEK 2) - HIGH IMPACT
+  [ ] Issue #1: Make send_quiz_link_message async
+  [ ] Issue #6: Fix humanizer executor usage
+  [ ] Issue #8: Migrate to AsyncSession
+  Time: 4 days, 12 hours
+
+PHASE 3 (WEEK 3) - CODE QUALITY
+  [ ] Issue #7: Implement task tracking for cleanup
+  [ ] Issue #11: Add executor lifecycle management
+  [ ] Issue #9: Improve error context detection
+  Time: 2 days, 8 hours
+
+PHASE 4 (WEEK 4) - POLISH
+  [ ] Issue #10: Update documentation examples
+  [ ] Issue #12: Add clarifying comments
+  [ ] Write async/await audit tests
+  Time: 1 day, 4 hours
+
+TOTAL EFFORT: ~13 days, estimated 2 weeks with testing
+
+================================================================================
+TESTING REQUIREMENTS
+================================================================================
+
+For each issue fixed, add tests:
+
+1. Test calling from async context (FastAPI endpoint)
+2. Test calling from sync context (Celery worker)
+3. Test error conditions (timeout, exception)
+4. Test cleanup/shutdown scenarios
+5. Performance test (no blocking observed)
+
+Test Template:
+  @pytest.mark.asyncio
+  async def test_issue_X_async_context():
+      result = await fixed_function()
+      assert result is not None
+
+  def test_issue_X_sync_context():
+      result = asyncio.run(fixed_function())
+      assert result is not None
+
+================================================================================
+MONITORING & VERIFICATION
+================================================================================
+
+After fixes applied, monitor for:
+
+1. RuntimeError exceptions (should decrease to 0)
+2. Unawaited coroutine warnings (should decrease to 0)
+3. Event loop hang reports (should decrease to 0)
+4. API response times (should improve)
+5. Task completion rates (should improve)
+6. Memory usage on shutdown (should be clean)
+
+Metrics:
+  - Error rate on quiz delivery: Target < 0.5%
+  - API response time: Target < 200ms (p95)
+  - Clean shutdown: Target 100% (no hanging threads)
+  - Event loop CPU usage: Target < 5% baseline
+
+================================================================================
+REFERENCE DOCUMENTS
+================================================================================
+
+Main Report: docs/ASYNC_AWAIT_ANALYSIS_REPORT.md
+  - Detailed issue analysis
+  - Code examples
+  - Root cause analysis
+  - Impact assessment
+
+Implementation Guide: docs/ASYNC_AWAIT_FIX_GUIDE.md
+  - Pattern translations
+  - Solution templates
+  - Gradual implementation plan
+  - Testing examples
+
+Quick Reference: docs/ASYNC_QUICK_REFERENCE.md
+  - Golden rules
+  - Quick diagnosis
+  - Decision tree
+  - One-liner fixes
+
+================================================================================
+SIGN-OFF
+================================================================================
+
+Analysis completed by: Claude Code Analyzer
+Analysis date: 2025-12-25
+Backend version: docs-refactor-py313
+Python version: 3.13+
+
+All issues verified in actual codebase.
+Ready for implementation.
+
+================================================================================

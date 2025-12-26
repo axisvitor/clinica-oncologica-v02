@@ -6,10 +6,12 @@ Responsibilities: Report generation, statistics calculation, metrics aggregation
 and data formatting for analytics.
 """
 
+from __future__ import annotations
+
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 from uuid import UUID
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import and_
 
 from app.models.quiz import QuizSession
@@ -48,7 +50,11 @@ class ReportGenerator:
         if end_date:
             query = query.filter(QuizSession.started_at <= end_date)
 
-        sessions = query.all()
+        # FIX: Add eager loading to avoid N+1 queries when accessing related objects
+        sessions = query.options(
+            joinedload(QuizSession.quiz_template),
+            selectinload(QuizSession.responses)
+        ).all()
 
         # Calculate stats
         total_links = len(sessions)

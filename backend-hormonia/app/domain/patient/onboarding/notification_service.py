@@ -16,26 +16,28 @@ ISSUE-005 PHASE 2:
 - 100% dependency injection for testability
 """
 
+from __future__ import annotations
+
+# Standard library imports
 import asyncio
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 from uuid import UUID
 
+# Local application imports
+from app.config import settings
+from app.models.message import MessageType
 from app.models.patient import Patient
 from app.models.user import User
-from app.models.message import MessageType
 from app.schemas.websocket import WebSocketEventType
 from app.templates.whatsapp import get_welcome_message
-from app.config import settings
-import logging
 
 if TYPE_CHECKING:
     from app.domain.messaging.core import MessageService
     from app.services.unified_whatsapp_service import UnifiedWhatsAppService
     from app.services.websocket_events import WebSocketEventService
-
-logger = logging.getLogger(__name__)
 
 
 class NotificationService:
@@ -46,6 +48,13 @@ class NotificationService:
 
     This service orchestrates notification delivery during patient onboarding,
     delegating to specialized messaging services for actual delivery.
+
+    Attributes:
+        message_service: Service for message scheduling and persistence.
+        whatsapp_service: Service for WhatsApp message delivery.
+        websocket_service: Optional WebSocket event broadcasting service.
+        _logger: Service logger (private).
+        _executor: Thread pool executor for sync operations.
     """
 
     def __init__(
@@ -65,10 +74,10 @@ class NotificationService:
         - Follow Dependency Inversion Principle
 
         Args:
-            message_service: Service for message scheduling and persistence
-            whatsapp_service: Service for WhatsApp message delivery
-            websocket_service: Optional WebSocket event broadcasting service
-            executor: Optional ThreadPoolExecutor for sync operations
+            message_service: Service for message scheduling and persistence.
+            whatsapp_service: Service for WhatsApp message delivery.
+            websocket_service: Optional WebSocket event broadcasting service.
+            executor: Optional ThreadPoolExecutor for sync operations.
         """
         self.message_service = message_service
         self.whatsapp_service = whatsapp_service
@@ -76,6 +85,7 @@ class NotificationService:
         self._executor = executor or ThreadPoolExecutor(
             max_workers=5, thread_name_prefix="notification_sync"
         )
+        self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     async def send_welcome_message(
         self, patient: Patient, current_user: Optional[User] = None
@@ -90,26 +100,28 @@ class NotificationService:
         4. Returns success status
 
         Args:
-            patient: The newly created patient
-            current_user: The user who created the patient (for logging)
+            patient: The newly created patient.
+            current_user: The user who created the patient (for logging).
 
         Returns:
-            True if message sent successfully, False otherwise
+            True if message sent successfully, False otherwise.
 
         Raises:
-            Exception: If message sending fails critically
+            Exception: If message sending fails critically.
         """
         try:
             # Check if welcome messages are enabled
             if not settings.WHATSAPP_ENABLE_ON_REGISTRATION:
-                logger.info(
-                    f"WhatsApp welcome messages disabled, skipping for patient {patient.id}"
+                self._logger.info(
+                    "WhatsApp welcome messages disabled, skipping",
+                    extra={"patient_id": str(patient.id)}
                 )
                 return False
 
             if not settings.WHATSAPP_ENABLE_WELCOME_MESSAGE:
-                logger.info(
-                    f"Welcome messages disabled, skipping for patient {patient.id}"
+                self._logger.info(
+                    "Welcome messages disabled, skipping",
+                    extra={"patient_id": str(patient.id)}
                 )
                 return False
 
@@ -142,31 +154,30 @@ class NotificationService:
                     ),
                 )
             except Exception as e:
-                logger.error(
-                    f"Failed to schedule welcome message in executor: {e}",
-                    exc_info=True,
-                )
+                self._logger.error("Failed to schedule welcome message in executor", exc_info=True)
                 raise
 
             # Send message via WhatsApp
             try:
                 success = await self.whatsapp_service.send_message(message)
             except Exception as e:
-                logger.error(f"Failed to send WhatsApp message: {e}", exc_info=True)
+                self._logger.error("Failed to send WhatsApp message", exc_info=True)
                 raise
 
-            logger.info(
-                f"Welcome message {'sent' if success else 'failed'} to patient {patient.id}"
+            self._logger.info(
+                f"Welcome message {'sent' if success else 'failed'}",
+                extra={"patient_id": str(patient.id)}
             )
             return success
 
         except ImportError as e:
-            logger.error(f"WhatsApp service not available: {e}")
+            self._logger.error("WhatsApp service not available", extra={"error": str(e)})
             return False
         except Exception as e:
-            logger.error(
-                f"Error sending welcome message to patient {patient.id}: {type(e).__name__}",
+            self._logger.error(
+                "Error sending welcome message",
                 exc_info=True,
+                extra={"patient_id": str(patient.id), "exception_type": type(e).__name__}
             )
             return False
 
@@ -180,15 +191,15 @@ class NotificationService:
         notifying them that a new patient has been created.
 
         Args:
-            patient: The newly created patient
-            doctor_id: Doctor ID for event routing
-            action: Action type (default: "created")
+            patient: The newly created patient.
+            doctor_id: Doctor ID for event routing.
+            action: Action type (default: "created").
 
         Returns:
-            True if event published successfully, False otherwise
+            True if event published successfully, False otherwise.
         """
         if not self.websocket_service:
-            logger.debug("WebSocket service not configured, skipping event publication")
+            self._logger.debug("WebSocket service not configured, skipping event publication")
             return False
 
         try:
@@ -196,26 +207,30 @@ class NotificationService:
             from app.services.websocket_events import websocket_events
 
             if not websocket_events:
-                logger.warning("WebSocket events service not initialized")
+                self._logger.warning("WebSocket events service not initialized")
                 return False
 
             # Publish patient updated event
+            # FIX: Pack all data into single dict to match method signature
             await websocket_events.publish_patient_event(
                 event_type=WebSocketEventType.PATIENT_UPDATED,
                 patient_id=patient.id,
-                patient_name=patient.name,
-                doctor_id=doctor_id,
-                changes={"action": action},
-                metadata={"treatment_type": patient.treatment_type},
+                data={
+                    "patient_name": patient.name,
+                    "doctor_id": str(doctor_id) if doctor_id else None,
+                    "action": action,
+                    "treatment_type": patient.treatment_type,
+                },
             )
 
-            logger.info(
-                f"Published WebSocket event for patient {patient.id} ({action})"
+            self._logger.info(
+                "Published WebSocket event",
+                extra={"patient_id": str(patient.id), "action": action}
             )
             return True
 
         except Exception as e:
-            logger.warning(f"Failed to publish WebSocket event: {e}")
+            self._logger.warning("Failed to publish WebSocket event", extra={"error": str(e)})
             return False
 
     async def send_welcome_if_needed(
@@ -228,11 +243,11 @@ class NotificationService:
         to the patient before attempting to send one.
 
         Args:
-            patient: The patient to check
-            current_user: Current authenticated user
+            patient: The patient to check.
+            current_user: Current authenticated user.
 
         Returns:
-            True if message sent or not needed, False if sending failed
+            True if message sent or not needed, False if sending failed.
         """
         try:
             # Check if messages already exist for this patient
@@ -256,8 +271,9 @@ class NotificationService:
             )
 
             if message_count > 0:
-                logger.info(
-                    f"Welcome message already sent to patient {patient.id}, skipping"
+                self._logger.info(
+                    "Welcome message already sent, skipping",
+                    extra={"patient_id": str(patient.id)}
                 )
                 return True
 
@@ -265,9 +281,10 @@ class NotificationService:
             return await self.send_welcome_message(patient, current_user)
 
         except Exception as e:
-            logger.error(
-                f"Error checking/sending welcome message for patient {patient.id}: {e}",
+            self._logger.error(
+                "Error checking/sending welcome message",
                 exc_info=True,
+                extra={"patient_id": str(patient.id)}
             )
             return False
 
@@ -276,8 +293,11 @@ class NotificationService:
         Shutdown the notification service gracefully.
 
         Args:
-            wait: Whether to wait for pending notifications to complete
+            wait: Whether to wait for pending notifications to complete.
         """
         if self._executor:
             self._executor.shutdown(wait=wait)
-            logger.info(f"NotificationService executor shutdown (wait={wait})")
+            self._logger.info(
+                "NotificationService executor shutdown",
+                extra={"wait": wait}
+            )

@@ -102,9 +102,11 @@ async def create_instance(
         logger.info(f"Created WhatsApp instance: {instance_name}")
         return instance_status
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error creating instance {instance_name}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error creating instance {instance_name}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to create WhatsApp instance")
 
 
 @router.get("/instances/{instance_name}", response_model=InstanceStatus)
@@ -116,8 +118,8 @@ async def get_instance_status(
     try:
         return await evolution_client.get_instance_status(instance_name)
     except Exception as e:
-        logger.error(f"Error getting instance status for {instance_name}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting instance status for {instance_name}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get instance status")
 
 
 @router.get("/instances/{instance_name}/qr")
@@ -132,9 +134,11 @@ async def get_qr_code(
             return {"qr_code": qr_code, "timestamp": datetime.now(timezone.utc)}
         else:
             raise HTTPException(status_code=404, detail="QR code not available")
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error getting QR code for {instance_name}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting QR code for {instance_name}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get QR code")
 
 
 @router.post("/instances/{instance_name}/restart")
@@ -149,9 +153,11 @@ async def restart_instance(
             return {"status": "restarted", "timestamp": datetime.now(timezone.utc)}
         else:
             raise HTTPException(status_code=500, detail="Failed to restart instance")
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error restarting instance {instance_name}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error restarting instance {instance_name}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to restart instance")
 
 
 @router.delete("/instances/{instance_name}")
@@ -180,9 +186,11 @@ async def delete_instance(
             return {"status": "deleted", "timestamp": datetime.now(timezone.utc)}
         else:
             raise HTTPException(status_code=500, detail="Failed to delete instance")
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error deleting instance {instance_name}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error deleting instance {instance_name}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to delete instance")
 
 
 # Message Management Endpoints
@@ -195,10 +203,11 @@ async def send_message(
     try:
         return await message_service.send_message(request)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.warning(f"Invalid message request: {e}")
+        raise HTTPException(status_code=400, detail="Invalid message parameters")
     except Exception as e:
-        logger.error(f"Error sending message: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error sending message: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to send message")
 
 
 @router.get("/messages/{instance_name}/{chat_id}")
@@ -240,8 +249,8 @@ async def get_message_history(
             "offset": offset,
         }
     except Exception as e:
-        logger.error(f"Error getting message history: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting message history: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get message history")
 
 
 @router.get("/messages/{instance_name}/statistics")
@@ -263,8 +272,8 @@ async def get_message_statistics(
             "generated_at": datetime.now(timezone.utc),
         }
     except Exception as e:
-        logger.error(f"Error getting message statistics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting message statistics: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get message statistics")
 
 
 # Contact Management Endpoints
@@ -283,8 +292,8 @@ async def sync_contacts(
             "timestamp": datetime.now(timezone.utc),
         }
     except Exception as e:
-        logger.error(f"Error starting contact sync: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error starting contact sync: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to start contact sync")
 
 
 @router.get("/contacts/{instance_name}")
@@ -333,8 +342,8 @@ async def get_contacts(
             "offset": offset,
         }
     except Exception as e:
-        logger.error(f"Error getting contacts: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting contacts: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get contacts")
 
 
 @router.post("/contacts/{instance_name}/check")
@@ -362,9 +371,11 @@ async def check_whatsapp_number(
             "is_whatsapp_user": is_whatsapp,
             "checked_at": datetime.now(timezone.utc),
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error checking WhatsApp number: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error checking WhatsApp number: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to check WhatsApp number")
 
 
 # Queue Management Endpoints
@@ -376,8 +387,8 @@ async def get_queue_stats():
         stats = await message_queue.get_queue_stats()
         return {"queue_statistics": stats, "timestamp": datetime.now(timezone.utc)}
     except Exception as e:
-        logger.error(f"Error getting queue stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting queue stats: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get queue statistics")
 
 
 @router.post("/queue/process")
@@ -390,8 +401,8 @@ async def start_queue_processing(
         background_tasks.add_task(message_service.process_message_queue)
         return {"status": "queue_processing_started", "timestamp": datetime.now(timezone.utc)}
     except Exception as e:
-        logger.error(f"Error starting queue processing: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error starting queue processing: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to start queue processing")
 
 
 # Health and Status Endpoints
@@ -432,5 +443,5 @@ async def list_instances(db: AsyncSession = Depends(get_db)):
             "timestamp": datetime.now(timezone.utc),
         }
     except Exception as e:
-        logger.error(f"Error listing instances: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error listing instances: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to list instances")

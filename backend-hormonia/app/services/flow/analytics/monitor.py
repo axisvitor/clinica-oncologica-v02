@@ -11,49 +11,70 @@ Migration Note:
     - Various health checks scattered across flow services
 """
 
-from typing import Dict, Any, List, Optional, Set
-from datetime import datetime, timedelta, timezone
-from uuid import UUID
-from collections import defaultdict
-from enum import Enum
-import logging
+from __future__ import annotations
 
-from ..types import (
-    FlowStatus,
-    FlowContext,
-    FlowPriority,
-)
+# Standard library imports
+import logging
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
+from enum import Enum
+from typing import Any, Dict, List, Optional, Set
+from uuid import UUID
+
+# Local application imports
 from ..config import get_flow_config
+from ..types import FlowContext, FlowPriority, FlowStatus
 
 
 logger = logging.getLogger(__name__)
 
 
 class HealthStatus(str, Enum):
-    """Health status levels."""
+    """
+    Health status levels for flow monitoring.
+
+    Attributes:
+        HEALTHY: System is operating normally.
+        DEGRADED: System is experiencing minor issues.
+        UNHEALTHY: System has significant issues.
+        CRITICAL: System is in critical state.
+    """
 
     HEALTHY = "healthy"
-    """System is operating normally"""
-
     DEGRADED = "degraded"
-    """System is experiencing minor issues"""
-
     UNHEALTHY = "unhealthy"
-    """System has significant issues"""
-
     CRITICAL = "critical"
-    """System is in critical state"""
 
 
 class FlowHealthMetrics:
-    """Health metrics for a flow instance."""
+    """
+    Health metrics for a flow instance.
 
-    def __init__(self, flow_instance_id: UUID):
+    Tracks health status, performance metrics, and issues for
+    individual flow instances.
+
+    Attributes:
+        flow_instance_id: Flow instance UUID.
+        status: Current health status.
+        last_check: Timestamp of last health check.
+        issues: List of identified issues.
+        warnings: List of warnings.
+        execution_time_seconds: Total execution time.
+        steps_executed: Number of steps executed.
+        steps_failed: Number of failed steps.
+        error_count: Total error count.
+        retry_count: Total retry count.
+        timeout_exceeded: Timeout threshold exceeded flag.
+        max_retries_exceeded: Max retries exceeded flag.
+        error_rate_high: High error rate flag.
+    """
+
+    def __init__(self, flow_instance_id: UUID) -> None:
         """
         Initialize flow health metrics.
 
         Args:
-            flow_instance_id: Flow instance ID.
+            flow_instance_id: Flow instance UUID.
         """
         self.flow_instance_id = flow_instance_id
         self.status = HealthStatus.HEALTHY
@@ -79,10 +100,20 @@ class FlowMonitor:
     Monitor for flow health and performance.
 
     Tracks flow execution health, detects issues, and provides
-    health status reporting.
+    comprehensive health status reporting.
+
+    Attributes:
+        config: Flow configuration.
+        _flow_health: Storage for flow health metrics.
+        _active_flows: Set of active flow UUIDs.
+        _system_health_status: Overall system health status.
+        _system_issues: System-level issues.
+        max_execution_time_seconds: Maximum allowed execution time.
+        max_step_failures_percentage: Maximum step failure rate.
+        max_error_count: Maximum allowed errors.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize flow monitor."""
         self.config = get_flow_config()
 
@@ -281,9 +312,11 @@ class FlowMonitor:
         )
 
         # Determine system health
+        from ..constants import FlowEngine
+
         if unhealthy_count == 0:
             self._system_health_status = HealthStatus.HEALTHY
-        elif unhealthy_count < total_active * 0.1:  # Less than 10%
+        elif unhealthy_count < total_active * FlowEngine.UNHEALTHY_THRESHOLD_PERCENT:
             self._system_health_status = HealthStatus.DEGRADED
         elif unhealthy_count < total_active * 0.3:  # Less than 30%
             self._system_health_status = HealthStatus.UNHEALTHY

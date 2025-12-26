@@ -19,28 +19,31 @@ Phase 2 Simplification:
 - Now calls SagaOrchestrator directly
 """
 
-from typing import Optional, TYPE_CHECKING
-from uuid import UUID
-import logging
+from __future__ import annotations
 
+# Standard library imports
+import logging
+from typing import TYPE_CHECKING, Optional
+from uuid import UUID
+
+# Third-party imports
 from sqlalchemy.orm import Session
 
+# Local application imports
+from app.config import settings
+from app.exceptions import ValidationError
 from app.models.patient import Patient
 from app.schemas.patient import PatientCreate
-from app.exceptions import ValidationError
 from app.utils.db_retry import with_db_retry
-from app.config import settings
 
 if TYPE_CHECKING:
-    from app.models.user import User
-    from app.services.patient.integrity_service import PatientIntegrityService
-    from app.domain.patient.onboarding.validation_service import ValidationService
-    from app.orchestration.saga_orchestrator import SagaOrchestrator
-    from app.domain.patient.onboarding.notification_service import NotificationService
     from app.domain.patient.onboarding.completion_service import CompletionService
     from app.domain.patient.onboarding.creation_service import CreationService
-
-logger = logging.getLogger(__name__)
+    from app.domain.patient.onboarding.notification_service import NotificationService
+    from app.domain.patient.onboarding.validation_service import ValidationService
+    from app.models.user import User
+    from app.orchestration.saga_orchestrator import SagaOrchestrator
+    from app.services.patient.integrity_service import PatientIntegrityService
 
 
 class OnboardingCoordinator:
@@ -61,6 +64,16 @@ class OnboardingCoordinator:
     Phase 2 Simplification:
     - Removed SagaIntegrationService wrapper (0% business logic)
     - Now calls SagaOrchestrator directly
+
+    Attributes:
+        db: Database session.
+        integrity_service: Service for patient data validation.
+        validation_service: Service for duplicate detection.
+        saga_orchestrator: Saga orchestrator for distributed transactions.
+        notification_service: Service for notification delivery.
+        completion_service: Service for partial onboarding completion.
+        creation_service: Optional service for direct patient creation.
+        _logger: Service logger (private).
     """
 
     def __init__(
@@ -79,13 +92,13 @@ class OnboardingCoordinator:
         100% DEPENDENCY INJECTION - all services injected via constructor.
 
         Args:
-            db: Database session
-            integrity_service: Service for patient data validation (SINGLE SOURCE OF TRUTH)
-            validation_service: Service for duplicate detection
-            saga_orchestrator: Saga orchestrator for distributed transactions (direct usage)
-            notification_service: Service for notification delivery
-            completion_service: Service for partial onboarding completion
-            creation_service: Optional service for direct patient creation
+            db: Database session for operations.
+            integrity_service: Service for patient data validation (SINGLE SOURCE OF TRUTH).
+            validation_service: Service for duplicate detection.
+            saga_orchestrator: Saga orchestrator for distributed transactions (direct usage).
+            notification_service: Service for notification delivery.
+            completion_service: Service for partial onboarding completion.
+            creation_service: Optional service for direct patient creation.
         """
         self.db = db
         self.integrity_service = integrity_service
@@ -94,13 +107,14 @@ class OnboardingCoordinator:
         self.notification_service = notification_service
         self.completion_service = completion_service
         self.creation_service = creation_service
+        self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     def _is_saga_enabled(self) -> bool:
         """
         Check if Saga Pattern is enabled and available.
 
         Returns:
-            True if saga is enabled and orchestrator is available
+            True if saga is enabled and orchestrator is available.
         """
         return self.saga_orchestrator is not None and getattr(
             settings, "ENABLE_SAGA_PATTERN", True
@@ -123,30 +137,33 @@ class OnboardingCoordinator:
         3. Notificações/fluxos são tratados pela própria saga
 
         Args:
-            patient_data: Patient creation data
-            doctor_id: ID of the doctor creating the patient
-            current_user: Current authenticated user (optional)
-            idempotency_key: QW-004: Unique key to prevent duplicate requests (optional)
+            patient_data: Patient creation data.
+            doctor_id: ID of the doctor creating the patient.
+            current_user: Current authenticated user (optional).
+            idempotency_key: QW-004: Unique key to prevent duplicate requests (optional).
 
         Returns:
-            Created patient object
+            Created patient object.
 
         Raises:
-            ValidationError: If validation fails
-            IntegrityError: If database integrity constraints are violated
+            ValidationError: If validation fails or saga execution fails.
         """
         # Step 1: Validate data using SINGLE SOURCE OF TRUTH
         await self.integrity_service.validate_patient_data(
             patient_data=patient_data, doctor_id=doctor_id, is_update=False
         )
-        logger.info(f"Patient data validated for doctor {doctor_id}")
+        self._logger.info(
+            "Patient data validated",
+            extra={"doctor_id": str(doctor_id)}
+        )
 
         # Step 2: Execução obrigatória via Saga Pattern (direct call to orchestrator)
         if not self._is_saga_enabled():
             raise ValidationError("Saga Pattern desabilitado ou não configurado")
 
-        logger.info(
-            f"Attempting patient creation via Saga Pattern for doctor {doctor_id}"
+        self._logger.info(
+            "Attempting patient creation via Saga Pattern",
+            extra={"doctor_id": str(doctor_id)}
         )
 
         try:
@@ -162,23 +179,23 @@ class OnboardingCoordinator:
                     "Saga Pattern não retornou paciente após execução"
                 )
 
-            logger.info(
-                f"✅ Patient created successfully via Saga: {patient.id}",
+            self._logger.info(
+                "Patient created successfully via Saga",
                 extra={
                     "patient_id": str(patient.id),
                     "doctor_id": str(doctor_id),
-                },
+                }
             )
             return patient
 
         except Exception as e:
-            logger.error(
-                f"❌ Saga Pattern execution failed: {type(e).__name__}",
+            self._logger.error(
+                "Saga Pattern execution failed",
                 exc_info=True,
                 extra={
                     "doctor_id": str(doctor_id),
                     "exception_type": type(e).__name__,
-                },
+                }
             )
             if isinstance(e, ValidationError):
                 raise

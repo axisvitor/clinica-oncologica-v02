@@ -4,6 +4,8 @@ Quiz Response Tasks.
 Handles quiz response processing and report generation.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Any
 from uuid import UUID
@@ -40,10 +42,9 @@ def process_quiz_response_task(
         NotFoundError: If message is not found
         Exception: If response processing fails after all retries
     """
-    import asyncio
-
     try:
         with next(get_db()) as db:
+            from asgiref.sync import async_to_sync
             from app.domain.quizzes.integration.flow_integration import (
                 ConversationalQuizService,
             )
@@ -58,16 +59,15 @@ def process_quiz_response_task(
             if not message:
                 raise NotFoundError(f"Message {message_id} not found")
 
-            # Process quiz response with await
-            result = asyncio.run(
-                quiz_flow_service.process_quiz_response(
-                    patient_id=UUID(patient_id),
-                    response_text=message.content,  # type: ignore[arg-type]
-                    message_metadata={
-                        "message_id": str(message.id),
-                        "timestamp": message.timestamp,
-                    },
-                )
+            # FIX: Use async_to_sync instead of asyncio.run() to avoid
+            # "cannot be called from a running event loop" errors
+            result = async_to_sync(quiz_flow_service.process_quiz_response)(
+                patient_id=UUID(patient_id),
+                response_text=message.content,  # type: ignore[arg-type]
+                message_metadata={
+                    "message_id": str(message.id),
+                    "timestamp": message.timestamp,
+                },
             )
 
             if result["success"]:

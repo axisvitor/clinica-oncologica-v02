@@ -7,6 +7,8 @@ JSONB column, including serialization, deserialization, validation, and querying
 Migration: HIGH-003 - response_value Text to JSONB conversion
 """
 
+from __future__ import annotations
+
 import json
 from typing import Any, Dict, List, Optional, Union
 from enum import Enum

@@ -216,6 +216,11 @@ class MedicationV2Response(BaseModel):
 
 
 class MedicationV2List(CursorPaginatedResponse):
-    """Paginated list of medications"""
+    """
+    Paginated list of medications.
 
-    items: List[MedicationV2Response]
+    Inherits from CursorPaginatedResponse which uses 'data' field.
+    FIX: Removed redundant 'items' field - use inherited 'data' instead.
+    """
+
+    model_config = ConfigDict(from_attributes=True)

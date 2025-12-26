@@ -23,6 +23,8 @@ This module was extracted from quiz_extensions.py as part of the backend refacto
 Total: 5 alert endpoints
 """
 
+# NOTE: Removed 'from __future__ import annotations' to fix Pydantic/FastAPI OpenAPI issues
+
 from typing import Optional
 from datetime import datetime, timezone
 from uuid import UUID

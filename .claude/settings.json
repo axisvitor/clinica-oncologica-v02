@@ -7,6 +7,7 @@
     "CLAUDE_FLOW_REMOTE_EXECUTION": "true",
     "CLAUDE_FLOW_CHECKPOINTS_ENABLED": "true"
   },
+  "includeCoAuthoredBy": true,
   "permissions": {
     "allow": [
       "Bash(npx claude-flow:*)",
@@ -34,6 +35,10 @@
       "Bash(rm -rf /)"
     ]
   },
+  "enabledMcpjsonServers": [
+    "claude-flow",
+    "ruv-swarm"
+  ],
   "hooks": {
     "PreToolUse": [
       {
@@ -106,10 +111,11 @@
       }
     ]
   },
-  "includeCoAuthoredBy": true,
-  "enabledMcpjsonServers": ["claude-flow", "ruv-swarm"],
   "statusLine": {
     "type": "command",
     "command": ".claude/statusline-command.sh"
+  },
+  "enabledPlugins": {
+    "playwright@claude-plugins-official": false
   }
 }

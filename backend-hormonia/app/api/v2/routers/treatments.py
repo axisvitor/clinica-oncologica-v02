@@ -29,6 +29,7 @@ from app.api.v2.patients_utils import (
     _extract_user_context,
     _ensure_uuid,
 )
+from app.api.v2.utils.auth_helpers import is_admin
 from app.dependencies.auth_dependencies import (
     get_current_user_from_session,
     get_redis_cache,
@@ -39,8 +40,8 @@ logger = logging.getLogger(__name__)
 
 
 def _is_admin(current_user) -> bool:
-    role_enum, _ = _extract_user_context(current_user)
-    return role_enum == UserRole.ADMIN
+    """Check if current user is admin."""
+    return is_admin(current_user)
 
 
 def _ensure_treatment_access(current_user, doctor_id):
@@ -370,8 +371,8 @@ async def create_treatment(
         # We should pass patient validation logic to service eventually.
         new_treatment = service.create_treatment(treatment_data, did)
     except Exception as e:
-        logger.error(f"Error creating treatment: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error creating treatment: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to create treatment")
 
     try:
         await redis_cache.delete_pattern(f"treatments:list:{user_id}:*")
@@ -408,7 +409,8 @@ async def update_treatment(
     try:
         updated = service.update_treatment(tid, treatment_data)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error updating treatment: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to update treatment")
 
     try:
         await redis_cache.delete(f"treatment:{treatment_id}")

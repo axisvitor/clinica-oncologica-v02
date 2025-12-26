@@ -5,6 +5,8 @@ Integrates MonthlyQuizService with MessageFactory for seamless link delivery.
 Updated to use UnifiedWhatsAppService for improved reliability and performance.
 """
 
+from __future__ import annotations
+
 import asyncio
 from typing import Optional, Dict, Any
 from uuid import UUID
@@ -12,7 +14,7 @@ from datetime import datetime, timezone
 
 
 from app.domain.messaging.core import MessageFactory, MessageTemplate
-from app.domain.quizzes import MonthlyQuizService
+from app.services.quiz.quiz_service import MonthlyQuizService
 from app.domain.messaging.delivery import MessageSender  # For backward compatibility
 from app.services.unified_whatsapp_service import UnifiedWhatsAppService, MessagingMode
 from app.schemas.monthly_quiz import MonthlyQuizLinkCreate, DeliveryMethod
@@ -125,13 +127,26 @@ class MonthlyQuizMessageIntegration:
                         await asyncio.sleep(retry_delay * (attempt + 1))
 
                 except Exception as e:
+                    # FIX: Replace print() with proper logger for production visibility
+                    import logging
+                    _logger = logging.getLogger(__name__)
+
                     if attempt == max_retries - 1:
                         # Log error on final attempt but don't crash the whole flow,
                         # just return the result as is (likely None or False)
-                        print(
-                            f"Failed to send quiz link after {max_retries} attempts: {e}"
+                        _logger.error(
+                            f"Failed to send quiz link after {max_retries} attempts: {e}",
+                            exc_info=True,
+                            extra={
+                                "patient_id": str(patient_id),
+                                "quiz_session_id": str(quiz_link.id),
+                                "delivery_method": delivery_method.value,
+                            }
                         )
                     else:
+                        _logger.warning(
+                            f"Quiz link send attempt {attempt + 1}/{max_retries} failed: {e}, retrying..."
+                        )
                         await asyncio.sleep(retry_delay * (attempt + 1))
 
         return {

@@ -16,12 +16,16 @@ We use **Alembic** for schema migrations.
 4.  **Review:** Migrations must be reviewed for locking behavior (e.g., adding NOT NULL to huge table).
 
 ### Recent Migration History (Highlights)
+- `034`: Performance indexes with CONCURRENTLY support (patients, quiz_sessions, messages, appointments).
+- `033`: Firebase user_sync_log schema fix (new columns: user_id, operation, sync_direction, changes, success).
 - `ac193e8656c1`: Create Sessions Table.
 - `032`: Account Security Columns.
 - `031`: Performance Indexing (Total 479 indices).
 - `028/030`: Full LGPD Data Encryption.
 - `025`: Patient Idempotency.
 - `022`: Cursor pagination indexes.
+
+> **Note:** Migrations 033-034 use `CREATE INDEX CONCURRENTLY IF NOT EXISTS` for non-blocking index creation on production.
 
 ### Execution Guide
 ```bash
@@ -84,12 +88,18 @@ Custom script that:
 ```bash
 # Connection
 DATABASE_URL=postgresql+psycopg://user:pass@host:5432/db
-DB_POOL_SIZE=30
-DB_MAX_OVERFLOW=40
+
+# Pool Configuration (environment-aware defaults in database_config.py)
+# Only override if necessary:
+# DB_POOL_SIZE=10        # Default: 10 (dev), 10 (prod)
+# DB_MAX_OVERFLOW=15     # Default: 15 (dev), 10 (prod)
+# WEB_CONCURRENCY=1      # Default: 1 (dev), 4 (prod) - workers
 
 # Security
 ENCRYPTION_KEY=...
 ```
+
+> **Warning:** Do NOT set high pool values in development. The system automatically adjusts based on environment detection. Default dev config (1 worker × 25 connections = 25) is safe for RDS t3.micro (~80 max connections).
 
 ### Local Development
 -   Use `docker-compose up db` for local PostgreSQL.

@@ -123,7 +123,10 @@ class FlowCore:
     # =============================================================================
 
     async def enroll_patient(
-        self, patient_id: UUID, flow_type: FlowType = FlowType.INITIAL_15_DAYS
+        self,
+        patient_id: UUID,
+        flow_type: FlowType = FlowType.INITIAL_15_DAYS,
+        auto_commit: bool = True,
     ) -> PatientFlowState:
         """
         Enroll a patient in a conversation flow.
@@ -131,6 +134,8 @@ class FlowCore:
         Args:
             patient_id: Patient UUID
             flow_type: Type of flow to start
+            auto_commit: If True (default), commits the transaction immediately.
+                         Set to False when using within a saga/Unit of Work pattern.
 
         Returns:
             Created flow state
@@ -150,9 +155,10 @@ class FlowCore:
             raise ValidationError("Patient already has active flow")
 
         # Get current template version for the flow type
+        # NOTE: Use kind_key column (not flow_type - that's just a property alias)
         flow_kind = (
             self.db.query(FlowKind)
-            .filter(FlowKind.flow_type == flow_type.value)
+            .filter(FlowKind.kind_key == flow_type.value)
             .first()
         )
         if not flow_kind:
@@ -161,10 +167,11 @@ class FlowCore:
             )
 
         # Get the active version for this flow kind (query the relationship)
+        # NOTE: Use flow_kind_id column (not kind_id - that's just a property alias)
         active_version = (
             self.db.query(FlowTemplateVersion)
             .filter(
-                FlowTemplateVersion.kind_id == flow_kind.id,
+                FlowTemplateVersion.flow_kind_id == flow_kind.id,
                 FlowTemplateVersion.is_active,
             )
             .first()
@@ -176,22 +183,33 @@ class FlowCore:
             )
 
         # Create new flow state
+        # NOTE: Use correct column names matching the database schema:
+        # - flow_template_version_id (not template_version_id)
+        # - step_data (not state_data)
         flow_state = PatientFlowState(
             patient_id=patient_id,
-            template_version_id=active_version.id,
+            flow_template_version_id=active_version.id,
             current_step=1,  # Start at day 1
             started_at=datetime.now(timezone.utc),
-            state_data={
+            step_data={
                 "enrollment_date": datetime.now(timezone.utc).isoformat(),
                 "ai_enabled": True,
                 "personalization_level": "high",
             },
         )
 
-        created_flow = self.flow_state_repo.create(flow_state)
+        # Add to session and persist
+        self.db.add(flow_state)
+        if auto_commit:
+            self.db.commit()
+        else:
+            # Saga/Unit of Work pattern: flush only, caller commits
+            self.db.flush()
+        self.db.refresh(flow_state)
+
         logger.info(f"Patient {patient_id} enrolled in flow {flow_type.value}")
 
-        return created_flow
+        return flow_state
 
     async def calculate_patient_day(self, patient_id: UUID) -> int:
         """
@@ -225,7 +243,7 @@ class FlowCore:
             tz = pytz.timezone("America/Sao_Paulo")
 
         # Calculate days since enrollment using local time
-        enrollment_date_str = flow_state.state_data.get(
+        enrollment_date_str = flow_state.step_data.get(
             "enrollment_date", flow_state.started_at.isoformat()
         )
         enrollment_dt = datetime.fromisoformat(enrollment_date_str)
@@ -292,8 +310,8 @@ class FlowCore:
             previous_state = {
                 "flow_type": current_flow_type.value,
                 "current_day": flow_state.current_step,
-                "is_paused": flow_state.state_data.get("paused", False)
-                if flow_state.state_data
+                "is_paused": flow_state.step_data.get("paused", False)
+                if flow_state.step_data
                 else False,
             }
 
@@ -309,8 +327,8 @@ class FlowCore:
             # Update current step
             previous_day = flow_state.current_step
             flow_state.current_step = current_day
-            flow_state.state_data = flow_state.state_data or {}
-            flow_state.state_data["last_advancement"] = datetime.now(timezone.utc).isoformat()
+            flow_state.step_data = flow_state.step_data or {}
+            flow_state.step_data["last_advancement"] = datetime.now(timezone.utc).isoformat()
 
             # Commit with optimistic locking to prevent race conditions
             self._commit_flow_state_with_lock(flow_state, expected_version)
@@ -393,9 +411,9 @@ class FlowCore:
                 "is_paused": False,
             }
 
-            # Update state data
-            flow_state.state_data = flow_state.state_data or {}
-            flow_state.state_data["paused"] = {
+            # Update step data
+            flow_state.step_data = flow_state.step_data or {}
+            flow_state.step_data["paused"] = {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "reason": reason or "Manual pause",
                 "current_step": flow_state.current_step,
@@ -450,9 +468,9 @@ class FlowCore:
             }
 
             # Remove pause data
-            if flow_state.state_data and "paused" in flow_state.state_data:
-                paused_data = flow_state.state_data.pop("paused")
-                flow_state.state_data["resumed"] = {
+            if flow_state.step_data and "paused" in flow_state.step_data:
+                paused_data = flow_state.step_data.pop("paused")
+                flow_state.step_data["resumed"] = {
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "was_paused_at": paused_data.get("timestamp"),
                     "pause_reason": paused_data.get("reason"),
@@ -504,7 +522,7 @@ class FlowCore:
                 }
 
             current_day = await self.calculate_patient_day(patient_id)
-            is_paused = flow_state.state_data and "paused" in flow_state.state_data
+            is_paused = flow_state.step_data and "paused" in flow_state.step_data
 
             return {
                 "status": "active",
@@ -517,7 +535,7 @@ class FlowCore:
                     "current_step": flow_state.current_step,
                     "started_at": flow_state.started_at.isoformat(),
                     "is_paused": is_paused,
-                    "state_data": flow_state.state_data,
+                    "step_data": flow_state.step_data,
                 },
             }
 
@@ -829,11 +847,11 @@ class FlowCore:
         old_flow_type = flow_state.flow_type
 
         flow_state.flow_type = new_flow_type.value
-        flow_state.state_data = flow_state.state_data or {}
-        flow_state.state_data["transitions"] = flow_state.state_data.get(
+        flow_state.step_data = flow_state.step_data or {}
+        flow_state.step_data["transitions"] = flow_state.step_data.get(
             "transitions", []
         )
-        flow_state.state_data["transitions"].append(
+        flow_state.step_data["transitions"].append(
             {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "from_flow": old_flow_type,

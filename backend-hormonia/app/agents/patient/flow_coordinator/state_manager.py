@@ -1,15 +1,19 @@
-"""
-State Manager - Manages flow context and patient state.
-"""
+"""State Manager - Manages flow context and patient state."""
 
+from __future__ import annotations
+
+# Standard library
 import logging
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 from uuid import UUID
 
+# Third-party
 from sqlalchemy.orm import Session
 
-from app.repositories.patient import PatientRepository
+# Local
 from app.repositories.flow import FlowStateRepository
+from app.repositories.patient import PatientRepository
+
 from .models import FlowContext
 
 
@@ -25,7 +29,21 @@ def _get_knowledge_graph():
 
 
 class StateManager:
-    """Manages flow state and context building."""
+    """
+    Manages flow state and context building.
+
+    Builds comprehensive context for flow decision making
+    by aggregating patient data, flow states, interactions,
+    and knowledge graph insights.
+
+    Attributes:
+        db_session: Database session.
+        agent_id: Unique agent identifier.
+        logger: Logger instance.
+        patient_repo: Patient repository.
+        flow_repo: Flow state repository.
+        knowledge_graph: Knowledge graph instance (optional).
+    """
 
     def __init__(self, db_session: Session, agent_id: str, logger: logging.Logger):
         self.db_session = db_session

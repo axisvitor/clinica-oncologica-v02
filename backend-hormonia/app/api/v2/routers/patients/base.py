@@ -5,19 +5,28 @@ Shared schemas, dependencies, and utilities for patient endpoints.
 This module provides common functionality used across all patient routers.
 """
 
-from typing import Optional, Tuple, List, Any, Dict
-from uuid import UUID
-import re
+# Standard library imports
+# NOTE: Removed 'from __future__ import annotations' to fix Pydantic/FastAPI
+# OpenAPI schema generation issues with Query() and Depends() parameters
 import logging
+import re
+from typing import Any, Dict, List, Optional, Tuple
+from uuid import UUID
 
-from fastapi import Depends, HTTPException, status, Cookie, Header
+# Third-party imports
+from fastapi import Cookie, Depends, Header, HTTPException, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
+# Local application imports
 from app.database import get_db
-from app.models.user import User, UserRole
-from app.models.patient import Patient, FlowState
 from app.dependencies.auth_dependencies import get_redis_cache
+from app.models.patient import FlowState, Patient
+from app.models.user import User, UserRole
+from app.utils.phone_validator import (
+    PhoneValidationError,
+    validate_and_format_phone as validate_phone_util,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +135,7 @@ async def get_current_user_simple(
     return user_data
 
 
-def extract_user_context(current_user: Any) -> Tuple[Optional[UserRole], Optional[str]]:
+async def extract_user_context(current_user: Any) -> Tuple[Optional[UserRole], Optional[str]]:
     """
     Extract role and user_id from current_user (model or dict).
 
@@ -159,9 +168,9 @@ def extract_user_context(current_user: Any) -> Tuple[Optional[UserRole], Optiona
     return role_enum, user_id
 
 
-def is_admin(current_user: Any) -> bool:
+async def is_admin(current_user: Any) -> bool:
     """Check if current user is an administrator."""
-    role_enum, _ = extract_user_context(current_user)
+    role_enum, _ = await extract_user_context(current_user)
     return role_enum == UserRole.ADMIN
 
 
@@ -170,7 +179,7 @@ def is_admin(current_user: Any) -> bool:
 # ============================================================================
 
 
-def ensure_uuid(value: Optional[str]) -> Optional[UUID]:
+async def ensure_uuid(value: Optional[str]) -> Optional[UUID]:
     """
     Convert string to UUID safely.
 
@@ -184,7 +193,7 @@ def ensure_uuid(value: Optional[str]) -> Optional[UUID]:
         return None
 
 
-def ensure_patient_access(current_user: Any, patient_doctor_id: UUID) -> None:
+async def ensure_patient_access(current_user: Any, patient_doctor_id: UUID) -> None:
     """
     Verify that current user has access to patient.
 
@@ -194,11 +203,11 @@ def ensure_patient_access(current_user: Any, patient_doctor_id: UUID) -> None:
     Raises:
         HTTPException: If user lacks permissions
     """
-    if is_admin(current_user):
+    if await is_admin(current_user):
         return
 
-    _, user_id = extract_user_context(current_user)
-    user_uuid = ensure_uuid(user_id)
+    _, user_id = await extract_user_context(current_user)
+    user_uuid = await ensure_uuid(user_id)
 
     if user_uuid is None or patient_doctor_id != user_uuid:
         raise HTTPException(
@@ -212,7 +221,7 @@ def ensure_patient_access(current_user: Any, patient_doctor_id: UUID) -> None:
 # ============================================================================
 
 
-def normalize_cpf(cpf: Optional[str]) -> Optional[str]:
+async def normalize_cpf(cpf: Optional[str]) -> Optional[str]:
     """
     Normalize CPF by removing non-digit characters.
 
@@ -228,7 +237,7 @@ def normalize_cpf(cpf: Optional[str]) -> Optional[str]:
     return normalized[:11] if normalized else None
 
 
-def normalize_phone(phone: Optional[str]) -> Optional[str]:
+async def normalize_phone(phone: Optional[str]) -> Optional[str]:
     """
     Normalize phone by removing non-digit characters (except +).
 
@@ -247,7 +256,7 @@ def normalize_phone(phone: Optional[str]) -> Optional[str]:
     return normalized if normalized else None
 
 
-def validate_and_format_phone(phone: str, strict: bool = True) -> Optional[str]:
+async def validate_and_format_phone(phone: str, strict: bool = True) -> Optional[str]:
     """
     Validate and format phone to E.164 format using robust validation.
 
@@ -261,13 +270,8 @@ def validate_and_format_phone(phone: str, strict: bool = True) -> Optional[str]:
     Raises:
         HTTPException: If phone is invalid and strict=True
     """
-    from app.utils.phone_validator import (
-        validate_and_format_phone as validate_phone,
-        PhoneValidationError,
-    )
-
     try:
-        is_valid, formatted, error = validate_phone(
+        is_valid, formatted, error = validate_phone_util(
             phone, default_region="BR", strict=False
         )
 
@@ -275,7 +279,7 @@ def validate_and_format_phone(phone: str, strict: bool = True) -> Optional[str]:
             if strict:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid phone number: {error}",
+                    detail="Invalid phone number format",
                 )
             return None
 
@@ -283,7 +287,7 @@ def validate_and_format_phone(phone: str, strict: bool = True) -> Optional[str]:
 
     except PhoneValidationError as e:
         if strict:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid phone number format")
         return None
 
 
@@ -292,7 +296,7 @@ def validate_and_format_phone(phone: str, strict: bool = True) -> Optional[str]:
 # ============================================================================
 
 
-def serialize_patient(patient: Optional[Patient]) -> Optional[Dict[str, Any]]:
+async def serialize_patient(patient: Optional[Patient]) -> Optional[Dict[str, Any]]:
     """
     Serialize Patient SQLAlchemy model to API-friendly dict.
 
@@ -333,7 +337,7 @@ def serialize_patient(patient: Optional[Patient]) -> Optional[Dict[str, Any]]:
     }
 
 
-def serialize_patient_with_includes(
+async def serialize_patient_with_includes(
     patient: Optional[Patient], include: Optional[List[str]] = None
 ) -> Optional[Dict[str, Any]]:
     """
@@ -349,7 +353,7 @@ def serialize_patient_with_includes(
     if not patient:
         return None
 
-    patient_dict = serialize_patient(patient)
+    patient_dict = await serialize_patient(patient)
 
     if include:
         if "doctor" in include and getattr(patient, "doctor", None):
@@ -383,7 +387,7 @@ def serialize_patient_with_includes(
 # ============================================================================
 
 
-def parse_flow_state_filter(status_filter: str) -> FlowState:
+async def parse_flow_state_filter(status_filter: str) -> FlowState:
     """
     Parse and normalize flow state filter string.
 

@@ -9,13 +9,13 @@ export function useWhatsAppInstances() {
 
   const { data: instances = [], isLoading } = useQuery<WhatsAppInstance[]>({
     queryKey: ['whatsapp-instances'],
-    queryFn: () => apiClient.request('/whatsapp/instances'),
+    queryFn: () => apiClient.request('/api/v2/whatsapp/instances'),
     refetchInterval: 30000 // Refresh every 30 seconds
   })
 
   const createInstanceMutation = useMutation({
     mutationFn: (instanceName: string) =>
-      apiClient.request('/whatsapp/instances', {
+      apiClient.request('/api/v2/whatsapp/instances', {
         method: 'POST',
         body: JSON.stringify({ name: instanceName })
       }),
@@ -35,7 +35,7 @@ export function useWhatsAppInstances() {
 
   const restartInstanceMutation = useMutation({
     mutationFn: (instanceName: string) =>
-      apiClient.request(`/whatsapp/instances/${instanceName}/restart`, {
+      apiClient.request(`/api/v2/whatsapp/instances/${instanceName}/restart`, {
         method: 'POST'
       }),
     onSuccess: () => {
@@ -54,7 +54,7 @@ export function useWhatsAppInstances() {
 
   const deleteInstanceMutation = useMutation({
     mutationFn: (instanceName: string) =>
-      apiClient.request(`/whatsapp/instances/${instanceName}`, {
+      apiClient.request(`/api/v2/whatsapp/instances/${instanceName}`, {
         method: 'DELETE'
       }),
     onSuccess: () => {

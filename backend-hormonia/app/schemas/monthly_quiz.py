@@ -4,6 +4,8 @@ Monthly Quiz Schemas for Hormonia Backend System.
 Pydantic schemas for monthly quiz via link functionality.
 """
 
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from uuid import UUID

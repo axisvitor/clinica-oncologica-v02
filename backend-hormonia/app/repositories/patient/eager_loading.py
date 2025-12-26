@@ -1,14 +1,19 @@
 """
 Query optimization with eager loading strategies.
+
+This module provides optimized eager loading strategies for patient
+queries to prevent N+1 query problems and improve performance.
 """
 
+from __future__ import annotations
+
 import logging
-from typing import List
+from typing import List, Optional
 
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import Query, joinedload, selectinload
 
-from app.models.patient import Patient
 from app.models.message import Message
+from app.models.patient import Patient
 
 logger = logging.getLogger(__name__)
 
@@ -16,9 +21,21 @@ logger = logging.getLogger(__name__)
 class PatientEagerLoadingMixin:
     """
     Mixin for optimized eager loading strategies.
+
+    Provides methods to apply optimal eager loading based on
+    relationship types to prevent N+1 queries.
+
+    Strategy:
+    - joinedload for 1:1 relationships (single query via JOIN)
+    - selectinload for 1:many relationships (separate optimized queries)
+
+    Methods:
+        _apply_eager_loading: Apply eager loading to query.
     """
 
-    def _apply_eager_loading(self, query, eager_load: List[str] = None):
+    def _apply_eager_loading(
+        self, query: Query, eager_load: Optional[List[str]] = None
+    ) -> Query:
         """
         Apply optimal eager loading strategies based on relationship types.
 

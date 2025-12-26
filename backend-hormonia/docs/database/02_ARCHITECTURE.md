@@ -15,19 +15,26 @@ We use a **Dual-Engine Architecture** to handle Row-Level Security (RLS) and Sys
 
 1.  **Service Role Engine:**
     -   **Usage:** Background tasks, Migrations, System ops.
-    -   **Pool:** ~30 connections/worker.
+    -   **Pool:** Environment-aware sizing.
     -   **Privilege:** Bypasses RLS policies.
     -   **Recycle:** 3600s.
 
 2.  **RLS Context Engine:**
     -   **Usage:** User-facing API requests.
-    -   **Pool:** ~15 connections/worker.
+    -   **Pool:** Environment-aware sizing.
     -   **Security:** Injects JWT claims into `current_setting`.
     -   **Recycle:** 1800s (Matches typical token lifecycles).
 
-**Environment Scaling:**
--   **Prod:** 10 pool + 10 overflow per worker (Strict limits for RDS t3.micro).
--   **Dev:** 20 pool + 30 overflow (Generous for local dev).
+**Environment Scaling (Fixed 22/12/2025):**
+
+| Environment | Workers | Pool Size | Max Overflow | Total Max |
+|-------------|---------|-----------|--------------|-----------|
+| **Production** | 4 | 10 | 10 | 80 |
+| **Staging** | 2 | 10 | 15 | 50 |
+| **Development** | 1 | 10 | 15 | 25 |
+| **Test** | 1 | 5 | 5 | 10 |
+
+> ⚠️ **Critical Fix Applied:** Previous dev config (4 workers × 50 connections = 200) exceeded AWS RDS t3.micro limit (~80). Now uses environment-aware worker count via `get_worker_count()` in `database_config.py`.
 
 ---
 
@@ -54,9 +61,17 @@ We use a **Dual-Engine Architecture** to handle Row-Level Security (RLS) and Sys
 -   `QuizRepository`: Cached sessions and templates.
 -   `AppointmentRepository`: Conflict detection logic.
 
-### Known Anti-Patterns (To Fix)
--   ⚠️ `TemplateRepository.list_active()` is unbounded (no limit).
--   ⚠️ Some complex filter logic in `PatientRepository` is duplicated.
+### Known Anti-Patterns (Status)
+
+#### ✅ Fixed (22/12/2025)
+-   ~~`AlertRepository` unbounded queries~~ → Added LIMIT 100 to `get_recent_alerts()`, `get_by_quiz_session()`, `get_by_status()`
+-   ~~`ConsentRepository` unbounded queries~~ → Added LIMIT 50-100 to `get_pending()`, `get_expiring_soon()`, `get_required_pending()`
+-   ~~`AppointmentRepository.get_pending_reminders()`~~ → Added LIMIT 100
+-   ~~`NotificationRepository.get_expired()`~~ → Added LIMIT 500
+
+#### ⚠️ Remaining Issues
+-   `TemplateRepository.list_active()` is unbounded (no limit).
+-   Some complex filter logic in `PatientRepository` is duplicated.
 
 ---
 

@@ -1,24 +1,42 @@
 """
 Analytics Tracker Module.
+
 Handles flow analytics, metrics collection, and response processing.
+Provides comprehensive metrics and insights for flow performance monitoring.
 """
 
+from __future__ import annotations
+
+# Standard library imports
 import logging
-from typing import Any, Optional, Tuple
 from datetime import datetime, timedelta, timezone
+from typing import Any, Optional, Tuple
 from uuid import UUID
+
+# Third-party imports
 from sqlalchemy.orm import Session
 
-from app.services.enhanced_flow_engine import EnhancedFlowEngine, FlowType
-from app.services.analytics import FlowAnalyticsService
-from app.repositories.patient import PatientRepository
+# Local application imports
 from app.repositories.flow import FlowStateRepository
-
-logger = logging.getLogger(__name__)
+from app.repositories.patient import PatientRepository
+from app.services.analytics import FlowAnalyticsService
+from app.services.enhanced_flow_engine import EnhancedFlowEngine, FlowType
 
 
 class AnalyticsTracker:
-    """Manages flow analytics, metrics, and response processing."""
+    """
+    Domain service for analytics tracking operations.
+
+    Manages flow analytics, metrics collection, and patient response processing
+    with AI-powered analysis and engagement scoring.
+
+    Attributes:
+        db: Database session.
+        enhanced_flow_engine: AI-powered flow engine.
+        analytics_service: Analytics service instance.
+        patient_repo: Patient repository.
+        flow_state_repo: Flow state repository.
+    """
 
     def __init__(
         self,
@@ -30,11 +48,12 @@ class AnalyticsTracker:
         Initialize analytics tracker.
 
         Args:
-            db: Database session
-            enhanced_flow_engine: Flow engine for AI processing
-            analytics_service: Analytics service instance
+            db: Database session.
+            enhanced_flow_engine: Flow engine for AI processing.
+            analytics_service: Analytics service instance.
         """
         self.db = db
+        self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.enhanced_flow_engine = enhanced_flow_engine or EnhancedFlowEngine(db)
         self.analytics_service = analytics_service or FlowAnalyticsService(db)
         self.patient_repo = PatientRepository(db)

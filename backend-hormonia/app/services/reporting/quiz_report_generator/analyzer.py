@@ -3,6 +3,8 @@ Medical insight generation and concern flag identification.
 Handles AI-powered analysis of quiz responses and trend patterns.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Any, List
 from uuid import UUID

@@ -1,19 +1,34 @@
-"""
-Transition Handler - Manages phase transitions and timing optimizations.
-"""
+"""Transition Handler - Manages phase transitions and timing optimizations."""
 
+from __future__ import annotations
+
+# Standard library
 import logging
-from typing import Dict, List, Any
 from datetime import datetime, timezone
+from typing import Any, Dict, List
 
+# Third-party
 from sqlalchemy.orm import Session
 
+# Local
 from app.services.enhanced_flow_engine import FlowType
+
 from .models import FlowContext
 
 
 class TransitionHandler:
-    """Handles flow phase transitions and timing optimizations."""
+    """
+    Handles flow phase transitions and timing optimizations.
+
+    Manages transitions between flow phases, optimizes message
+    timing based on patient engagement, and personalizes content
+    based on patient patterns and risk factors.
+
+    Attributes:
+        db_session: Database session.
+        agent_id: Unique agent identifier.
+        logger: Logger instance.
+    """
 
     def __init__(self, db_session: Session, agent_id: str, logger: logging.Logger):
         self.db_session = db_session

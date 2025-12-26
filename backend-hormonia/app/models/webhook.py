@@ -21,6 +21,11 @@ from uuid import uuid4
 
 from app.models.base import Base
 
+# Note: Webhook models use Base (not BaseModel) because they have custom
+# id/timestamp columns that differ from BaseModel's standard fields.
+# WebhookDelivery has completed_at, next_retry_at; WebhookLog has no updated_at.
+# Changing to BaseModel would require database migration.
+
 
 class WebhookEndpoint(Base):
     """

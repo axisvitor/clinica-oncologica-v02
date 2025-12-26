@@ -95,9 +95,9 @@ async def detailed_health_check(db: AsyncSession = Depends(get_db)) -> Dict[str,
         }
 
     except Exception as e:
-        logger.error(f"Detailed health check failed: {e}")
+        logger.error(f"Detailed health check failed: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Service health check failed"
         )
 
 
@@ -141,9 +141,9 @@ async def get_infrastructure_metrics() -> Dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error(f"Failed to get infrastructure metrics: {e}")
+        logger.error(f"Failed to get infrastructure metrics: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to retrieve infrastructure metrics"
         )
 
 
@@ -162,9 +162,9 @@ async def get_resource_trends(minutes: int = 30) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error(f"Failed to get resource trends: {e}")
+        logger.error(f"Failed to get resource trends: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to retrieve resource trends"
         )
 
 
@@ -199,9 +199,9 @@ async def get_capacity_forecast(resource_type: str = "cpu") -> Dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to generate forecast: {e}")
+        logger.error(f"Failed to generate forecast: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to generate capacity forecast"
         )
 
 
@@ -236,9 +236,9 @@ async def get_capacity_analysis(resource_type: str = "cpu") -> Dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to analyze capacity: {e}")
+        logger.error(f"Failed to analyze capacity: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to analyze capacity"
         )
 
 
@@ -252,9 +252,9 @@ async def get_capacity_report() -> Dict[str, Any]:
         return report
 
     except Exception as e:
-        logger.error(f"Failed to generate capacity report: {e}")
+        logger.error(f"Failed to generate capacity report: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to generate capacity report"
         )
 
 
@@ -301,9 +301,9 @@ async def get_alerts(
         }
 
     except Exception as e:
-        logger.error(f"Failed to get alerts: {e}")
+        logger.error(f"Failed to get alerts: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to retrieve alerts"
         )
 
 
@@ -331,9 +331,9 @@ async def acknowledge_alert(alert_id: str, acknowledged_by: str) -> Dict[str, An
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to acknowledge alert: {e}")
+        logger.error(f"Failed to acknowledge alert: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to acknowledge alert"
         )
 
 
@@ -366,9 +366,9 @@ async def resolve_alert(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to resolve alert: {e}")
+        logger.error(f"Failed to resolve alert: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to resolve alert"
         )
 
 
@@ -387,9 +387,9 @@ async def get_service_uptime(hours: int = 24) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error(f"Failed to get uptime report: {e}")
+        logger.error(f"Failed to get uptime report: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to retrieve uptime report"
         )
 
 
@@ -439,9 +439,9 @@ async def get_sla_metrics(service_name: str, hours: int = 24) -> Dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get SLA metrics: {e}")
+        logger.error(f"Failed to get SLA metrics: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to retrieve SLA metrics"
         )
 
 
@@ -473,9 +473,9 @@ async def reset_database_circuit_breaker() -> Dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error(f"Failed to reset circuit breaker: {e}")
+        logger.error(f"Failed to reset circuit breaker: {e}", exc_info=True)
         raise HTTPException(
-            status_code=500, detail=f"Failed to reset circuit breaker: {str(e)}"
+            status_code=500, detail="Failed to reset circuit breaker"
         )
 
 
@@ -496,7 +496,7 @@ async def get_circuit_breaker_status() -> Dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error(f"Failed to get circuit breaker status: {e}")
+        logger.error(f"Failed to get circuit breaker status: {e}", exc_info=True)
         raise HTTPException(
-            status_code=500, detail=f"Failed to get circuit breaker status: {str(e)}"
+            status_code=500, detail="Failed to get circuit breaker status"
         )

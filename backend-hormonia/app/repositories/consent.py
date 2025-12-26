@@ -256,7 +256,7 @@ class ConsentRepository(BaseRepository[Consent]):
                 joinedload(Consent.witness),
             )
 
-        return query.order_by(Consent.created_at.asc()).all()
+        return query.order_by(Consent.created_at.asc()).limit(100).all()  # FIX: Prevent unbounded query
 
     def get_expiring_soon(
         self, days: int = 30, eager_load: bool = True
@@ -293,7 +293,7 @@ class ConsentRepository(BaseRepository[Consent]):
                 joinedload(Consent.witness),
             )
 
-        return query.order_by(Consent.expires_at.asc()).all()
+        return query.order_by(Consent.expires_at.asc()).limit(100).all()  # FIX: Prevent unbounded query
 
     def grant_consent(
         self, consent_id: UUID, consented_by_id: UUID
@@ -374,4 +374,4 @@ class ConsentRepository(BaseRepository[Consent]):
                 joinedload(Consent.witness),
             )
 
-        return query.order_by(Consent.created_at.asc()).all()
+        return query.order_by(Consent.created_at.asc()).limit(50).all()  # FIX: Prevent unbounded query

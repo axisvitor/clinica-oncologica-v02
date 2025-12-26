@@ -8,6 +8,8 @@ Provides:
 - Template-specific analytics
 """
 
+from __future__ import annotations
+
 import logging
 import time
 from datetime import datetime, UTC, timezone

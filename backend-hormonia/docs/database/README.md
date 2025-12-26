@@ -2,11 +2,12 @@
 
 Welcome to the Hormonia Backend database documentation hub.
 
-> **Current State (19/12/2025):**
+> **Current State (22/12/2025):**
 > - **Total Tables:** 77
-> - **Migration Head:** `ac193e8656c1` (Create Sessions Table)
-> - **Sync Status:** Flow Domain RDS Standardization completed.
-> - **Environment:** Production (AWS RDS)
+> - **Total Indexes:** 479+
+> - **Migration Head:** `034_add_performance_indexes`
+> - **Recent Fixes:** Pool config, N+1 queries, unbounded queries, FlowState enum consolidation
+> - **Environment:** Production (AWS RDS sa-east-1)
 
 ## 📚 Core Documentation
 

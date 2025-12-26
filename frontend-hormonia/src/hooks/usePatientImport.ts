@@ -154,18 +154,18 @@ export function usePatientImport(): UsePatientImportReturn {
 
         // Transform API response to ImportResult
         const importResult: ImportResult = {
-          total: result.total,
-          successful: result.successful,
+          total: result.success + result.failed,
+          successful: result.success,
           failed: result.failed,
-          skipped: result.skipped || 0,
-          updated: result.updated || 0,
+          skipped: 0,
+          updated: 0,
           errors: result.errors.map(err => ({
             row: err.row,
-            patientName: err.patientName,
+            patientName: `Linha ${err.row}`,
             message: err.message,
-            code: err.code,
+            code: 'IMPORT_ERROR',
           })),
-          sessionId: result.sessionId,
+          sessionId: `import-${Date.now()}`,
         };
 
         setImportResult(importResult);

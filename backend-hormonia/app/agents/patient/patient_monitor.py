@@ -1,30 +1,44 @@
 """
-Patient Monitor Agent
+Patient Monitor Agent.
 
 Responsible for continuous monitoring of patient status, adherence to treatment,
 and detection of potential issues requiring intervention.
 """
 
-from typing import Dict, List, Any
-from datetime import datetime, timezone
+from __future__ import annotations
+
+# Standard library
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List
 from uuid import UUID
 
+# Third-party
 from sqlalchemy.orm import Session
 
-from app.agents.base import BaseAgent, AgentCapabilities
+# Local
+from app.agents.base import AgentCapabilities, BaseAgent
+from app.models.quiz import QuizSession
 from app.repositories.patient import PatientRepository
 from app.utils.logging import get_logger
 
 
 class PatientMonitorAgent(BaseAgent):
     """
-    Agent specialized in monitoring patient status and adherence.
+    Monitors patient status and treatment adherence.
+
+    Continuously tracks patient engagement, detects potential
+    issues, and triggers alerts when intervention is needed.
 
     Capabilities:
-    - Monitor treatment adherence
-    - Detect missed check-ins
-    - Track patient engagement
-    - Trigger reminders and alerts
+    - Monitor treatment adherence.
+    - Detect missed check-ins.
+    - Track patient engagement.
+    - Trigger reminders and alerts.
+
+    Attributes:
+        patient_repo: Patient repository.
+        logger: Logger instance.
+        monitoring_config: Monitoring configuration parameters.
     """
 
     def __init__(self, db_session: Session):
@@ -108,21 +122,237 @@ class PatientMonitorAgent(BaseAgent):
             return {"success": False, "error": str(e)}
 
     async def _monitor_adherence(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """Monitor treatment adherence for a patient."""
-        # Placeholder for adherence logic
-        # In a real implementation, this would check quiz completions vs expected schedule
-        return {
-            "success": True,
-            "message": "Adherence monitoring not fully implemented yet",
-        }
+        """
+        Monitor treatment adherence for a patient.
+
+        Calculates adherence rate based on completed quizzes vs expected quizzes.
+        Triggers alert when adherence falls below threshold (70%).
+
+        Args:
+            payload: Dict containing patient_id and optional days_back (default 30)
+
+        Returns:
+            Dict with adherence_rate, total_expected, total_completed, and alerts
+        """
+        try:
+            patient_id_str = payload.get("patient_id")
+            if not patient_id_str:
+                return {"success": False, "error": "Missing patient_id"}
+
+            patient_id = UUID(patient_id_str)
+            days_back = payload.get("days_back", 30)
+
+            # Get patient
+            patient = self.patient_repo.get(patient_id)
+            if not patient:
+                return {"success": False, "error": "Patient not found"}
+
+            # Calculate date range for analysis
+            end_date = datetime.now(timezone.utc)
+            start_date = end_date - timedelta(days=days_back)
+
+            # Query completed quiz sessions in the period
+            completed_sessions = (
+                self.db_session.query(QuizSession)
+                .filter(
+                    QuizSession.patient_id == patient_id,
+                    QuizSession.status == "completed",
+                    QuizSession.completed_at >= start_date,
+                    QuizSession.completed_at <= end_date,
+                )
+                .count()
+            )
+
+            # Query all quiz sessions (including incomplete) in the period
+            total_sessions = (
+                self.db_session.query(QuizSession)
+                .filter(
+                    QuizSession.patient_id == patient_id,
+                    QuizSession.started_at >= start_date,
+                    QuizSession.started_at <= end_date,
+                )
+                .count()
+            )
+
+            # Calculate expected quizzes based on treatment phase
+            # Monthly recurring expects ~1 quiz per month
+            # Initial phase expects more frequent quizzes
+            current_day = getattr(patient, "current_day", 0) or 0
+            if current_day <= 15:
+                expected_quizzes = max(1, days_back // 5)  # Every 5 days initially
+            elif current_day <= 45:
+                expected_quizzes = max(1, days_back // 10)  # Every 10 days
+            else:
+                expected_quizzes = max(1, days_back // 30)  # Monthly
+
+            # Use max of expected or actual sent
+            total_expected = max(expected_quizzes, total_sessions)
+
+            # Calculate adherence rate
+            if total_expected > 0:
+                adherence_rate = completed_sessions / total_expected
+            else:
+                adherence_rate = 1.0  # No quizzes expected yet
+
+            # Build response
+            alerts: List[str] = []
+            threshold = self.monitoring_config["adherence_alert_threshold"]
+
+            if adherence_rate < threshold:
+                alerts.append(
+                    f"Low adherence: {adherence_rate:.1%} (threshold: {threshold:.0%})"
+                )
+                self.logger.warning(
+                    f"Patient {patient_id} adherence {adherence_rate:.1%} below threshold"
+                )
+
+            return {
+                "success": True,
+                "patient_id": str(patient_id),
+                "adherence_rate": round(adherence_rate, 3),
+                "total_expected": total_expected,
+                "total_completed": completed_sessions,
+                "total_started": total_sessions,
+                "days_analyzed": days_back,
+                "threshold": threshold,
+                "below_threshold": adherence_rate < threshold,
+                "alerts": alerts,
+            }
+
+        except Exception as e:
+            self.logger.error(f"Adherence monitoring failed: {e}")
+            return {"success": False, "error": str(e)}
 
     async def _detect_engagement_drop(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """Detect drops in patient engagement."""
-        # Placeholder for engagement drop logic
-        return {
-            "success": True,
-            "message": "Engagement drop detection not fully implemented yet",
-        }
+        """
+        Detect drops in patient engagement.
+
+        Analyzes interaction frequency to identify disengaged patients
+        based on days since last activity and quiz participation trends.
+
+        Args:
+            payload: Dict containing patient_id and optional lookback_days
+
+        Returns:
+            Dict with engagement status, days_since_activity, and alerts
+        """
+        try:
+            patient_id_str = payload.get("patient_id")
+            if not patient_id_str:
+                return {"success": False, "error": "Missing patient_id"}
+
+            patient_id = UUID(patient_id_str)
+            lookback_days = payload.get(
+                "lookback_days", self.monitoring_config["engagement_threshold_days"]
+            )
+
+            # Get patient
+            patient = self.patient_repo.get(patient_id)
+            if not patient:
+                return {"success": False, "error": "Patient not found"}
+
+            now = datetime.now(timezone.utc)
+
+            # Check last quiz activity
+            last_quiz = (
+                self.db_session.query(QuizSession)
+                .filter(QuizSession.patient_id == patient_id)
+                .order_by(QuizSession.started_at.desc())
+                .first()
+            )
+
+            # Calculate days since last activity
+            last_activity = patient.updated_at or patient.created_at
+            if last_quiz and last_quiz.started_at:
+                quiz_activity = last_quiz.started_at
+                if quiz_activity.tzinfo is None:
+                    quiz_activity = quiz_activity.replace(tzinfo=timezone.utc)
+                if quiz_activity > last_activity:
+                    last_activity = quiz_activity
+
+            if last_activity.tzinfo is None:
+                last_activity = last_activity.replace(tzinfo=timezone.utc)
+
+            days_since_activity = (now - last_activity).days
+
+            # Calculate engagement trend (compare recent vs past activity)
+            recent_period = now - timedelta(days=lookback_days)
+            past_period_start = recent_period - timedelta(days=lookback_days)
+
+            recent_quizzes = (
+                self.db_session.query(QuizSession)
+                .filter(
+                    QuizSession.patient_id == patient_id,
+                    QuizSession.started_at >= recent_period,
+                )
+                .count()
+            )
+
+            past_quizzes = (
+                self.db_session.query(QuizSession)
+                .filter(
+                    QuizSession.patient_id == patient_id,
+                    QuizSession.started_at >= past_period_start,
+                    QuizSession.started_at < recent_period,
+                )
+                .count()
+            )
+
+            # Detect engagement drop
+            engagement_dropped = False
+            drop_percentage = 0.0
+
+            if past_quizzes > 0:
+                drop_percentage = (past_quizzes - recent_quizzes) / past_quizzes
+                engagement_dropped = drop_percentage > 0.5  # 50% drop threshold
+
+            # Build alerts
+            alerts: List[str] = []
+            threshold = self.monitoring_config["engagement_threshold_days"]
+
+            if days_since_activity > threshold:
+                alerts.append(
+                    f"No activity in {days_since_activity} days (threshold: {threshold})"
+                )
+
+            if engagement_dropped:
+                alerts.append(
+                    f"Engagement dropped {drop_percentage:.0%} compared to previous period"
+                )
+
+            # Determine engagement status
+            if days_since_activity <= 3:
+                engagement_status = "active"
+            elif days_since_activity <= threshold:
+                engagement_status = "moderate"
+            else:
+                engagement_status = "low"
+
+            if engagement_dropped:
+                engagement_status = "declining"
+
+            self.logger.info(
+                f"Patient {patient_id} engagement: {engagement_status}, "
+                f"days since activity: {days_since_activity}"
+            )
+
+            return {
+                "success": True,
+                "patient_id": str(patient_id),
+                "engagement_status": engagement_status,
+                "days_since_activity": days_since_activity,
+                "recent_quizzes": recent_quizzes,
+                "past_quizzes": past_quizzes,
+                "engagement_dropped": engagement_dropped,
+                "drop_percentage": round(drop_percentage, 3) if engagement_dropped else 0,
+                "threshold_days": threshold,
+                "needs_attention": days_since_activity > threshold or engagement_dropped,
+                "alerts": alerts,
+            }
+
+        except Exception as e:
+            self.logger.error(f"Engagement drop detection failed: {e}")
+            return {"success": False, "error": str(e)}
 
     async def get_capabilities(self) -> List[str]:
         """Return list of capabilities."""

@@ -1,29 +1,40 @@
 """
 Message Handler Module.
+
 Handles message creation, scheduling, callbacks, and retry logic.
+Coordinates message lifecycle from creation through delivery with robust error handling.
 """
 
+from __future__ import annotations
+
+# Standard library imports
 import asyncio
 import logging
-from typing import Optional, Any
 from datetime import datetime, timedelta, timezone
+from typing import Any, Optional
 from uuid import UUID
-from sqlalchemy.orm import Session
+
+# Third-party imports
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
-from app.domain.messaging.scheduling import MessageScheduler
-from app.services.unified_whatsapp_service import UnifiedWhatsAppService, MessagingMode
-from app.services.template_loader import MessageTemplate
-from app.services.analytics import FlowAnalyticsService
+# Local application imports
 from app.domain.flows.events import flow_event_broadcaster
-from app.services.platform_synchronization import get_platform_sync_service
-from app.models.message import Message, MessageType, MessageStatus, MessageDirection
-from app.models.flow import PatientFlowState
-from app.repositories.patient import PatientRepository
-from app.repositories.flow import FlowStateRepository
+from app.domain.messaging.scheduling import MessageScheduler
 from app.exceptions import NotFoundError
-
-logger = logging.getLogger(__name__)
+from app.models.flow import PatientFlowState
+from app.models.message import (
+    Message,
+    MessageDirection,
+    MessageStatus,
+    MessageType,
+)
+from app.repositories.flow import FlowStateRepository
+from app.repositories.patient import PatientRepository
+from app.services.analytics import FlowAnalyticsService
+from app.services.platform_synchronization import get_platform_sync_service
+from app.services.template_loader import MessageTemplate
+from app.services.unified_whatsapp_service import MessagingMode, UnifiedWhatsAppService
 
 
 class SchedulerError(Exception):
@@ -33,7 +44,22 @@ class SchedulerError(Exception):
 
 
 class MessageHandler:
-    """Handles message creation, scheduling, and lifecycle callbacks."""
+    """
+    Domain service for message handling operations.
+
+    Implements message creation, scheduling, and lifecycle callbacks
+    with atomic transaction safety and comprehensive error handling.
+
+    Attributes:
+        db: Database session.
+        message_scheduler: Message scheduler instance.
+        message_sender: Unified WhatsApp service.
+        analytics_service: Analytics service instance.
+        flow_broadcaster: Event broadcaster.
+        platform_sync: Platform synchronization service.
+        patient_repo: Patient repository.
+        flow_state_repo: Flow state repository.
+    """
 
     def __init__(
         self,
@@ -45,11 +71,12 @@ class MessageHandler:
         Initialize message handler.
 
         Args:
-            db: Database session
-            message_scheduler: Message scheduler instance
-            analytics_service: Analytics service instance
+            db: Database session.
+            message_scheduler: Message scheduler instance.
+            analytics_service: Analytics service instance.
         """
         self.db = db
+        self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.message_scheduler = message_scheduler or MessageScheduler(db)
 
         # Use unified service exclusively
@@ -452,6 +479,29 @@ class MessageHandler:
                     except Exception as sync_error:
                         logger.warning(
                             f"Failed to sync to platform (non-critical): {sync_error}"
+                        )
+
+                    # Register message with follow-up system (non-critical)
+                    try:
+                        from app.services.follow_up_system.service import (
+                            get_follow_up_system_service,
+                        )
+
+                        follow_up_service = get_follow_up_system_service(self.db)
+                        await follow_up_service.context_manager.update_context_with_message(
+                            patient_id=message.patient_id,
+                            message_id=message.id,
+                            content=message.content,
+                            direction="outbound",
+                            flow_day=flow_context.get("current_day"),
+                            intent=flow_context.get("template_intent"),
+                        )
+                        logger.debug(
+                            f"Registered message {message.id} with follow-up system"
+                        )
+                    except Exception as followup_error:
+                        logger.warning(
+                            f"Failed to register with follow-up system (non-critical): {followup_error}"
                         )
 
             logger.info(f"Flow message sent callback executed for message {message.id}")

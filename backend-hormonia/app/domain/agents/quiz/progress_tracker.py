@@ -4,8 +4,11 @@ Progress Tracker - Monitors patient engagement, mood, and stress levels.
 Handles progress tracking, mood analysis, stress assessment, and intervention triggers.
 """
 
+from __future__ import annotations
+
+# Standard library imports
 import logging
-from typing import Dict, List, Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from app.domain.agents.quiz.session_coordinator import QuizContext
@@ -15,27 +18,39 @@ class ProgressTracker:
     """
     Tracks patient progress, engagement, and emotional state during quiz sessions.
 
-    Responsibilities:
-    - Analyze current mood indicators
-    - Assess stress levels
-    - Calculate engagement scores
-    - Extract medical insights from responses
-    - Generate follow-up recommendations
-    - Determine early completion triggers
-    - Detect intervention needs
+    Monitors quiz progress and analyzes patient state to enable
+    adaptive quiz behavior and intervention triggers.
+
+    Attributes:
+        stress_threshold: Threshold for high stress detection.
+        engagement_threshold: Minimum acceptable engagement score.
+        intervention_distress_threshold: Threshold for triggering interventions.
     """
 
     def __init__(self, logger: Optional[logging.Logger] = None):
-        """Initialize progress tracker."""
-        self.logger = logger or logging.getLogger(__name__)
+        """
+        Initialize progress tracker.
+
+        Args:
+            logger: Logger instance. Creates new logger if not provided.
+        """
+        self._logger = logger or logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
         # Thresholds
         self.stress_threshold = 0.7
         self.engagement_threshold = 0.4
         self.intervention_distress_threshold = 0.9
 
-    async def analyze_current_mood(self, context: "QuizContext") -> Dict[str, Any]:
-        """Analyze current mood indicators."""
+    async def analyze_current_mood(self, context: QuizContext) -> Dict[str, Any]:
+        """
+        Analyze current mood indicators from context.
+
+        Args:
+            context: Quiz context with knowledge graph patterns.
+
+        Returns:
+            Dictionary with mood trend, distress level, and confidence.
+        """
         mood_data = {"trend": 0.0, "distress": 0.0, "confidence": 0.5}
 
         # Use knowledge graph patterns

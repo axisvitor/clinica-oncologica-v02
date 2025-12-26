@@ -45,7 +45,9 @@ def execute_pending_follow_ups(self) -> Dict[str, Any]:
 
     try:
         with get_db_session() as db:
-            from app.services.follow_up_system import FollowUpSystemService
+            import asyncio
+            from asgiref.sync import async_to_sync
+            from app.services.follow_up_system.service import FollowUpSystemService
 
             follow_up_service = FollowUpSystemService(db)
 
@@ -56,12 +58,45 @@ def execute_pending_follow_ups(self) -> Dict[str, Any]:
             skipped_count = 0
             errors = []
 
-            # Process pending actions from in-memory store
-            # NOTE: This is a temporary solution until Redis persistence is implemented
+            # Rehydrate state from Redis before processing
+            # This ensures we have the latest persisted state after service restarts
+            try:
+                async_to_sync(follow_up_service.rehydrate_from_redis)()
+            except Exception as e:
+                logger.warning(f"Failed to rehydrate from Redis: {e}")
+
+            # Get pending actions from Redis store (with in-memory fallback)
+            # This replaces direct access to the in-memory pending_actions dict
+            try:
+                pending_action_dicts = async_to_sync(
+                    follow_up_service.redis_store.get_pending_actions
+                )(limit=100, before=now)
+            except Exception as e:
+                logger.warning(f"Redis get_pending_actions failed, using in-memory: {e}")
+                pending_action_dicts = []
+
+            # Convert dicts to action tuples, falling back to in-memory if Redis empty
             actions_to_execute = []
-            for action_id, action in list(follow_up_service.pending_actions.items()):
-                if action.status == "pending" and action.scheduled_for <= now:
-                    actions_to_execute.append((action_id, action))
+            if pending_action_dicts:
+                for action_dict in pending_action_dicts:
+                    action_id = UUID(action_dict["action_id"])
+                    # Get from in-memory cache or reconstruct
+                    if action_id in follow_up_service.pending_actions:
+                        action = follow_up_service.pending_actions[action_id]
+                        actions_to_execute.append((action_id, action))
+            else:
+                # Fallback to in-memory dict if Redis returned empty
+                for action_id, action in list(follow_up_service.pending_actions.items()):
+                    if action.status == "pending" and action.scheduled_for <= now:
+                        actions_to_execute.append((action_id, action))
+
+            # Sync in-memory state back to Redis after fallback usage
+            if not pending_action_dicts and actions_to_execute:
+                try:
+                    async_to_sync(follow_up_service.sync_memory_to_redis)()
+                    logger.info("Synced in-memory actions back to Redis")
+                except Exception as sync_err:
+                    logger.warning(f"Failed to sync memory to Redis: {sync_err}")
 
             logger.info(
                 f"Found {len(actions_to_execute)} pending follow-up actions to execute"
@@ -71,12 +106,26 @@ def execute_pending_follow_ups(self) -> Dict[str, Any]:
                 try:
                     # Execute the action based on its type
                     result = _execute_follow_up_action(db, follow_up_service, action)
+                    executed_at = datetime.now(timezone.utc)
 
                     if result.get("success"):
                         action.status = "completed"
-                        action.executed_at = datetime.now(timezone.utc)
+                        action.executed_at = executed_at
                         action.execution_result = result
                         executed_count += 1
+
+                        # Persist status update to Redis
+                        try:
+                            async_to_sync(
+                                follow_up_service.redis_store.update_action_status
+                            )(
+                                action_id=action_id,
+                                status="completed",
+                                executed_at=executed_at,
+                                execution_result=result,
+                            )
+                        except Exception as redis_err:
+                            logger.warning(f"Failed to persist action status to Redis: {redis_err}")
 
                         logger.info(
                             f"Executed follow-up action {action_id} "
@@ -84,8 +133,23 @@ def execute_pending_follow_ups(self) -> Dict[str, Any]:
                         )
                     else:
                         action.status = "failed"
+                        action.executed_at = executed_at
                         action.execution_result = result
                         failed_count += 1
+
+                        # Persist failed status to Redis
+                        try:
+                            async_to_sync(
+                                follow_up_service.redis_store.update_action_status
+                            )(
+                                action_id=action_id,
+                                status="failed",
+                                executed_at=executed_at,
+                                execution_result=result,
+                            )
+                        except Exception as redis_err:
+                            logger.warning(f"Failed to persist action status to Redis: {redis_err}")
+
                         errors.append(
                             {
                                 "action_id": str(action_id),
@@ -152,7 +216,7 @@ def _execute_follow_up_action(db, follow_up_service, action) -> Dict[str, Any]:
     Returns:
         Dict with execution result
     """
-    from app.services.follow_up_system import FollowUpType
+    from app.services.follow_up_system.enums import FollowUpType
 
     try:
         action_type = action.follow_up_type
@@ -371,10 +435,8 @@ def process_escalation_alerts(self) -> Dict[str, Any]:
 
     try:
         with get_db_session() as db:
-            from app.services.follow_up_system import (
-                FollowUpSystemService,
-                EscalationLevel,
-            )
+            from app.services.follow_up_system.service import FollowUpSystemService
+            from app.services.follow_up_system.enums import EscalationLevel
 
             follow_up_service = FollowUpSystemService(db)
 
@@ -444,7 +506,7 @@ def cleanup_old_contexts(self) -> Dict[str, Any]:
 
     try:
         with get_db_session() as db:
-            from app.services.follow_up_system import FollowUpSystemService
+            from app.services.follow_up_system.service import FollowUpSystemService
 
             follow_up_service = FollowUpSystemService(db)
 

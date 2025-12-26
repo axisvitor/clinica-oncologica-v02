@@ -3,6 +3,8 @@ Enhanced Quiz schemas for API v2
 Advanced quiz models with branching logic, risk scoring, and adaptive flows.
 """
 
+from __future__ import annotations
+
 from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 from enum import Enum

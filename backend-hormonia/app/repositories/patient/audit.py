@@ -1,9 +1,15 @@
 """
 Hard delete operations with LGPD compliance audit trail.
+
+This module provides LGPD-compliant hard delete operations with
+comprehensive audit logging for patient data deletion requests.
 """
+
+from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import delete
@@ -16,9 +22,18 @@ logger = logging.getLogger(__name__)
 class PatientAuditMixin:
     """
     Hard delete operations with audit trail for LGPD compliance.
+
+    Provides irreversible hard delete operations for patient data
+    with comprehensive audit logging to comply with LGPD Article 16
+    (Right to deletion) and Article 18 (Right to data portability).
+
+    Methods:
+        hard_delete: Permanently delete patient data with audit trail.
     """
 
-    async def hard_delete(self, patient_id: UUID, *, audit_reason: str = None) -> bool:
+    async def hard_delete(
+        self, patient_id: UUID, *, audit_reason: Optional[str] = None
+    ) -> bool:
         """
         Permanently delete patient data for LGPD Art. 16 compliance.
 

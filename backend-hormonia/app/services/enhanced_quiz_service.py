@@ -3,6 +3,8 @@ Enhanced Quiz Service
 Business logic for advanced quiz operations, risk scoring, and adaptive flows.
 """
 
+from __future__ import annotations
+
 import json
 import hashlib
 import uuid
@@ -497,30 +499,31 @@ class EnhancedQuizService:
         if risk_request.session_id:
             query = query.filter(QuizSession.id == UUID(risk_request.session_id))
 
+        # FIX: Use selectinload for one-to-many relationships to avoid cartesian product
+        # joinedload for one-to-one (quiz_template), selectinload for one-to-many (responses)
+        from sqlalchemy.orm import selectinload
         sessions = query.options(
-            joinedload(QuizSession.quiz_template), joinedload(QuizSession.responses)
+            joinedload(QuizSession.quiz_template),
+            selectinload(QuizSession.responses)
         ).all()
         if not sessions:
             raise HTTPException(status_code=404, detail="No sessions found")
 
         latest_session = sessions[0]
-        responses = (
-            self.db.query(QuizResponse)
-            .filter(QuizResponse.quiz_session_id == latest_session.id)
-            .all()
-        )
+        # FIX: Use already-loaded responses from selectinload instead of N+1 queries
+        # The responses are already loaded via selectinload(QuizSession.responses) above
+        responses = list(latest_session.responses) if latest_session.responses else []
         current_risk = self._calculate_risk_score(
             responses, latest_session.quiz_template
         )
 
         historical_scores = []
         if risk_request.include_historical and len(sessions) > 1:
+            # FIX: Use already-loaded relationships instead of individual queries per session
+            # This eliminates the N+1 pattern that was causing len(sessions)-1 extra queries
             for session in sessions[1:]:
-                s_responses = (
-                    self.db.query(QuizResponse)
-                    .filter(QuizResponse.quiz_session_id == session.id)
-                    .all()
-                )
+                # Use eager-loaded responses directly
+                s_responses = list(session.responses) if session.responses else []
                 if s_responses:
                     risk = self._calculate_risk_score(
                         s_responses, session.quiz_template

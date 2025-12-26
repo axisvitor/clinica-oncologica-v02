@@ -25,6 +25,7 @@ from app.utils.rate_limiter import limiter
 from app.utils.logging import get_logger
 from app.config import settings
 from app.database import get_db
+from app.api.v2.utils.auth_helpers import is_admin as _is_admin
 
 router = APIRouter(tags=["system-metrics"])
 logger = get_logger(__name__)
@@ -45,18 +46,6 @@ async def _get_redis_client():
     except Exception as e:
         logger.warning(f"Failed to get Redis client: {e}")
         return None
-
-
-def _is_admin(current_user) -> bool:
-    """Check if user has admin role."""
-    if isinstance(current_user, dict):
-        role = current_user.get("role")
-    else:
-        role = getattr(current_user, "role", None)
-
-    if isinstance(role, UserRole):
-        return role == UserRole.ADMIN
-    return str(role).upper() == "ADMIN"
 
 
 # ============================================================================
@@ -168,8 +157,8 @@ async def get_system_metrics(
                 memory_info = await redis.info("memory")
                 if "used_memory" in memory_info:
                     cache_memory_mb = memory_info["used_memory"] / (1024 * 1024)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Redis info retrieval failed: {e}")
 
         return SystemMetrics(
             timestamp=datetime.now(timezone.utc),

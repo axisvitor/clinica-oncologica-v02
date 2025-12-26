@@ -4,6 +4,8 @@ Quiz Monitoring Tasks.
 Handles quiz trigger checks, link monitoring, and reminders.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Any
 from uuid import UUID
@@ -32,7 +34,7 @@ def check_quiz_triggers_task(self, limit: int = 100) -> dict[str, Any]:
     Raises:
         Exception: If quiz trigger checking fails after all retries
     """
-    import asyncio
+    from asgiref.sync import async_to_sync
 
     try:
         with next(get_db()) as db:
@@ -71,10 +73,11 @@ def check_quiz_triggers_task(self, limit: int = 100) -> dict[str, Any]:
                         "trigger_reason": "Monthly quiz day 30",
                     }
 
-                    # Trigger quiz (will choose link vs conversational automatically)
-                    result = asyncio.run(
-                        trigger_service._trigger_patient_quiz(flow_state, quiz_info)
-                    )
+                    # FIX: Use async_to_sync instead of asyncio.run() to avoid
+                    # event loop conflicts in Celery tasks
+                    result = async_to_sync(
+                        trigger_service._trigger_patient_quiz
+                    )(flow_state, quiz_info)
 
                     trigger_result = {
                         "triggered": result.get("success", False),
@@ -147,19 +150,18 @@ def send_quiz_link_reminder_task(
     """
     try:
         with next(get_db()) as db:
+            from asgiref.sync import async_to_sync
             from app.services.monthly_quiz_message_integration import (
                 MonthlyQuizMessageIntegration,
             )
 
             quiz_integration = MonthlyQuizMessageIntegration(db)
 
-            import asyncio
-
-            result = asyncio.run(
-                quiz_integration.send_quiz_reminder(
-                    quiz_session_id=UUID(quiz_session_id),
-                    hours_before_expiry=hours_before_expiry,
-                )
+            # FIX: Use async_to_sync instead of asyncio.run() to avoid
+            # event loop conflicts in Celery tasks
+            result = async_to_sync(quiz_integration.send_quiz_reminder)(
+                quiz_session_id=UUID(quiz_session_id),
+                hours_before_expiry=hours_before_expiry,
             )
 
             if result.get("reminder_sent"):
@@ -205,7 +207,7 @@ def monitor_quiz_links_task(self) -> dict[str, Any]:
     """
     try:
         with next(get_db()) as db:
-            from app.domain.quizzes import MonthlyQuizService
+            from app.services.quiz.quiz_service import MonthlyQuizService
             from app.services.monthly_quiz_message_integration import (
                 MonthlyQuizMessageIntegration,
             )

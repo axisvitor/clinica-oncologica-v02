@@ -2,23 +2,32 @@
 AI Services Dependencies - Shared dependencies and utility functions.
 """
 
-import logging
+# Standard library imports
 import hashlib
 import json
-from typing import Optional, Dict, Any
+import logging
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from typing import Any, Dict, Optional
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, status
+# Third-party imports
 import redis.asyncio as redis
+from fastapi import Depends, HTTPException, status
 
-from app.models.user import User, UserRole
-from app.dependencies import get_current_user
-from app.schemas.v2.ai import TokenUsage, AIModelType
+# Local application imports
 from app.config import settings
+from app.dependencies import get_current_user
+from app.models.user import User, UserRole
+from app.schemas.v2.ai import AIModelType, TokenUsage
+
 from .constants import COST_PER_1K_TOKENS
 
 logger = logging.getLogger(__name__)
+
+
+# Shared Redis connection pool to prevent connection leaks
+_redis_pool: Optional[redis.ConnectionPool] = None
 
 
 async def verify_physician_or_admin(
@@ -42,15 +51,33 @@ async def verify_physician_or_admin(
     return current_user
 
 
+async def _get_redis_pool() -> Optional[redis.ConnectionPool]:
+    """Get or create shared Redis connection pool."""
+    global _redis_pool
+    if _redis_pool is None:
+        try:
+            _redis_pool = redis.ConnectionPool.from_url(
+                settings.REDIS_URL,
+                decode_responses=True,
+                max_connections=20,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to create Redis pool: {e}")
+            return None
+    return _redis_pool
+
+
 async def get_redis_cache() -> Optional[redis.Redis]:
-    """Get Redis client with error handling."""
+    """Get Redis client with error handling using shared pool."""
     try:
-        client = redis.from_url(
-            settings.REDIS_URL,
-            decode_responses=True,
+        pool = await _get_redis_pool()
+        if pool is None:
+            return None
+
+        client = redis.Redis(
+            connection_pool=pool,
             socket_connect_timeout=5,
             socket_timeout=5,
-            max_connections=20,
         )
         await client.ping()
         return client
@@ -59,12 +86,51 @@ async def get_redis_cache() -> Optional[redis.Redis]:
         return None
 
 
-def generate_cache_key(prefix: str, **kwargs) -> str:
-    """Generate deterministic cache key from parameters."""
+@asynccontextmanager
+async def redis_connection():
+    """
+    Context manager for Redis connections that ensures proper cleanup.
+
+    FIX: Use this instead of get_redis_cache() to prevent connection leaks.
+
+    Usage:
+        async with redis_connection() as client:
+            if client:
+                await client.get("key")
+    """
+    client = None
+    try:
+        client = await get_redis_cache()
+        yield client
+    finally:
+        if client:
+            try:
+                await client.close()
+            except Exception as e:
+                logger.debug(f"Redis close warning: {e}")
+
+
+def generate_cache_key(prefix: str, user_id: Optional[str] = None, **kwargs) -> str:
+    """
+    Generate deterministic cache key from parameters.
+
+    FIX: Added user_id parameter to prevent cache key collisions between users.
+    This ensures different users don't see each other's cached AI responses (privacy/HIPAA).
+
+    Args:
+        prefix: Cache key prefix (e.g., "ai:insights:v2")
+        user_id: User ID to include in cache key for user-specific caching
+        **kwargs: Additional parameters for cache key generation
+    """
+    # Include user_id in cache key to prevent cross-user cache sharing
+    if user_id:
+        kwargs["_user_id"] = user_id
+
     # Sort kwargs to ensure consistent ordering
     sorted_params = sorted(kwargs.items())
     param_str = json.dumps(sorted_params, default=str, sort_keys=True)
-    param_hash = hashlib.md5(param_str.encode()).hexdigest()[:12]
+    # FIX: Use SHA-256 instead of MD5 for better collision resistance
+    param_hash = hashlib.sha256(param_str.encode()).hexdigest()[:16]
     return f"{prefix}:{param_hash}"
 
 

@@ -10,6 +10,8 @@ This package provides:
 - Utility functions for quiz flow operations
 """
 
+from __future__ import annotations
+
 from .enums import QuizFlowState
 from .trigger_service import QuizTriggerService
 from .response_handler import ConversationalQuizService

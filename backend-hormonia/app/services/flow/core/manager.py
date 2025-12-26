@@ -20,37 +20,39 @@ Migration Note:
     - enhanced_flow_engine.py (enhanced features)
 """
 
-from typing import Dict, Any, Optional
-from datetime import datetime, timedelta, timezone
-from uuid import UUID, uuid4
+from __future__ import annotations
+
+# Standard library imports
 import logging
 import re
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Optional
+from uuid import UUID, uuid4
 
-
+# Local application imports
 from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
-
+from ..analytics import FlowEventBroadcaster
+from ..config import get_flow_config
+from ..errors import FlowErrorHandler
+from ..integrations import FlowIntegrationManager
+from ..integrations.base import FlowIntegration, LegacyIntegrationAdapter
+from ..templates import FlowTemplateManager, get_template_manager
 from ..types import (
     FlowContext,
-    FlowTemplate,
-    FlowType,
-    FlowStatus,
-    FlowPriority,
-    FlowStepData,
     FlowEvent,
     FlowEventType,
     FlowMetrics,
+    FlowPriority,
+    FlowStatus,
+    FlowStepData,
+    FlowTemplate,
+    FlowType,
 )
-from ..config import get_flow_config
-from .engine import FlowEngine
-from .context import FlowContextRepository
-from .lifecycle import FlowLifecycleManager
-from ..templates import FlowTemplateManager, get_template_manager
 from ..validation import FlowValidator
-from ..errors import FlowErrorHandler
-from ..analytics import FlowEventBroadcaster
-from ..integrations import FlowIntegrationManager
-from ..integrations.base import FlowIntegration, LegacyIntegrationAdapter
+from .context import FlowContextRepository
+from .engine import FlowEngine
+from .lifecycle import FlowLifecycleManager
 
 PLACEHOLDER_PATTERN = re.compile(r"{{\s*([\w\.]+)\s*}}")
 SQUARE_PLACEHOLDER_PATTERN = re.compile(r"\[([\w\.]+)\]")
@@ -67,6 +69,20 @@ class FlowManager:
 
     This is the primary interface for flow operations - all external
     code should interact with flows through this manager.
+
+    Attributes:
+        db: Database session for persistence.
+        config: Flow configuration settings.
+        engine: Flow execution engine.
+        validator: Flow validation handler.
+        template_manager: Template management handler.
+        integration_manager: Integration coordination handler.
+        context_repository: Context persistence handler.
+        lifecycle: Lifecycle management handler.
+        event_broadcaster: Event broadcasting handler.
+        error_handler: Error handling handler.
+        flow_repository: Flow state repository.
+        patient_repository: Patient repository.
 
     Example:
         >>> manager = FlowManager(db)
@@ -95,8 +111,15 @@ class FlowManager:
         Initialize the flow manager.
 
         Args:
-            db: Database session for persistence
-            engine: Optional FlowEngine instance (for dependency injection)
+            db: Database session for persistence.
+            engine: Optional FlowEngine instance (for dependency injection).
+            validator: Optional FlowValidator instance.
+            template_manager: Optional FlowTemplateManager instance.
+            integration_manager: Optional FlowIntegrationManager instance.
+            context_repository: Optional FlowContextRepository instance.
+            lifecycle: Optional FlowLifecycleManager instance.
+            event_broadcaster: Optional FlowEventBroadcaster instance.
+            error_handler: Optional FlowErrorHandler instance.
         """
         self.db = db
         self.config = get_flow_config()
@@ -126,19 +149,19 @@ class FlowManager:
         Start a new flow instance.
 
         Args:
-            patient_id: Patient ID this flow is for
-            flow_type: Type of flow to start
-            template_id: Optional specific template ID to use
-            initial_data: Optional initial flow data
-            priority: Execution priority
-            metadata: Optional flow metadata
+            patient_id: Patient ID this flow is for.
+            flow_type: Type of flow to start.
+            template_id: Optional specific template ID to use.
+            initial_data: Optional initial flow data.
+            priority: Execution priority.
+            metadata: Optional flow metadata.
 
         Returns:
-            Flow instance ID
+            Flow instance ID.
 
         Raises:
-            ValueError: If validation fails
-            RuntimeError: If flow cannot be started
+            ValueError: If validation fails.
+            RuntimeError: If flow cannot be started.
 
         Example:
             >>> flow_id = await manager.start_flow(
@@ -222,15 +245,15 @@ class FlowManager:
         Executes the current step and transitions to the next step.
 
         Args:
-            flow_instance_id: Flow instance ID
-            user_input: Optional user input (for question steps)
+            flow_instance_id: Flow instance ID.
+            user_input: Optional user input (for question steps).
 
         Returns:
-            Result of executed step
+            Result of executed step.
 
         Raises:
-            ValueError: If flow not found or invalid state
-            RuntimeError: If step execution fails
+            ValueError: If flow not found or invalid state.
+            RuntimeError: If step execution fails.
 
         Example:
             >>> result = await manager.advance_flow(
@@ -355,8 +378,11 @@ class FlowManager:
         Pause flow execution.
 
         Args:
-            flow_instance_id: Flow instance ID
-            reason: Optional reason for pausing
+            flow_instance_id: Flow instance ID.
+            reason: Optional reason for pausing.
+
+        Raises:
+            ValueError: If flow not found or not active.
 
         Example:
             >>> await manager.pause_flow(flow_id, reason="User requested")
@@ -388,7 +414,10 @@ class FlowManager:
         Resume paused flow execution.
 
         Args:
-            flow_instance_id: Flow instance ID
+            flow_instance_id: Flow instance ID.
+
+        Raises:
+            ValueError: If flow not found or not paused.
 
         Example:
             >>> await manager.resume_flow(flow_id)
@@ -422,9 +451,12 @@ class FlowManager:
         Stop flow execution.
 
         Args:
-            flow_instance_id: Flow instance ID
-            reason: Reason for stopping
-            force: Force stop even if in invalid state
+            flow_instance_id: Flow instance ID.
+            reason: Reason for stopping.
+            force: Force stop even if in invalid state.
+
+        Raises:
+            ValueError: If flow not found or already stopped.
 
         Example:
             >>> await manager.stop_flow(flow_id, reason="Error occurred")
@@ -456,10 +488,10 @@ class FlowManager:
         Get current flow state.
 
         Args:
-            flow_instance_id: Flow instance ID
+            flow_instance_id: Flow instance ID.
 
         Returns:
-            Flow context, or None if not found
+            Flow context, or None if not found.
 
         Example:
             >>> context = await manager.get_flow_state(flow_id)
@@ -472,10 +504,10 @@ class FlowManager:
         Get flow execution metrics.
 
         Args:
-            flow_instance_id: Flow instance ID
+            flow_instance_id: Flow instance ID.
 
         Returns:
-            Flow metrics, or None if flow not found
+            Flow metrics, or None if flow not found.
         """
         context = await self._load_context(flow_instance_id)
         if not context:
@@ -522,7 +554,19 @@ class FlowManager:
     async def _load_template(
         self, flow_type: FlowType, template_id: Optional[str] = None
     ) -> FlowTemplate:
-        """Load flow template from the template manager."""
+        """
+        Load flow template from the template manager.
+
+        Args:
+            flow_type: Type of flow.
+            template_id: Optional specific template ID.
+
+        Returns:
+            Flow template.
+
+        Raises:
+            ValueError: If template not found.
+        """
         if template_id:
             template = self.template_manager.get_template(template_id)
         else:
@@ -532,20 +576,43 @@ class FlowManager:
         return template
 
     async def _load_context(self, flow_instance_id: UUID) -> Optional[FlowContext]:
-        """Load flow context from storage."""
+        """
+        Load flow context from storage.
+
+        Args:
+            flow_instance_id: Flow instance UUID.
+
+        Returns:
+            Flow context or None if not found.
+        """
         logger.debug("Loading context for flow: %s", flow_instance_id)
         return await self.context_repository.get(flow_instance_id)
 
     async def _save_context(
         self, context: FlowContext, template: Optional[FlowTemplate] = None
     ) -> None:
-        """Persist flow context."""
+        """
+        Persist flow context.
+
+        Args:
+            context: Flow execution context.
+            template: Optional flow template.
+        """
         await self.context_repository.save(context, template)
 
     def _find_step_in_template(
         self, template: Dict[str, Any], step_id: str
     ) -> Optional[Dict[str, Any]]:
-        """Find step definition in template."""
+        """
+        Find step definition in template.
+
+        Args:
+            template: Flow template.
+            step_id: Step identifier.
+
+        Returns:
+            Step definition or None if not found.
+        """
         steps = template.get("steps", [])
         for step in steps:
             if step.get("step_id") == step_id:
@@ -553,7 +620,12 @@ class FlowManager:
         return None
 
     async def _broadcast_event(self, event: FlowEvent) -> None:
-        """Broadcast flow event."""
+        """
+        Broadcast flow event.
+
+        Args:
+            event: Flow event to broadcast.
+        """
         if self.event_broadcaster:
             await self.event_broadcaster.broadcast(event)
         else:
@@ -564,6 +636,10 @@ class FlowManager:
     ) -> None:
         """
         Register a new integration plugin or wrap a legacy integration.
+
+        Args:
+            name_or_plugin: Plugin instance or name string.
+            integration: Optional integration instance for legacy support.
         """
         if isinstance(name_or_plugin, FlowIntegration) and integration is None:
             plugin = name_or_plugin
@@ -590,10 +666,10 @@ class FlowManager:
         get_flow_status() instead of get_flow().status.
 
         Args:
-            flow_id: Flow instance ID
+            flow_id: Flow instance ID.
 
         Returns:
-            Flow status or None if flow not found
+            Flow status or None if flow not found.
 
         Example:
             >>> status = await manager.get_flow_status(flow_id)
@@ -611,11 +687,11 @@ class FlowManager:
         complete_flow() instead of update_flow_status().
 
         Args:
-            flow_id: Flow instance ID
-            **kwargs: Additional completion data
+            flow_id: Flow instance ID.
+            **kwargs: Additional completion data.
 
         Returns:
-            True if flow was completed successfully
+            True if flow was completed successfully.
 
         Example:
             >>> success = await manager.complete_flow(flow_id)
@@ -665,11 +741,11 @@ class FlowManager:
         cancel_flow() instead of update_flow_status().
 
         Args:
-            flow_id: Flow instance ID
-            reason: Cancellation reason
+            flow_id: Flow instance ID.
+            reason: Cancellation reason.
 
         Returns:
-            True if flow was cancelled successfully
+            True if flow was cancelled successfully.
 
         Example:
             >>> success = await manager.cancel_flow(flow_id, "User requested")
@@ -707,10 +783,10 @@ class FlowManager:
         get_flow_data() instead of get_flow().data.
 
         Args:
-            flow_id: Flow instance ID
+            flow_id: Flow instance ID.
 
         Returns:
-            Flow data dictionary or empty dict if flow not found
+            Flow data dictionary or empty dict if flow not found.
 
         Example:
             >>> data = await manager.get_flow_data(flow_id)

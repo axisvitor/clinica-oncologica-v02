@@ -71,14 +71,24 @@ class StatusWebhookHandler:
                     )
                 return False
 
-            # Idempotency check
+            # FIX: Use atomic SET NX BEFORE database operation to prevent race conditions
+            # Bug: Previous code used exists() which is read-only, allowing race condition
+            # where two workers could both see key doesn't exist and process same status
             redis_client = await get_async_redis()
             idempotency_key = f"webhook:status:{whatsapp_id}:{status}"
 
-            is_duplicate = await redis_client.exists(idempotency_key)
-            if is_duplicate:
+            # Atomic acquire: SET NX returns True only if key was set (first worker wins)
+            acquired = await redis_client.set(
+                idempotency_key,
+                "processing",
+                nx=True,  # Only set if key doesn't exist
+                ex=cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS
+            )
+
+            if not acquired:
+                # Another worker is processing or already processed this status
                 logger.info(
-                    f"Duplicate status webhook detected: {whatsapp_id} -> {status}"
+                    f"Duplicate status webhook detected (atomic check): {whatsapp_id} -> {status}"
                 )
                 if webhook_id and webhook_store:
                     await webhook_store.mark_processed(
@@ -86,7 +96,7 @@ class StatusWebhookHandler:
                     )
                 return True
 
-            # Update message status
+            # Update message status (now protected by atomic lock)
             message = self.message_service.update_message_status_by_whatsapp_id(
                 whatsapp_id=whatsapp_id, status=self._map_evolution_status(status)
             )
@@ -105,11 +115,12 @@ class StatusWebhookHandler:
 
                 logger.info(f"Updated message {message.id} status to {status}")
 
-                # Cache status update in Redis
-                await redis_client.setex(
+                # FIX: Update Redis key to mark as "completed" (key already exists from SET NX)
+                # This is informational - the lock was already acquired above
+                await redis_client.set(
                     idempotency_key,
-                    cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS,
-                    "1",
+                    "completed",
+                    ex=cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS
                 )
 
                 if webhook_id and webhook_store:

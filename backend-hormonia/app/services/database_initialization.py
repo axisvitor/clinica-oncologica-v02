@@ -321,6 +321,9 @@ class DatabaseInitializationService:
             # Don't raise - index check is not critical
             self.logger.warning(f"Index validation failed: {e}")
 
+    # Allowlist of valid table names for integrity checks (SQL injection prevention)
+    ALLOWED_INTEGRITY_TABLES = frozenset({"users", "patients", "messages"})
+
     async def _check_table_integrity(self, result: Dict[str, Any]) -> None:
         """Check table data integrity and constraints."""
         try:
@@ -331,14 +334,21 @@ class DatabaseInitializationService:
 
             with self.engine.connect() as conn:
                 for table in key_tables:
+                    # Validate table name against allowlist (SQL injection prevention)
+                    if table not in self.ALLOWED_INTEGRITY_TABLES:
+                        self.logger.warning(f"Skipping non-allowlisted table: {table}")
+                        continue
+
                     try:
                         # Check if table exists and get row count
+                        # Table name is validated against allowlist above, safe for interpolation
                         count_result = conn.execute(
                             text(f"SELECT COUNT(*) FROM {table}")
                         )
                         row_count = count_result.scalar()
 
                         # Check for any obvious data issues
+                        # Table name is validated against allowlist above, safe for interpolation
                         null_check = conn.execute(
                             text(f"SELECT COUNT(*) FROM {table} WHERE id IS NULL")
                         )

@@ -14,6 +14,13 @@ from pydantic import BaseModel, Field
 from app.models.flow import FlowTemplateVersion
 from app.repositories.flow_kind import FlowKindRepository
 from app.repositories.flow_template_version import FlowTemplateVersionRepository
+from app.utils.version_utils import (
+    normalize_version,
+    parse_version,
+    is_valid_version,
+    to_int_version,
+    VersionError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -426,9 +433,17 @@ class EnhancedTemplateLoader:
     ) -> Optional[FlowTemplateData]:
         """Load template from database using versioning system."""
         try:
-            # Convert string version to int if provided
-            version_num = int(version) if version and version.isdigit() else None
-            
+            # Normalize version to integer for database lookup
+            version_num = None
+            if version:
+                try:
+                    # Use version utilities to handle both int and semantic versions
+                    version_num = to_int_version(version)
+                    logger.debug(f"Normalized version '{version}' to integer {version_num}")
+                except VersionError as ve:
+                    logger.warning(f"Invalid version format '{version}': {ve}")
+                    return None
+
             if version_num:
                 # Load specific version
                 template_version = (
@@ -549,28 +564,32 @@ class EnhancedTemplateLoader:
         description: str = None,
         created_by: str = None,
     ) -> bool:
-        """Create a new template version."""
+        """Create a new template version with transaction management."""
+        from app.utils.transaction_manager import sync_transaction
+
         try:
-            # Get or create flow kind
-            kind = self.flow_kind_repo.get_by_flow_type(flow_type)
-            if not kind:
-                kind = self.flow_kind_repo.create_kind(
-                    flow_type=flow_type,
-                    name=template_data.name,
-                    description=description or template_data.description,
+            with sync_transaction(self.db):
+                # Get or create flow kind
+                kind = self.flow_kind_repo.get_by_flow_type(flow_type)
+                if not kind:
+                    kind = self.flow_kind_repo.create_kind(
+                        flow_type=flow_type,
+                        name=template_data.name,
+                        description=description or template_data.description,
+                    )
+
+                # Create template version
+                self.template_version_repo.create_version(
+                    kind_id=kind.id,
+                    version=version,
+                    template_data=template_data.to_dict(),
+                    duration_days=len(template_data.messages),
+                    description=description,
+                    created_by=created_by,
                 )
+                # Transaction manager handles commit/rollback automatically
 
-            # Create template version
-            self.template_version_repo.create_version(
-                kind_id=kind.id,
-                version=version,
-                template_data=template_data.to_dict(),
-                duration_days=len(template_data.messages),
-                description=description,
-                created_by=created_by,
-            )
-
-            # Clear cache for this flow type
+            # Clear cache for this flow type (after successful commit)
             self._invalidate_cache_for_flow_type(flow_type)
 
             logger.info(f"Created new template version: {flow_type} v{version}")
@@ -655,11 +674,14 @@ class EnhancedTemplateLoader:
             except (ValueError, TypeError, Exception) as e:
                 logger.warning(f"Skipping invalid day '{day_str}' in template: {e}")
 
+        # Normalize version to semantic versioning format
+        normalized_version = normalize_version(version_model.version_number)
+
         return FlowTemplateData(
             flow_type=version_model.kind.kind_key if version_model.kind else "unknown",
             name=version_model.template_name,
-            description=version_model.description or f"Template version {version_model.version_number}",
-            version=str(version_model.version_number),
+            description=version_model.description or f"Template version {normalized_version}",
+            version=normalized_version,
             messages=message_templates,
             metadata=version_model.metadata_json or {}
         )

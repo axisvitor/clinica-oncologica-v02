@@ -23,6 +23,8 @@ Zero-Migration Implementation:
 Total: 7 CRUD endpoints for monthly quiz management
 """
 
+# NOTE: Removed 'from __future__ import annotations' to fix Pydantic/FastAPI OpenAPI issues
+
 from typing import Optional
 from datetime import datetime, timezone
 from uuid import UUID

@@ -3,20 +3,28 @@ Google Gemini 2.5 Flash integration for healthcare messaging and conversation fl
 Provides AI-powered message humanization, personalization, and conversation management.
 
 REFACTORED TO USE LANGCHAIN-GOOGLE-GENAI (Option A - LangChain-only)
+
+Security Fixes:
+- Thread-safe singleton with asyncio.Lock
+- Async Redis to prevent event loop blocking
+- Connection pooling for Redis
 """
 
+# Standard library imports
 import asyncio
+import hashlib
 import json
 import logging
-from typing import Dict, List, Optional, Any
-import hashlib
+from typing import Any, Dict, List, Optional
 
-# LangChain Google Gemini integration (replaces google.generativeai)
-from langchain_google_genai import ChatGoogleGenerativeAI
+# Third-party imports
 from langchain_core.messages import HumanMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
 
+# Local application imports
 from app.config import settings
-from app.core.redis_unified import get_sync_redis
+from app.core.redis_unified import get_async_redis
+from app.services.circuit_breaker import get_ai_circuit_breaker
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +56,11 @@ class GeminiClient:
         """
         self.api_key = api_key or settings.AI_GEMINI_API_KEY
         self.model_name = model or settings.AI_GEMINI_MODEL
-        self.redis_client = get_sync_redis()
+        # FIX: Use lazy async Redis initialization to prevent event loop blocking
+        self._redis_client = None
+        self._redis_initialized = False
+        # Circuit breaker for AI service protection
+        self._circuit_breaker = get_ai_circuit_breaker()
 
         if not self.api_key:
             logger.warning(
@@ -68,10 +80,17 @@ class GeminiClient:
                 top_k=settings.AI_GEMINI_TOP_K,
             )
             logger.info(
-                f"Gemini client initialized with LangChain model: {self.model_name}"
+                "Gemini client initialized with model: %s",
+                self.model_name,
+                extra={"model": self.model_name}
             )
         except Exception as e:
-            logger.error(f"Failed to initialize ChatGoogleGenerativeAI: {e}")
+            logger.error(
+                "Failed to initialize ChatGoogleGenerativeAI: %s",
+                str(e),
+                exc_info=True,
+                extra={"model": self.model_name}
+            )
             self.model = None
             raise GeminiAPIError(f"Failed to initialize Gemini client: {str(e)}")
 
@@ -80,30 +99,73 @@ class GeminiClient:
         prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
         return f"gemini_cache:{prompt_hash}"
 
+    async def _get_redis_client(self):
+        """
+        Get async Redis client with lazy initialization.
+
+        FIX: Uses async Redis to prevent blocking the event loop.
+        """
+        if not self._redis_initialized:
+            try:
+                self._redis_client = await get_async_redis()
+                self._redis_initialized = True
+            except Exception as e:
+                logger.warning(
+                    "Failed to initialize async Redis: %s",
+                    str(e),
+                    extra={"operation": "redis_init"}
+                )
+                self._redis_client = None
+                self._redis_initialized = True
+        return self._redis_client
+
     async def _get_cached_response(self, cache_key: str) -> Optional[str]:
-        """Retrieve cached response if available."""
+        """Retrieve cached response if available (async)."""
         try:
-            cached_value = self.redis_client.get(cache_key)
+            redis_client = await self._get_redis_client()
+            if not redis_client:
+                return None
+
+            # FIX: Use async Redis get
+            cached_value = await redis_client.get(cache_key)
             if cached_value:
-                logger.debug(f"Gemini cache hit for key: {cache_key}")
-                return cached_value.decode("utf-8")
+                logger.debug("Gemini cache hit for key: %s", cache_key)
+                # Handle both string and bytes responses
+                if isinstance(cached_value, bytes):
+                    return cached_value.decode("utf-8")
+                return cached_value
         except Exception as e:
-            logger.warning(f"Failed to retrieve from cache: {e}")
+            logger.warning(
+                "Cache retrieval failed: %s",
+                str(e),
+                extra={"cache_key": cache_key}
+            )
         return None
 
     async def _cache_response(
         self, cache_key: str, response: str, ttl: int = 3600
     ) -> None:
-        """Cache the response in Redis."""
+        """Cache the response in Redis (async)."""
         try:
-            self.redis_client.setex(cache_key, ttl, response)
-            logger.debug(f"Cached Gemini response for key: {cache_key}")
-        except Exception as e:
-            logger.warning(f"Failed to cache response: {e}")
+            redis_client = await self._get_redis_client()
+            if not redis_client:
+                return
 
-    async def generate_content(self, prompt: str, **kwargs) -> str:
+            # FIX: Use async Redis setex
+            await redis_client.setex(cache_key, ttl, response)
+            logger.debug("Cached Gemini response for key: %s", cache_key)
+        except Exception as e:
+            logger.warning(
+                "Failed to cache response: %s",
+                str(e),
+                extra={"cache_key": cache_key, "ttl": ttl}
+            )
+
+    async def _generate_content_internal(self, prompt: str, **kwargs) -> str:
         """
-        Generate content using Gemini with error handling, retries, and caching.
+        Internal method to generate content using Gemini.
+
+        This method is wrapped by generate_content with circuit breaker protection.
 
         Args:
             prompt: The input prompt for generation
@@ -119,12 +181,6 @@ class GeminiClient:
             raise GeminiAPIError(
                 "Gemini client not properly initialized - missing API key"
             )
-
-        # Check Cache
-        cache_key = self._generate_cache_key(prompt)
-        cached_response = await self._get_cached_response(cache_key)
-        if cached_response:
-            return cached_response
 
         max_retries = kwargs.get("max_retries", settings.AI_GEMINI_MAX_RETRIES)
         retry_delay = kwargs.get("retry_delay", 1)
@@ -150,15 +206,17 @@ class GeminiClient:
                 if not response_text:
                     raise GeminiAPIError("Empty response from Gemini API via LangChain")
 
-                logger.debug(f"Gemini generation successful on attempt {attempt + 1}")
-
-                # Cache successful response
-                await self._cache_response(cache_key, response_text)
+                logger.debug("Gemini generation successful on attempt %d", attempt + 1)
 
                 return response_text
 
             except Exception as e:
-                logger.warning(f"Gemini API attempt {attempt + 1} failed: {e}")
+                logger.warning(
+                    "Gemini API attempt %d failed: %s",
+                    attempt + 1,
+                    str(e),
+                    extra={"attempt": attempt + 1, "max_retries": max_retries}
+                )
 
                 if attempt == max_retries - 1:
                     raise GeminiAPIError(
@@ -169,6 +227,56 @@ class GeminiClient:
                 await asyncio.sleep(retry_delay * (2**attempt))
 
         raise GeminiAPIError("Unexpected error in content generation")
+
+    async def generate_content(self, prompt: str, **kwargs) -> str:
+        """
+        Generate content using Gemini with circuit breaker protection, error handling, retries, and caching.
+
+        Args:
+            prompt: The input prompt for generation
+            **kwargs: Additional generation parameters
+
+        Returns:
+            Generated text content
+
+        Raises:
+            GeminiAPIError: If generation fails after retries
+        """
+        # Check Cache first
+        cache_key = self._generate_cache_key(prompt)
+        cached_response = await self._get_cached_response(cache_key)
+        if cached_response:
+            return cached_response
+
+        # Fallback response for when circuit is open
+        fallback_response = kwargs.get(
+            "fallback_response",
+            "Desculpe, estou temporariamente indisponível. Por favor, tente novamente em alguns instantes."
+        )
+
+        # Call through circuit breaker
+        try:
+            response_text = await self._circuit_breaker.call_gemini(
+                self._generate_content_internal,
+                prompt,
+                fallback_response=fallback_response,
+                **kwargs
+            )
+
+            # Cache successful response
+            await self._cache_response(cache_key, response_text)
+
+            return response_text
+
+        except Exception as e:
+            logger.error(
+                "Gemini content generation failed: %s",
+                str(e),
+                exc_info=True,
+                extra={"prompt_length": len(prompt), "circuit_breaker": "active"}
+            )
+            # If circuit breaker fallback fails, return fallback response
+            return fallback_response
 
     async def humanize_flow_message(
         self,
@@ -204,10 +312,22 @@ class GeminiClient:
 
         try:
             humanized = await self.generate_content(prompt)
-            logger.info(f"Message humanized for patient: {patient_name}")
+            logger.info(
+                "Message humanized successfully",
+                extra={
+                    "operation": "humanize",
+                    "patient": patient_name,
+                    "template_length": len(template)
+                }
+            )
             return humanized
         except Exception as e:
-            logger.error(f"Failed to humanize message: {e}")
+            logger.error(
+                "Failed to humanize message: %s",
+                str(e),
+                exc_info=True,
+                extra={"patient": patient_name}
+            )
             # Fallback to template with basic personalization
             return template.replace("[nome]", patient_name).replace(
                 "[NOME]", patient_name
@@ -238,10 +358,17 @@ class GeminiClient:
 
         try:
             varied_question = await self.generate_content(prompt)
-            logger.info("Question variation generated successfully")
+            logger.info(
+                "Question variation generated",
+                extra={"operation": "question_variation"}
+            )
             return varied_question
         except Exception as e:
-            logger.error(f"Failed to generate question variation: {e}")
+            logger.error(
+                "Failed to generate question variation: %s",
+                str(e),
+                exc_info=True
+            )
             return base_question
 
     async def analyze_response_sentiment(
@@ -263,10 +390,17 @@ class GeminiClient:
             analysis_text = await self.generate_content(prompt)
             # Parse structured response
             analysis = self._parse_sentiment_analysis(analysis_text)
-            logger.info("Sentiment analysis completed")
+            logger.info(
+                "Sentiment analysis completed",
+                extra={"operation": "sentiment"}
+            )
             return analysis
         except Exception as e:
-            logger.error(f"Failed to analyze sentiment: {e}")
+            logger.error(
+                "Failed to analyze sentiment: %s",
+                str(e),
+                exc_info=True
+            )
             return {
                 "sentiment": "neutral",
                 "confidence": 0.5,
@@ -300,10 +434,17 @@ class GeminiClient:
 
         try:
             follow_up = await self.generate_content(prompt)
-            logger.info("Empathetic follow-up generated")
+            logger.info(
+                "Empathetic follow-up generated",
+                extra={"operation": "follow_up"}
+            )
             return follow_up
         except Exception as e:
-            logger.error(f"Failed to generate empathetic follow-up: {e}")
+            logger.error(
+                "Failed to generate empathetic follow-up: %s",
+                str(e),
+                exc_info=True
+            )
             return "Obrigada por compartilhar isso comigo. Como posso te ajudar melhor?"
 
     def _format_few_shot_examples(
@@ -452,7 +593,11 @@ RESPOSTA EMPÁTICA:
             if json_match:
                 return json.loads(json_match.group())
         except Exception as e:
-            logger.warning(f"Failed to parse sentiment analysis JSON: {e}")
+            logger.warning(
+                "Failed to parse sentiment analysis JSON: %s",
+                str(e),
+                extra={"operation": "parse_sentiment"}
+            )
 
         # Fallback to basic analysis
         sentiment = "neutral"
@@ -495,25 +640,64 @@ RESPOSTA EMPÁTICA:
             response = await self.generate_content(test_prompt, max_retries=1)
             return "OK" in response.upper()
         except Exception as e:
-            logger.error(f"Gemini health check failed: {e}")
+            logger.error(
+                "Gemini health check failed: %s",
+                str(e),
+                exc_info=True,
+                extra={"operation": "health_check"}
+            )
             return False
 
 
-# Global Gemini client instance
+# Global Gemini client instance with thread-safe initialization
 _gemini_client: Optional[GeminiClient] = None
+_gemini_client_lock = asyncio.Lock()
 
 
 def get_gemini_client() -> GeminiClient:
     """
-    Get global Gemini client instance.
+    Get global Gemini client instance (sync version for backward compatibility).
 
     Returns:
         Initialized GeminiClient instance
+
+    Note: For async contexts, prefer get_gemini_client_async() for thread safety.
     """
     global _gemini_client
     if _gemini_client is None:
         _gemini_client = GeminiClient()
     return _gemini_client
+
+
+async def get_gemini_client_async() -> GeminiClient:
+    """
+    Get global Gemini client instance (thread-safe async version).
+
+    FIX: Uses asyncio.Lock to prevent race conditions during concurrent initialization.
+
+    Returns:
+        Initialized GeminiClient instance
+    """
+    global _gemini_client
+
+    # Fast path - already initialized
+    if _gemini_client is not None:
+        return _gemini_client
+
+    # Thread-safe initialization
+    async with _gemini_client_lock:
+        # Double-check after acquiring lock
+        if _gemini_client is None:
+            _gemini_client = GeminiClient()
+
+    return _gemini_client
+
+
+async def reset_gemini_client():
+    """Reset singleton instance (for testing)."""
+    global _gemini_client
+    async with _gemini_client_lock:
+        _gemini_client = None
 
 
 async def test_gemini_integration():
@@ -531,9 +715,17 @@ async def test_gemini_integration():
             personalization_hints=["casual", "supportive"],
         )
 
-        logger.info(f"Gemini test successful. Humanized message: {humanized}")
+        logger.info(
+            "Gemini test successful",
+            extra={"operation": "integration_test", "result": "success"}
+        )
         return True
 
     except Exception as e:
-        logger.error(f"Gemini integration test failed: {e}")
+        logger.error(
+            "Gemini integration test failed: %s",
+            str(e),
+            exc_info=True,
+            extra={"operation": "integration_test"}
+        )
         return False

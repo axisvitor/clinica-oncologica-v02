@@ -8,7 +8,8 @@ import logging
 from typing import Optional
 from uuid import UUID
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import desc
+from sqlalchemy import desc, func
+from sqlalchemy.orm import joinedload
 
 from app.models.user import User, UserRole
 from .schemas import (
@@ -111,16 +112,38 @@ class UserQueriesMixin:
         else:
             query = query.order_by(sort_column)
 
-        # Apply pagination
+        # Apply pagination with eager loading to prevent N+1 queries
+        # FIX: Load patients relationship in single query instead of per-user queries
         offset = (page - 1) * per_page
-        users = query.offset(offset).limit(per_page).all()
+        users = (
+            query
+            .options(joinedload(User.patients))  # Eager load patients for doctor summary
+            .offset(offset)
+            .limit(per_page)
+            .all()
+        )
 
-        # Convert to user summaries
+        # Convert to user summaries directly from loaded users (no additional queries)
         user_summaries = []
         for user in users:
-            summary = await self.get_user_summary(user.id)
-            if summary:
-                user_summaries.append(summary)
+            # Build summary directly instead of calling get_user_summary(user.id)
+            total_patients = 0
+            if user.role == UserRole.DOCTOR:
+                total_patients = len(user.patients) if user.patients else 0
+
+            summary = UserSummary(
+                id=user.id,
+                email=user.email,
+                full_name=user.full_name,
+                role=user.role,
+                is_active=user.is_active,
+                created_at=user.created_at,
+                updated_at=user.updated_at,
+                total_patients=total_patients,
+                last_login=None,  # TODO: Get from audit logs
+                failed_login_attempts=0,  # TODO: Get from audit logs
+            )
+            user_summaries.append(summary)
 
         total_pages = (total + per_page - 1) // per_page
 
@@ -138,17 +161,27 @@ class UserQueriesMixin:
 
         Returns:
             User statistics
+
+        FIX: Optimized from 7+ queries to 3 queries using GROUP BY
         """
-        # Basic counts
+        # Single query for total and active counts
         total_users = self.db.query(User).count()
         active_users = self.db.query(User).filter(User.is_active).count()
         inactive_users = total_users - active_users
 
-        # Users by role
-        users_by_role = {}
-        for role in UserRole:
-            count = self.db.query(User).filter(User.role == role).count()
-            users_by_role[role.value] = count
+        # FIX: Single GROUP BY query instead of N queries per role
+        # This reduces 5 queries to 1 query
+        role_counts = (
+            self.db.query(User.role, func.count(User.id))
+            .group_by(User.role)
+            .all()
+        )
+
+        # Build users_by_role dict from grouped results
+        users_by_role = {role.value: 0 for role in UserRole}  # Initialize all roles to 0
+        for role, count in role_counts:
+            if role:
+                users_by_role[role.value] = count
 
         # Recent registrations (last 30 days)
         thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)

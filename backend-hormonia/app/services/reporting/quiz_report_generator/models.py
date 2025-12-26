@@ -2,6 +2,8 @@
 Data models for quiz response processing and report generation.
 """
 
+from __future__ import annotations
+
 from typing import Any, List, Optional
 from datetime import datetime
 from uuid import UUID

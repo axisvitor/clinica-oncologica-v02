@@ -1,12 +1,15 @@
 /**
  * React Query hook for fetching clinical metrics with automatic refetching.
  * Provides real-time monitoring data for clinical dashboard.
+ *
+ * Uses /api/v2/dashboard/main as the backend endpoint (no dedicated /metrics/clinical exists)
  */
 import { useQuery, UseQueryResult } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 
 /**
- * Clinical metrics response structure from /api/v2/metrics/clinical
+ * Clinical metrics response structure
+ * Mapped from /api/v2/dashboard/main response
  */
 export interface ClinicalMetrics {
   patientEngagement: number
@@ -20,12 +23,18 @@ export interface ClinicalMetrics {
 }
 
 /**
- * API response wrapper
+ * Dashboard main response structure
  */
-interface ApiResponse<T> {
-  data: T
-  message?: string
-  timestamp?: string
+interface DashboardMainResponse {
+  total_patients: number
+  active_patients: number
+  active_patients_percentage: number
+  response_rate: number
+  completed_quizzes: number
+  total_quizzes: number
+  high_risk_patients: number
+  avg_sentiment: number
+  active_conversations: number
 }
 
 /**
@@ -53,16 +62,27 @@ export interface UseClinicalMetricsOptions {
 export function useClinicalMetrics(
   options?: UseClinicalMetricsOptions
 ): UseQueryResult<ClinicalMetrics, Error> {
-  const { timeRange = '7d', refetchInterval = 30000 } = options ?? {}
+  const { refetchInterval = 30000 } = options ?? {}
 
   return useQuery<ClinicalMetrics, Error>({
-    queryKey: ['clinical', 'metrics', timeRange],
+    queryKey: ['clinical', 'metrics'],
     queryFn: async () => {
-      const response = await apiClient.get<ApiResponse<ClinicalMetrics>>(
-        '/api/v2/metrics/clinical',
-        { timeRange }
-      )
-      return response.data
+      // Use existing dashboard/main endpoint
+      const response = await apiClient.dashboard.getMain()
+
+      // Transform to ClinicalMetrics format
+      return {
+        patientEngagement: response.active_patients_percentage ?? 0,
+        quizCompletion: response.total_quizzes > 0
+          ? (response.completed_quizzes / response.total_quizzes) * 100
+          : 0,
+        messageResponseRate: response.response_rate ?? 0,
+        averageSentiment: response.avg_sentiment ?? 0,
+        riskPatients: response.high_risk_patients ?? 0,
+        totalPatients: response.total_patients ?? 0,
+        activeFlows: response.active_conversations ?? 0,
+        completedFlows: response.completed_quizzes ?? 0
+      }
     },
     staleTime: 30000, // 30 seconds - real-time monitoring
     refetchInterval,

@@ -99,6 +99,7 @@ class WhatsAppService:
         db: Session,
         messaging_mode: MessagingMode = MessagingMode.QUEUE,
         redis: Optional[Redis] = None,
+        evolution_client=None,
     ):
         """
         Initialize WhatsAppService.
@@ -107,6 +108,7 @@ class WhatsAppService:
             db: Database session
             messaging_mode: Messaging mode (default: QUEUE)
             redis: Optional Redis client for caching
+            evolution_client: Optional Evolution API client (for dependency injection)
         """
         self.db = db
         self.messaging_mode = messaging_mode
@@ -116,8 +118,8 @@ class WhatsAppService:
         self.message_repo = MessageRepository(db)
         self.patient_repo = PatientRepository(db)
 
-        # Initialize Evolution API client
-        self.evolution_client = get_evolution_client()
+        # Store evolution client reference (will be initialized lazily or injected)
+        self._evolution_client = evolution_client
 
         # Callback registry for flow messages
         self.flow_message_callbacks: Dict[str, Callable] = {}
@@ -138,6 +140,20 @@ class WhatsAppService:
         }
 
         logger.info(f"WhatsAppService initialized with mode={messaging_mode.value}")
+
+    async def _get_evolution_client(self):
+        """
+        Get Evolution client instance (lazy initialization).
+
+        Returns:
+            Evolution API client instance
+        """
+        if self._evolution_client is None:
+            from app.integrations.evolution import get_evolution_client
+
+            self._evolution_client = await get_evolution_client()
+
+        return self._evolution_client
 
     async def send_message(
         self,
@@ -320,14 +336,19 @@ class WhatsAppService:
         Returns:
             Evolution API response
         """
+        # Get initialized Evolution client
+        evolution_client = await self._get_evolution_client()
+
         if message_type == MessageType.TEXT:
-            return await self.evolution_client.send_text(phone_number, content)
+            return await evolution_client.send_text_message(phone_number, content)
         elif message_type == MessageType.IMAGE:
             # Extract image URL from content or metadata
-            return await self.evolution_client.send_image(phone_number, content)
+            return await evolution_client.send_media_message(
+                phone_number, media_url=content, media_type="image"
+            )
         else:
             # Default to text
-            return await self.evolution_client.send_text(phone_number, content)
+            return await evolution_client.send_text_message(phone_number, content)
 
     def _get_max_retries(self, message: Message) -> int:
         """
@@ -674,13 +695,13 @@ class WhatsAppQueueService:
 # ============================================================================
 
 
-def get_whatsapp_service(
+async def get_whatsapp_service(
     db: Session,
     messaging_mode: MessagingMode = MessagingMode.QUEUE,
     redis: Optional[Redis] = None,
 ) -> WhatsAppService:
     """
-    Get WhatsAppService instance.
+    Get WhatsAppService instance with properly initialized Evolution client.
 
     Args:
         db: Database session
@@ -688,12 +709,18 @@ def get_whatsapp_service(
         redis: Optional Redis client
 
     Returns:
-        WhatsAppService instance
+        WhatsAppService instance with initialized Evolution client
     """
-    return WhatsAppService(db, messaging_mode, redis)
+    from app.integrations.evolution import get_evolution_client
+
+    # Initialize Evolution client asynchronously
+    evolution_client = await get_evolution_client()
+
+    # Create service with injected client
+    return WhatsAppService(db, messaging_mode, redis, evolution_client=evolution_client)
 
 
-def get_idempotent_sender(
+async def get_idempotent_sender(
     db: Session, redis: Optional[Redis] = None
 ) -> IdempotentMessageSender:
     """

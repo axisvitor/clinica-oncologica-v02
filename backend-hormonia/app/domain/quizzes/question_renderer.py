@@ -6,6 +6,8 @@ Responsibilities: Question formatting, humanization (if enabled),
 context preparation, and question display logic.
 """
 
+from __future__ import annotations
+
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 from uuid import UUID

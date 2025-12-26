@@ -161,6 +161,7 @@ export function createDashboardApi(client: ApiClientCore) {
 
     /**
      * Get real-time metrics (for live updates)
+     * Uses enhanced-analytics/realtime-stream endpoint
      */
     getRealTimeMetrics: async (): Promise<{
       active_patients: number
@@ -168,7 +169,33 @@ export function createDashboardApi(client: ApiClientCore) {
       unread_alerts: number
       last_updated: string
     }> => {
-      return client.get('/api/v2/dashboard/metrics/realtime')
+      try {
+        // Use existing enhanced-analytics endpoint
+        const response = await client.get<{
+          timestamp: string
+          active_sessions: number
+          recent_activity_1h: number
+          system_health: { status: string; response_time_ms: number; error_rate: number }
+          metrics: { patients_active: number; quizzes_today: number }
+        }>('/api/v2/enhanced-analytics/realtime-stream')
+
+        // Transform to expected format
+        return {
+          active_patients: response.metrics?.patients_active ?? response.active_sessions ?? 0,
+          pending_messages: response.recent_activity_1h ?? 0,
+          unread_alerts: 0, // Not available in this endpoint
+          last_updated: response.timestamp ?? new Date().toISOString()
+        }
+      } catch {
+        // Fallback to dashboard/main if enhanced-analytics not available
+        const mainData = await client.get<DashboardMainData>('/api/v2/dashboard/main')
+        return {
+          active_patients: mainData.active_patients ?? 0,
+          pending_messages: mainData.messages_sent ?? 0,
+          unread_alerts: mainData.alerts_pending ?? 0,
+          last_updated: new Date().toISOString()
+        }
+      }
     }
   }
 }

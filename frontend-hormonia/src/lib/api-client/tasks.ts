@@ -78,7 +78,7 @@ export function createTasksApi(client: ApiClientCore): TasksApi {
                 ...filters
             };
 
-            const res = await client.get<any>("/api/v2/tasks", params);
+            const res = await client.get<any>("/api/v2/tasks/", params);
             const items = Array.isArray(res?.data) ? res.data : (res?.items ?? []);
 
             return {
@@ -90,30 +90,30 @@ export function createTasksApi(client: ApiClientCore): TasksApi {
             };
         },
 
-        get: (taskId: string) => client.get<Task>(`/api/v2/tasks/${taskId}`),
+        get: (taskId: string) => client.get<Task>(`/api/v2/tasks/${taskId}/`),
 
-        create: (data: CreateTaskRequest) => client.post<Task>("/api/v2/tasks", data),
+        create: (data: CreateTaskRequest) => client.post<Task>("/api/v2/tasks/", data),
 
         cancel: (taskId: string, data: CancelTaskRequest) =>
-            client.post<Task>(`/api/v2/tasks/${taskId}/cancel`, data),
+            client.post<Task>(`/api/v2/tasks/${taskId}/cancel/`, data),
 
         retry: (taskId: string, data: RetryTaskRequest) =>
-            client.post<Task>(`/api/v2/tasks/${taskId}/retry`, data),
+            client.post<Task>(`/api/v2/tasks/${taskId}/retry/`, data),
 
         getLogs: (taskId: string, limit = 100, level?: string) => {
             const params: Record<string, any> = { limit };
             if (level) params['level'] = level;
-            return client.get<TaskLogsResponse>(`/api/v2/tasks/${taskId}/logs`, params);
+            return client.get<TaskLogsResponse>(`/api/v2/tasks/${taskId}/logs/`, params);
         },
 
         getStatistics: (hours = 24) =>
-            client.get<TaskStatisticsV2>("/api/v2/tasks/statistics/overview", { hours }),
+            client.get<TaskStatisticsV2>("/api/v2/tasks/statistics/overview/", { hours }),
 
         getQueueStatus: () =>
-            client.get<QueueStatusV2[]>("/api/v2/tasks/queue/status"),
+            client.get<QueueStatusV2[]>("/api/v2/tasks/queue/status/"),
 
         bulkCancel: (taskIds: string[]) =>
-            client.post("/api/v2/tasks/bulk/cancel", {
+            client.post("/api/v2/tasks/bulk/cancel/", {
                 operation: "cancel",
                 task_ids: taskIds
             }),

@@ -8,11 +8,11 @@ from celery.schedules import crontab
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 import logging
-import asyncio
+from asgiref.sync import async_to_sync
 from sqlalchemy import text, select
 from app.models.template import MessageTemplate
 
-from app.database import get_db_session
+from app.tasks.base import get_db_session
 from app.services.enhanced_flow_engine import get_enhanced_flow_engine
 
 logger = logging.getLogger(__name__)
@@ -95,8 +95,8 @@ def check_and_start_pending_flows() -> dict:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
-    # Run async function
-    return asyncio.run(_process())
+    # Run async function (async_to_sync for Celery compatibility)
+    return async_to_sync(_process)()
 
 
 @shared_task(name="flow_automation.send_daily_reminders")
@@ -212,8 +212,224 @@ def send_daily_reminders() -> dict:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
-    # Run async function
-    return asyncio.run(_process())
+    # Run async function (async_to_sync for Celery compatibility)
+    return async_to_sync(_process)()
+
+
+@shared_task(name="flow_automation.send_daily_flow_questions")
+def send_daily_flow_questions() -> dict:
+    """
+    Send daily flow questions to patients based on their treatment phase.
+
+    This is the CRITICAL task that sends daily check-in messages.
+    Uses the patients table directly (flow_state and current_day columns).
+
+    Flow phases based on current_day:
+    - Days 1-15: Daily check-ins (initial phase)
+    - Days 16-45: Every 3 days (intermediate phase)
+    - Days 46+: Weekly check-ins (maintenance phase)
+
+    Should run daily at 8 AM local time via Celery Beat.
+
+    Returns:
+        dict: Summary of questions sent
+    """
+
+    def _process_sync():
+        questions_sent = 0
+        errors = []
+        skipped = 0
+
+        with get_db_session() as db:
+            try:
+                from datetime import date
+                from app.models.patient import Patient
+                from app.models.enums import FlowState
+                from app.models.message import (
+                    Message,
+                    MessageType,
+                    MessageDirection,
+                    MessageStatus,
+                )
+
+                # Define fallback messages for each flow phase (Portuguese)
+                FLOW_MESSAGES = {
+                    "initial_15_days": {
+                        "content": "Olá {patient_name}! 👋 Como você está se sentindo hoje? "
+                        "Estamos aqui para acompanhar sua jornada de tratamento. "
+                        "Compartilhe conosco como está passando. 💙",
+                        "intent": "daily_checkin_initial",
+                    },
+                    "days_16_45": {
+                        "content": "Olá {patient_name}! 🌟 Esperamos que você esteja bem. "
+                        "Como está seu tratamento esta semana? "
+                        "Conte-nos se houve alguma mudança. 💪",
+                        "intent": "periodic_checkin",
+                    },
+                    "monthly_recurring": {
+                        "content": "Olá {patient_name}! 📋 Esta é sua verificação semanal. "
+                        "Como você está se sentindo? Alguma novidade para compartilhar? "
+                        "Estamos sempre prontos para ajudar! 💙",
+                        "intent": "weekly_checkin",
+                    },
+                }
+
+                # Query patients with active flow_state directly from patients table
+                # FIX: Uses patients.flow_state and patients.current_day (not patient_flow_states)
+                # FIX: Uses ORM to get decrypted phone via patient.phone property
+                # FIX: Removed hardcoded 200-patient limit - now uses batch processing
+                BATCH_SIZE = 100  # Process in batches to avoid memory issues
+
+                # Build base query (no limit - we'll paginate)
+                base_query = (
+                    db.query(Patient)
+                    .filter(
+                        Patient.flow_state == FlowState.ACTIVE,  # Use enum for type safety
+                        Patient.deleted_at.is_(None),
+                        Patient.treatment_start_date.isnot(None),
+                        Patient.phone_encrypted.isnot(None),  # Has phone
+                    )
+                    .order_by(Patient.id)  # Consistent ordering for pagination
+                )
+
+                # Get total count for logging
+                total_patients = base_query.count()
+                logger.info(f"Found {total_patients} patients with active flow_state for daily questions")
+
+                # Process in batches
+                offset = 0
+                active_patients = []
+                while True:
+                    batch = base_query.offset(offset).limit(BATCH_SIZE).all()
+                    if not batch:
+                        break
+                    active_patients.extend(batch)
+                    offset += BATCH_SIZE
+                    # Commit after each batch to avoid long transactions
+                    db.commit()
+
+                logger.info(
+                    f"Loaded {len(active_patients)} patients in batches of {BATCH_SIZE}"
+                )
+
+                today = date.today()
+
+                for patient in active_patients:
+                    try:
+                        # Get current_day from patient record (updated by flow engine)
+                        current_day = patient.current_day or 0
+
+                        # If current_day is 0, calculate from treatment_start_date
+                        if current_day == 0 and patient.treatment_start_date:
+                            current_day = (today - patient.treatment_start_date).days + 1
+
+                        # Determine flow phase and if we should send today
+                        should_send = False
+                        flow_phase = "initial_15_days"
+
+                        if current_day <= 15:
+                            # INITIAL_15_DAYS: Daily messages
+                            flow_phase = "initial_15_days"
+                            should_send = True
+                        elif current_day <= 45:
+                            # DAYS_16_45: Every 3 days
+                            flow_phase = "days_16_45"
+                            day_in_phase = current_day - 15
+                            should_send = day_in_phase % 3 == 0
+                        else:
+                            # MONTHLY_RECURRING: Weekly check-ins (days 7, 14, 21 of each 30-day cycle)
+                            flow_phase = "monthly_recurring"
+                            day_in_cycle = (current_day - 45) % 30
+                            should_send = day_in_cycle in [0, 7, 14, 21]
+
+                        if not should_send:
+                            skipped += 1
+                            continue
+
+                        # Get decrypted phone via ORM property
+                        patient_phone = patient.phone  # Auto-decrypts via property
+                        if not patient_phone:
+                            logger.warning(
+                                f"Patient {patient.id} has encrypted phone but decryption failed"
+                            )
+                            skipped += 1
+                            continue
+
+                        # Get message template
+                        template_data = FLOW_MESSAGES.get(flow_phase, {
+                            "content": "Olá {patient_name}! Como você está hoje? 💙",
+                            "intent": "general_checkin",
+                        })
+
+                        # Personalize message content
+                        message_content = template_data["content"].replace(
+                            "{patient_name}", patient.name or "Paciente"
+                        )
+
+                        # Create message record
+                        message = Message(
+                            patient_id=patient.id,
+                            direction=MessageDirection.OUTBOUND,
+                            type=MessageType.TEXT,
+                            content=message_content,
+                            status=MessageStatus.PENDING,
+                            message_metadata={
+                                "source": "daily_flow_question",
+                                "flow_phase": flow_phase,
+                                "flow_day": current_day,
+                                "template_intent": template_data["intent"],
+                                "patient_phone": patient_phone,  # For WhatsApp delivery
+                            },
+                        )
+                        db.add(message)
+                        db.flush()
+
+                        # Send via WhatsApp
+                        try:
+                            from app.services.unified_whatsapp_service import (
+                                UnifiedWhatsAppService,
+                                MessagingMode,
+                            )
+                            unified_service = UnifiedWhatsAppService(
+                                db, messaging_mode=MessagingMode.DIRECT
+                            )
+                            # Use async_to_sync for Celery compatibility
+                            async_to_sync(unified_service.send_message)(message)
+                        except Exception as send_error:
+                            logger.warning(
+                                f"Failed to send via WhatsApp for patient {patient.id}: {send_error}. "
+                                f"Message queued for retry."
+                            )
+                            # Message is already in DB with PENDING status for retry
+
+                        db.commit()
+
+                        questions_sent += 1
+                        logger.info(
+                            f"Sent daily question to patient {patient.id} ({patient.name}) "
+                            f"[{flow_phase} day {current_day}]"
+                        )
+
+                    except Exception as e:
+                        db.rollback()
+                        error_msg = f"Failed to send question to patient {patient.id}: {str(e)}"
+                        logger.error(error_msg)
+                        errors.append(error_msg)
+
+            except Exception as e:
+                logger.error(f"Error processing daily flow questions: {e}")
+                errors.append(str(e))
+
+        return {
+            "questions_sent": questions_sent,
+            "skipped": skipped,
+            "errors_count": len(errors),
+            "errors": errors[:10],  # Limit error details
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    # Run synchronously (no async needed for ORM queries)
+    return _process_sync()
 
 
 @shared_task(name="flow_automation.resume_paused_flows")
@@ -278,8 +494,8 @@ def resume_paused_flows() -> dict:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
-    # Run async function
-    return asyncio.run(_process())
+    # Run async function (async_to_sync for Celery compatibility)
+    return async_to_sync(_process)()
 
 
 @shared_task(name="flow_automation.cleanup_expired_quiz_links")
@@ -332,8 +548,8 @@ def cleanup_expired_quiz_links() -> dict:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
-    # Run async function
-    return asyncio.run(_process())
+    # Run async function (async_to_sync for Celery compatibility)
+    return async_to_sync(_process)()
 
 
 def _get_reminder_message(patient_name: str) -> str:

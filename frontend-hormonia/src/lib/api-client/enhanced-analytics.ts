@@ -27,7 +27,7 @@ export class EnhancedAnalyticsApi {
   constructor(baseUrl?: string) {
     this.baseUrl = baseUrl || process.env['REACT_APP_API_URL'] || import.meta.env.VITE_API_BASE_URL || (import.meta.env.VITE_API_URL || "http://localhost:8000");
     this.client = axios.create({
-      baseURL: `${this.baseUrl}/api/v2/enhanced-analytics`,
+      baseURL: `${this.baseUrl}/api/v2/enhanced-analytics/`,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -61,7 +61,7 @@ export class EnhancedAnalyticsApi {
    */
   async getDashboard(filters?: DashboardFilters): Promise<EnhancedDashboard> {
     try {
-      const response = await this.client.get<DashboardResponse>('/dashboard', {
+      const response = await this.client.get<DashboardResponse>('dashboard', {
         params: filters,
       });
 
@@ -86,7 +86,7 @@ export class EnhancedAnalyticsApi {
     pageSize = 50
   ): Promise<Prediction[]> {
     try {
-      const response = await this.client.get<PredictionsResponse>('/predictions', {
+      const response = await this.client.get<PredictionsResponse>('predictions', {
         params: {
           patient_id: patientId,
           prediction_type: predictionType,
@@ -111,7 +111,7 @@ export class EnhancedAnalyticsApi {
    */
   async getTrends(metric: string, period: string, filters?: DashboardFilters): Promise<TrendData> {
     try {
-      const response = await this.client.get<TrendsResponse>('/trends', {
+      const response = await this.client.get<TrendsResponse>('trends', {
         params: {
           metric,
           period,
@@ -135,7 +135,7 @@ export class EnhancedAnalyticsApi {
    */
   async generateCustomReport(config: ReportConfig): Promise<CustomReport> {
     try {
-      const response = await this.client.post<ReportResponse>('/custom-report', config);
+      const response = await this.client.post<ReportResponse>('custom-report', config);
 
       if (!response.data.success) {
         throw new Error(response.data.error || 'Failed to generate report');
@@ -170,7 +170,7 @@ export class EnhancedAnalyticsApi {
    */
   async getAvailableMetrics(): Promise<string[]> {
     try {
-      const response = await this.client.get<{ success: boolean; data: string[] }>('/metrics');
+      const response = await this.client.get<{ success: boolean; data: string[] }>('metrics');
 
       if (!response.data.success) {
         throw new Error('Failed to fetch available metrics');
@@ -201,7 +201,7 @@ export class EnhancedAnalyticsApi {
   async exportDashboard(filters?: DashboardFilters, format: 'pdf' | 'csv' = 'pdf'): Promise<Blob> {
     try {
       const response = await this.client.post(
-        '/dashboard/export',
+        'dashboard/export',
         { filters },
         {
           params: { format },

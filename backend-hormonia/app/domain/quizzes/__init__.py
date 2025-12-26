@@ -18,8 +18,7 @@ Consolidated Services (from /app/services migration):
 - Token rotation (security/)
 """
 
-# Main quiz service (temporarily re-exported from services module)
-from app.services.quiz.quiz_service import MonthlyQuizService
+from __future__ import annotations
 
 # Template management
 from .templates import (
@@ -63,8 +62,6 @@ from .score_calculator import ScoreCalculator as QuizScoreCalculator
 from .report_generator import ReportGenerator as QuizReportGenerator
 
 __all__ = [
-    # Main service
-    "MonthlyQuizService",
     # Template management
     "QuizTemplateService",
     "QuizTemplateLoadError",

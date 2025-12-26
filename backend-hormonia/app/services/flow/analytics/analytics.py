@@ -11,26 +11,29 @@ Migration Note:
     - Various analytics scattered across flow services
 """
 
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timezone
-from uuid import UUID
-import logging
+from __future__ import annotations
 
+# Standard library imports
+import logging
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+from uuid import UUID
+
+# Local application imports
+from ..config import get_flow_config
 from ..types import (
-    FlowType,
-    FlowStatus,
     FlowContext,
-    FlowStepData,
-    FlowStepStatus,
     FlowEvent,
     FlowEventType,
     FlowMetrics,
+    FlowStatus,
+    FlowStepData,
+    FlowStepStatus,
+    FlowType,
 )
-from ..config import get_flow_config
-
-from .metrics_collector import FlowMetricsCollector
 from .event_broadcaster import FlowEventBroadcaster
-from .monitor import FlowMonitor, FlowHealthMetrics
+from .metrics_collector import FlowMetricsCollector
+from .monitor import FlowHealthMetrics, FlowMonitor
 
 
 logger = logging.getLogger(__name__)
@@ -41,10 +44,16 @@ class FlowAnalytics:
     Main analytics service for Flow Services.
 
     Aggregates metrics collection, event broadcasting, and health monitoring
-    into a unified analytics interface.
+    into a unified analytics interface for comprehensive flow monitoring.
+
+    Attributes:
+        config: Analytics configuration.
+        metrics_collector: Metrics collection service.
+        event_broadcaster: Event broadcasting service.
+        monitor: Flow health monitoring service.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize flow analytics service."""
         self.config = get_flow_config().analytics
 

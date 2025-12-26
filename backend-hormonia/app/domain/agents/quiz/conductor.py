@@ -4,44 +4,64 @@ Quiz Conductor - Main orchestrator for quiz sessions.
 Coordinates quiz flow with adaptive intelligence and multi-agent collaboration.
 """
 
-from typing import Dict, List, Any
+from __future__ import annotations
+
+# Standard library imports
+import logging
 from datetime import datetime, timezone
+from typing import Any, Dict, List
 from uuid import UUID
 
+# Third-party imports
 from sqlalchemy.orm import Session
 
+# Local application imports
 from app.agents.base import BaseAgent, MessagePriority
-from app.services.quiz import (
-    QuizTemplateService,
-    QuizSessionService,
-    QuizResponseService,
-)
 from app.domain.messaging.delivery import MessageSender
-from app.repositories.patient import PatientRepository
 from app.integrations.gemini_client import get_gemini_client
+from app.repositories.patient import PatientRepository
+from app.services.quiz import (
+    QuizResponseService,
+    QuizSessionService,
+    QuizTemplateService,
+)
 
-from .session_coordinator import SessionCoordinator, QuizContext
+from .notification_manager import NotificationManager, QuizAdaptationType
+from .progress_tracker import ProgressTracker
 from .question_presenter import QuestionPresenter
 from .response_handler import ResponseHandler
-from .progress_tracker import ProgressTracker
-from .notification_manager import NotificationManager, QuizAdaptationType
+from .session_coordinator import QuizContext, SessionCoordinator
 
 
 class QuizConductor(BaseAgent):
     """
     Main agent responsible for conducting intelligent quiz sessions.
 
-    Key responsibilities:
-    - Orchestrate quiz session flow and progression
-    - Adapt questions in real-time based on responses
-    - Coordinate with other agents for comprehensive analysis
-    - Personalize quiz experience based on patient context
-    - Handle complex response interpretation using AI
-    - Manage quiz completion and follow-up actions
+    Orchestrates quiz session flow with adaptive intelligence, real-time
+    personalization, and multi-agent collaboration.
+
+    Attributes:
+        db_session: Database session.
+        quiz_template_service: Quiz template service.
+        quiz_session_service: Quiz session service.
+        quiz_response_service: Quiz response service.
+        message_sender: Message delivery service.
+        patient_repo: Patient repository.
+        session_coordinator: Session lifecycle manager.
+        question_presenter: Question delivery handler.
+        response_handler: Response processing handler.
+        progress_tracker: Progress and mood tracker.
+        notification_manager: Notification handler.
     """
 
     def __init__(self, db_session: Session, **kwargs):
-        """Initialize QuizConductor."""
+        """
+        Initialize QuizConductor.
+
+        Args:
+            db_session: Database session.
+            **kwargs: Additional keyword arguments for BaseAgent.
+        """
         super().__init__(
             agent_id=f"quiz_conductor_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}",
             agent_type="communication",
@@ -117,7 +137,12 @@ class QuizConductor(BaseAgent):
         self.engagement_threshold = 0.4
 
     async def _initialize(self):
-        """Initialize agent-specific resources."""
+        """
+        Initialize agent-specific resources.
+
+        Raises:
+            Exception: When initialization fails.
+        """
         try:
             # Initialize AI client
             self.gemini_client = get_gemini_client()
@@ -135,10 +160,16 @@ class QuizConductor(BaseAgent):
             # Load quiz templates
             await self.question_presenter.load_quiz_templates()
 
-            self.logger.info("QuizConductor initialized successfully")
+            self._logger.info(
+                "QuizConductor initialized successfully",
+                extra={"agent_id": self.agent_id}
+            )
 
         except Exception as e:
-            self.logger.error(f"Failed to initialize QuizConductor: {e}")
+            self._logger.error(
+                "Failed to initialize QuizConductor",
+                extra={"error": str(e), "agent_id": self.agent_id}
+            )
             raise
 
     async def _cleanup(self):
@@ -182,7 +213,7 @@ class QuizConductor(BaseAgent):
         task_type = task_data.get("type")
         payload = task_data.get("payload", {})
 
-        self.logger.info(f"Processing quiz task: {task_type}")
+        self._logger.info(f"Processing quiz task: {task_type}")
 
         try:
             if task_type == "conduct_quiz_session":
@@ -199,7 +230,7 @@ class QuizConductor(BaseAgent):
                 return {"success": False, "error": f"Unknown task type: {task_type}"}
 
         except Exception as e:
-            self.logger.error(f"Quiz task processing failed: {e}")
+            self._logger.error(f"Quiz task processing failed: {e}")
             return {"success": False, "error": str(e)}
 
     async def _conduct_quiz_session(self, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -251,6 +282,12 @@ class QuizConductor(BaseAgent):
         }
 
         try:
+            # Import adaptation limit checker
+            from app.domain.quizzes.quiz_trigger_policy import (
+                check_adaptation_limit,
+                AdaptationLimitError,
+            )
+
             # Start with welcome message
             await self.notification_manager.send_quiz_introduction(
                 context, self.max_questions_per_session, self.stress_threshold
@@ -263,21 +300,31 @@ class QuizConductor(BaseAgent):
             ):
                 # Check if adaptation is needed
                 if await self._should_adapt_quiz(context):
-                    adaptation = await self._determine_adaptation(context)
-                    await self.notification_manager.send_adaptation_message(
-                        context, adaptation
-                    )
-                    context.adaptation_history.append(
-                        {
-                            "adaptation_type": adaptation.value,
-                            "question_index": context.current_question_index,
-                            "reason": self.notification_manager.get_adaptation_reason(
-                                context, adaptation
-                            ),
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                        }
-                    )
-                    completion_status["adaptations_made"] += 1
+                    try:
+                        # Check adaptation limit before adapting
+                        check_adaptation_limit(len(context.adaptation_history))
+
+                        adaptation = await self._determine_adaptation(context)
+                        await self.notification_manager.send_adaptation_message(
+                            context, adaptation
+                        )
+                        context.adaptation_history.append(
+                            {
+                                "adaptation_type": adaptation.value,
+                                "question_index": context.current_question_index,
+                                "reason": self.notification_manager.get_adaptation_reason(
+                                    context, adaptation
+                                ),
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                            }
+                        )
+                        completion_status["adaptations_made"] += 1
+
+                    except AdaptationLimitError as e:
+                        self._logger.warning(
+                            f"Adaptation limit reached: {e}. Proceeding without further adaptations."
+                        )
+                        # Continue quiz without more adaptations
 
                 # Send current question
                 question_result = await self.question_presenter.send_quiz_question(
@@ -312,7 +359,7 @@ class QuizConductor(BaseAgent):
             return completion_status
 
         except Exception as e:
-            self.logger.error(f"Quiz conduction failed: {e}")
+            self._logger.error(f"Quiz conduction failed: {e}")
             completion_status["error"] = str(e)
             return completion_status
 

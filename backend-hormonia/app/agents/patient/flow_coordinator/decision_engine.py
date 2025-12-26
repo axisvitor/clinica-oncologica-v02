@@ -1,15 +1,30 @@
-"""
-Decision Engine - Makes intelligent flow decisions based on analysis.
-"""
+"""Decision Engine - Makes intelligent flow decisions based on analysis."""
 
+from __future__ import annotations
+
+# Standard library
 import logging
-from typing import Dict, List, Any, Callable
+from typing import Any, Callable, Dict, List
 
-from .models import FlowDecision, FlowContext
+# Local
+from .models import FlowContext, FlowDecision
 
 
 class DecisionEngine:
-    """Makes intelligent flow decisions based on context and analysis."""
+    """
+    Makes intelligent flow decisions based on context and analysis.
+
+    Analyzes patient flow situations and makes decisions on
+    progression, timing, content personalization, and interventions.
+
+    Attributes:
+        agent_id: Unique agent identifier.
+        logger: Logger instance.
+        consensus_threshold: Threshold for consensus decisions.
+        intervention_threshold: Threshold for intervention triggers.
+        adaptation_threshold: Threshold for content adaptation.
+        transition_day_45: Day for phase transition.
+    """
 
     def __init__(
         self,

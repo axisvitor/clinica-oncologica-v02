@@ -78,7 +78,7 @@ export function useQuizState({ session, initialToken, onComplete, resumeFromSave
   const handleSubmitAnswer = async (
     questionId: string,
     responseValue: string | string[],
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ) => {
     setIsSubmitting(true)
     try {

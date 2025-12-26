@@ -1,3 +1,5 @@
+
+# NOTE: Removed 'from __future__ import annotations' to fix Pydantic/FastAPI OpenAPI issues
 from typing import Optional, Dict
 from datetime import datetime, timezone
 from uuid import UUID
@@ -20,6 +22,7 @@ from app.utils.rate_limiter import limiter
 
 from app.api.v2.templates_shared import (
     _get_current_user_simple,
+    _extract_user_context,
     _check_write_permission,
     _get_cache_key,
     _get_cached_result,
@@ -29,6 +32,7 @@ from app.api.v2.templates_shared import (
     RATE_LIMIT_READ,
     RATE_LIMIT_WRITE,
 )
+from app.utils.audit_logger import AuditLogger, AuditAction
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -150,7 +154,8 @@ async def get_quiz_template(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting quiz template: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get quiz template")
 
 
 @router.post("/quizzes", response_model=QuizTemplateV2Response, status_code=201)
@@ -181,12 +186,30 @@ async def create_quiz_template(
         db.commit()
         db.refresh(new_template)
         await _invalidate_template_cache("quiz")
+
+        # Audit log
+        role, user_uuid = _extract_user_context(current_user)
+        AuditLogger.log(
+            action=AuditAction.CREATE,
+            resource_type="quiz_template",
+            resource_id=str(new_template.id),
+            user_id=str(user_uuid),
+            user_role=role,
+            details={
+                "template_name": new_template.name,
+                "version": new_template.version,
+                "category": new_template.category,
+            },
+            ip_address=request.client.host if request.client else None,
+        )
+
         return _serialize_quiz_template(new_template)
     except HTTPException:
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error creating quiz template: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to create quiz template")
 
 
 @router.put("/quizzes/{template_id}", response_model=QuizTemplateV2Response)
@@ -229,12 +252,34 @@ async def update_quiz_template(
         db.commit()
         db.refresh(template)
         await _invalidate_template_cache("quiz", template_id)
+
+        # Audit log
+        role, user_uuid = _extract_user_context(current_user)
+        changes = {}
+        if updates.name:
+            changes["name"] = updates.name
+        if updates.is_active is not None:
+            changes["is_active"] = updates.is_active
+        if updates.category:
+            changes["category"] = updates.category
+
+        AuditLogger.log(
+            action=AuditAction.UPDATE,
+            resource_type="quiz_template",
+            resource_id=str(template_id),
+            user_id=str(user_uuid),
+            user_role=role,
+            details={"changes": changes},
+            ip_address=request.client.host if request.client else None,
+        )
+
         return _serialize_quiz_template(template)
     except HTTPException:
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error updating quiz template: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to update quiz template")
 
 
 @router.delete("/quizzes/{template_id}", status_code=204)
@@ -252,12 +297,26 @@ async def delete_quiz_template(
         db.delete(template)
         db.commit()
         await _invalidate_template_cache("quiz", template_id)
+
+        # Audit log
+        role, user_uuid = _extract_user_context(current_user)
+        AuditLogger.log(
+            action=AuditAction.DELETE,
+            resource_type="quiz_template",
+            resource_id=str(template_id),
+            user_id=str(user_uuid),
+            user_role=role,
+            details={"template_name": template.name},
+            ip_address=request.client.host if request.client else None,
+        )
+
         return None
     except HTTPException:
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error deleting quiz template: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to delete quiz template")
 
 
 @router.post(
@@ -294,9 +353,27 @@ async def duplicate_quiz_template(
         db.commit()
         db.refresh(new_template)
         await _invalidate_template_cache("quiz")
+
+        # Audit log
+        role, user_uuid = _extract_user_context(current_user)
+        AuditLogger.log(
+            action=AuditAction.DUPLICATE,
+            resource_type="quiz_template",
+            resource_id=str(new_template.id),
+            user_id=str(user_uuid),
+            user_role=role,
+            details={
+                "source_template_id": str(template_id),
+                "new_template_name": new_template.name,
+                "new_version": new_template.version,
+            },
+            ip_address=request.client.host if request.client else None,
+        )
+
         return _serialize_quiz_template(new_template)
     except HTTPException:
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error duplicating quiz template: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to duplicate quiz template")

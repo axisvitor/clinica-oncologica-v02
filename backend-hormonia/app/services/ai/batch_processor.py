@@ -433,9 +433,9 @@ class BatchProcessor:
 
         key_string = ":".join(key_parts)
 
-        # Hash if too long
+        # Hash if too long (using SHA-256 for better collision resistance)
         if len(key_string) > 100:
-            key_hash = hashlib.md5(key_string.encode()).hexdigest()
+            key_hash = hashlib.sha256(key_string.encode()).hexdigest()[:32]
             return f"{operation.operation_type.value}:{key_hash}"
 
         return key_string
@@ -582,22 +582,33 @@ Return JSON with:
         logger.info("Batch processor stats reset")
 
 
-# Singleton instance
+# Singleton instance with thread-safe initialization
 _batch_processor: Optional[BatchProcessor] = None
+_batch_processor_lock: asyncio.Lock = asyncio.Lock()
 
 
 async def get_batch_processor() -> BatchProcessor:
     """
-    Get or create singleton BatchProcessor instance.
+    Get or create singleton BatchProcessor instance (thread-safe).
+
+    Uses asyncio.Lock to prevent race conditions during initialization.
 
     Returns:
         Initialized BatchProcessor instance
     """
     global _batch_processor
 
-    if _batch_processor is None:
-        _batch_processor = BatchProcessor()
-        await _batch_processor.initialize()
+    # Fast path - already initialized
+    if _batch_processor is not None:
+        return _batch_processor
+
+    # Thread-safe initialization
+    async with _batch_processor_lock:
+        # Double-check after acquiring lock
+        if _batch_processor is None:
+            processor = BatchProcessor()
+            await processor.initialize()
+            _batch_processor = processor
 
     return _batch_processor
 
@@ -605,4 +616,5 @@ async def get_batch_processor() -> BatchProcessor:
 async def reset_batch_processor():
     """Reset singleton instance (for testing)."""
     global _batch_processor
-    _batch_processor = None
+    async with _batch_processor_lock:
+        _batch_processor = None

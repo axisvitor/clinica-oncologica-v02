@@ -1,34 +1,65 @@
 """
 Flow State Machine and Validation Module.
+
 Handles state transitions, validation, and referential integrity for patient flows.
+Ensures data consistency and validates flow transitions according to business rules.
 """
 
+from __future__ import annotations
+
+# Standard library imports
 import hashlib
 import logging
-from typing import List, Optional
 from datetime import datetime, timezone
+from typing import List, Optional
 from uuid import UUID
+
+# Third-party imports
 from sqlalchemy.orm import Session
 
+# Local application imports
+from app.exceptions import ValidationError
 from app.models.flow import PatientFlowState
 from app.models.message import Message
-from app.repositories.patient import PatientRepository
 from app.repositories.flow import FlowStateRepository
-from app.exceptions import ValidationError
-
-logger = logging.getLogger(__name__)
+from app.repositories.patient import PatientRepository
 
 
 class FlowIntegrityService:
-    """Service for flow consistency validation and referential integrity"""
+    """
+    Domain service for flow state machine operations.
+
+    Implements flow consistency validation and referential integrity checks
+    for patient treatment flows.
+
+    Attributes:
+        db: Database session.
+        flow_state_repo: Flow state repository.
+        patient_repo: Patient repository.
+    """
 
     def __init__(self, db: Session):
+        """
+        Initialize flow integrity service.
+
+        Args:
+            db: Database session.
+        """
         self.db = db
+        self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.flow_state_repo = FlowStateRepository(db)
         self.patient_repo = PatientRepository(db)
 
     async def validate_flow_consistency(self, flow_state: PatientFlowState) -> None:
-        """Validate flow state consistency and referential integrity"""
+        """
+        Validate flow state consistency and referential integrity.
+
+        Args:
+            flow_state: Patient flow state to validate.
+
+        Raises:
+            ValidationError: When flow state is invalid or inconsistent.
+        """
         try:
             # Check patient existence
             patient = self.patient_repo.get(flow_state.patient_id)
@@ -63,14 +94,14 @@ class FlowIntegrityService:
             if flow_state.state_data:
                 await self._validate_flow_data_integrity(flow_state)
 
-            logger.info(
+            self._logger.info(
                 f"Flow consistency validation passed for patient {flow_state.patient_id}"
             )
 
         except ValidationError:
             raise
         except Exception as e:
-            logger.error(f"Flow consistency validation error: {e}")
+            self._logger.error(f"Flow consistency validation error: {e}")
             raise ValidationError(f"Flow validation failed: {str(e)}")
 
     def _validate_flow_type_compatibility(
@@ -139,12 +170,12 @@ class FlowIntegrityService:
             )
 
             if active_flows > 0 and flow_state.state_data.get("status") != "completed":
-                logger.warning(
+                self._logger.warning(
                     f"Multiple active flows detected for patient {flow_state.patient_id}"
                 )
 
         except Exception as e:
-            logger.error(f"State transition validation error: {e}")
+            self._logger.error(f"State transition validation error: {e}")
             raise
 
     def _get_max_step_for_flow(self, flow_type: str) -> int:
@@ -165,7 +196,7 @@ class FlowIntegrityService:
             required_fields = ["status", "last_updated"]
             for field in required_fields:
                 if field not in state_data:
-                    logger.warning(
+                    self._logger.warning(
                         f"Missing required field '{field}' in flow state data"
                     )
 
@@ -200,7 +231,7 @@ class FlowIntegrityService:
             stored_checksum = state_data.get("integrity_checksum")
 
             if stored_checksum and stored_checksum != expected_checksum:
-                logger.warning(
+                self._logger.warning(
                     f"Flow data integrity checksum mismatch for flow {flow_state.id}"
                 )
                 # Update with correct checksum
@@ -211,7 +242,7 @@ class FlowIntegrityService:
         except ValidationError:
             raise
         except Exception as e:
-            logger.error(f"Flow data integrity validation error: {e}")
+            self._logger.error(f"Flow data integrity validation error: {e}")
             raise
 
     def _generate_flow_checksum(self, flow_state: PatientFlowState) -> str:
@@ -235,7 +266,7 @@ class FlowIntegrityService:
             return hashlib.sha256(checksum_string.encode("utf-8")).hexdigest()
 
         except Exception as e:
-            logger.error(f"Flow checksum generation failed: {e}")
+            self._logger.error(f"Flow checksum generation failed: {e}")
             return ""
 
     async def prevent_invalid_transitions(
@@ -262,14 +293,14 @@ class FlowIntegrityService:
                         f"Invalid flow transition: {current_flow.flow_type} -> {new_flow_type}"
                     )
 
-            logger.info(
+            self._logger.info(
                 f"Flow transition validated for patient {patient_id}: {new_flow_type}"
             )
 
         except ValidationError:
             raise
         except Exception as e:
-            logger.error(f"Flow transition validation error: {e}")
+            self._logger.error(f"Flow transition validation error: {e}")
             raise ValidationError(f"Flow transition validation failed: {str(e)}")
 
     async def validate_referential_integrity(
@@ -317,14 +348,14 @@ class FlowIntegrityService:
                         issues.append(f"Error validating message {msg_id}: {e}")
 
             if issues:
-                logger.warning(f"Referential integrity issues found: {issues}")
+                self._logger.warning(f"Referential integrity issues found: {issues}")
             else:
-                logger.info(
+                self._logger.info(
                     f"Referential integrity validation passed for flow {flow_state.id}"
                 )
 
             return issues
 
         except Exception as e:
-            logger.error(f"Referential integrity validation error: {e}")
+            self._logger.error(f"Referential integrity validation error: {e}")
             return [f"Validation error: {str(e)}"]

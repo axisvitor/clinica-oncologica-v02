@@ -144,15 +144,36 @@ def get_worker_count() -> int:
     Detection order:
     1. WEB_CONCURRENCY (Gunicorn/Uvicorn)
     2. WORKER_COUNT (custom)
-    3. Default to 4
+    3. Environment-aware default:
+       - Production/Staging: Default to 4 (requires explicit config recommended)
+       - Development/Test: Default to 1 (single process)
 
     Returns:
         int: Number of workers
+
+    Note: In production, this MUST be set explicitly via WEB_CONCURRENCY or WORKER_COUNT
+    to ensure proper connection pool calculation. The default of 4 is a fallback only.
     """
     try:
-        return int(os.getenv("WEB_CONCURRENCY", os.getenv("WORKER_COUNT", "4")))
+        explicit_workers = os.getenv("WEB_CONCURRENCY") or os.getenv("WORKER_COUNT")
+        if explicit_workers:
+            return int(explicit_workers)
+
+        # Environment-aware defaults to prevent pool exhaustion
+        env = detect_environment()
+        if env in [EnvironmentType.DEVELOPMENT, EnvironmentType.TEST]:
+            return 1  # Single worker for local dev - prevents 200 connection issue
+        else:
+            # CRITICAL: Production should set WEB_CONCURRENCY explicitly
+            # This fallback of 4 workers assumes proper pool configuration
+            logger.warning(
+                "⚠️  WEB_CONCURRENCY not set in production. Defaulting to 4 workers. "
+                "Please set WEB_CONCURRENCY explicitly to ensure proper connection pool sizing."
+            )
+            return 4  # Production/staging default
     except (ValueError, TypeError):
-        return 4
+        logger.error("Invalid worker count configuration. Defaulting to 1 worker.")
+        return 1  # Safe default
 
 
 def calculate_pool_config(
@@ -226,11 +247,12 @@ def calculate_pool_config(
         )
 
     else:  # DEVELOPMENT
-        # Development: Generous settings
-        # Local PostgreSQL, no connection limits
+        # Development: Moderate settings
+        # Local PostgreSQL OR RDS - stay within limits
+        # With 1 worker default: 10 + 15 = 25 connections (safe for RDS)
         return DatabasePoolConfig(
-            pool_size=20,  # Large pool for development
-            max_overflow=30,  # Plenty of overflow
+            pool_size=10,  # Reduced from 20 - sufficient for dev
+            max_overflow=15,  # Reduced from 30 - prevents connection exhaustion
             pool_timeout=30,
             pool_recycle=3600,
             pool_pre_ping=True,
@@ -271,12 +293,33 @@ def get_pool_config(
         f"total_all_workers={config.total_connections * worker_count}"
     )
 
-    # Warn if total connections might exceed limits
+    # Validate and warn if total connections might exceed limits
     total_connections = config.total_connections * worker_count
-    if environment == EnvironmentType.PRODUCTION and total_connections > 80:
+
+    if environment == EnvironmentType.PRODUCTION:
+        if total_connections > 80:
+            logger.error(
+                f"❌ CRITICAL: Total connections ({total_connections}) exceeds "
+                f"AWS RDS t3.micro limit (~80 available). "
+                f"Current: {worker_count} workers × {config.total_connections} = {total_connections} connections. "
+                f"REQUIRED ACTION: Reduce workers or pool size to prevent connection exhaustion. "
+                f"Recommended: Set WEB_CONCURRENCY=4 or lower."
+            )
+        elif total_connections > 60:
+            logger.warning(
+                f"⚠️  Total connections ({total_connections}) approaching "
+                f"AWS RDS limits (~80). Monitor connection usage closely."
+            )
+        else:
+            logger.info(
+                f"✅ Connection pool within safe limits: {total_connections}/80 connections"
+            )
+
+    # Additional validation for development to prevent misconfiguration
+    if environment == EnvironmentType.DEVELOPMENT and total_connections > 100:
         logger.warning(
-            f"⚠️  Total connections ({total_connections}) may exceed "
-            f"AWS RDS limits (~80). Consider reducing workers or pool size."
+            f"⚠️  Development environment using {total_connections} connections. "
+            f"This may indicate misconfiguration. Verify worker count is correct."
         )
 
     return config

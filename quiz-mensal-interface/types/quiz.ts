@@ -86,7 +86,7 @@ export interface QuizSubmitRequest {
   token: string
   question_id: string
   response_value: string | string[]
-  response_metadata?: Record<string, any>
+  response_metadata?: Record<string, unknown>
   other_text?: string
 }
 

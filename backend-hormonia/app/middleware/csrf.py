@@ -53,6 +53,7 @@ EXEMPT_PATHS = frozenset({
     "/api/v2/auth/register",
     "/api/v2/auth/refresh",
     "/webhooks/",
+    "/api/v2/webhooks/",  # WhatsApp/Evolution webhooks
     "/api/public/",
     "/api/v2/quiz-extensions/monthly/public",
     "/api/v2/monthly-quiz-public",

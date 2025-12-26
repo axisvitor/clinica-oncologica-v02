@@ -1,6 +1,11 @@
 """
 LGPD-compliant search operations for patients.
+
+This module provides search functionality for patient records
+using LGPD-compliant hash-based lookups for encrypted fields.
 """
+
+from __future__ import annotations
 
 import logging
 from typing import List
@@ -8,6 +13,7 @@ from typing import List
 from sqlalchemy import or_
 
 from app.models.patient import Patient
+
 from .encryption_helpers import build_search_criteria
 
 logger = logging.getLogger(__name__)
@@ -16,6 +22,14 @@ logger = logging.getLogger(__name__)
 class PatientSearchMixin:
     """
     Search operations for patients with LGPD compliance.
+
+    Provides search functionality using LGPD-compliant methods:
+    - Name: ILIKE pattern matching (plaintext)
+    - Email: SHA-256 hash exact matching (encrypted)
+    - Phone: SHA-256 hash exact matching (encrypted)
+
+    Methods:
+        search_active: Search active patients by name, email, or phone.
     """
 
     def search_active(

@@ -103,6 +103,10 @@ def create_application(
         openapi_url="/openapi.json" if docs_available else None,
         lifespan=lifespan,
         openapi_tags=get_openapi_tags(),
+        # CRITICAL: Disable redirect_slashes to prevent CORS issues
+        # Without this, /patients?limit=100 redirects to /patients/?limit=100
+        # which loses CORS headers and breaks frontend requests
+        redirect_slashes=False,
     )
 
     # Store configuration in app state for reference

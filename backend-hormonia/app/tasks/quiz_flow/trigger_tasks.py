@@ -7,12 +7,16 @@ Tasks:
 - monitor_quiz_links_task: Monitor quiz links for expirations and send notifications
 """
 
+from __future__ import annotations
+
 import logging
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 from celery import current_app as celery_app
 
 from app.database import get_db
+from app.repositories.patient import PatientRepository
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +55,11 @@ def check_quiz_triggers_task(self, limit: int = 100) -> dict[str, Any]:
             flow_repo = FlowStateRepository(db)
 
             # Get active monthly flows
+            # FIX: Changed target_day from 30 to 15 to match QuizTriggerPolicy.MONTHLY_QUIZ_DAY
+            # Bug: Query was using day=30 but policy defines MONTHLY_QUIZ_DAY=15
+            from app.domain.quizzes.quiz_trigger_policy import QuizTriggerPolicy
             monthly_flows = flow_repo.get_flows_by_type_and_day(
-                flow_type="monthly_recurring", target_day=30, limit=limit
+                flow_type="monthly_recurring", target_day=QuizTriggerPolicy.MONTHLY_QUIZ_DAY, limit=limit
             )
 
             results: dict[str, Any] = {
@@ -68,15 +75,39 @@ def check_quiz_triggers_task(self, limit: int = 100) -> dict[str, Any]:
                     trigger_service = QuizTriggerService(db)
 
                     # Build quiz info for monthly trigger
+                    from app.domain.quizzes.quiz_trigger_policy import QuizTriggerPolicy
+                    from asgiref.sync import async_to_sync
+
+                    # Get patient to calculate monthly cycle
+                    patient_repo = PatientRepository(db)
+                    patient = patient_repo.get(flow_state.patient_id)
+
+                    if not patient:
+                        results["errors"] += 1
+                        results["details"].append(
+                            {"patient_id": str(flow_state.patient_id), "error": "Patient not found"}
+                        )
+                        continue
+
+                    enrollment_date = patient.enrollment_date or patient.created_at
+                    days_since_enrollment = (
+                        datetime.now(timezone.utc) - enrollment_date
+                    ).days
+
+                    monthly_cycle, _ = QuizTriggerPolicy.calculate_monthly_cycle(
+                        days_since_enrollment
+                    )
+
                     quiz_info = {
-                        "monthly_cycle": 1,
-                        "template_name": "monthly_checkup",
-                        "trigger_reason": "Monthly quiz day 30",
+                        "monthly_cycle": monthly_cycle,
+                        "template_name": f"monthly_checkup_cycle_{monthly_cycle}",
+                        "trigger_reason": f"Monthly quiz day {QuizTriggerPolicy.MONTHLY_QUIZ_DAY}",
                     }
 
-                    # Trigger quiz (will choose link vs conversational automatically)
-                    result = asyncio.run(
-                        trigger_service._trigger_patient_quiz(flow_state, quiz_info)
+                    # Trigger quiz using async_to_sync instead of asyncio.run
+                    # This prevents "asyncio.run() cannot be called from a running event loop" error
+                    result = async_to_sync(trigger_service._trigger_patient_quiz)(
+                        flow_state, quiz_info
                     )
 
                     trigger_result = {
@@ -156,13 +187,12 @@ def send_quiz_link_reminder_task(
 
             quiz_integration = MonthlyQuizMessageIntegration(db)
 
-            import asyncio
+            from asgiref.sync import async_to_sync
 
-            result = asyncio.run(
-                quiz_integration.send_quiz_reminder(
-                    quiz_session_id=UUID(quiz_session_id),
-                    hours_before_expiry=hours_before_expiry,
-                )
+            # Use async_to_sync instead of asyncio.run to avoid event loop conflicts
+            result = async_to_sync(quiz_integration.send_quiz_reminder)(
+                quiz_session_id=UUID(quiz_session_id),
+                hours_before_expiry=hours_before_expiry,
             )
 
             if result.get("reminder_sent"):
@@ -208,7 +238,7 @@ def monitor_quiz_links_task(self) -> dict[str, Any]:
     """
     try:
         with next(get_db()) as db:
-            from app.domain.quizzes import MonthlyQuizService
+            from app.services.quiz.quiz_service import MonthlyQuizService
             from app.services.monthly_quiz_message_integration import (
                 MonthlyQuizMessageIntegration,
             )
@@ -228,8 +258,10 @@ def monitor_quiz_links_task(self) -> dict[str, Any]:
             }
 
             # Get all active quiz sessions
+            # FIX: Python's `not` operator doesn't work with SQLAlchemy columns
+            # Use == False or .is_(False) for proper SQL generation
             active_sessions = (
-                db.query(QuizSession).filter(not QuizSession.is_completed).all()  # type: ignore[arg-type]
+                db.query(QuizSession).filter(QuizSession.is_completed == False).all()  # noqa: E712
             )
 
             current_time = datetime.now(timezone.utc)

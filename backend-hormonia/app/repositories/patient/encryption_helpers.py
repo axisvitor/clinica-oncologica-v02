@@ -1,10 +1,16 @@
 """
 Encryption and hash lookup helpers for LGPD-compliant patient searches.
 
+This module provides utility functions for building LGPD-compliant
+search criteria using SHA-256 hash lookups for encrypted fields.
+
 LGPD Compliance:
 - Email and phone are encrypted in the database
 - Searches use SHA-256 hashes for exact matches
+- Name searches use plaintext ILIKE matching
 """
+
+from __future__ import annotations
 
 import logging
 import re

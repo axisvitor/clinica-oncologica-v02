@@ -13,37 +13,42 @@ Migrated from: app/api/v2/routers/patients_integrity.py
 Lines: 60-381
 """
 
-from typing import Optional, List
-from datetime import datetime, timezone
-from uuid import UUID
+# Standard library imports
+# NOTE: Removed 'from __future__ import annotations' to fix Pydantic/FastAPI
+# OpenAPI schema generation issues with Query() and Depends() parameters
 import logging
+from datetime import datetime, timezone
+from typing import List, Optional
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+# Third-party imports
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import EmailStr
 from sqlalchemy.orm import Session
 
+# Local application imports
+from app.api.v2.dependencies import (
+    apply_field_selection,
+    get_field_selection,
+    get_pagination_params,
+)
 from app.database import get_db
+from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.models.patient import Patient
 from app.models.user import UserRole
 from app.schemas.patient import validate_cpf as validate_cpf_value
-from app.schemas.v2.patient import PatientV2Response, PatientV2List
-from app.api.v2.dependencies import (
-    get_pagination_params,
-    get_field_selection,
-    apply_field_selection,
-)
-from app.dependencies.auth_dependencies import get_current_user_from_session
+from app.schemas.v2.patient import PatientV2List, PatientV2Response
 from app.utils.rate_limiter import limiter
 
 from .base import (
     CPFValidationRequest,
     EmailCheckResponse,
-    normalize_cpf,
     extract_user_context,
+    normalize_cpf,
 )
 
-router = APIRouter()
 logger = logging.getLogger(__name__)
+router = APIRouter()
 
 
 @router.post(
@@ -70,7 +75,7 @@ async def validate_cpf_endpoint(request: Request, payload: CPFValidationRequest)
     if not validate_cpf_value(payload.cpf):
         return {"valid": False, "message": "CPF inválido"}
 
-    normalized = normalize_cpf(payload.cpf)
+    normalized = await normalize_cpf(payload.cpf)
     if normalized and len(normalized) != 11:
         return {"valid": False, "message": "CPF deve conter 11 dígitos"}
 
@@ -226,7 +231,7 @@ async def list_deleted_patients(
     Only administrators can view deleted patients.
     Supports pagination and field selection.
     """
-    role_enum, user_id = extract_user_context(current_user)
+    role_enum, user_id = await extract_user_context(current_user)
 
     # Only admins can view deleted patients
     if role_enum != UserRole.ADMIN:

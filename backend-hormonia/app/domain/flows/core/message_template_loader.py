@@ -1,26 +1,41 @@
 """
 Template Management Module.
+
 Handles template loading, fallback generation, and template error handling.
+Provides robust template management with multiple fallback layers.
 """
 
+from __future__ import annotations
+
+# Standard library imports
 import logging
 from typing import Optional
+
+# Third-party imports
 from sqlalchemy.orm import Session
 
+# Local application imports
 from app.services.enhanced_flow_engine import FlowType
 from app.services.template_loader import (
     EnhancedTemplateLoader,
-    MessageTemplate,
-    TemplateLoadError,
     FlowTemplateData,
+    MessageTemplate,
     MessageType as TemplateMessageType,
+    TemplateLoadError,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class MessageTemplateLoader:
-    """Manages template loading and fallback generation for flow messages."""
+    """
+    Domain service for message template operations.
+
+    Manages template loading and fallback generation for flow messages
+    with comprehensive error handling and multi-layer fallback system.
+
+    Attributes:
+        db: Database session.
+        template_loader: Enhanced template loader instance.
+    """
 
     def __init__(
         self, db: Session, template_loader: Optional[EnhancedTemplateLoader] = None
@@ -29,10 +44,11 @@ class MessageTemplateLoader:
         Initialize template manager.
 
         Args:
-            db: Database session
-            template_loader: Template loader instance
+            db: Database session.
+            template_loader: Template loader instance.
         """
         self.db = db
+        self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.template_loader = template_loader or EnhancedTemplateLoader(db=db)
 
     async def get_message_template_for_day(
@@ -65,19 +81,19 @@ class MessageTemplateLoader:
                     self.template_loader.load_flow_template(flow_type.value)
                 )
             except TemplateLoadError as e:
-                logger.error(
+                self._logger.error(
                     f"Template load error for {flow_type.value}: {e}. "
                     f"Using fallback message."
                 )
                 return await self.get_fallback_template(flow_type, day)
             except FileNotFoundError as e:
-                logger.error(
+                self._logger.error(
                     f"Template file not found for {flow_type.value}: {e}. "
                     f"Using fallback message."
                 )
                 return await self.get_fallback_template(flow_type, day)
             except Exception as e:
-                logger.error(
+                self._logger.error(
                     f"Unexpected error loading template {flow_type.value}: {e}. "
                     f"Using fallback message.",
                     exc_info=True,
@@ -87,17 +103,17 @@ class MessageTemplateLoader:
             # Get message for specific day from FlowTemplateData.messages dict
             if day in flow_template.messages:
                 message_template = flow_template.messages[day]
-                logger.debug(f"Found message template for {flow_type.value} day {day}")
+                self._logger.debug(f"Found message template for {flow_type.value} day {day}")
                 return message_template
 
-            logger.warning(
+            self._logger.warning(
                 f"No message template found for {flow_type.value} day {day}. "
                 f"Using fallback message."
             )
             return await self.get_fallback_template(flow_type, day)
 
         except Exception as e:
-            logger.error(
+            self._logger.error(
                 f"Critical error getting message template for {flow_type.value} day {day}: {e}. "
                 f"Using fallback message.",
                 exc_info=True,
@@ -137,7 +153,7 @@ class MessageTemplateLoader:
                 },
             )
 
-            logger.warning(
+            self._logger.warning(
                 f"Using fallback template for {flow_type.value} day {day}. "
                 f"Template loading failed, providing default Portuguese message."
             )
@@ -157,7 +173,7 @@ class MessageTemplateLoader:
                 variations=[],  # No variations for fallback
             )
         except Exception as e:
-            logger.error(
+            self._logger.error(
                 f"Critical failure generating fallback template: {e}. "
                 f"Returning None - flow will skip this day.",
                 exc_info=True,
@@ -182,18 +198,18 @@ class MessageTemplateLoader:
             required_fields = ["intent", "base_content", "ai_instructions"]
             for field in required_fields:
                 if not hasattr(template, field) or not getattr(template, field):
-                    logger.warning(f"Template missing required field: {field}")
+                    self._logger.warning(f"Template missing required field: {field}")
                     return False
 
             # Validate day number
             if hasattr(template, "day") and template.day < 0:
-                logger.warning("Template has invalid day number")
+                self._logger.warning("Template has invalid day number")
                 return False
 
             return True
 
         except Exception as e:
-            logger.error(f"Error validating template: {e}")
+            self._logger.error(f"Error validating template: {e}")
             return False
 
     async def load_all_templates_for_flow(
@@ -214,7 +230,7 @@ class MessageTemplateLoader:
             )
             return flow_template.messages
         except Exception as e:
-            logger.error(f"Failed to load all templates for {flow_type.value}: {e}")
+            self._logger.error(f"Failed to load all templates for {flow_type.value}: {e}")
             return {}
 
     async def get_template_metadata(self, flow_type: FlowType, day: int) -> dict:
@@ -246,5 +262,5 @@ class MessageTemplateLoader:
                 else 0,
             }
         except Exception as e:
-            logger.error(f"Failed to get template metadata: {e}")
+            self._logger.error(f"Failed to get template metadata: {e}")
             return {"exists": False, "error": str(e)}
