@@ -7,7 +7,7 @@
 - [x] Task: Write Tests: CSRF Protection & Token Rotation Flow (267f25d)
 - [x] Task: Implement/Verify: CSRF Middleware & Session Management (d7b2c90)
 - [x] Task: Write Tests: RBAC Permission Enforcement (767cc46)
-- [ ] Task: Implement/Verify: Role-Based Access Controls in API Routers
+- [x] Task: Implement/Verify: Role-Based Access Controls in API Routers (6f380b3)
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Security Verification & Hardening' (Protocol in workflow.md)
 
 ## Phase 2: Performance & Database Audit
