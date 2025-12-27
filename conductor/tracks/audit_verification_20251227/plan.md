@@ -10,7 +10,7 @@
 - [x] Task: Implement/Verify: Role-Based Access Controls in API Routers (6f380b3)
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Security Verification & Hardening' (Protocol in workflow.md)
 
-## Phase 2: Performance & Database Audit
+## Phase 2: Performance & Database Audit [checkpoint: 4dfc13b]
 
 - [x] Task: Write Tests: Database Query Efficiency & N+1 Detection (2232927)
 - [x] Task: Implement/Verify: Optimize Database Repositories & Indexing (2e3cdf0)
