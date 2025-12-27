@@ -12,7 +12,7 @@
 
 ## Phase 2: Performance & Database Audit
 
-- [ ] Task: Write Tests: Database Query Efficiency & N+1 Detection
+- [x] Task: Write Tests: Database Query Efficiency & N+1 Detection (2232927)
 - [ ] Task: Implement/Verify: Optimize Database Repositories & Indexing
 - [ ] Task: Write Tests: Cache Service Utilization & Invalidation
 - [ ] Task: Implement/Verify: Refactor Redis Manager for Better Reliability
