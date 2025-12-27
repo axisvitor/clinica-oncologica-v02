@@ -384,4 +384,14 @@ export default defineConfig(({ mode }) => ({
     __VITE_MODE__: JSON.stringify(mode),
     __VITE_PROD__: JSON.stringify(mode === "production"),
   },
+  test: {
+    globals: true,
+    environment: "jsdom",
+    setupFiles: "./tests/setup.ts",
+    include: ["src/**/*.{test,spec}.{ts,tsx}", "tests/**/*.{test,spec}.{ts,tsx}"],
+    coverage: {
+      reporter: ["text", "json", "html"],
+      exclude: ["node_modules/", "tests/setup.ts"],
+    },
+  },
 }));
