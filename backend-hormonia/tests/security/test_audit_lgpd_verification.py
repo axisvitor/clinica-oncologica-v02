@@ -1,5 +1,6 @@
 import pytest
 from sqlalchemy.orm import Session
+from fastapi import Request
 from app.models.patient import Patient
 from app.models.user import User
 import uuid
@@ -83,3 +84,50 @@ class TestLGPDAuditVerification:
         
         # Test Email masking
         assert mask_email("patient@example.com") == "pa***@example.com"
+
+    def test_lgpd_middleware_logging(self, db_session: Session):
+        """
+        Verify that LGPDMiddleware logs patient data access with correct user_id.
+        """
+        from fastapi.testclient import TestClient
+        from app.main import app
+        from unittest.mock import patch, MagicMock
+        
+        client = TestClient(app)
+        
+        with patch("app.middleware.lgpd_middleware.logger") as mock_logger:
+            # Use a mock token that will be accepted or mock the dependency
+            from app.dependencies.auth_dependencies import get_current_user_from_session
+            
+            async def mock_get_user(request: Request):
+                print(f"DEBUG: mock_get_user called for {request.url.path}")
+                request.state.user_id = "test-user-id"
+                request.state.user_role = "admin"
+                return {"id": "test-user-id", "role": "admin"}
+            
+            print(f"DEBUG: Setting override for {get_current_user_from_session}")
+            app.dependency_overrides[get_current_user_from_session] = mock_get_user
+            
+            response = client.get("/api/v2/patients/")
+            print(f"DEBUG: Response status: {response.status_code}")
+            
+            # Clean up overrides
+            app.dependency_overrides = {}
+            
+            # Check response to ensure it didn't fail with 401/403
+            assert response.status_code != 401, "Auth failed"
+            assert response.status_code != 403, "Permission denied"
+            
+            # Check if logger was called with LGPD info
+            found_log = False
+            for call in mock_logger.info.call_args_list:
+                args, kwargs = call
+                if "LGPD: Patient data access" in args[0]:
+                    found_log = True
+                    extra = kwargs.get("extra", {})
+                    # If this fails, it means request.state was not accessible after call_next
+                    assert extra.get("user_id") == "test-user-id", f"user_id was {extra.get('user_id')}"
+                    assert extra.get("path") == "/api/v2/patients/"
+                    assert "status_code" in extra
+            
+            assert found_log, "LGPD access log not found"

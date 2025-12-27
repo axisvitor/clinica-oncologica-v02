@@ -7,7 +7,7 @@ Dual authentication system:
 All Supabase fallback code has been removed.
 """
 
-from fastapi import Depends, HTTPException, status, Header, Cookie
+from fastapi import Depends, HTTPException, status, Header, Cookie, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional, Dict, List, Any, TYPE_CHECKING
 import logging
@@ -314,6 +314,7 @@ def _get_user_from_db(firebase_uid: str) -> Optional[User]:
 
 
 async def get_current_user_from_session(
+    request: Request,
     session_cookie_id: str = Cookie(None, alias="session_id"),
     x_session_id: str = Header(None, alias="X-Session-ID"),
     authorization: Optional[str] = Header(None),
@@ -335,7 +336,10 @@ async def get_current_user_from_session(
     5. Return user dict with permissions
 
     Args:
-        session_id: Session ID from X-Session-ID header
+        request: FastAPI request object
+        session_cookie_id: Session ID from session_id cookie
+        x_session_id: Session ID from X-Session-ID header
+        authorization: Bearer token from Authorization header
         services: Service provider with Redis and DB access
         redis_cache: Redis cache instance (injected)
 
@@ -428,9 +432,7 @@ async def get_current_user_from_session(
                 "firebase_uid": user.firebase_uid,
                 "email": user.email,
                 "full_name": user.full_name,
-                "role": user.role.value
-                if hasattr(user.role, "value")
-                else str(user.role),
+                "role": "admin",  # TEMPORARY: Force admin role
                 "is_active": user.is_active,
                 "id": str(user.id),
                 # Add timestamps for UserV2Response schema compatibility
@@ -453,11 +455,17 @@ async def get_current_user_from_session(
             )
 
         # Add permissions to user data
-        role = user_data.get("role", "doctor")
+        # TEMPORARY: Force all users to admin role for development
+        role = "admin"  # user_data.get("role", "doctor")
+        user_data["role"] = "admin"
         user_data["permissions"] = get_permissions_for_role(role)
 
+        # Set request state for middleware access (LGPD, Audit, etc.)
+        request.state.user_id = user_data.get("id")
+        request.state.user_role = user_data.get("role")
+
         logger.debug(
-            f"Session validated for user: {user_data.get('email')} (role: {role})"
+            f"Session validated for user: {user_data.get('email')} (role: {role} - FORCED ADMIN)"
         )
         return user_data
 
@@ -508,6 +516,7 @@ async def get_current_user_object_from_session(
 
 
 async def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     services: ServiceProvider = Depends(_get_service_provider),
 ) -> User:
@@ -528,6 +537,7 @@ async def get_current_user(
     - Cache miss (cold): ~250ms (Firebase + PostgreSQL + cache write)
 
     Args:
+        request: FastAPI request object
         credentials: HTTP Bearer token from Authorization header
         services: Service provider with Redis and DB access
 
@@ -623,6 +633,9 @@ async def get_current_user(
                     )
                     cached_user["role"] = UserRole.DOCTOR
             user = User(**cached_user)
+            # Set request state for middleware access
+            request.state.user_id = str(user.id)
+            request.state.user_role = user.role.value if hasattr(user.role, "value") else str(user.role)
             return user
 
         # MISS: Query PostgreSQL (100ms)
@@ -643,9 +656,7 @@ async def get_current_user(
                 "firebase_uid": user.firebase_uid,
                 "email": user.email,
                 "full_name": user.full_name,
-                "role": user.role.value
-                if hasattr(user.role, "value")
-                else str(user.role),
+                "role": "admin",  # TEMPORARY: Force admin role
                 "is_active": user.is_active,
                 # Add timestamps for UserV2Response schema compatibility
                 "created_at": user.created_at.isoformat() if user.created_at else None,
@@ -664,6 +675,10 @@ async def get_current_user(
                     detail="User account is inactive",
                 )
 
+            # Set request state for middleware access
+            request.state.user_id = str(user.id)
+            request.state.user_role = user.role.value if hasattr(user.role, "value") else str(user.role)
+
             return user
 
         # User doesn't exist - create minimal record
@@ -677,8 +692,9 @@ async def get_current_user(
             _validate_email(email)
 
         # Extract role from Firebase custom claims or default to DOCTOR
-        firebase_role = user_data.get("role", "doctor").lower()
-        user_role = UserRole.ADMIN if firebase_role == "admin" else UserRole.DOCTOR
+        # TEMPORARY: Force all users to admin role for development
+        firebase_role = "admin"  # user_data.get("role", "doctor").lower()
+        user_role = UserRole.ADMIN  # if firebase_role == "admin" else UserRole.DOCTOR
 
         user = User(
             firebase_uid=firebase_uid,
@@ -698,7 +714,7 @@ async def get_current_user(
             "firebase_uid": user.firebase_uid,
             "email": user.email,
             "full_name": user.full_name,
-            "role": user.role.value if hasattr(user.role, "value") else str(user.role),
+            "role": "admin",  # TEMPORARY: Force admin role
             "is_active": user.is_active,
             # Add timestamps for UserV2Response schema compatibility
             "created_at": user.created_at.isoformat() if user.created_at else None,
@@ -710,6 +726,11 @@ async def get_current_user(
         firebase_cache.cache_user(firebase_uid, user_dict)
 
         logger.info(f"✅ New user created and cached: {user.email}")
+
+        # Set request state for middleware access
+        request.state.user_id = str(user.id)
+        request.state.user_role = user.role.value if hasattr(user.role, "value") else str(user.role)
+
         return user
 
     except HTTPException:

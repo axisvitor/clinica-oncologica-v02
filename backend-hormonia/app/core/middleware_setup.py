@@ -153,12 +153,23 @@ def setup_middleware(app: FastAPI) -> None:
         logger.warning(f"Security headers middleware not available: {e}")
 
     # ========================================================================
-    # 7. CORS (added last, executes FIRST)
+    # 7. LGPD COMPLIANCE (added seventh, executes second)
+    # ========================================================================
+    try:
+        from app.middleware.lgpd_middleware import LGPDMiddleware
+
+        app.add_middleware(LGPDMiddleware, enable_ip_logging=True)
+        logger.info("[7/8] LGPD compliance middleware added")
+    except ImportError as e:
+        logger.warning(f"LGPD middleware not available: {e}")
+
+    # ========================================================================
+    # 8. CORS (added last, executes FIRST)
     # ========================================================================
     from app.core.cors import configure_cors
 
     configure_cors(app)
-    logger.info("[7/7] CORS middleware added (executes FIRST)")
+    logger.info("[8/8] CORS middleware added (executes FIRST)")
 
     # Summary
     env = "PRODUCTION" if settings.APP_ENVIRONMENT.lower() == "production" else "DEVELOPMENT"
