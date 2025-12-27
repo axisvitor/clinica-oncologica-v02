@@ -9,7 +9,7 @@ from fastapi.security import HTTPBearer
 
 from app.models.user import User, UserRole
 from app.dependencies import get_request_context, RequestContext
-from app.dependencies.auth_dependencies import get_current_user
+from app.dependencies.auth_dependencies import get_current_user_object_from_session
 
 
 # HTTPBearer instance for admin authentication
@@ -17,7 +17,7 @@ _admin_bearer = HTTPBearer(auto_error=False)
 
 
 async def get_admin_user(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_object_from_session),
     context: RequestContext = Depends(get_request_context),
 ) -> User:
     """

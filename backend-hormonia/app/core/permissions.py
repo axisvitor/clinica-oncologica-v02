@@ -597,81 +597,8 @@ class PermissionChecker:
         return has_base_permission
 
 
-# =============================================================================
-# DECORATORS FOR PERMISSION CHECKING
-# =============================================================================
-
-
-def require_permission(permission: Permission):
-    """Decorator to require specific permission for endpoint access."""
-
-    def decorator(func):
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            # Extract user from function arguments
-            user = None
-            for arg in args:
-                if isinstance(arg, User):
-                    user = arg
-                    break
-
-            # Check kwargs for user
-            if not user:
-                user = kwargs.get("current_user") or kwargs.get("user")
-
-            if not user or not hasattr(user, "role"):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required",
-                )
-
-            if not PermissionChecker.has_permission(user.role, permission):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Permission required: {permission.value}",
-                )
-
-            return await func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
-
-
-def require_any_permission(permissions: List[Permission]):
-    """Decorator to require any of the specified permissions."""
-
-    def decorator(func):
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            # Extract user from function arguments
-            user = None
-            for arg in args:
-                if isinstance(arg, User):
-                    user = arg
-                    break
-
-            if not user:
-                user = kwargs.get("current_user") or kwargs.get("user")
-
-            if not user or not hasattr(user, "role"):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required",
-                )
-
-            if not PermissionChecker.has_any_permission(user.role, permissions):
-                permission_names = [p.value for p in permissions]
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"One of these permissions required: {', '.join(permission_names)}",
-                )
-
-            return await func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
+# Note: require_permission and require_any_permission decorators have been moved
+# to app.core.authorization for better feature support and consistency.
 
 
 # =============================================================================
