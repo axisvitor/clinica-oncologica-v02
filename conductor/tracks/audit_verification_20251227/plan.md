@@ -4,7 +4,7 @@
 
 - [x] Task: Write Tests: LGPD Encryption & PII Masking Verification (dec49be)
 - [x] Task: Implement/Verify: LGPD Data Protection in Backend Services (d7b2c90)
-- [ ] Task: Write Tests: CSRF Protection & Token Rotation Flow
+- [x] Task: Write Tests: CSRF Protection & Token Rotation Flow (267f25d)
 - [ ] Task: Implement/Verify: CSRF Middleware & Session Management
 - [ ] Task: Write Tests: RBAC Permission Enforcement
 - [ ] Task: Implement/Verify: Role-Based Access Controls in API Routers
