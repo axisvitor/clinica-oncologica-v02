@@ -568,18 +568,15 @@ class Patient(BaseModel):
 
 @event.listens_for(Patient, "before_insert")
 @event.listens_for(Patient, "before_update")
-def validate_cpf_encryption(mapper, connection, target):
+def validate_patient_encryption(mapper, connection, target):
     """
-    Ensure CPF is properly encrypted before database operations.
+    Ensure PII fields are properly encrypted before database operations.
 
-    QW-003: LGPD Compliance - CPF Encryption Validation Hook
+    QW-003: LGPD Compliance - Encryption Validation Hook
 
-    This hook validates that CPF data is properly encrypted before database insertion
-    or update. It prevents incomplete encryption which would violate LGPD requirements.
-
-    Validation checks (Post-Migration 030):
-    1. If cpf_encrypted exists, cpf_hash must also exist
-    2. NOTE: Legacy plaintext 'cpf' column REMOVED in migration 030
+    This hook validates that sensitive data (CPF, email, phone) is properly
+    encrypted before database insertion or update. It prevents incomplete
+    encryption which would violate LGPD requirements.
 
     Args:
         mapper: SQLAlchemy mapper
@@ -587,15 +584,17 @@ def validate_cpf_encryption(mapper, connection, target):
         target: Patient instance being saved
 
     Raises:
-        ValueError: If CPF encryption validation fails
+        ValueError: If any encryption validation fails
     """
-    # Check if CPF data exists and is properly encrypted
-    if target.cpf_encrypted:
-        # If encrypted CPF exists, hash must also exist
-        if not target.cpf_hash:
-            raise ValueError(
-                "CPF encryption incomplete: cpf_hash is missing. "
-                "Use set_cpf() method to properly encrypt CPF data."
-            )
+    checks = [
+        (target.cpf_encrypted, target.cpf_hash, "CPF"),
+        (target.email_encrypted, target.email_hash, "email"),
+        (target.phone_encrypted, target.phone_hash, "phone"),
+    ]
 
-    # NOTE: Legacy 'cpf' column validation removed - column dropped in migration 030
+    for encrypted, hashed, field_name in checks:
+        if encrypted and not hashed:
+            raise ValueError(
+                f"{field_name} encryption incomplete: {field_name.lower()}_hash is missing. "
+                f"Use set_{field_name.lower()}() method to properly encrypt {field_name} data."
+            )
