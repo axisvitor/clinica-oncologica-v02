@@ -22,7 +22,7 @@
 
 ## Phase 3: Integration & Production Readiness
 
-- [ ] Task: Write Tests: Cross-Service Integration & Error Recovery
+- [x] Task: Write Tests: Cross-Service Integration & Error Recovery (9e18ce6)
 - [ ] Task: Implement/Verify: End-to-End Audit Trail Consistency
 - [ ] Task: Write Tests: Production Config Validation (Secrets & Env)
 - [ ] Task: Implement/Verify: Final Security Headers & Middleware Pass
