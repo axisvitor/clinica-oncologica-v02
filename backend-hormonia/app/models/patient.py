@@ -75,8 +75,8 @@ class Patient(BaseModel):
     birth_date = Column(Date, nullable=True)
 
     # Treatment information
-    treatment_type = Column(String, nullable=True)
-    treatment_start_date = Column(Date, nullable=True)
+    treatment_type = Column(String, nullable=True, index=True)
+    treatment_start_date = Column(Date, nullable=True, index=True)
 
     # Flow control
     # Use values_callable to ensure enum values (not names) are used in database
@@ -231,6 +231,8 @@ class Patient(BaseModel):
             unique=True,
             postgresql_where=sa.text("idempotency_key IS NOT NULL"),
         ),
+        # Performance index for sorting and filtering by creation date
+        Index("ix_patients_created_at", "created_at"),
     )
 
     # =========================================================================
