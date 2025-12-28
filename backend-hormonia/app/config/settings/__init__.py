@@ -273,6 +273,9 @@ class Settings(
 
     def validate_production_config(self):
         """Validate production environment has secure configurations."""
+        # Run SecuritySettings validation (entropy checks)
+        SecuritySettings.validate_production_config(self)
+
         if self.APP_ENVIRONMENT.lower() == "production":
             errors = []
 
