@@ -147,6 +147,16 @@ def setup_middleware(app: FastAPI) -> None:
             content_type_options="nosniff",
             xss_protection="1; mode=block",
             referrer_policy="strict-origin-when-cross-origin",
+            permissions_policy=(
+                "geolocation=(), "
+                "microphone=(), "
+                "camera=(), "
+                "payment=(), "
+                "usb=(), "
+                "magnetometer=(), "
+                "gyroscope=(), "
+                "accelerometer=()"
+            ),
         )
         logger.info("[6/7] Security headers middleware added")
     except ImportError as e:
