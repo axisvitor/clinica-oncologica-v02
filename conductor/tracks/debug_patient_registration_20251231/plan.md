@@ -13,11 +13,11 @@
 - [x] Task: Refactor the fix if necessary and ensure code quality/typing standards (TDD - Refactor). [d87b866]
 - [x] Task: Conductor - User Manual Verification 'Fix Implementation' (Protocol in workflow.md) [d87b866]
 
-## Phase 3: End-to-End Verification
-- [ ] Task: Manually verify the fix using the Frontend UI (Complete Registration Flow).
-- [ ] Task: Verify database persistence of the new patient record.
-- [ ] Task: Run the full backend test suite to ensure no regressions.
-- [ ] Task: Conductor - User Manual Verification 'End-to-End Verification' (Protocol in workflow.md)
+## Phase 3: End-to-End Verification [checkpoint: 7b39437]
+- [x] Task: Manually verify the fix using the Frontend UI (Complete Registration Flow). [d2a9521]
+- [x] Task: Verify database persistence of the new patient record. [d2a9521]
+- [x] Task: Run the full backend test suite to ensure no regressions. [d2a9521]
+- [x] Task: Conductor - User Manual Verification 'End-to-End Verification' (Protocol in workflow.md) [d2a9521]
 
 ## Phase 4: Documentation & Cleanup
 - [ ] Task: Archive the reproduction script.
