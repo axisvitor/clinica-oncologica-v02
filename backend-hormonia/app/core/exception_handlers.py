@@ -27,12 +27,21 @@ async def api_exception_handler(request: Request, exc: APIException):
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Handle FastAPI/Pydantic validation errors."""
+    # Sanitize errors to ensure they are JSON serializable
+    # Pydantic v2 often includes raw exception objects in ctx['error']
+    errors = exc.errors()
+    for error in errors:
+        if "ctx" in error and isinstance(error["ctx"], dict):
+            for key, value in error["ctx"].items():
+                if isinstance(value, Exception):
+                    error["ctx"][key] = str(value)
+
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
             "error": "VALIDATION_ERROR",
             "message": "Input validation failed",
-            "details": {"errors": exc.errors()},
+            "details": {"errors": errors},
         },
     )
 
