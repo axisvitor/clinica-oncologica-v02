@@ -19,6 +19,6 @@
 - [x] Task: Run the full backend test suite to ensure no regressions. [d2a9521]
 - [x] Task: Conductor - User Manual Verification 'End-to-End Verification' (Protocol in workflow.md) [d2a9521]
 
-## Phase 4: Documentation & Cleanup
-- [ ] Task: Archive the reproduction script.
-- [ ] Task: Conductor - User Manual Verification 'Documentation & Cleanup' (Protocol in workflow.md)
+## Phase 4: Documentation & Cleanup [checkpoint: 673bcf6]
+- [x] Task: Archive the reproduction script. [405711e]
+- [x] Task: Conductor - User Manual Verification 'Documentation & Cleanup' (Protocol in workflow.md) [405711e]
