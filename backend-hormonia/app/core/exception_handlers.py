@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -26,15 +27,37 @@ async def api_exception_handler(request: Request, exc: APIException):
 
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """Handle FastAPI/Pydantic validation errors."""
-    # Sanitize errors to ensure they are JSON serializable
-    # Pydantic v2 often includes raw exception objects in ctx['error']
-    errors = exc.errors()
-    for error in errors:
+    """
+    Handle FastAPI/Pydantic validation errors with detailed field information.
+    Ensures JSON serializability by extracting only necessary fields and
+    stringifying any non-serializable objects.
+    """
+    request_id = getattr(request.state, "request_id", None)
+
+    # Format validation errors into a cleaner structure for frontend consumption
+    errors = []
+    for error in exc.errors():
+        # Build field path (e.g., "body.patient.cpf")
+        field_path = ".".join(str(loc) for loc in error["loc"])
+
+        # Extract message and type
+        msg = error.get("msg", "Unknown validation error")
+        error_type = error.get("type", "value_error")
+
+        # Sanitize context if present (ensure no raw Exception objects)
+        details = {}
         if "ctx" in error and isinstance(error["ctx"], dict):
             for key, value in error["ctx"].items():
-                if isinstance(value, Exception):
-                    error["ctx"][key] = str(value)
+                details[key] = str(value) if isinstance(value, Exception) else value
+
+        errors.append(
+            {
+                "field": field_path,
+                "message": msg,
+                "type": error_type,
+                "details": details if details else None,
+            }
+        )
 
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -42,6 +65,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "error": "VALIDATION_ERROR",
             "message": "Input validation failed",
             "details": {"errors": errors},
+            "request_id": request_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         },
     )
 

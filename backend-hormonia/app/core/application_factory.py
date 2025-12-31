@@ -152,45 +152,6 @@ def create_application(
             },
         )
 
-    @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(
-        request: Request, exc: RequestValidationError
-    ):
-        """Handle Pydantic validation errors with detailed field information."""
-        request_id = getattr(request.state, "request_id", None)
-
-        # Format validation errors
-        errors = []
-        for error in exc.errors():
-            errors.append(
-                {
-                    "field": ".".join(str(loc) for loc in error["loc"]),
-                    "message": error["msg"],
-                    "type": error["type"],
-                }
-            )
-
-        logger.warning(
-            f"Validation error: {len(errors)} field(s)",
-            extra={
-                "path": str(request.url.path),
-                "method": request.method,
-                "request_id": request_id,
-                "errors": errors,
-            },
-        )
-
-        return JSONResponse(
-            status_code=422,
-            content={
-                "error": "VALIDATION_ERROR",
-                "message": "Request validation failed",
-                "details": {"errors": errors},
-                "request_id": request_id,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            },
-        )
-
     logger.info("✓ API v2 exception handlers configured")
 
     # CSRF protection is handled by CSRFMiddleware (added in middleware_setup.py)
