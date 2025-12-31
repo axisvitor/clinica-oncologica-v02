@@ -1,6 +1,6 @@
 # Implementation Plan - Debug and Verify Patient Registration System
 
-## Phase 1: Investigation & Reproduction
+## Phase 1: Investigation & Reproduction [checkpoint: 7a92a88]
 - [x] Task: Create a reproduction script `reproduce_issue_v2.py` that sends a POST request to `/api/v1/patients` and asserts a 500 error. [d8eafe7]
 - [x] Task: Analyze backend logs during the reproduction execution to pinpoint the exact exception and location. [d8eafe7]
 - [x] Task: Conductor - User Manual Verification 'Investigation & Reproduction' (Protocol in workflow.md) [3aa007b]
