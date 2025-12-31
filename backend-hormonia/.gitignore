@@ -91,3 +91,5 @@ temp/
 # Package manager locks (keep these in version control)
 # package-lock.json
 # yarn.lock
+*.db
+.venv
