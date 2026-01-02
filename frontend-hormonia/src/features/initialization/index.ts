@@ -1,14 +1,24 @@
 // Initialization Components Export
 export { SystemInitializationWizard } from './SystemInitializationWizard'
-export { LoadingSpinner, LoadingOverlay, LoadingCard, LoadingSkeleton, LoadingTableRow, LoadingCard_Skeleton, LoadingList } from './LoadingSpinner'
+// Re-export loading components from consolidated ui module
+export {
+  LoadingSpinner,
+  LoadingOverlay,
+  LoadingCard,
+  LoadingSkeleton,
+  LoadingTableRow,
+  LoadingCardSkeleton,
+  LoadingCard_Skeleton,
+  LoadingList
+} from '@/components/ui/loading-spinner'
 export { EnvironmentSetup } from './EnvironmentSetup'
 export { DatabaseChecker } from './DatabaseChecker'
 export { ServiceMonitor } from './ServiceMonitor'
 export { WelcomeFlow } from './WelcomeFlow'
 export { InitialUserSetup } from './InitialUserSetup'
 
-// Re-export common components used by initialization
-export { ErrorBoundary, SimpleErrorFallback, withErrorBoundary, useErrorHandler } from '@/components/common/ErrorBoundary'
+// Re-export error boundary components used by initialization
+export { ErrorBoundary, SimpleErrorFallback, withErrorBoundary, useErrorHandler } from '@/components/error/ErrorBoundary'
 
 // Types
 export interface InitializationConfig {

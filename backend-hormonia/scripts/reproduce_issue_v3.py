@@ -2,7 +2,7 @@
 import sys
 import os
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date
 import json
 
 # Add current directory to path
@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.models.user import User, UserRole
-from app.database import SessionLocal, engine, Base, create_tables
+from app.database import SessionLocal, engine, Base
 
 # Mock user class
 class MockUser:

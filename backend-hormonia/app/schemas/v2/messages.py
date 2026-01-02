@@ -111,6 +111,9 @@ class MessageV2Base(BaseModel):
 class MessageV2Create(MessageV2Base):
     """Schema for creating a message"""
 
+    # Override direction to make it optional with default OUTBOUND
+    direction: MessageDirectionV2 = Field(default=MessageDirectionV2.OUTBOUND, description="Message direction (defaults to outbound)")
+    
     scheduled_for: Optional[datetime] = Field(
         None, description="Scheduled delivery time"
     )
@@ -180,7 +183,7 @@ class MessageV2Response(MessageV2Base):
     error_message: Optional[str] = Field(None, description="Error message if failed")
     retry_count: int = Field(0, ge=0, description="Number of retry attempts")
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
 
     # Optional eager-loaded relationships
     patient: Optional[PatientV2Brief] = None

@@ -152,14 +152,14 @@ class NotificationService:
                         },
                     ),
                 )
-            except Exception as e:
+            except Exception:
                 self._logger.error("Failed to schedule welcome message in executor", exc_info=True)
                 raise
 
             # Send message via WhatsApp
             try:
                 success = await self.whatsapp_service.send_message(message)
-            except Exception as e:
+            except Exception:
                 self._logger.error("Failed to send WhatsApp message", exc_info=True)
                 raise
 
@@ -279,7 +279,7 @@ class NotificationService:
             # Send welcome message
             return await self.send_welcome_message(patient, current_user)
 
-        except Exception as e:
+        except Exception:
             self._logger.error(
                 "Error checking/sending welcome message",
                 exc_info=True,

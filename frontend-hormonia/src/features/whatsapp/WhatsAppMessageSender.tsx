@@ -15,7 +15,6 @@ import {
   Send,
   Image,
   FileText,
-  Paperclip,
   X,
   CheckCircle,
   AlertCircle,
@@ -68,7 +67,7 @@ export const WhatsAppMessageSender: React.FC<WhatsAppMessageSenderProps> = ({
         setIsValidNumber(false);
         setError(validation.error || '');
       }
-    } catch (err) {
+    } catch {
       setIsValidNumber(false);
       setError('Failed to validate phone number');
     } finally {
@@ -111,7 +110,7 @@ export const WhatsAppMessageSender: React.FC<WhatsAppMessageSenderProps> = ({
       const response = await whatsAppService.uploadMedia(file);
       setUploadProgress(100);
       return response.url;
-    } catch (err) {
+    } catch {
       throw new Error('Failed to upload media file');
     }
   };

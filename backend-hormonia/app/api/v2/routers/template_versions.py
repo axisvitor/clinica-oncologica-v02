@@ -7,7 +7,7 @@ Provides version control operations for flow templates including:
 - Draft publication workflow
 """
 
-from typing import Dict, Any
+from typing import Dict
 from datetime import datetime, timezone
 from uuid import UUID
 import logging
@@ -18,8 +18,7 @@ from sqlalchemy import func, desc
 
 from app.database import get_db
 from app.models.flow import FlowTemplateVersion
-from app.models.user import User
-from app.dependencies.auth_dependencies import get_redis_cache
+from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.schemas.v2.templates import (
     FlowTemplateV2Response,
     TemplateVersionV2List,
@@ -30,7 +29,6 @@ from app.utils.rate_limiter import limiter
 
 # Import shared helpers and constants from templates_shared module
 from app.api.v2.templates_shared import (
-    _get_current_user_simple,
     _extract_user_context,
     _check_write_permission,
     _get_cache_key,
@@ -63,8 +61,7 @@ async def list_template_versions(
     request: Request,
     template_id: UUID,
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
-    redis_cache=Depends(get_redis_cache),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     """
     List all versions for a specific flow template.
@@ -134,7 +131,7 @@ async def compare_template_versions(
     template_id: UUID,
     compare_with_id: UUID = Query(..., description="Version ID to compare with"),
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     """
     Compare two template versions and generate a diff.
@@ -195,8 +192,7 @@ async def rollback_template_version(
     template_id: UUID,
     rollback_data: TemplateVersionRollbackRequest,
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
-    redis_cache=Depends(get_redis_cache),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     """
     Rollback to a previous template version.
@@ -318,8 +314,7 @@ async def publish_template_version(
     template_id: UUID,
     set_as_active: bool = Query(False, description="Set this version as active"),
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
-    redis_cache=Depends(get_redis_cache),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     """
     Publish a draft template version.

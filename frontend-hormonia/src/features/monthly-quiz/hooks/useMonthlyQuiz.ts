@@ -25,7 +25,7 @@ interface MonthlyQuizLink {
   created_at: string
 }
 
-interface MonthlyQuizAccessRequest {
+interface _MonthlyQuizAccessRequest {
   token: string
 }
 
@@ -164,11 +164,12 @@ export function useMonthlyQuiz(): UseMonthlyQuizReturn {
     setError(null);
 
     try {
+      // Backend expects GET with token query param at /monthly/public/current
+      // Mounted at /api/v2/monthly-quiz-public
       const response = await apiClient.request<MonthlyQuizAccess>(
-        '/api/v2/monthly-quiz-public/access',
+        `/api/v2/monthly-quiz-public/monthly/public/current?token=${encodeURIComponent(token)}`,
         {
-          method: 'POST',
-          body: JSON.stringify({ token })
+          method: 'GET'
         }
       );
       return response;
@@ -191,8 +192,14 @@ export function useMonthlyQuiz(): UseMonthlyQuizReturn {
     setError(null);
 
     try {
+      // Backend expects POST at /monthly/public/{quiz_id}/submit
+      // Mounted at /api/v2/monthly-quiz-public
+      if (!submitData.quiz_id) {
+        throw new Error('Quiz ID is required for submission');
+      }
+
       const response = await apiClient.request<{ success: boolean; message: string }>(
-        '/api/v2/monthly-quiz-public/submit',
+        `/api/v2/monthly-quiz-public/monthly/public/${submitData.quiz_id}/submit`,
         {
           method: 'POST',
           body: JSON.stringify(submitData)

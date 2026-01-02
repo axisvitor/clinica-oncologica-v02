@@ -24,9 +24,9 @@ export interface UseUserWebSocketOptions {
   reconnectDelay?: number
 }
 
-interface WebSocketMessage {
+export interface WebSocketMessage {
   type: 'user_created' | 'user_updated' | 'user_deleted' | 'ping' | 'pong'
-  data?: any
+  data?: Record<string, unknown>
   timestamp?: string
 }
 

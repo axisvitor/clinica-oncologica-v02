@@ -54,7 +54,7 @@ class PatientV2Base(BaseModel):
     treatment_phase: Optional[str] = Field(
         None,
         max_length=100,
-        pattern="^(initial|adjustment|maintenance|monitoring|followup|completed)$"
+        pattern="^(initial|adjustment|maintenance|monitoring|followup|completed|inicial|ajuste|manutenção|monitoramento|acompanhamento|concluído)$"
     )
     timezone: str = Field(
         "America/Sao_Paulo", description="Patient timezone (e.g., America/Sao_Paulo)"
@@ -228,7 +228,7 @@ class PatientV2Update(BaseModel):
     treatment_phase: Optional[str] = Field(
         None,
         max_length=100,
-        pattern="^(initial|adjustment|maintenance|monitoring|followup|completed)$"
+        pattern="^(initial|adjustment|maintenance|monitoring|followup|completed|inicial|ajuste|manutenção|monitoramento|acompanhamento|concluído)$"
     )
     flow_state: Optional[FlowState] = None
 

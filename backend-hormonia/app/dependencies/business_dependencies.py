@@ -7,7 +7,7 @@ from uuid import UUID
 from app.models.user import User, UserRole
 from app.models.patient import Patient
 from app.schemas.common import PaginationParams
-from app.dependencies.auth_dependencies import get_current_user, get_optional_user
+from app.dependencies.auth_dependencies import get_current_user_object_from_session, get_optional_user
 from app.dependencies.service_dependencies import (
     get_patient_service,
     get_patient_repository,
@@ -48,7 +48,7 @@ def get_pagination_params(
 
 async def validate_patient_access(
     patient_id: UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_object_from_session),
     patient_service=Depends(get_patient_service),
 ) -> Patient:
     """Validate user has access to patient and return patient object"""
@@ -102,7 +102,7 @@ async def get_validated_patient(
 
 def verify_patient_access(
     patient_id: UUID = Path(...),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_object_from_session),
     patient_repo=Depends(get_patient_repository),
 ) -> Patient:
     """Verify user has access to manage this patient"""
@@ -147,9 +147,9 @@ async def verify_monthly_quiz_token(
     try:
         payload = services.monthly_quiz_service._verify_token(token)
         return payload
-    except ValidationError as e:
+    except ValidationError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid quiz token")
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired quiz token",

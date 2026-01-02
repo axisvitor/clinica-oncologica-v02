@@ -117,4 +117,13 @@ def register_routers(app: FastAPI) -> None:
     except ImportError as e:
         logger.warning(f"WhatsApp integration not available: {e}")
 
+    # === WEBSOCKETS ===
+    try:
+        from app.api.websockets import router as websocket_router
+        app.include_router(websocket_router, prefix="/ws", tags=["WebSockets"])
+        logger.info("✓ WebSocket endpoints registered (/ws)")
+    except ImportError as e:
+        logger.error(f"Failed to register WebSocket router: {e}")
+
+
     logger.info("✅ All routers registered successfully. API v2 is active.")

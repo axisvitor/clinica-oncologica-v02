@@ -9,7 +9,7 @@ context preparation, and question display logic.
 from __future__ import annotations
 
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timezone
+from datetime import datetime
 from uuid import UUID
 
 from app.models.quiz import QuizTemplate

@@ -14,10 +14,10 @@ from datetime import datetime, timezone
 from uuid import UUID
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Header
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 
 from app.database import get_db
-from app.models.user import User, UserRole
+from app.models.user import UserRole
 from app.models.patient import Patient
 from app.schemas.v2.dashboard import (
     DashboardMainResponse,
@@ -29,7 +29,7 @@ from app.api.v2.dependencies import (
     get_field_selection,
     apply_field_selection,
 )
-from app.dependencies.auth_dependencies import get_redis_cache
+from app.dependencies.auth_dependencies import get_generic_cache, get_current_user_from_session
 from app.utils.rate_limiter import limiter
 from app.services.dashboard_service import DashboardService
 
@@ -44,56 +44,6 @@ def get_dashboard_service(db=Depends(get_db)) -> DashboardService:
     """Dependency to get DashboardService instance."""
     return DashboardService(db)
 
-
-async def _get_current_user_simple(
-    session_id: str = Header(None, alias="X-Session-ID"),
-    db=Depends(get_db),
-    redis_cache=Depends(get_redis_cache),
-) -> Dict[str, Any]:
-    """Simplified session validation for V2 endpoints."""
-    if not session_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session ID not provided in X-Session-ID header",
-        )
-
-    session_data = await redis_cache.get_session(session_id)
-    if not session_data:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session",
-        )
-
-    firebase_uid = session_data.get("firebase_uid")
-    if not firebase_uid:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session data"
-        )
-
-    # Get user from cache or DB
-    user_data = await redis_cache.get_user_by_uid(firebase_uid)
-    if not user_data:
-        user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
-            )
-        user_data = {
-            "id": str(user.id),
-            "firebase_uid": user.firebase_uid,
-            "email": user.email,
-            "full_name": user.full_name,
-            "role": user.role.value if hasattr(user.role, "value") else str(user.role),
-            "is_active": user.is_active,
-        }
-        await redis_cache.cache_user_data(firebase_uid, user_data, ttl=900)
-
-    if not user_data.get("is_active", False):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive"
-        )
-
-    return user_data
 
 
 def _extract_user_role(current_user: Dict[str, Any]) -> UserRole:
@@ -120,8 +70,8 @@ async def get_main_dashboard(
     ),
     fields: Optional[List[str]] = Depends(get_field_selection),
     db=Depends(get_db),
-    redis_cache=Depends(get_redis_cache),
-    current_user: Dict = Depends(_get_current_user_simple),
+    redis_cache=Depends(get_generic_cache),
+    current_user: Dict = Depends(get_current_user_from_session),
     service: DashboardService = Depends(get_dashboard_service),
 ) -> Dict[str, Any]:
     """
@@ -155,6 +105,9 @@ async def get_main_dashboard(
             ]
 
         # Fetch all metrics using service
+        # NOTE: These are executed sequentially because the SQLAlchemy session
+        # is not thread-safe and cannot be shared across asyncio.to_thread calls.
+        # Future optimization: use async SQLAlchemy or separate sessions per thread.
         patient_metrics = service.get_patient_metrics(patient_ids, start_date, end_date)
         message_metrics = service.get_message_metrics(patient_ids, start_date, end_date)
         alert_metrics = service.get_alert_metrics(patient_ids, start_date, end_date)
@@ -202,8 +155,8 @@ async def get_patient_dashboard(
     custom_end: Optional[datetime] = Query(None, description="Custom end date"),
     fields: Optional[List[str]] = Depends(get_field_selection),
     db=Depends(get_db),
-    redis_cache=Depends(get_redis_cache),
-    current_user: Dict = Depends(_get_current_user_simple),
+    redis_cache=Depends(get_generic_cache),
+    current_user: Dict = Depends(get_current_user_from_session),
     service: DashboardService = Depends(get_dashboard_service),
 ) -> Dict[str, Any]:
     """
@@ -304,8 +257,8 @@ async def get_physician_dashboard(
     custom_end: Optional[datetime] = Query(None, description="Custom end date"),
     fields: Optional[List[str]] = Depends(get_field_selection),
     db=Depends(get_db),
-    redis_cache=Depends(get_redis_cache),
-    current_user: Dict = Depends(_get_current_user_simple),
+    redis_cache=Depends(get_generic_cache),
+    current_user: Dict = Depends(get_current_user_from_session),
     service: DashboardService = Depends(get_dashboard_service),
 ) -> Dict[str, Any]:
     """

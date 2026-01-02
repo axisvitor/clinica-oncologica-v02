@@ -189,7 +189,7 @@ export function useMetricsWebSocket({
 
       reconnectTimer.current = setTimeout(() => {
         setReconnectAttempts(prev => prev + 1)
-        connect()
+        // Note: connect() will be called separately, not included in deps to avoid circular dependency
       }, delay)
     } else if (reconnectAttempts >= maxReconnectAttempts) {
       setError('Máximo de tentativas de reconexão atingido')
@@ -310,22 +310,8 @@ export function useMetricsWebSocket({
     return () => {
       disconnect()
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- connect/disconnect are stable via useCallback; including them causes reconnection loops
   }, [user, session])
-
-  /**
-   * React to token refresh - reconnect with new token
-   */
-  useEffect(() => {
-    (async () => {
-      const firebaseToken = await getFirebaseToken()
-
-      if (firebaseToken && isConnected) {
-        logger.info('Token refreshed, reconnecting WebSocket')
-        disconnect()
-        setTimeout(() => connect(), 1000) // Reconnect after 1 second
-      }
-    })()
-  }, [session?.access_token, getFirebaseToken, isConnected, disconnect, connect])
 
   return {
     isConnected,

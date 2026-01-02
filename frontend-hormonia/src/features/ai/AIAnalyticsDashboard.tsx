@@ -7,8 +7,6 @@ import {
   Users,
   Target,
   AlertTriangle,
-  CheckCircle,
-  Clock,
   Lightbulb
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -264,7 +262,7 @@ function InsightCard({ insight }: { insight: AIInsight }) {
           <h4 className="font-medium">{insight.title}</h4>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={getPriorityColor(String(insight.priority)) as any}>
+          <Badge variant={getPriorityColor(String(insight.priority)) as 'default' | 'secondary' | 'destructive' | 'outline'}>
             {String(insight.priority)}
           </Badge>
           <Badge variant="outline">

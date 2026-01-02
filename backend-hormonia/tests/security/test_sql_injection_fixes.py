@@ -13,7 +13,7 @@ Tests that can run with SQLite are enabled; tests that need PostgreSQL
 will be skipped if the medications table isn't available.
 """
 import pytest
-from datetime import date, datetime, timezone
+from datetime import date
 from uuid import uuid4
 
 from sqlalchemy.orm import Session
@@ -22,7 +22,6 @@ from sqlalchemy import inspect
 from app.models.message import Message, MessageDirection, MessageType, MessageStatus
 from app.models.medication import Medication
 from app.models.patient import Patient
-from app.models.user import User, UserRole
 from app.repositories.medication import MedicationRepository
 
 

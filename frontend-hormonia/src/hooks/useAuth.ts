@@ -30,7 +30,7 @@ export function useAuth(options: UseAuthOptions = {}) {
   }
 
   // Initialize auth retry with config
-  const { executeWithRetry, isRetrying, retryCount, resetRetryState } = useAuthRetry(
+  const { executeWithRetry: _executeWithRetry, isRetrying, retryCount, resetRetryState } = useAuthRetry(
     options.retryConfig ? { config: options.retryConfig } : {}
   )
 

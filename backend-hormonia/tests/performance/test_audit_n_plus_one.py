@@ -4,7 +4,6 @@ from sqlalchemy.orm import Session
 from app.models.patient import Patient
 from app.models.user import User
 from app.models.quiz import QuizSession, QuizTemplate
-from app.models.flow import PatientFlowState
 from app.repositories.patient import PatientRepository
 from app.database import Base
 import uuid

@@ -222,9 +222,9 @@ export class ApiClientCore {
     }
 
     this.csrfTokenPromise = (async () => {
-      // Shorter timeout for CSRF fetch (5s) to prevent blocking
+      // Timeout for CSRF fetch (30s) to handle slow backend startup
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
 
       try {
         logger.debug("[ApiClient] Initiating CSRF token fetch...");
@@ -311,7 +311,7 @@ export class ApiClientCore {
   /**
    * Check if error should be retried
    */
-  private shouldRetry(error: any, attempt: number): boolean {
+  private shouldRetry(error: unknown, attempt: number): boolean {
     if (attempt >= 3) return false;
 
     if (error instanceof ApiError && [401, 403].includes(error.status)) {
@@ -344,7 +344,7 @@ export class ApiClientCore {
    * Make HTTP request with retry logic
    */
   async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-    const { params, retries = 0, timeout = 15000, ...fetchOptions } = options;
+    const { params, retries = 0, timeout = 60000, ...fetchOptions } = options;
     const url = this.buildUrl(endpoint, params);
 
     const headers: Record<string, string> = {
@@ -359,8 +359,14 @@ export class ApiClientCore {
 
     // Add CSRF token for state-changing methods
     const method = (fetchOptions.method || "GET").toUpperCase();
-    if (["POST", "PUT", "DELETE", "PATCH"].includes(method) && this.csrfToken) {
-      headers["X-CSRF-Token"] = this.csrfToken;
+    if (["POST", "PUT", "DELETE", "PATCH"].includes(method)) {
+      if (!this.csrfToken) {
+        // Lazily fetch CSRF token if missing
+        await this.fetchCsrfToken();
+      }
+      if (this.csrfToken) {
+        headers["X-CSRF-Token"] = this.csrfToken;
+      }
     }
 
     // Create abort controller for timeout

@@ -26,7 +26,7 @@ function upgradeWebSocketProtocol(wsUrl: string): string {
 }
 
 function resolveWsBaseUrl(): string | null {
-  const envUrl = (import.meta.env as any).VITE_WS_URL as string | undefined
+  const envUrl = (import.meta.env as ImportMetaEnv).VITE_WS_URL as string | undefined
   if (envUrl && envUrl.length) {
     // Auto-upgrade protocol for security
     return upgradeWebSocketProtocol(envUrl)
@@ -118,15 +118,26 @@ class WebSocketManager {
         return resolve()
       }
 
-      // HYBRID AUTH: Try session_id first (from cookie), then fallback to token
-      // Backend WebSocket now supports both authentication methods
+      // HYBRID AUTH: Include both session_id and token for authentication
+      // Backend WebSocket supports both authentication methods
       let wsUrl = base
-      
-      // Check if we have session cookie (httpOnly - can't access directly)
-      // Backend will automatically use session_id from cookie if available
-      // If no session cookie, use token parameter as fallback
+      const params = new URLSearchParams()
+
+      // Get session_id from localStorage (stored after successful login)
+      const sessionId = localStorage.getItem('session_id')
+      if (sessionId) {
+        params.append('session_id', sessionId)
+      }
+
+      // Also include Firebase token as fallback
       if (token) {
-        wsUrl = `${base}?token=${token}`
+        params.append('token', token)
+      }
+
+      // Append params to URL
+      const queryString = params.toString()
+      if (queryString) {
+        wsUrl = `${base}?${queryString}`
       }
 
       try {
@@ -270,12 +281,14 @@ class WebSocketManager {
       'message_status_updated': 'message:status_updated'
     }
 
+    const data = backendMsg.data || {}
+
     return {
       event: typeToEvent[backendMsg.type] || backendMsg.type,
-      data: backendMsg.data,
-      timestamp: backendMsg.data['timestamp'] as string || new Date().toISOString(),
-      patient_id: backendMsg.data['patient_id'] as string,
-      session_id: backendMsg.data['session_id'] as string
+      data: data,
+      timestamp: (data['timestamp'] as string) || new Date().toISOString(),
+      patient_id: data['patient_id'] as string,
+      session_id: data['session_id'] as string
     }
   }
 

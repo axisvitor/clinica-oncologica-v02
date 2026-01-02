@@ -66,7 +66,7 @@ const QuizSessionCardComponent = ({ session, onContinue, onView }: QuizSessionCa
     }
   }
 
-  const getStatusLabel = (status: string) => {
+  const _getStatusLabel = (status: string) => {
     switch (status) {
       case 'completed':
         return 'Completado'

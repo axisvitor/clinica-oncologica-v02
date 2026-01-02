@@ -13,10 +13,8 @@ CRITICAL: These tests verify the entire auth pipeline works correctly
 """
 
 import pytest
-import asyncio
-from datetime import datetime, timedelta, timezone
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch
 from uuid import uuid4
 
 

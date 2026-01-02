@@ -45,7 +45,6 @@ def execute_pending_follow_ups(self) -> Dict[str, Any]:
 
     try:
         with get_db_session() as db:
-            import asyncio
             from asgiref.sync import async_to_sync
             from app.services.follow_up_system.service import FollowUpSystemService
 

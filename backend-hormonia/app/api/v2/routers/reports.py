@@ -180,6 +180,43 @@ def _filter_fields(data: Dict[str, Any], fields: Optional[List[str]]) -> Dict[st
     return {k: v for k, v in data.items() if k in field_set}
 
 
+# Index key for all reports (Sorted Set by timestamp)
+REPORTS_INDEX_KEY = "reports:v2:index"
+
+
+async def _add_to_index(report_id: str, timestamp: float):
+    """Add report ID to sorted set index."""
+    try:
+        from app.core.redis_unified import get_async_redis
+
+        redis_client = await get_async_redis()
+        if redis_client is None:
+            return
+        
+        # Add to ZSET with timestamp as score
+        await redis_client.zadd(REPORTS_INDEX_KEY, {report_id: timestamp})
+        logger.debug(f"Added to index: {report_id}")
+    except Exception as e:
+        logger.warning(f"Index write failed: {e}")
+
+
+async def _get_all_report_ids() -> List[str]:
+    """Get all report IDs from index, newest first."""
+    try:
+        from app.core.redis_unified import get_async_redis
+
+        redis_client = await get_async_redis()
+        if redis_client is None:
+            return []
+        
+        # Get all IDs sorted by score descending (newest first)
+        ids = await redis_client.zrevrange(REPORTS_INDEX_KEY, 0, -1)
+        return [id.decode() if isinstance(id, bytes) else id for id in ids]
+    except Exception as e:
+        logger.warning(f"Index read failed: {e}")
+        return []
+
+
 async def _generate_report_async(
     report_id: UUID,
     title: str,
@@ -194,14 +231,21 @@ async def _generate_report_async(
 
         # Update status to GENERATING
         await _set_cached_result(
-            _get_cache_key("status", report_id=str(report_id)),
+            _get_cache_key("report", report_id=str(report_id)), # Use main key for status too
             {
                 "id": str(report_id),
+                "title": title,
+                "type": report_type,
+                "format": format_type,
                 "status": "generating",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "generated_by": str(user_id),
                 "progress": 10,
                 "message": "Collecting data",
+                "status_url": f"/api/v2/reports/{report_id}",
+                "download_url": f"/api/v2/reports/{report_id}/download",
             },
-            ttl=SCHEDULE_CACHE_TTL,
+            ttl=86400 * 30, # 30 days
         )
 
         # Simulate processing
@@ -214,6 +258,7 @@ async def _generate_report_async(
             "summary": "Report data generated",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "records": 42,
+            "details": f"This is a generated report for {report_type}",
         }
 
         # Mark as completed
@@ -229,20 +274,32 @@ async def _generate_report_async(
             "data": report_data,
         }
 
+        # Update main record
         await _set_cached_result(
             _get_cache_key("report", report_id=str(report_id)),
             completed_data,
-            ttl=REPORT_CACHE_TTL,
+            ttl=86400 * 30, # 30 days persistence
         )
 
         logger.info(f"Report generation completed: {report_id}")
 
     except Exception as e:
         logger.error(f"Report generation failed: {report_id}, error: {e}")
+        # Fetch existing data to preserve metadata
+        key = _get_cache_key("report", report_id=str(report_id))
+        existing = await _get_cached_result(key) or {}
+        
+        failed_data = {
+            **existing,
+            "id": str(report_id),
+            "status": "failed", 
+            "error": str(e)
+        }
+        
         await _set_cached_result(
-            _get_cache_key("status", report_id=str(report_id)),
-            {"id": str(report_id), "status": "failed", "error": str(e)},
-            ttl=SCHEDULE_CACHE_TTL,
+            key,
+            failed_data,
+            ttl=86400 * 30,
         )
 
 
@@ -254,9 +311,10 @@ def _format_csv(data: Dict[str, Any]) -> str:
         if "records" in data and isinstance(data["records"], list):
             records = data["records"]
         else:
-            records = [data]
+            # Flatten dict for single row
+            records = [{"key": k, "value": v} for k, v in data.items() if isinstance(v, (str, int, float, bool))]
     else:
-        records = [data]
+        records = [{"value": str(data)}]
 
     if records:
         writer = csv.DictWriter(
@@ -289,7 +347,7 @@ def _format_pdf(data: Dict[str, Any]) -> bytes:
 @router.get(
     "",
     summary="List reports",
-    description="List all reports with cursor pagination and field selection. Cache: 10 minutes. Rate limit: 30/min",
+    description="List all reports with cursor pagination and field selection. Rate limit: 30/min",
     responses={
         200: {"description": "List of reports"},
         401: {"description": "Unauthorized"},
@@ -312,15 +370,6 @@ async def list_reports(
 ):
     """
     List reports with cursor pagination.
-
-    Query Parameters:
-    - cursor: Base64-encoded cursor for pagination
-    - limit: Number of items per page (1-100, default 20)
-    - fields: Comma-separated fields (id,title,status,created_at)
-    - report_type: Filter by type
-    - status_filter: Filter by status
-
-    Returns paginated list with next cursor if more items exist.
     """
     role, user_id = _get_role_and_user(current_user)
 
@@ -328,57 +377,56 @@ async def list_reports(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not found"
         )
+    
+    # 1. Get all report IDs from index
+    all_ids = await _get_all_report_ids()
+    
+    # 2. Fetch all reports to filter (in-memory for now)
+    reports = []
+    from app.core.redis_unified import get_async_redis
+    redis = await get_async_redis()
+    
+    if all_ids and redis:
+        # Batch fetch
+        keys = [_get_cache_key("report", report_id=rid) for rid in all_ids]
+        # Redis mget
+        raw_reports = await redis.mget(keys)
+        
+        for raw in raw_reports:
+            if raw:
+                try:
+                    r_data = json.loads(raw)
+                    # Filter by user ownership (doctors only see their own)
+                    # Admin sees all? Or implies generated_by check?
+                    # Mock data logic was: generated_by = user_id used for creation.
+                    # Let's filter by generated_by == user_id for now for non-admins, 
+                    # or just for everyone to mimic personal workspace.
+                    if r_data.get("generated_by") == str(user_id):
+                        reports.append(r_data)
+                except:
+                    pass
 
-    # Generate cache key
-    cache_key = _get_cache_key(
-        "list",
-        cursor=cursor,
-        limit=limit,
-        report_type=report_type,
-        status=status_filter,
-        user_id=str(user_id),
-    )
-
-    # Check cache
-    cached = await _get_cached_result(cache_key)
-    if cached:
-        return cached
-
-    # Mock data - in production, query database
-    mock_reports = [
-        {
-            "id": str(uuid4()),
-            "title": f"Report {i}",
-            "type": "patient_summary",
-            "status": "completed",
-            "created_at": (datetime.now(timezone.utc) - timedelta(days=i)).isoformat(),
-            "updated_at": (datetime.now(timezone.utc) - timedelta(days=i)).isoformat(),
-            "format": "json",
-            "generated_by": str(user_id),
-        }
-        for i in range(50)
-    ]
-
-    # Apply filters
+    # 3. Apply filters
     if report_type:
-        mock_reports = [r for r in mock_reports if r["type"] == report_type]
+        reports = [r for r in reports if r.get("type") == report_type]
     if status_filter:
-        mock_reports = [r for r in mock_reports if r["status"] == status_filter]
+        reports = [r for r in reports if r.get("status") == status_filter]
 
-    # Decode cursor
+    # 4. Pagination
+    # Cursor logic: if cursor provided, find index of item AFTER cursor
     cursor_data = _decode_cursor(cursor)
     start_idx = 0
     if cursor_data:
-        # Find position after cursor
-        for i, report in enumerate(mock_reports):
-            if report["id"] == cursor_data.get("id"):
+        # Ideally we use the ID to find position
+        cursor_id = cursor_data.get("id")
+        for i, r in enumerate(reports):
+            if r["id"] == cursor_id:
                 start_idx = i + 1
                 break
-
-    # Paginate
+    
     end_idx = start_idx + limit
-    page_items = mock_reports[start_idx:end_idx]
-    has_more = end_idx < len(mock_reports)
+    page_items = reports[start_idx:end_idx]
+    has_more = end_idx < len(reports)
 
     # Filter fields
     field_list = [f.strip() for f in fields.split(",") if f.strip()] if fields else None
@@ -388,19 +436,14 @@ async def list_reports(
     # Create next cursor
     next_cursor = _create_cursor(page_items) if has_more else None
 
-    response = {
+    return {
         "items": page_items,
-        "total": len(mock_reports),
+        "total": len(reports),
         "count": len(page_items),
         "cursor": next_cursor,
         "has_more": has_more,
         "limit": limit,
     }
-
-    # Cache response
-    await _set_cached_result(cache_key, response, ttl=LIST_CACHE_TTL)
-
-    return response
 
 
 # ============================================================================
@@ -439,17 +482,6 @@ async def generate_report(
 ):
     """
     Generate a custom report asynchronously.
-
-    Returns immediately with report ID and status URL.
-    Report is generated in background and can be downloaded once completed.
-
-    Query Parameters:
-    - title: Report title
-    - report_type: Type of report
-    - format: Output format (json, csv, excel, pdf)
-    - patient_ids: Comma-separated patient IDs (optional)
-    - date_from: Start date for filtering
-    - date_to: End date for filtering
     """
     role, user_id = _get_role_and_user(current_user)
 
@@ -483,6 +515,30 @@ async def generate_report(
 
     # Create report ID
     report_id = uuid4()
+    
+    # Store initial pending state
+    created_at = datetime.now(timezone.utc)
+    initial_data = {
+        "id": str(report_id),
+        "title": title,
+        "type": report_type,
+        "format": format,
+        "status": "pending",
+        "created_at": created_at.isoformat(),
+        "generated_by": str(user_id),
+        "status_url": f"/api/v2/reports/{report_id}",
+        "download_url": f"/api/v2/reports/{report_id}/download",
+    }
+    
+    # Save to Redis immediately (Long TTL)
+    await _set_cached_result(
+        _get_cache_key("report", report_id=str(report_id)),
+        initial_data,
+        ttl=86400 * 30, # 30 days
+    )
+    
+    # Add to index
+    await _add_to_index(str(report_id), created_at.timestamp())
 
     # Schedule async generation
     background_tasks.add_task(
@@ -490,22 +546,7 @@ async def generate_report(
     )
 
     # Return immediate response with 202 Accepted
-    response = {
-        "id": str(report_id),
-        "title": title,
-        "type": report_type,
-        "format": format,
-        "status": "pending",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "status_url": f"/api/v2/reports/{report_id}",
-        "download_url": f"/api/v2/reports/{report_id}/download",
-    }
-
-    logger.info(
-        f"Report generation started: {report_id}, type: {report_type}, format: {format}"
-    )
-
-    return response
+    return initial_data
 
 
 # ============================================================================

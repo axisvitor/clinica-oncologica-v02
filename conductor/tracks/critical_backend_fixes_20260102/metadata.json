@@ -1,0 +1,8 @@
+{
+  "track_id": "critical_backend_fixes_20260102",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-01-02T13:45:00Z",
+  "updated_at": "2026-01-02T13:45:00Z",
+  "description": "Fix multiple 500 errors (Timeline sorting, Auth role access, PatientCRUDService init, FlowTemplateVersion metadata) and debug Onboarding/SAGA/WhatsApp flows."
+}

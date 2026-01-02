@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { CheckCircle, AlertTriangle, Download, ExternalLink, Copy, PartyPopper, Users, Calendar, FileText, Activity, Shield, Settings, ArrowRight } from 'lucide-react'
+import { CheckCircle, Download, ExternalLink, Copy, PartyPopper, Users, Calendar, FileText, Activity, Shield, Settings, ArrowRight } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -42,6 +42,7 @@ export function SuccessConfirmation({
       title: '🎉 Sistema Configurado com Sucesso!',
       description: 'Sua clínica oncológica está pronta para uso.',
     })
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable and should only run on mount
   }, [])
 
   const handleGenerateReport = async () => {
@@ -108,7 +109,7 @@ IMPORTANTE:
         title: 'Credenciais Copiadas',
         description: 'Credenciais copiadas para a área de transferência.',
       })
-    } catch (error) {
+    } catch {
       toast({
         title: 'Erro ao Copiar',
         description: 'Não foi possível copiar as credenciais.',

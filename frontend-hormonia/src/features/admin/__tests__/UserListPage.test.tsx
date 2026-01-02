@@ -13,13 +13,13 @@
  */
 
 import React from 'react'
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { UserListPage } from '../users/UserListPage'
 import { apiClient } from '@/lib/api-client'
-import type { AdminUser, AdminPaginatedData } from '@/types/admin'
+import type { AdminUser } from '@/types/admin'
 import '@/lib/test-utils'
 
 // Mock the API client
@@ -52,13 +52,13 @@ vi.mock('../users/UsersTable', () => ({
 }))
 
 vi.mock('../users/CreateUserModal', () => ({
-  CreateUserModal: ({ open, onOpenChange }: any) => (
+  CreateUserModal: ({ open, onOpenChange: _onOpenChange }: any) => (
     open ? <div data-testid="create-user-modal">Create User Modal</div> : null
   )
 }))
 
 vi.mock('../users/UserDetailsModal', () => ({
-  UserDetailsModal: ({ user, open, onOpenChange }: any) => (
+  UserDetailsModal: ({ user, open, onOpenChange: _onOpenChange }: any) => (
     open ? <div data-testid="user-details-modal">User Details for {user?.full_name}</div> : null
   )
 }))

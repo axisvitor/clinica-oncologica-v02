@@ -22,7 +22,7 @@ import logging
 from uuid import UUID
 
 # Third-party imports
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Local application imports
@@ -34,12 +34,18 @@ from app.schemas.v2.patient_summary import (
     PatientSummaryResponse,
 )
 from app.services.ai.patient_summary_service import get_patient_summary_service
+from app.utils.rate_limiter import limiter
 
 from .dependencies import verify_physician_or_admin
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Rate limiting constants
+RATE_LIMIT_GENERATE = "10/minute"
+RATE_LIMIT_LIST = "30/minute"
+RATE_LIMIT_EXPORT = "20/minute"
 
 
 @router.post(
@@ -58,10 +64,12 @@ router = APIRouter()
     - Actionable recommendations (3-5 items)
 
     **Caching**: Summaries are cached for 1 hour. Use `force_refresh=true` to regenerate.
-    **Cost**: ~$0.001-0.002 per summary (Gemini 2.5 Flash)
+    **Cost**: ~$0.001-0.002 per summary (Gemini 3.0 Flash)
     """,
 )
+@limiter.limit(RATE_LIMIT_GENERATE)
 async def generate_patient_summary(
+    request_obj: Request,
     request: GenerateSummaryRequest,
     current_user: User = Depends(verify_physician_or_admin),
     db: AsyncSession = Depends(get_db),
@@ -111,9 +119,11 @@ async def generate_patient_summary(
     "/patient/{patient_id}",
     response_model=PatientSummaryListResponse,
     summary="Get Saved Summaries",
-    description="Get list of saved summaries for a patient.",
+    description="Get list of saved summaries for a patient. Rate limit: 30/min",
 )
+@limiter.limit(RATE_LIMIT_LIST)
 async def get_patient_summaries(
+    request: Request,
     patient_id: UUID,
     limit: int = Query(10, ge=1, le=50, description="Max results"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
@@ -152,9 +162,11 @@ async def get_patient_summaries(
     "/{summary_id}/pdf",
     response_class=Response,
     summary="Export Summary as PDF",
-    description="Export a saved summary as PDF document.",
+    description="Export a saved summary as PDF document. Rate limit: 20/min",
 )
+@limiter.limit(RATE_LIMIT_EXPORT)
 async def export_summary_pdf(
+    request: Request,
     summary_id: UUID,
     current_user: User = Depends(verify_physician_or_admin),
     db: AsyncSession = Depends(get_db),

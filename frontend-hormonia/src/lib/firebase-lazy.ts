@@ -164,7 +164,7 @@ export const firebaseAuthLazy = {
     try {
       const auth = await getFirebaseAuth()
       return auth.currentUser
-    } catch (_error) {
+    } catch {
       // Error already logged by getFirebaseAuth if initialization failed
       return null
     }
@@ -232,7 +232,7 @@ export const firebaseAuthLazy = {
         return { access_token: token }
       }
       return null
-    } catch (_error) {
+    } catch {
       // Error already logged by getFirebaseAuth if initialization failed
       return null
     }
@@ -250,7 +250,7 @@ export const firebaseAuthLazy = {
         return { access_token: token }
       }
       return null
-    } catch (_error) {
+    } catch {
       // Error already logged by getFirebaseAuth if initialization failed
       return null
     }

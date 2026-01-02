@@ -19,7 +19,6 @@ from sqlalchemy import (
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, validates
-import enum
 from typing import Dict, Any, Optional, TYPE_CHECKING
 from datetime import date, timedelta
 
@@ -68,7 +67,8 @@ class Patient(BaseModel):
     __tablename__ = "patients"
 
     # Basic information (matches Supabase schema exactly)
-    doctor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    # NOTE: doctor_id is now optional to allow patient creation without doctor assignment
+    doctor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     # NOTE: phone and email plaintext columns REMOVED in migration 030 (LGPD compliance)
     # Use phone_encrypted/phone_hash and email_encrypted/email_hash instead
     name = Column(String, nullable=False)

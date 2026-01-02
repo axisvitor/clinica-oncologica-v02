@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Activity,
@@ -7,8 +7,6 @@ import {
   XCircle,
   RefreshCw,
   Server,
-  Database,
-  Wifi,
   Clock
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,7 +15,7 @@ import { Button } from '@/components/ui/button'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { useAuth } from '@/app/providers/AuthContext'
 import { apiClient } from '@/lib/api-client'
-import type { SystemStats } from '@/types/system-stats'
+import type { SystemStats as _SystemStats } from '@/types/system-stats'
 
 interface HealthCheck {
   service: string
@@ -69,7 +67,7 @@ const formatUptime = (seconds: number): string => {
 
 export function HealthStatusMonitor() {
   const { user } = useAuth()
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
+  const [lastUpdated] = useState<Date>(new Date())
 
   const {
     data: health,
@@ -82,7 +80,7 @@ export function HealthStatusMonitor() {
       try {
         // Try the health check endpoint first
         return await apiClient.request<SystemHealth>('/api/v2/health')
-      } catch (healthError) {
+      } catch {
         // Fallback to system stats if health endpoint not available
         const stats = await apiClient.admin.system.systemStats()
 
@@ -172,7 +170,22 @@ export function HealthStatusMonitor() {
     )
   }
 
-  const healthData = health as any
+  // Type for health data response
+  interface ServiceHealth {
+    service: string;
+    status: string;
+    response_time_ms?: number;
+    message?: string;
+    last_check: string;
+  }
+  interface HealthData {
+    overall_status?: string;
+    uptime_seconds?: number;
+    services?: ServiceHealth[];
+    timestamp?: string;
+    environment?: string;
+  }
+  const healthData = health as HealthData | undefined
   const StatusIcon = getStatusIcon(healthData?.overall_status || 'unknown')
   const statusColor = getStatusColor(healthData?.overall_status || 'unknown')
 
@@ -223,7 +236,7 @@ export function HealthStatusMonitor() {
         <div className="space-y-3">
           <h4 className="font-medium text-sm text-gray-700">Serviços</h4>
 
-          {healthData?.services?.map((service: any, index: number) => {
+          {healthData?.services?.map((service: ServiceHealth, index: number) => {
             const ServiceStatusIcon = getStatusIcon(service.status)
             const serviceStatusColor = getStatusColor(service.status)
 

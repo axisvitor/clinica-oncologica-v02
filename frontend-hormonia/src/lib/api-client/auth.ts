@@ -103,8 +103,32 @@ export function createAuthApi(client: ApiClientCore) {
     return normalizeUser(backendUser)
   }
 
-  const fetchSession = async (): Promise<SessionValidationResponse> => {
-    return client.get<SessionValidationResponse>('/api/v2/auth/verify-session')
+  const fetchSession = async (): Promise<SessionValidationResponse & { session_id?: string }> => {
+    // CRITICAL: Use direct fetch WITHOUT Authorization header
+    // The verify-session endpoint uses session cookies, NOT Bearer tokens
+    // Sending Firebase JWT as Bearer token causes 401 since backend expects session_id (UUID)
+    const baseURL = client.getBaseURL()
+    const response = await fetch(`${baseURL}/api/v2/auth/verify-session`, {
+      method: 'GET',
+      credentials: 'include', // Include session cookie
+      headers: {
+        'Content-Type': 'application/json',
+        // NO Authorization header - rely on session cookie only
+      },
+    })
+
+    if (!response.ok) {
+      return { valid: false }
+    }
+
+    const data = await response.json()
+    return {
+      valid: true,
+      user: data.user,
+      session_data: data.session,
+      // Extract session_id from root level (where backend returns it)
+      session_id: data.session_id,
+    }
   }
 
   const unsupported = (method: string): never => {
@@ -146,10 +170,16 @@ export function createAuthApi(client: ApiClientCore) {
     updateProfile: async (_data: Partial<User>): Promise<User> =>
       unsupported('updateProfile'),
 
-    checkAuth: async (): Promise<{ authenticated: boolean; user?: User }> => {
+    checkAuth: async (): Promise<{ authenticated: boolean; user?: User; sessionId?: string }> => {
       const session = await fetchSession()
       if (session.valid && session.user) {
-        return { authenticated: true, user: mapSessionUser(session.user) }
+        // Get session_id from root level (where backend returns it)
+        const sessionId = session.session_id;
+        return {
+          authenticated: true,
+          user: mapSessionUser(session.user),
+          sessionId
+        }
       }
       return { authenticated: false }
     },
@@ -166,7 +196,7 @@ export function createAuthApi(client: ApiClientCore) {
 
     createSession: async (
       firebaseToken: string,
-      deviceInfo?: { user_agent?: string; timestamp?: string }
+      _deviceInfo?: { user_agent?: string; timestamp?: string }
     ): Promise<{
       valid: boolean
       session_id?: string

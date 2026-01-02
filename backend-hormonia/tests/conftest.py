@@ -1,7 +1,6 @@
 
 import os
 import json
-from datetime import datetime, timedelta
 from typing import Generator
 from uuid import uuid4
 
@@ -13,7 +12,7 @@ os.environ.setdefault("ENVIRONMENT", "development")
 os.environ.setdefault("ENCRYPTION_KEY", "32byte-secret-key-for-testing-123")
 os.environ.setdefault("ENCRYPTION_SALT", "test-salt-16bytes")
 
-from sqlalchemy import create_engine, TypeDecorator, Text, event, Index, LargeBinary
+from sqlalchemy import create_engine, TypeDecorator, Text, Index
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.dialects.postgresql import JSONB, INET, BYTEA
@@ -30,14 +29,11 @@ from app.db.base import Base
 # Import all models to ensure tables are registered with Base.metadata
 import app.models  # This imports all SQLAlchemy models for table creation
 from app.models.user import User, UserRole
-from app.models.patient import Patient, FlowState
-from app.models.message import Message
-from app.models.medication import Medication
-from app.models.treatment import Treatment
+from app.models.patient import Patient
 from app.utils.security import get_password_hash
 from app.main import app
 from app.database import get_db
-from app.dependencies.auth_dependencies import get_current_user, TEST_TOKEN_REGISTRY
+from app.dependencies.auth_dependencies import get_current_user
 
 # SQLite Compatibility Decorators
 class JSONBCompat(TypeDecorator):
@@ -56,7 +52,7 @@ class INETCompat(TypeDecorator):
     def process_result_value(self, value, dialect):
         return value
 
-from sqlalchemy.types import LargeBinary, BLOB
+from sqlalchemy.types import BLOB
 
 # ... (JSONBCompat e INETCompat)
 

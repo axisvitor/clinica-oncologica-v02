@@ -170,6 +170,15 @@ async def extract_user_context(current_user: Any) -> Tuple[Optional[UserRole], O
 
 async def is_admin(current_user: Any) -> bool:
     """Check if current user is an administrator."""
+    # Direct string check for dict (most common case in v2 API)
+    if isinstance(current_user, dict):
+        role = current_user.get("role", "")
+        if isinstance(role, str) and role.lower() == "admin":
+            return True
+        if hasattr(role, "value") and role.value == "admin":
+            return True
+    
+    # Fallback to enum-based check
     role_enum, _ = await extract_user_context(current_user)
     return role_enum == UserRole.ADMIN
 
@@ -285,7 +294,7 @@ async def validate_and_format_phone(phone: str, strict: bool = True) -> Optional
 
         return formatted
 
-    except PhoneValidationError as e:
+    except PhoneValidationError:
         if strict:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid phone number format")
         return None

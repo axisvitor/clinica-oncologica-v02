@@ -6,10 +6,8 @@ Provides sync Redis client functions and compatibility wrappers.
 
 import logging
 import asyncio
-import concurrent.futures
 from typing import Optional, Any
 import redis as redis_sync
-from redis.exceptions import TimeoutError
 
 # Use centralized executor manager
 from app.core.executors import get_cache_executor

@@ -1,168 +1,47 @@
-# Sistema de Gestao Oncologica - Hormonia
+# Hormonia System Documentation
 
-Sistema integrado de gestao para clinica oncologica com foco em comunicacao personalizada com pacientes, acompanhamento de tratamentos e engajamento atraves de quiz mensais.
+Welcome to the **Hormonia System** documentation. This directory is organized to help you quickly find architecture details, API specifications, feature guides, and historical reports.
 
----
+## 📂 Directory Structure
 
-## Visao Geral
+### 🏗️ [Architecture](./architecture)
+High-level system design, database schemas, and critical flow diagrams.
+- **Database Analysis**: [Models](./architecture/database-models-analysis-report.md), [Tables](./architecture/database-tables-complete-analysis.md)
+- **Evolution API**: [Architecture](./architecture/evolution-api-architecture.md)
+- **Security**: [Architecture Analysis](./architecture/security-architecture-analysis.md)
 
-O **Hormonia** e uma plataforma completa de gestao oncologica que combina:
+### 📜 [API Specifications](./specs)
+Technical specifications for system endpoints and integrations.
+- [Patient CRUD API](./specs/patient-crud-api-specification.md)
+- [Metrics API](./specs/metrics-api-technical-spec.md)
 
-- **Gestao de Pacientes**: Cadastro, acompanhamento e historico medico
-- **Comunicacao Inteligente**: Integracao WhatsApp via Evolution API com IA para personalizacao
-- **Quiz Mensal**: Interface dedicada para avaliacao periodica de pacientes
-- **Dashboard Administrativo**: Metricas em tempo real e gestao do sistema
-- **Seguranca de Nivel Empresarial**: Autenticacao Firebase, CSRF, rate limiting e criptografia
+### 📘 [Guides & Reference](./guides)
+Quick references, checklists, and "how-to" guides for common tasks.
+- **Quick Fixes**: [Patient Registration](./guides/patient-registration-quick-fix-guide.md), [General Checklist](./guides/quick-fix-checklist.md)
+- **References**: [Audit Logging](./guides/audit-logging-quick-reference.md), [Evolution API](./guides/evolution-api-quick-reference.md)
+- **Best Practices**: [Route Development](./guides/route-best-practices.md)
 
----
+### 🚀 [Features](./features)
+In-depth documentation grouped by functional area.
 
-## Arquitetura de Alto Nivel
+| Feature | Description |
+| :--- | :--- |
+| **[AI](./features/ai)** | Simulation guards, agents architecture. |
+| **[Auth](./features/auth)** | Authentication routes, testing reports. |
+| **[Flows](./features/flows)** | core flow engine, issues, and fixes. |
+| **[Hive Mind](./features/hive-mind)** | Swarm architecture, bugs, and reviews. |
+| **[Patient](./features/patient)** | Registration flows, CRUD analysis. |
+| **[Quiz](./features/quiz)** | Monthly quiz interface, code quality. |
+| **[WhatsApp](./features/whatsapp)** | Integration analysis and reports. |
 
-```
-                                    +------------------+
-                                    |   Firebase Auth  |
-                                    +--------+---------+
-                                             |
-+-------------------+              +---------v---------+              +------------------+
-|                   |              |                   |              |                  |
-|  Frontend React   +------------->+   FastAPI Backend +------------->+   PostgreSQL     |
-|  (Vite + TS)      |   HTTPS      |   (Python 3.13)   |              |   Database       |
-|                   |              |                   |              |                  |
-+-------------------+              +---------+---------+              +------------------+
-                                             |
-+-------------------+              +---------v---------+              +------------------+
-|                   |              |                   |              |                  |
-|  Quiz Interface   +------------->+   Redis Cache     |              |  Evolution API   |
-|  (Next.js 14)     |              |   (Sessions/TTL)  |              |  (WhatsApp)      |
-|                   |              |                   |              |                  |
-+-------------------+              +-------------------+              +------------------+
-                                             |
-                                    +--------v---------+
-                                    |   Celery + Redis |
-                                    |   (Background)   |
-                                    +------------------+
-```
-
----
-
-## Stack Tecnologica
-
-### Backend (`/backend-hormonia`)
-
-| Tecnologia | Versao | Proposito |
-|------------|--------|-----------|
-| Python | 3.13+ | Runtime |
-| FastAPI | 0.115+ | Framework API |
-| SQLAlchemy | 2.0+ | ORM |
-| Alembic | 1.14+ | Migrations |
-| PostgreSQL | 15+ | Banco de dados |
-| Redis | 7+ | Cache e sessoes |
-| Celery | 5.4+ | Tarefas em background |
-| Firebase Admin | 6.6+ | Autenticacao |
-| Google Gemini | - | IA para personalizacao |
-
-### Frontend (`/frontend-hormonia`)
-
-| Tecnologia | Versao | Proposito |
-|------------|--------|-----------|
-| React | 19.0 | Framework UI |
-| TypeScript | 5.0+ | Tipagem estatica |
-| Vite | 6.0+ | Build tool |
-| TanStack Query | 5.62+ | Data fetching |
-| Radix UI | - | Componentes acessiveis |
-| Tailwind CSS | 4.0+ | Estilizacao |
-
-### Quiz Interface (`/quiz-mensal-interface`)
-
-| Tecnologia | Versao | Proposito |
-|------------|--------|-----------|
-| Next.js | 14.2+ | Framework fullstack |
-| React | 18 | Framework UI |
-| TypeScript | 5.0+ | Tipagem estatica |
-| Shadcn/UI | - | Componentes |
+### 📊 [Reports](./reports)
+Historical data, analysis reports, debug logs, and test results.
+- **[Analysis](./reports/analysis)**: Deep dives into code quality, race conditions, etc.
+- **[Debug](./reports/debug)**: Logs from specific debugging sessions.
+- **[Implementation](./reports/implementation)**: Summaries of completed tasks.
+- **[Quality](./reports/quality)**: Code quality and standardization reports.
+- **[Security](./reports/security)**: Security audits and fixes.
+- **[Testing](./reports/testing)**: Test execution summaries and validation reports.
 
 ---
-
-## Estrutura de Documentacao
-
-| Documento | Descricao |
-|-----------|-----------|
-| [architecture/](./architecture/) | Arquitetura e padroes do sistema |
-| [api/](./api/) | Referencia da API v2 |
-| [database/](./database/) | Modelos, migrations e schemas |
-| [security/](./security/) | Autenticacao, CSRF, CORS, LGPD |
-| [patient/](./patient/) | Flow de pacientes e onboarding |
-| [quiz/](./quiz/) | Sistema de quiz mensal |
-| [whatsapp/](./whatsapp/) | Integracao Evolution API |
-| [ai/](./ai/) | Integracao Google Gemini |
-| [errors/](./errors/) | Tratamento de erros e Circuit Breaker |
-| [testing/](./testing/) | Testes e qualidade |
-| [performance/](./performance/) | Metricas e otimizacao |
-
----
-
-## Como Executar
-
-### Pre-requisitos
-
-- Node.js 20+
-- Python 3.13+
-- PostgreSQL 15+
-- Redis 7+
-- Conta Firebase (projeto configurado)
-- Evolution API (opcional, para WhatsApp)
-
-### Backend
-
-```bash
-cd backend-hormonia
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-alembic upgrade head
-uvicorn app.main:app --reload --port 8000
-```
-
-### Frontend
-
-```bash
-cd frontend-hormonia
-npm install
-npm run dev
-# Acessar: http://localhost:5173
-```
-
-### Quiz Interface
-
-```bash
-cd quiz-mensal-interface
-npm install
-npm run dev
-# Acessar: http://localhost:3001
-```
-
----
-
-## Metricas do Projeto
-
-- **77** tabelas PostgreSQL
-- **479+** indices de banco de dados
-- **37** migrations Alembic
-- **60+** endpoints API v2
-- **5,423** funcoes de teste
-- **3-layer** arquitetura de cache
-- **2-5ms** latencia de validacao de sessao
-
----
-
-## Seguranca
-
-- **Autenticacao**: Firebase Auth com verificacao server-side
-- **Sessoes**: Dual-layer (PostgreSQL + Redis) com TTL de 5 dias
-- **CSRF**: Double Submit Cookie com HMAC-SHA256
-- **Rate Limiting**: Sliding window por IP/usuario
-- **Criptografia**: AES-256-GCM para dados sensiveis (LGPD)
-
----
-
-*Documentacao gerada em 26 de Dezembro de 2025*
+*Documentation refactored on 2025-12-27.*

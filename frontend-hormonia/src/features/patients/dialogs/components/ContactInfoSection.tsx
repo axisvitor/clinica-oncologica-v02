@@ -28,6 +28,7 @@ export function ContactInfoSection({ form, mode }: ContactInfoSectionProps) {
           <Input
             id="name"
             placeholder="Nome do paciente"
+            autoComplete="name"
             {...register('name')}
           />
           {errors.name && (
@@ -43,6 +44,7 @@ export function ContactInfoSection({ form, mode }: ContactInfoSectionProps) {
           <Input
             id="phone"
             placeholder="+55 11 99999-9999"
+            autoComplete="tel"
             {...register('phone')}
           />
           {errors.phone && (
@@ -59,6 +61,7 @@ export function ContactInfoSection({ form, mode }: ContactInfoSectionProps) {
             id="email"
             type="email"
             placeholder="email@exemplo.com"
+            autoComplete="email"
             {...register('email')}
           />
           {errors.email && (
@@ -72,6 +75,7 @@ export function ContactInfoSection({ form, mode }: ContactInfoSectionProps) {
           <Input
             id="cpf"
             placeholder="000.000.000-00"
+            autoComplete="off"
             {...register('cpf')}
           />
           {errors.cpf && (

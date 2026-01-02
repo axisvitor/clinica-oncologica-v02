@@ -128,6 +128,28 @@ class MessageRepository(BaseRepository[Message]):
         """Get message by WhatsApp ID"""
         return self.db.query(Message).filter(Message.whatsapp_id == whatsapp_id).first()
 
+    def get_by_idempotency_key(self, patient_id: UUID, idempotency_key: str) -> Optional[Message]:
+        """
+        Get message by idempotency key for duplicate detection.
+        
+        Used to prevent duplicate inbound messages from being stored.
+        
+        Args:
+            patient_id: UUID of the patient
+            idempotency_key: SHA256 hash of content + whatsapp_id
+            
+        Returns:
+            Existing message if duplicate, None otherwise
+        """
+        return (
+            self.db.query(Message)
+            .filter(
+                Message.patient_id == patient_id,
+                Message.idempotency_key == idempotency_key
+            )
+            .first()
+        )
+
     def get_pending_messages(
         self,
         skip: int = 0,

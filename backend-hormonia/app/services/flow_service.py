@@ -23,7 +23,11 @@ from app.schemas.v2.flows import (
     FlowTemplateV2List,
     FlowTemplateV2Response,
 )
-from app.domain.flows.core import FlowService as CoreFlowService
+from app.services.flow_core import FlowCore
+from app.services.flow_management import FlowManagementService
+from app.services.analytics.flow_analytics import FlowAnalyticsService
+from app.services.flow_dashboard import FlowDashboardService
+from app.services.enhanced_flow_engine import EnhancedFlowEngine
 from app.core.redis_unified import get_async_redis
 
 logger = logging.getLogger(__name__)
@@ -34,8 +38,27 @@ CACHE_TTL_ANALYTICS = 900
 CACHE_TTL_RISK = 600
 
 
-class FlowService(CoreFlowService):
-    """Service for flow operations."""
+class FlowService(FlowCore):
+    """
+    Service for flow operations.
+    Acts as a facade for FlowManagement, Analytics, Dashboard, and Engine.
+    """
+
+    def __init__(
+        self,
+        db: Any,
+        flow_management: FlowManagementService,
+        flow_analytics: FlowAnalyticsService,
+        flow_dashboard: FlowDashboardService,
+        flow_engine: EnhancedFlowEngine,
+    ):
+        super().__init__(db)
+        self.flow_management = flow_management
+        self.flow_analytics = flow_analytics
+        self.flow_dashboard = flow_dashboard
+        self.enhanced_flow_engine = flow_engine
+        # Ensure compatibility with FlowCore if it uses platform_sync/template_loader internally
+        # (FlowCore init handles this if we pass args, but here we just pass db and let it default)
 
     def _create_cursor(self, item_id: str, created_at: datetime) -> str:
         cursor_data = {"id": str(item_id), "created_at": created_at.isoformat()}

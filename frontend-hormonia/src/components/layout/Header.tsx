@@ -44,6 +44,7 @@ export function Header({ onMenuClick }: HeaderProps) {
           size="sm"
           className="lg:hidden"
           onClick={onMenuClick}
+          aria-label="Abrir menu"
         >
           <Menu className="h-5 w-5" />
         </Button>
@@ -53,6 +54,8 @@ export function Header({ onMenuClick }: HeaderProps) {
           <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
+              id="global-search-desktop"
+              name="q"
               type="search"
               placeholder="Buscar pacientes, mensagens..."
               className="pl-10 bg-gray-50 border-gray-200"
@@ -67,6 +70,7 @@ export function Header({ onMenuClick }: HeaderProps) {
             size="sm"
             className="h-11 w-11"
             onClick={() => setMobileSearchOpen(true)}
+            aria-label="Buscar"
           >
             <Search className="h-5 w-5" />
           </Button>
@@ -83,7 +87,7 @@ export function Header({ onMenuClick }: HeaderProps) {
           {/* User menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+              <Button variant="ghost" className="relative h-8 w-8 rounded-full" aria-label="Menu do usuario">
                 <Avatar className="h-8 w-8">
                   <AvatarImage src="" alt={user?.full_name} />
                   <AvatarFallback className="bg-blue-600 text-white">
@@ -139,6 +143,8 @@ export function Header({ onMenuClick }: HeaderProps) {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
+                id="global-search-mobile"
+                name="q"
                 type="search"
                 placeholder="Buscar pacientes, mensagens..."
                 className="pl-10 bg-gray-50 border-gray-200 h-11"
@@ -150,6 +156,7 @@ export function Header({ onMenuClick }: HeaderProps) {
               size="sm"
               className="h-11 w-11 shrink-0"
               onClick={() => setMobileSearchOpen(false)}
+              aria-label="Fechar"
             >
               <X className="h-5 w-5" />
             </Button>

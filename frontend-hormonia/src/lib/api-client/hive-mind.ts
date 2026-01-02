@@ -1,5 +1,4 @@
 import { ApiClientCore } from "./core";
-import { ApiResponse, PaginatedResponse } from "./types";
 
 // ============================================================================
 // HIVE MIND TYPES
@@ -130,7 +129,7 @@ export interface HiveMindApi {
         get: (agentId: string) => Promise<AgentStatus>;
         metrics: (agentId: string, limit?: number) => Promise<AgentMetrics>;
     };
-    alerts: (activeOnly?: boolean, severity?: string) => Promise<{ alerts: any[]; count: number; active_count: number; timestamp: string }>;
+    alerts: (activeOnly?: boolean, severity?: string) => Promise<{ alerts: unknown[]; count: number; active_count: number; timestamp: string }>;
     integration: {
         getStatus: () => Promise<IntegrationStatus>;
         setMode: (mode: string) => Promise<{ success: boolean; new_mode: string; timestamp: string }>;
@@ -159,7 +158,7 @@ export function createHiveMindApi(client: ApiClientCore): HiveMindApi {
         },
 
         alerts: (activeOnly = true, severity?: string) => {
-            const params: Record<string, any> = { active_only: activeOnly };
+            const params: Record<string, string | number | boolean> = { active_only: activeOnly };
             if (severity) params['severity'] = severity;
             return client.get("/api/v2/hive-mind/alerts", params);
         },

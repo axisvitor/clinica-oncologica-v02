@@ -1,4 +1,4 @@
-import { useQuery, UseQueryResult } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 
 interface QuizTemplateAnalytics {
@@ -28,7 +28,8 @@ interface UseQuestionariosOptions {
   size?: number
 }
 
-interface QuestionariosResponse {
+// Response interface used internally for type checking
+interface _QuestionariosResponse {
   items: QuizTemplate[]
   total: number
   page: number
@@ -60,7 +61,7 @@ export function useQuestionarios(options?: UseQuestionariosOptions) {
       params.append('size', size.toString())
 
       // Fetch templates
-      const result = await apiClient.quizzes.listTemplates()
+      const result = await apiClient.quizzes.listTemplates({ limit: 100 })
       type ResultType = { items?: QuizTemplate[] } | QuizTemplate[]
       const resultData: QuizTemplate[] = ((result as ResultType) as { items?: QuizTemplate[] })?.items ||
         (Array.isArray(result) ? result as QuizTemplate[] : [])

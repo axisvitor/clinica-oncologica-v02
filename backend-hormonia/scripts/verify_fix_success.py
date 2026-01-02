@@ -2,8 +2,7 @@
 import sys
 import os
 import uuid
-from datetime import date, datetime, timezone
-import json
+from datetime import date
 
 # Add current directory to path
 sys.path.append(os.getcwd())
@@ -93,7 +92,7 @@ def verify():
     
     # I'll use a payload without CPF if it's optional, but it might be required by saga.
     
-    print(f"Sending POST to /api/v2/patients/ with VALID payload")
+    print("Sending POST to /api/v2/patients/ with VALID payload")
     
     headers = {"X-Idempotency-Key": str(uuid.uuid4())}
     try:

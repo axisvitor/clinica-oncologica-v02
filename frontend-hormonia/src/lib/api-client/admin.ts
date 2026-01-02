@@ -175,7 +175,7 @@ export function createAdminApi(client: ApiClientCore) {
         ...filters
       }
 
-      const response = await client.get<any>('/api/v2/admin/users', params)
+      const response = await client.get<{ data?: AdminUser[]; items?: AdminUser[]; total?: number; pages?: number }>('/api/v2/admin/users', params)
 
       // Normalize response to match PaginatedResponse interface
       const items = Array.isArray(response?.data) ? response.data : (response?.items ?? [])
@@ -266,7 +266,7 @@ export function createAdminApi(client: ApiClientCore) {
       size: number = 20
     ): Promise<PaginatedResponse<UserActivityEntry>> => {
       const params = { page, limit: size }
-      const response = await client.get<any>(
+      const response = await client.get<{ data?: UserActivityEntry[]; items?: UserActivityEntry[]; total?: number; pages?: number }>(
         `/api/v2/admin/users/${userId}/activity`,
         params
       )
@@ -331,7 +331,7 @@ export function createAdminApi(client: ApiClientCore) {
         ...filters
       }
 
-      const response = await client.get<any>('/api/v2/admin/audit', params)
+      const response = await client.get<{ data?: AuditLogEntry[]; items?: AuditLogEntry[]; total?: number; pages?: number }>('/api/v2/admin/audit', params)
       const items = Array.isArray(response?.data) ? response.data : (response?.items ?? [])
 
       return {
@@ -352,7 +352,7 @@ export function createAdminApi(client: ApiClientCore) {
       start_date?: string
       end_date?: string
     }): Promise<Blob> => {
-      const queryParams = new URLSearchParams(filters as any)
+      const queryParams = new URLSearchParams(filters as Record<string, string>)
       const response = await fetch(
         `${client.getBaseURL()}/api/v2/admin/audit/export?${queryParams}`,
         {
@@ -379,8 +379,8 @@ export function createAdminApi(client: ApiClientCore) {
      * List all roles
      */
     listRoles: async (): Promise<Role[]> => {
-      const response = await client.get<any>('/api/v2/admin/roles')
-      return Array.isArray(response) ? response : (response?.data ?? response?.items ?? [])
+      const response = await client.get<Role[] | { data?: Role[]; items?: Role[] }>('/api/v2/admin/roles')
+      return Array.isArray(response) ? response : ((response as { data?: Role[]; items?: Role[] })?.data ?? (response as { data?: Role[]; items?: Role[] })?.items ?? [])
     },
 
     /**

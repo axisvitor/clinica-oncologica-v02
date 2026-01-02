@@ -128,7 +128,7 @@ class ValidationService:
 
             return None
 
-        except Exception as e:
+        except Exception:
             self._logger.error(
                 "Error finding existing patient",
                 extra={

@@ -13,16 +13,13 @@ from fastapi import (
     status,
     Query,
     Request,
-    Cookie,
-    Header,
 )
 from sqlalchemy import or_
 
 from app.database import get_db
 from app.models.flow import FlowKind, FlowTemplateVersion
 from app.models.quiz import QuizTemplate
-from app.models.user import User
-from app.dependencies.auth_dependencies import get_redis_cache
+from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.schemas.v2.templates import (
     TemplateSearchResponse,
     TemplateValidationResponse,
@@ -31,7 +28,6 @@ from app.utils.rate_limiter import limiter
 
 # Import shared helpers and constants from templates_shared module
 from app.api.v2.templates_shared import (
-    _get_current_user_simple,
     RATE_LIMIT_READ,
     RATE_LIMIT_SEARCH,
 )
@@ -59,7 +55,7 @@ async def search_templates(
     ),
     limit: int = Query(20, ge=1, le=100, description="Results limit"),
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     """
     Full-text search across templates.
@@ -159,7 +155,7 @@ async def validate_template(
     request: Request,
     template_data: Dict[str, Any],
     template_type: str = Query(..., description="Template type (flow, quiz)"),
-    current_user: Dict = Depends(_get_current_user_simple),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     """
     Validate template structure and content.

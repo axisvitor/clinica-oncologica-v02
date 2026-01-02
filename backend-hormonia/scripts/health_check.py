@@ -14,7 +14,6 @@ Usage:
 """
 
 import sys
-import os
 import asyncio
 import time
 import json

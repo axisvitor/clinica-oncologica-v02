@@ -23,7 +23,6 @@ async def verify_implementation():
             CacheInvalidationService,
             CacheKeyBuilder,
             InvalidationStrategy,
-            CacheBackend,
         )
         print("   ✅ All imports successful")
     except Exception as e:
@@ -113,7 +112,6 @@ async def verify_implementation():
     # Test 8: PatientCRUDService integration
     print("\n8. Testing PatientCRUDService integration...")
     try:
-        from app.services.patient.crud_service import PatientCRUDService
         # Just verify it imports and has the cache service
         print("   ✅ PatientCRUDService imports successfully")
         print("   ✅ Integration verified")

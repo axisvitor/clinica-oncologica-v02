@@ -4,7 +4,7 @@ Celery task scheduling for message delivery.
 
 import logging
 from typing import Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime
 
 from app.models.message import Message
 from app.utils.distributed_lock import (

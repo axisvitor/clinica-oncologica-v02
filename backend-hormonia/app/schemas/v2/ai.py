@@ -592,15 +592,25 @@ class AIErrorResponse(BaseModel):
     request_id: Optional[str] = Field(None, description="Request ID for tracking")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "error": "ai_service_error",
-                "message": "Gemini API temporarily unavailable",
-                "details": {"reason": "rate_limit", "retry_after": 60},
-                "fallback_used": True,
-                "request_id": "req_123abc",
-                "timestamp": "2025-01-17T10:00:00Z",
-            }
-        }
+
+# ============================================================================
+# Recommendations Endpoints
+# ============================================================================
+
+
+class RecommendationItem(BaseModel):
+    """Individual recommendation item."""
+    
+    type: str = Field(description="Type of recommendation")
+    priority: str = Field(description="Priority: low, medium, high")
+    description: str = Field(description="Description")
+    rationale: str = Field(description="Why this is recommended")
+
+
+class AIRecommendations(BaseModel):
+    """AI recommendations response."""
+    
+    patient_id: UUID = Field(description="Patient ID")
+    recommendations: List[RecommendationItem] = Field(
+        default_factory=list, description="List of recommendations"
     )

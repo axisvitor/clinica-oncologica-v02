@@ -20,7 +20,7 @@ export interface QuizLinkStatusProps {
 }
 
 export function QuizLinkStatus({
-  patientId,
+  patientId: _patientId,
   lastSent,
   lastResponse,
   linkStatus,

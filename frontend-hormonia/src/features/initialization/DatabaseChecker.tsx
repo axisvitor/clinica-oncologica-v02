@@ -325,6 +325,7 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
   useEffect(() => {
     // Auto-start database checks
     handleCheckDatabase()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- handleCheckDatabase is intentionally only called on mount
   }, [])
 
   const getStatusIcon = (status: DatabaseTest['status']) => {

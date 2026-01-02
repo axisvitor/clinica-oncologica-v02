@@ -115,5 +115,6 @@ export function SettingsSidebar() {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export { settingsTabs }
 export type { SettingsTab }

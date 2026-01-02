@@ -6,7 +6,6 @@ are properly prevented through database constraints.
 """
 import pytest
 import asyncio
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Tuple
 from datetime import date
 from faker import Faker

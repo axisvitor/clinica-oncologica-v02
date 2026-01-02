@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { PhysicianDashboardSkeleton } from '@/features/dashboard/PhysicianDashboardSkeleton'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
@@ -278,11 +278,7 @@ export default function PhysicianDashboard() {
   }
 
   if (metricsLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <LoadingSpinner size="lg" />
-      </div>
-    )
+    return <PhysicianDashboardSkeleton />
   }
 
   // Patients are now filtered server-side
@@ -372,6 +368,7 @@ export default function PhysicianDashboard() {
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
+                      name="patientSearch"
                       placeholder="Buscar paciente..."
                       value={filters.search}
                       onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })}
@@ -382,6 +379,7 @@ export default function PhysicianDashboard() {
 
                 {/* Risk Level Filter */}
                 <Select
+                  name="riskLevelFilter"
                   value={filters.risk_level}
                   onValueChange={(value: 'all' | 'low' | 'medium' | 'high' | 'critical') => setFilters({ ...filters, risk_level: value, page: 1 })}
                 >

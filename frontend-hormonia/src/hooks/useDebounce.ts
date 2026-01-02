@@ -30,7 +30,7 @@ export function useDebounce<T>(value: T, delay: number): T {
  * @param deps - Additional dependencies for the debounced function
  * @returns The debounced callback function
  */
-export function useDebouncedCallback<T extends (...args: any[]) => any>(
+export function useDebouncedCallback<T extends (...args: unknown[]) => unknown>(
   callback: T,
   delay: number,
   deps: React.DependencyList = []
@@ -55,6 +55,7 @@ export function useDebouncedCallback<T extends (...args: any[]) => any>(
         callbackRef.current(...args)
       }, delay)
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- spread deps is intentional for dynamic dependency injection
     [delay, ...deps]
   ) as T
 
@@ -76,7 +77,7 @@ export function useDebouncedCallback<T extends (...args: any[]) => any>(
  * @param delay - The throttle delay in milliseconds
  * @returns The throttled callback function
  */
-export function useThrottledCallback<T extends (...args: any[]) => any>(
+export function useThrottledCallback<T extends (...args: unknown[]) => unknown>(
   callback: T,
   delay: number
 ): T {

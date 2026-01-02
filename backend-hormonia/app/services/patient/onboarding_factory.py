@@ -14,11 +14,9 @@ The actual import happens at runtime inside the function.
 from __future__ import annotations
 
 # Standard library imports
-from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any, Optional
 
 # Third-party imports
-from sqlalchemy.ext.asyncio import AsyncSession
 
 # Local application imports
 from app.domain.messaging.core import MessageService
@@ -32,6 +30,7 @@ from app.services.enhanced_flow_engine import get_enhanced_flow_engine
 from app.services.patient.flow_service import PatientFlowService
 from app.services.patient.integrity_service import PatientIntegrityService
 from app.services.unified_whatsapp_service import UnifiedWhatsAppService
+from app.core.executors import get_io_executor
 
 # FIX: Use TYPE_CHECKING to avoid circular import
 # SagaOrchestrator imports PatientFlowService which causes circular import chain

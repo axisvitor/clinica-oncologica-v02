@@ -3,12 +3,11 @@ Comprehensive Route Validation Tests
 Tests all corrected routes for authentication, authorization, and security.
 """
 
-import pytest
 from uuid import uuid4
-from datetime import date, datetime, timezone, timedelta
+from datetime import date
 from fastapi import status
 from fastapi.testclient import TestClient
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import patch
 
 from app.models.user import User, UserRole
 from app.models.patient import Patient

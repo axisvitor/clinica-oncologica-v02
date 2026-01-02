@@ -10,7 +10,7 @@ from uuid import UUID
 from app.repositories.message import MessageRepository
 from app.repositories.patient import PatientRepository
 from app.models.flow import PatientFlowState
-from app.services.ai import get_sentiment_analyzer, get_context_builder, ConcernLevel
+from app.services.ai import get_sentiment_analyzer, get_context_builder
 from app.exceptions import NotFoundError
 
 from .models import (
@@ -115,13 +115,58 @@ class DataExtractor:
                 medical_data=getattr(patient, "medical_history", {}),
             )
 
-            # Perform sentiment analysis
-            (
-                sentiment_response,
-                concern_level,
-            ) = await self.sentiment_analyzer.analyze_response(
-                inbound_message.content, patient_context
-            )
+            # Check Redis cache for similar sentiment analysis
+            import hashlib
+            import json
+            from app.core.redis_manager import get_sync_redis_client
+            
+            # Create cache key from message content hash (short messages may have similar analyses)
+            content_hash = hashlib.sha256(inbound_message.content.encode()).hexdigest()[:16]
+            sentiment_cache_key = f"sentiment_analysis:{content_hash}"
+            sentiment_cache_ttl = 3600  # 1 hour
+            
+            cached_sentiment = None
+            try:
+                redis_client = get_sync_redis_client()
+                if redis_client:
+                    cached_data = redis_client.get(sentiment_cache_key)
+                    if cached_data:
+                        cached_sentiment = json.loads(cached_data)
+                        logger.debug(f"Sentiment cache hit for {sentiment_cache_key}")
+            except Exception as e:
+                logger.warning(f"Redis sentiment cache error: {e}")
+            
+            if cached_sentiment:
+                # Use cached result
+                from app.services.ai import ConcernLevel
+                sentiment_response = type('SentimentResponse', (), cached_sentiment['response'])()
+                concern_level = ConcernLevel(cached_sentiment['concern_level'])
+            else:
+                # Perform sentiment analysis
+                (
+                    sentiment_response,
+                    concern_level,
+                ) = await self.sentiment_analyzer.analyze_response(
+                    inbound_message.content, patient_context
+                )
+                
+                # Cache the result
+                try:
+                    if redis_client:
+                        cache_data = {
+                            "response": {
+                                "sentiment": sentiment_response.sentiment.value,
+                                "confidence": sentiment_response.confidence,
+                                "key_phrases": sentiment_response.key_phrases,
+                                "emotional_indicators": sentiment_response.emotional_indicators,
+                                "medical_concerns": sentiment_response.medical_concerns,
+                            },
+                            "concern_level": concern_level.value
+                        }
+                        redis_client.setex(sentiment_cache_key, sentiment_cache_ttl, json.dumps(cache_data))
+                        logger.debug(f"Cached sentiment analysis for {sentiment_cache_key}")
+                except Exception as e:
+                    logger.warning(f"Failed to cache sentiment analysis: {e}")
 
             # Extract data based on response type
             extracted_data = await self.extract_type_specific_data(

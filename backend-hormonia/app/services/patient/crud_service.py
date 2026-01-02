@@ -14,13 +14,11 @@ from __future__ import annotations
 # Standard library imports
 import asyncio
 import logging
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Any, List, Optional
 from uuid import UUID
 
 # Third-party imports
-from sqlalchemy.ext.asyncio import AsyncSession
 
 # Local application imports
 from app.exceptions import NotFoundError
@@ -28,9 +26,10 @@ from app.infrastructure.cache import get_unified_cache_manager as get_cache_mana
 from app.models.patient import Patient, FlowState
 from app.repositories.patient import PatientRepository
 from app.schemas.patient import PatientUpdate
-from app.services.cache import CacheInvalidationService, CacheKeyBuilder, InvalidationStrategy
+from app.services.cache import CacheInvalidationService, CacheKeyBuilder
 from app.utils.db_retry import with_db_retry
 from app.utils.transaction_manager import sync_transaction
+from app.core.executors import get_cache_executor
 
 logger = logging.getLogger(__name__)
 

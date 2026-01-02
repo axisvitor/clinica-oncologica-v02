@@ -29,8 +29,8 @@ export function useMedicoAuth(): MedicoAuthContextValue {
   const error = null as string | null
   const medico = user
     ? {
-        full_name: (user as any).full_name || (user as any).name || '',
-        crm: (user as any).crm || '',
+        full_name: (user as { full_name?: string; name?: string }).full_name || (user as { name?: string }).name || '',
+        crm: (user as { crm?: string }).crm || '',
       }
     : null
 

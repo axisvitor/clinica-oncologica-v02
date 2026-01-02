@@ -3,18 +3,15 @@ Performance and Load Testing for Route Corrections
 Tests response times, throughput, and resource usage.
 """
 
-import pytest
 import time
 from uuid import uuid4
 from datetime import date
 from fastapi import status
 from fastapi.testclient import TestClient
 from unittest.mock import patch
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from app.models.user import User, UserRole
 from app.models.patient import Patient
-from app.models.alert import Alert, AlertSeverity
 
 
 class TestResponseTimes:

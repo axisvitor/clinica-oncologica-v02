@@ -18,9 +18,8 @@ import pytest
 import time
 import hmac
 import hashlib
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock, AsyncMock
 from uuid import uuid4
 
 
@@ -77,7 +76,7 @@ class TestCSRFProtection:
 
     def test_csrf_token_expiration(self, client: TestClient):
         """Expired CSRF tokens should be rejected"""
-        from app.middleware.csrf import generate_csrf_token, TOKEN_EXPIRY
+        from app.middleware.csrf import TOKEN_EXPIRY
 
         # Create an expired token (timestamp from 2 hours ago)
         old_timestamp = int(time.time()) - (TOKEN_EXPIRY + 3600)
@@ -205,7 +204,7 @@ class TestJWTSecurity:
 
     def test_jwt_algorithm_confusion_prevented(self):
         """Algorithm confusion attacks should be prevented"""
-        from app.core.security import create_password_reset_token, verify_password_reset_token
+        from app.core.security import create_password_reset_token
         from jose import jwt
 
         # Create a valid token
@@ -227,8 +226,6 @@ class TestJWTSecurity:
     def test_jwt_token_signature_verification(self):
         """JWT signatures must be verified"""
         from app.core.security import create_password_reset_token
-        from jose import jwt
-        from app.config import settings
 
         email = "test@example.com"
         token = create_password_reset_token(email)
@@ -258,7 +255,6 @@ class TestJWTSecurity:
     def test_jwt_expiration_enforced(self):
         """Expired JWT tokens should be rejected"""
         from app.core.security import create_password_reset_token, verify_password_reset_token
-        from jose import JWTError
 
         # Create token that expires immediately
         email = "test@example.com"

@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 from typing import Union
 
 # Local application imports
-from app.core.exceptions import NotFoundError, ValidationError
+from app.core.exceptions import NotFoundError
 from app.models.quiz import QuizResponse, QuizSession, QuizTemplate
 from app.repositories.quiz import (
     QuizResponseRepository,

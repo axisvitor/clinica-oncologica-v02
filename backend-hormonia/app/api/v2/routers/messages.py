@@ -8,8 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Backgroun
 from sqlalchemy.orm import joinedload
 
 from app.database import get_db
+from app.core.database import get_async_session_factory
 from app.models.message import Message, MessageStatus, MessageType, MessageDirection
-from app.domain.messaging.delivery import MessageSender
+# from app.domain.messaging.delivery import MessageSender
 from app.schemas.v2.messages import (
     MessageV2Response,
     MessageV2List,
@@ -25,12 +26,65 @@ from app.dependencies.auth_dependencies import (
     get_redis_cache,
 )
 from app.domain.messaging.core import MessageService
-from app.services.unified_whatsapp_service import MessagingMode
+from app.services.unified_whatsapp_service import MessagingMode, UnifiedWhatsAppService
 from app.repositories.patient import PatientRepository
 from app.utils.rate_limiter import limiter
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+async def send_message_background(message_id: UUID):
+    """
+    Background task to send a message using async session.
+
+    Creates its own AsyncSession to avoid closed-session issues
+    from the request context.
+    """
+    logger.info(f"[BG TASK] Starting background send for message {message_id}")
+    
+    try:
+        async_factory = get_async_session_factory()
+        logger.info(f"[BG TASK] Got async session factory")
+    except Exception as factory_err:
+        logger.error(f"[BG TASK] Failed to get async session factory: {factory_err}")
+        return
+    
+    try:
+        async with async_factory() as session:
+            logger.info(f"[BG TASK] Async session created successfully")
+            try:
+                # Fetch the message
+                from sqlalchemy import select
+                from app.models.message import Message
+
+                result = await session.execute(
+                    select(Message).where(Message.id == message_id)
+                )
+                message = result.scalar_one_or_none()
+
+                if not message:
+                    logger.error(f"[BG TASK] Message {message_id} not found for background send")
+                    return
+
+                logger.info(f"[BG TASK] Message {message_id} fetched, content: {message.content[:50]}...")
+
+                # Send using UnifiedWhatsAppService with async session
+                service = UnifiedWhatsAppService(session)
+                logger.info(f"[BG TASK] UnifiedWhatsAppService created, calling send_message...")
+                
+                success = await service.send_message(message)
+                
+                if success:
+                    logger.info(f"[BG TASK] Message {message_id} sent successfully via background task")
+                else:
+                    logger.warning(f"[BG TASK] Message {message_id} send returned False")
+
+            except Exception as e:
+                logger.error(f"[BG TASK] Background send failed for message {message_id}: {e}", exc_info=True)
+                raise
+    except Exception as session_err:
+        logger.error(f"[BG TASK] Async session error: {session_err}", exc_info=True)
 
 # WhatsApp message length limit (QW-004)
 MAX_WHATSAPP_MESSAGE_LENGTH = 4096
@@ -306,9 +360,6 @@ async def send_message(
 
     message_service = MessageService(db)
     scheduled_time = message_data.scheduled_for or datetime.now(timezone.utc)
-    idempotency_key = hashlib.sha256(
-        f"{message_data.patient_id}:{message_data.content}:{scheduled_time.isoformat()}".encode()
-    ).hexdigest()[:32]
 
     mt = MessageType.TEXT
     if message_data.type == MessageTypeV2.INTERACTIVE:
@@ -320,12 +371,11 @@ async def send_message(
         scheduled_for=scheduled_time,
         message_type=mt,
         message_metadata=message_data.message_metadata or {},
-        idempotency_key=idempotency_key,
     )
 
     if scheduled_time <= datetime.now(timezone.utc):
-        sender = MessageSender(db, messaging_mode=MessagingMode.QUEUE)
-        background_tasks.add_task(sender.send_message, message)
+        # Use background task with its own async session
+        background_tasks.add_task(send_message_background, message.id)
 
     try:
         await redis_cache.delete_pattern("v2:messages_list:*")

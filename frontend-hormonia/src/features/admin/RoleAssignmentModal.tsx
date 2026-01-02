@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Shield, Users, Settings, BarChart3, FileText, Database, Save } from "lucide-react";
+import { Shield, Users, Settings, BarChart3, Database, Save } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { AdminUser } from "@/types/admin";
-import { UserRole } from "@/types/shared";
 import {
   Dialog,
   DialogContent,
@@ -25,7 +24,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -482,7 +480,7 @@ export function RoleAssignmentModal({ open, onOpenChange, user }: RoleAssignment
       }
 
       onOpenChange(false);
-    } catch (error) {
+    } catch {
       // Errors are handled by the mutations
     }
   };
@@ -617,10 +615,10 @@ export function RoleAssignmentModal({ open, onOpenChange, user }: RoleAssignment
                             </Badge>
                             <Checkbox
                               checked={isFullySelected}
-                              ref={(el) => {
+                              ref={(el: HTMLButtonElement | null) => {
                                 if (el) {
-                                  const element = el as any;
-                                  (element as any).indeterminate = isPartiallySelected;
+                                  // Set indeterminate state via data attribute since Radix doesn't expose it directly
+                                  el.dataset['indeterminate'] = isPartiallySelected ? 'true' : 'false';
                                 }
                               }}
                               onCheckedChange={(checked) =>

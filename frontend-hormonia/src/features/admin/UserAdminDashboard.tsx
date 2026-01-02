@@ -1,14 +1,12 @@
 import React, { useState, useMemo } from 'react'
-import { Plus, Search, Filter, Users, UserCheck, UserX, AlertTriangle } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { Plus, Search, Users, UserCheck, UserX, AlertTriangle } from 'lucide-react'
 import { useUserAdmin } from '@/hooks/admin'
 import { useAuth } from '@/app/providers/AuthContext'
-import { AdminUser, AdminUserActivity } from '@/types/admin'
+import { AdminUser } from '@/types/admin'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
@@ -34,7 +32,7 @@ interface FilterState {
 }
 
 export function UserAdminDashboard() {
-  const { hasPermission } = useAuth()
+  useAuth()
   const { users, stats, bulkActivate, bulkDeactivate, isLoading } = useUserAdmin()
 
   // Modal states
@@ -85,32 +83,31 @@ export function UserAdminDashboard() {
 
       return true
     }).sort((a: AdminUser, b: AdminUser) => {
-      let aVal = a[sortBy as keyof AdminUser] as unknown as string | number | null | undefined
-      let bVal = b[sortBy as keyof AdminUser] as unknown as string | number | null | undefined
+      const aRaw = a[sortBy as keyof AdminUser]
+      const bRaw = b[sortBy as keyof AdminUser]
+
+      let aVal: string | number
+      let bVal: string | number
 
       // Handle date sorting
       if (sortBy === 'created_at' || sortBy === 'last_login') {
-        aVal = aVal ? new Date(aVal as any).getTime() : 0
-        bVal = bVal ? new Date(bVal as any).getTime() : 0
-      }
-
-      // Normalize values for comparison
-      if (typeof aVal === 'string') {
-        aVal = aVal.toLowerCase()
-      } else if (typeof aVal !== 'number') {
+        aVal = aRaw ? new Date(String(aRaw)).getTime() : 0
+        bVal = bRaw ? new Date(String(bRaw)).getTime() : 0
+      } else if (typeof aRaw === 'string') {
+        aVal = aRaw.toLowerCase()
+        bVal = typeof bRaw === 'string' ? bRaw.toLowerCase() : ''
+      } else if (typeof aRaw === 'number') {
+        aVal = aRaw
+        bVal = typeof bRaw === 'number' ? bRaw : 0
+      } else {
         aVal = ''
-      }
-
-      if (typeof bVal === 'string') {
-        bVal = bVal.toLowerCase()
-      } else if (typeof bVal !== 'number') {
         bVal = ''
       }
 
       if (sortOrder === 'asc') {
-        return (aVal as any) > (bVal as any) ? 1 : -1
+        return aVal > bVal ? 1 : -1
       } else {
-        return (aVal as any) < (bVal as any) ? 1 : -1
+        return aVal < bVal ? 1 : -1
       }
     })
   }, [users, filters, sortBy, sortOrder])

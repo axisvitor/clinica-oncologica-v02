@@ -30,7 +30,7 @@ import { Progress } from '@/components/ui/progress';
 import { usePatientSummaryManager } from '@/hooks/usePatientSummary';
 import type { PatientSummaryResponse, SeverityLevel } from '@/types/api';
 
-const logger = createLogger('PatientAISummary');
+const _logger = createLogger('PatientAISummary');
 
 interface PatientAISummaryProps {
   patientId: string;
@@ -48,7 +48,7 @@ const severityColors: Record<SeverityLevel, string> = {
   critical: 'bg-red-100 text-red-800',
 };
 
-export function PatientAISummary({ patientId, patientName }: PatientAISummaryProps) {
+export function PatientAISummary({ patientId, patientName: _patientName }: PatientAISummaryProps) {
   const [startDate, setStartDate] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [expandedSections, setExpandedSections] = useState<Record<SectionKey, boolean>>({
@@ -79,7 +79,7 @@ export function PatientAISummary({ patientId, patientName }: PatientAISummaryPro
       const summary = await generateSummary(startDate, endDate, false);
       setCurrentSummary(summary);
     } catch (error) {
-      logger.error('Failed to generate summary', error instanceof Error ? error : undefined);
+      _logger.error('Failed to generate summary', error instanceof Error ? error : undefined);
     }
   };
 

@@ -6,7 +6,7 @@
 import { useForm, UseFormReturn } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useRef } from 'react'
+import React, { useRef, useEffect } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { useToast } from '@/components/ui/use-toast'
 import { apiClient } from '@/lib/api-client'
@@ -62,7 +62,7 @@ export function usePatientForm({
       cpf: patient.cpf || '',
       birth_date: patient.birth_date || '',
       treatment_type: patient.treatment_type,
-      treatment_phase: patient.treatment_phase as any,
+      treatment_phase: patient.treatment_phase as 'initial' | 'adjustment' | 'maintenance' | 'monitoring' | 'followup' | 'completed' | undefined,
       treatment_start_date: patient.treatment_start_date || '',
       diagnosis: patient.diagnosis || '',
       doctor_notes: patient.doctor_notes || '',
@@ -165,7 +165,7 @@ export function usePatientForm({
   })
 
   // Reseta form quando paciente muda (modo edit)
-  React.useEffect(() => {
+  useEffect(() => {
     if (mode === 'edit' && patient) {
       form.reset({
         name: patient.name,
@@ -174,13 +174,14 @@ export function usePatientForm({
         cpf: patient.cpf || '',
         birth_date: patient.birth_date || '',
         treatment_type: patient.treatment_type,
-        treatment_phase: patient.treatment_phase as any,
+        treatment_phase: patient.treatment_phase as 'initial' | 'adjustment' | 'maintenance' | 'monitoring' | 'followup' | 'completed' | undefined,
         treatment_start_date: patient.treatment_start_date || '',
         diagnosis: patient.diagnosis || '',
         doctor_notes: patient.doctor_notes || '',
         timezone: patient.timezone || 'America/Sao_Paulo'
       })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- form object reference is stable, only form.reset needed
   }, [mode, patient, form.reset])
 
   const onSubmit = (data: CreatePatientFormData | UpdatePatientFormData) => {
@@ -201,5 +202,3 @@ export function usePatientForm({
   }
 }
 
-// Re-export React for useEffect
-import React from 'react'

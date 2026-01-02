@@ -6,15 +6,13 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { FileText, CheckCircle, Clock, AlertCircle } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
-import type { PatientQuizResponsesResponse } from '@/types/quiz'
-
 interface QuizResponseTimelineProps {
   patientId: string
   onSessionClick?: (sessionId: string) => void
   className?: string
 }
 
-interface TimelineSession {
+interface _TimelineSession {
   id: string
   template_name: string
   template_version: string

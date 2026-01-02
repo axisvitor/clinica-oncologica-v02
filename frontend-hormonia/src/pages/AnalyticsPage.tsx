@@ -21,11 +21,12 @@ import {
 import type { TooltipProps } from 'recharts'
 import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent'
 import { ChartSkeleton } from '@/components/ui/chart-skeleton'
+import { SafeChartContainer } from '@/components/ui/charts/SafeChartContainer'
 import { apiClient } from '@/lib/api-client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { AnalyticsSkeleton } from '@/features/analytics/AnalyticsSkeleton'
 import {
   Select,
   SelectContent,
@@ -64,6 +65,17 @@ export function AnalyticsPage() {
     error: treatmentError
   } = useTreatmentDistribution(treatmentPeriod)
 
+  // Real API calls for patient status and alerts
+  const { data: patientStatusData } = useQuery({
+    queryKey: ['analytics-patient-status'],
+    queryFn: () => apiClient.analytics.patientStatus()
+  })
+
+  const { data: alertsSummaryData } = useQuery({
+    queryKey: ['analytics-alerts-summary'],
+    queryFn: () => apiClient.analytics.alertsSummary()
+  })
+
   function getStartDate(range: string): string {
     const now = new Date()
     switch (range) {
@@ -78,7 +90,15 @@ export function AnalyticsPage() {
     }
   }
 
-  const engagementTrendData = dashboardData?.engagement_chart?.map((item: any) => ({
+  // Define the engagement chart item type
+  interface EngagementChartItem {
+    date: string;
+    messages_sent: number;
+    responses_received: number;
+    response_rate: number;
+  }
+
+  const engagementTrendData = dashboardData?.engagement_chart?.map((item: EngagementChartItem) => ({
     ...item,
     date: new Date(item.date).toLocaleDateString('pt-BR', {
       day: '2-digit',
@@ -126,12 +146,9 @@ export function AnalyticsPage() {
     return null
   }
 
+  // Show skeleton while loading - UI appears immediately!
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner size="lg" />
-      </div>
-    )
+    return <AnalyticsSkeleton />;
   }
 
   return (
@@ -145,7 +162,7 @@ export function AnalyticsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Select value={dateRange} onValueChange={setDateRange}>
+          <Select name="dateRange" value={dateRange} onValueChange={setDateRange}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Período" />
             </SelectTrigger>
@@ -296,45 +313,41 @@ export function AnalyticsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
-              <Suspense fallback={<ChartSkeleton height="300px" />}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={engagementTrendData}>
-                    <defs>
-                      <linearGradient id="colorMessages" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1} />
-                      </linearGradient>
-                      <linearGradient id="colorResponses" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.1} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                    <XAxis dataKey="date" stroke="#666" fontSize={12} tickLine={false} />
-                    <YAxis stroke="#666" fontSize={12} tickLine={false} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                    <Area
-                      type="monotone"
-                      dataKey="messages_sent"
-                      stroke="#3b82f6"
-                      fill="url(#colorMessages)"
-                      strokeWidth={2}
-                      name="Mensagens Enviadas"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="responses_received"
-                      stroke="#10b981"
-                      fill="url(#colorResponses)"
-                      strokeWidth={2}
-                      name="Respostas Recebidas"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </Suspense>
-            </div>
+            <SafeChartContainer height="300px">
+              <AreaChart data={engagementTrendData}>
+                <defs>
+                  <linearGradient id="colorMessages" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1} />
+                  </linearGradient>
+                  <linearGradient id="colorResponses" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.1} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                <XAxis dataKey="date" stroke="#666" fontSize={12} tickLine={false} />
+                <YAxis stroke="#666" fontSize={12} tickLine={false} />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                <Area
+                  type="monotone"
+                  dataKey="messages_sent"
+                  stroke="#3b82f6"
+                  fill="url(#colorMessages)"
+                  strokeWidth={2}
+                  name="Mensagens Enviadas"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="responses_received"
+                  stroke="#10b981"
+                  fill="url(#colorResponses)"
+                  strokeWidth={2}
+                  name="Respostas Recebidas"
+                />
+              </AreaChart>
+            </SafeChartContainer>
           </CardContent>
         </Card>
 
@@ -402,45 +415,41 @@ export function AnalyticsPage() {
                     {treatmentDistribution.total_patients} pacientes • Período: {treatmentDistribution.period}
                   </span>
                 </div>
-                <div className="h-[300px] flex items-center justify-center">
-                  <Suspense fallback={<ChartSkeleton height="300px" />}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={treatmentDistribution.distribution}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          label={({ percentage }: { percentage: number }) => `${percentage.toFixed(1)}%`}
-                          outerRadius={90}
-                          innerRadius={50}
-                          fill="#8884d8"
-                          dataKey="count"
-                          paddingAngle={2}
-                        >
-                          {treatmentDistribution.distribution.map((entry, index: number) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          content={({ active, payload }: TooltipProps<ValueType, NameType>) => {
-                            if (active && payload && payload.length && payload[0]) {
-                              const data = payload[0].payload as { treatment_type: string; percentage: number };
-                              return (
-                                <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-                                  <p className="font-medium text-sm">{data.treatment_type}</p>
-                                  <p className="text-sm text-gray-600">{payload[0].value} pacientes</p>
-                                  <p className="text-sm text-gray-500">{data.percentage.toFixed(1)}%</p>
-                                </div>
-                              )
-                            }
-                            return null
-                          }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </Suspense>
-                </div>
+                <SafeChartContainer height="300px">
+                  <PieChart>
+                    <Pie
+                      data={treatmentDistribution.distribution}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ percentage }: { percentage: number }) => `${percentage.toFixed(1)}%`}
+                      outerRadius={90}
+                      innerRadius={50}
+                      fill="#8884d8"
+                      dataKey="count"
+                      paddingAngle={2}
+                    >
+                      {treatmentDistribution.distribution.map((entry, index: number) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      content={({ active, payload }: TooltipProps<ValueType, NameType>) => {
+                        if (active && payload && payload.length && payload[0]) {
+                          const data = payload[0].payload as { treatment_type: string; percentage: number };
+                          return (
+                            <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
+                              <p className="font-medium text-sm">{data.treatment_type}</p>
+                              <p className="text-sm text-gray-600">{payload[0].value} pacientes</p>
+                              <p className="text-sm text-gray-500">{data.percentage.toFixed(1)}%</p>
+                            </div>
+                          )
+                        }
+                        return null
+                      }}
+                    />
+                  </PieChart>
+                </SafeChartContainer>
                 <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3">
                   {treatmentDistribution.distribution.map((item, idx: number) => (
                     <div key={idx} className="flex items-center gap-2">
@@ -474,27 +483,23 @@ export function AnalyticsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-[400px]">
-            <Suspense fallback={<ChartSkeleton height="400px" />}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={engagementTrendData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="date" stroke="#666" fontSize={12} />
-                  <YAxis stroke="#666" fontSize={12} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="response_rate"
-                    stroke="#f59e0b"
-                    strokeWidth={3}
-                    dot={{ fill: '#f59e0b', strokeWidth: 2, r: 6 }}
-                    name="Taxa de Resposta (%)"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </Suspense>
-          </div>
+          <SafeChartContainer height="400px">
+            <LineChart data={engagementTrendData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="date" stroke="#666" fontSize={12} />
+              <YAxis stroke="#666" fontSize={12} />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="response_rate"
+                stroke="#f59e0b"
+                strokeWidth={3}
+                dot={{ fill: '#f59e0b', strokeWidth: 2, r: 6 }}
+                name="Taxa de Resposta (%)"
+              />
+            </LineChart>
+          </SafeChartContainer>
         </CardContent>
       </Card>
 
@@ -503,9 +508,7 @@ export function AnalyticsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Status dos Pacientes</CardTitle>
-            <CardDescription className="text-xs text-amber-600">
-              ⚠️ Pausados/Concluídos hardcoded - Aguardando API
-            </CardDescription>
+            <CardDescription>Distribuição por estado do fluxo</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -513,21 +516,21 @@ export function AnalyticsPage() {
                 <span className="text-sm text-gray-600">Ativos</span>
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <span className="font-medium">{dashboardData?.active_patients || 0}</span>
+                  <span className="font-medium">{patientStatusData?.distribution?.['active'] || dashboardData?.active_patients || 0}</span>
                 </div>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Pausados</span>
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                  <span className="font-medium">12</span>
+                  <span className="font-medium">{patientStatusData?.distribution?.['paused'] || 0}</span>
                 </div>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Concluídos</span>
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                  <span className="font-medium">8</span>
+                  <span className="font-medium">{patientStatusData?.distribution?.['completed'] || 0}</span>
                 </div>
               </div>
             </div>
@@ -537,27 +540,25 @@ export function AnalyticsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Alertas por Severidade</CardTitle>
-            <CardDescription className="text-xs text-amber-600">
-              ⚠️ Dados fictícios - Aguardando integração com API de analytics
-            </CardDescription>
+            <CardDescription>{alertsSummaryData?.total_unread || 0} não lidos</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Críticos</span>
-                <Badge variant="destructive">2</Badge>
+                <Badge variant="destructive">{alertsSummaryData?.severity_counts?.['critical'] || 0}</Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Altos</span>
-                <Badge className="bg-orange-100 text-orange-800">5</Badge>
+                <Badge className="bg-orange-100 text-orange-800">{alertsSummaryData?.severity_counts?.['high'] || 0}</Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Médios</span>
-                <Badge className="bg-yellow-100 text-yellow-800">12</Badge>
+                <Badge className="bg-yellow-100 text-yellow-800">{alertsSummaryData?.severity_counts?.['medium'] || 0}</Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Baixos</span>
-                <Badge className="bg-blue-100 text-blue-800">8</Badge>
+                <Badge className="bg-blue-100 text-blue-800">{alertsSummaryData?.severity_counts?.['low'] || 0}</Badge>
               </div>
             </div>
           </CardContent>
@@ -579,7 +580,7 @@ export function AnalyticsPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Mensagens processadas</span>
-                <span className="font-medium">1,234</span>
+                <span className="font-medium">{dashboardData?.messages_sent || 0}</span>
               </div>
             </div>
           </CardContent>

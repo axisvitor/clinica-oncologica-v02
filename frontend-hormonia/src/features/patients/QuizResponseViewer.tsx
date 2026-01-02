@@ -64,7 +64,7 @@ export function QuizResponseViewer({ patientId, patientName = 'Paciente', classN
 
         // Map analysis fields from the inner record using bracket notation
         risk_score: (result.analysis?.['risk_score'] as number) || 0,
-        risk_level: (result.analysis?.['risk_level'] as any) || 'low',
+        risk_level: (result.analysis?.['risk_level'] as 'low' | 'medium' | 'high' | 'critical') || 'low',
         sentiment_score: (result.analysis?.['sentiment_score'] as number) || 0,
         key_concerns: (result.analysis?.['key_concerns'] as string[]) || [],
         recommendations: (result.analysis?.['recommendations'] as string[]) || [],

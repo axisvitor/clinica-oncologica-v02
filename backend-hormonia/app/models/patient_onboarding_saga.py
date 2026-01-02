@@ -69,7 +69,7 @@ class PatientOnboardingSaga(BaseModel):
     doctor_id = Column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,  # Optional - allows patient creation without doctor
         index=True,
     )
 

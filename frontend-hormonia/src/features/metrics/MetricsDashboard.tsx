@@ -15,8 +15,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Activity, Users, Brain, Clock, AlertTriangle, CheckCircle,
-  TrendingUp, TrendingDown, Heart, MessageSquare, Target, Cpu
+  Activity, Brain, AlertTriangle,
+  Heart, Target, Cpu
 } from 'lucide-react';
 
 import { EngagementChart } from './charts/EngagementChart';
@@ -48,13 +48,12 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({
   const [realTimeMetrics, setRealTimeMetrics] = useState<RealTimeMetrics | null>(null);
   const [alerts, setAlerts] = useState<AlertType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error] = useState<string | null>(null);
   const [selectedTab, setSelectedTab] = useState('overview');
 
   // WebSocket for real-time updates
   const {
     isConnected,
-    lastMessage,
     connect,
     disconnect
   } = MetricsWebSocket({
@@ -331,7 +330,7 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({
     }
   };
 
-  const getSeverityColor = (severity: string) => {
+  const _getSeverityColor = (severity: string) => {
     switch (severity) {
       case 'critical': return 'bg-red-100 text-red-800';
       case 'high': return 'bg-orange-100 text-orange-800';

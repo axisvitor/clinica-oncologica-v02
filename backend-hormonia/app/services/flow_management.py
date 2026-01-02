@@ -22,7 +22,8 @@ from app.schemas.flow import (
     FlowHistoryResponse,
     FlowHistoryItem,
 )
-from app.domain.flows.core import FlowService
+from app.services.enhanced_flow_engine import EnhancedFlowEngine
+from app.services.flow_core import FlowType
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +34,11 @@ class FlowManagementService:
     def __init__(
         self,
         flow_repo: FlowStateRepository,
-        db,  # Assuming 'db' is passed in or accessible here, as it's used in FlowService(db)
+        db,
     ):
         self.flow_repo = flow_repo
-        self.flow_service = FlowService(db)
+        self.db = db
+        self.enhanced_flow_engine = EnhancedFlowEngine(db)
 
     async def get_patient_flow_state(self, patient_id: UUID) -> FlowStateResponse:
         """
@@ -55,18 +57,16 @@ class FlowManagementService:
             flow_state = self.flow_repo.get_active_flow(patient_id)
 
             if not flow_state:
-                logger.info(f"No active flow found for patient {patient_id}")
+                logger.debug(f"No active flow found for patient {patient_id}")
                 return FlowStateResponse(
                     patient_id=patient_id,
                     has_active_flow=False,
                     message="No active flow found for patient",
                 )
 
-            # Calculate current day using flow engine
-            current_day = (
-                await self.flow_engine.enhanced_flow_engine.calculate_patient_day(
-                    patient_id
-                )
+            # Calculate current day using enhanced flow engine
+            current_day = await self.enhanced_flow_engine.calculate_patient_day(
+                patient_id
             )
 
             # Get template version info
@@ -139,7 +139,7 @@ class FlowManagementService:
 
             # Advance flow using enhanced flow engine
             advancement_result = (
-                await self.flow_engine.enhanced_flow_engine.advance_patient_flow(
+                await self.enhanced_flow_engine.advance_patient_flow(
                     patient_id=patient_id, force_day=force_day
                 )
             )
@@ -451,13 +451,32 @@ class FlowManagementService:
             FlowStateResponse with new flow state
         """
         try:
-            # Start flow using FlowEngine (synchronous method)
-            flow_state = self.flow_engine.start_flow(
+            # Map flow_type string to Enum
+            try:
+                flow_type_enum = FlowType(flow_type)
+            except ValueError:
+                # Fallback or error if flow_type isn't in Enum (e.g. legacy types)
+                # But FlowCore.enroll_patient uses FlowType enum.
+                # If flow_type doesn't match, we might need to handle it.
+                # Assuming flow_type strings match Enum values
+                 flow_type_enum = FlowType(flow_type)
+
+            # Start flow using EnhancedFlowEngine (which inherits from FlowCore)
+            flow_state = await self.enhanced_flow_engine.enroll_patient(
                 patient_id=patient_id,
-                flow_type=flow_type,
-                initial_data=None,
-                fallback_to_default=True,
+                flow_type=flow_type_enum,
+                auto_commit=True,
             )
+
+            # If user_id provided, maybe log it or store in metadata?
+            # Existing code didn't seem to persist user_id in start_flow unless in state_data,
+            # but enroll_patient sets a fresh step_data.
+            # Let's add user_id if needed.
+            if user_id:
+                if not flow_state.step_data:
+                    flow_state.step_data = {}
+                flow_state.step_data["started_by"] = str(user_id)
+                self.db.commit()
 
             logger.info(f"Started flow {flow_type} for patient {patient_id}")
 

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, Bot, User, Loader2, Lightbulb, AlertTriangle } from 'lucide-react'
+import { Send, Bot, User, Loader2, AlertTriangle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,7 +8,6 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/components/ui/use-toast'
 import { AIChatMessage as ChatMessage, ChatRole, ChatSession } from '@/types/api'
-import { ChatResponse } from '@/types/api'
 import { apiClient } from '../../lib/api-client'
 import { FEATURES } from '../../config'
 import { createLogger } from '@/lib/logger'
@@ -37,6 +36,31 @@ export function AIChatInterface({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (FEATURES.AI_CHAT) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [messages])
+
+  // Focus input on mount
+  useEffect(() => {
+    if (FEATURES.AI_CHAT) {
+      inputRef.current?.focus()
+    }
+  }, [])
+
+  // Initialize session
+  useEffect(() => {
+    if (!FEATURES.AI_CHAT) return
+    if (sessionId) {
+      loadSession(sessionId)
+    } else {
+      createNewSession()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loadSession and createNewSession are stable functions
+  }, [sessionId, patientId])
+
   // Check if AI features are enabled
   if (!FEATURES.AI_CHAT) {
     return (
@@ -51,25 +75,6 @@ export function AIChatInterface({
       </Card>
     )
   }
-
-  // Scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
-
-  // Focus input on mount
-  useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
-
-  // Initialize session
-  useEffect(() => {
-    if (sessionId) {
-      loadSession(sessionId)
-    } else {
-      createNewSession()
-    }
-  }, [sessionId, patientId])
 
   const loadSession = async (id: string) => {
     try {
@@ -173,15 +178,24 @@ export function AIChatInterface({
 
       let response: AIResponse
       try {
-        const apiResponse = await apiClient.ai.chat(userMessage.content, context)
-        response = {
-          message: (apiResponse as any).message || (apiResponse as any).response || 'Resposta da IA',
-          confidence: (apiResponse as any).confidence,
-          intent: (apiResponse as any).intent,
-          suggestions: (apiResponse as any).suggestions,
-          requires_human_review: (apiResponse as any).requires_human_review
+        // Define API response structure
+        interface AIChatApiResponse {
+          message?: string;
+          response?: string;
+          confidence?: number;
+          intent?: string;
+          suggestions?: string[];
+          requires_human_review?: boolean;
         }
-      } catch (error) {
+        const apiResponse = await apiClient.ai.chat(userMessage.content, context) as AIChatApiResponse
+        response = {
+          message: apiResponse.message || apiResponse.response || 'Resposta da IA',
+          confidence: apiResponse.confidence,
+          intent: apiResponse.intent,
+          suggestions: apiResponse.suggestions,
+          requires_human_review: apiResponse.requires_human_review
+        }
+      } catch {
         // Fallback to mock response
         response = {
           message: `Entendi sua mensagem: "${userMessage.content}". Esta é uma resposta simulada da IA. Configure a API do OpenAI para respostas reais.`,

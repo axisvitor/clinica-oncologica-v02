@@ -9,7 +9,7 @@ patient creation with data consistency guarantees.
 import hashlib
 import logging
 import uuid
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, List
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -28,7 +28,6 @@ from app.core.distributed_lock import acquire_lock, LockAcquisitionError
 from app.integrations.evolution import EvolutionClient
 from app.utils.phone_validator import normalize_phone
 
-from .exceptions import SagaCompensationError
 from .steps import SagaStepExecutor
 from .compensation import SagaCompensator
 from .persistence import SagaPersistence
@@ -85,7 +84,7 @@ class SagaOrchestrator:
     async def execute_patient_onboarding_saga(
         self,
         patient_data: PatientCreate,
-        doctor_id: UUID,
+        doctor_id: Optional[UUID] = None,
         current_user: Any = None,
         idempotency_key: Optional[str] = None,
     ) -> Optional[Patient]:
@@ -99,7 +98,7 @@ class SagaOrchestrator:
 
         Args:
             patient_data: Patient creation data
-            doctor_id: ID of the doctor creating the patient
+            doctor_id: ID of the doctor creating the patient (optional)
             current_user: Current user object
             idempotency_key: QW-004: Unique key to prevent duplicate requests
 
@@ -112,7 +111,8 @@ class SagaOrchestrator:
         # Generate lock key based on phone number (unique identifier)
         normalized_phone = normalize_phone(patient_data.phone) or patient_data.phone
         phone_hash = hashlib.sha256(normalized_phone.encode()).hexdigest()[:32]
-        lock_key = f"saga:onboarding:{str(doctor_id)}:{phone_hash}"
+        doctor_part = str(doctor_id) if doctor_id else "no-doctor"
+        lock_key = f"saga:onboarding:{doctor_part}:{phone_hash}"
 
         async with acquire_lock(lock_key, timeout=5.0, ttl=60):
             saga_id = uuid.uuid4()

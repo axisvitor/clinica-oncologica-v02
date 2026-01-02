@@ -135,8 +135,10 @@ def get_thread_safe_service_provider() -> Generator:
             status_code=500, detail="Database connection failed"
         ) from conn_error
     except Exception as e:
+        import traceback
         logger.error(f"Unexpected error in get_thread_safe_service_provider: {e}")
         logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Full traceback:\n{traceback.format_exc()}")
 
         if provider:
             try:

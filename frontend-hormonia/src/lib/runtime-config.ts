@@ -1,49 +1,22 @@
 /// <reference types="vite/client" />
 
 /**
- * Runtime Configuration Loader for Railway Deployment
- *
- * This module provides runtime configuration loading that doesn't depend on build-time
- * environment variables. It solves the Railway deployment issue where build arguments
- * aren't properly passed to the Vite build process.
- *
- * Features:
- * - Runtime environment variable loading
- * - Fallback to production defaults
- * - Type-safe configuration access
- * - Async configuration initialization
- * - Support for Railway's dynamic environment injection
+ * Configuration Module - SIMPLIFIED
+ * 
+ * Uses import.meta.env directly from .env file.
+ * Vite replaces these values at build time.
  */
 
 import { createLogger } from './logger';
 
 const logger = createLogger('RuntimeConfig');
 
-/**
- * Automatically upgrades WebSocket protocol based on page protocol
- * Ensures wss:// is used when page is served over HTTPS
- *
- * @param wsUrl - WebSocket URL to upgrade
- * @returns Upgraded WebSocket URL with appropriate protocol
- */
-function upgradeWebSocketProtocol(wsUrl: string | undefined): string | undefined {
-  if (!wsUrl || typeof window === 'undefined') {
-    return wsUrl
-  }
-
-  // Determine the appropriate protocol based on current page protocol
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-
-  // Replace ws:// or wss:// with the appropriate protocol
-  return wsUrl.replace(/^(ws|wss):/, protocol)
-}
-
 // Environment configuration interface
 export interface RuntimeConfig {
   VITE_API_URL: string;
-  VITE_API_BASE_URL?: string; // Base URL without o sufixo /api
+  VITE_API_BASE_URL?: string;
   VITE_WS_URL: string;
-  VITE_WS_BASE_URL?: string; // WebSocket base URL (standardized variable)
+  VITE_WS_BASE_URL?: string;
   VITE_WHATSAPP_INSTANCE_NAME?: string;
 
   // Firebase Client Configuration
@@ -55,7 +28,6 @@ export interface RuntimeConfig {
   VITE_FIREBASE_APP_ID?: string;
   VITE_FIREBASE_MEASUREMENT_ID?: string;
 
-  // AI Service Configuration
   // AI Feature Flags
   VITE_AI_CHAT_ENABLED?: string;
   VITE_AI_ANALYTICS_ENABLED?: string;
@@ -80,477 +52,75 @@ export interface RuntimeConfig {
   VITE_SHOW_DEMO_CREDENTIALS?: string;
 }
 
-// Production fallback configuration
-// WebSocket URLs will be auto-upgraded based on page protocol
-const PRODUCTION_FALLBACK_CONFIG: RuntimeConfig = {
-  VITE_API_URL: 'https://backend-clinica-production-161d.up.railway.app/api/v2',
-  VITE_API_BASE_URL: 'https://backend-clinica-production-161d.up.railway.app',
-  VITE_WS_URL: 'ws://backend-clinica-production-161d.up.railway.app/ws', // Will auto-upgrade to wss://
-  VITE_WS_BASE_URL: 'ws://backend-clinica-production-161d.up.railway.app/ws', // Will auto-upgrade to wss://
-  VITE_WHATSAPP_INSTANCE_NAME: 'hormonia-instance',
+/**
+ * Configuration built directly from .env file via import.meta.env
+ * Vite replaces these at build time with actual values from .env
+ */
+const CONFIG: RuntimeConfig = {
+  // API URLs - directly from .env
+  VITE_API_URL: import.meta.env['VITE_API_ENDPOINT_URL'] || import.meta.env['VITE_API_URL'] || `${import.meta.env['VITE_API_BASE_URL'] || 'http://localhost:8000'}/api/v2`,
+  VITE_API_BASE_URL: import.meta.env['VITE_API_BASE_URL'] || 'http://localhost:8000',
+  VITE_WS_URL: import.meta.env['VITE_WS_BASE_URL'] || import.meta.env['VITE_WS_ENDPOINT_URL'] || 'ws://localhost:8000/ws',
+  VITE_WS_BASE_URL: import.meta.env['VITE_WS_BASE_URL'] || import.meta.env['VITE_WS_ENDPOINT_URL'] || 'ws://localhost:8000/ws',
+  VITE_WHATSAPP_INSTANCE_NAME: import.meta.env['VITE_WHATSAPP_INSTANCE_NAME'] || 'hormonia-instance',
 
-  // Firebase Client Configuration (must be provided via environment)
-  VITE_FIREBASE_API_KEY: '',
-  VITE_FIREBASE_AUTH_DOMAIN: '',
-  VITE_FIREBASE_PROJECT_ID: '',
-  VITE_FIREBASE_STORAGE_BUCKET: '',
-  VITE_FIREBASE_MESSAGING_SENDER_ID: '',
-  VITE_FIREBASE_APP_ID: '',
-  VITE_FIREBASE_MEASUREMENT_ID: '',
+  // Firebase Client Configuration
+  VITE_FIREBASE_API_KEY: import.meta.env['VITE_FIREBASE_API_KEY'] || '',
+  VITE_FIREBASE_AUTH_DOMAIN: import.meta.env['VITE_FIREBASE_AUTH_DOMAIN'] || '',
+  VITE_FIREBASE_PROJECT_ID: import.meta.env['VITE_FIREBASE_PROJECT_ID'] || '',
+  VITE_FIREBASE_STORAGE_BUCKET: import.meta.env['VITE_FIREBASE_STORAGE_BUCKET'] || '',
+  VITE_FIREBASE_MESSAGING_SENDER_ID: import.meta.env['VITE_FIREBASE_MESSAGING_SENDER_ID'] || '',
+  VITE_FIREBASE_APP_ID: import.meta.env['VITE_FIREBASE_APP_ID'] || '',
+  VITE_FIREBASE_MEASUREMENT_ID: import.meta.env['VITE_FIREBASE_MEASUREMENT_ID'] || '',
 
-  // AI Feature Flags - Enabled by default in production
-  VITE_AI_CHAT_ENABLED: 'true',
-  VITE_AI_ANALYTICS_ENABLED: 'true',
-  VITE_AI_INSIGHTS_ENABLED: 'true',
-  VITE_AI_RECOMMENDATIONS_ENABLED: 'true',
+  // AI Feature Flags
+  VITE_AI_CHAT_ENABLED: import.meta.env['VITE_AI_ENABLE_CHAT'] || 'true',
+  VITE_AI_ANALYTICS_ENABLED: import.meta.env['VITE_AI_ENABLE_ANALYTICS'] || 'true',
+  VITE_AI_INSIGHTS_ENABLED: import.meta.env['VITE_AI_ENABLE_INSIGHTS'] || 'true',
+  VITE_AI_RECOMMENDATIONS_ENABLED: import.meta.env['VITE_AI_ENABLE_RECOMMENDATIONS'] || 'true',
 
   // Environment Settings
-  VITE_ENVIRONMENT: 'production',
-  VITE_DEBUG_MODE: 'false',
-  VITE_SESSION_TIMEOUT: '3600000',
-  VITE_TOKEN_REFRESH_THRESHOLD: '300000',
-  VITE_MAX_FILE_SIZE: '10485760',
-  VITE_SUPPORTED_FILE_TYPES: 'image/jpeg,image/png,image/gif,application/pdf',
+  VITE_ENVIRONMENT: import.meta.env['VITE_APP_ENVIRONMENT'] || 'development',
+  VITE_DEBUG_MODE: import.meta.env['VITE_APP_ENABLE_DEBUG'] || 'false',
+  VITE_SESSION_TIMEOUT: import.meta.env['VITE_SESSION_TIMEOUT_MS'] || '3600000',
+  VITE_TOKEN_REFRESH_THRESHOLD: import.meta.env['VITE_SESSION_TOKEN_REFRESH_THRESHOLD_MS'] || '300000',
+  VITE_MAX_FILE_SIZE: import.meta.env['VITE_UPLOAD_MAX_SIZE_BYTES'] || '10485760',
+  VITE_SUPPORTED_FILE_TYPES: import.meta.env['VITE_UPLOAD_SUPPORTED_MIMETYPES'] || 'image/jpeg,image/png,image/gif,application/pdf',
 
   // Evolution and Demo Configuration
-  VITE_ENABLE_EVOLUTION: 'false',
-  VITE_EVOLUTION_API_URL: '',
-  VITE_SHOW_DEMO_CREDENTIALS: 'false'
+  VITE_ENABLE_EVOLUTION: import.meta.env['VITE_ENABLE_EVOLUTION'] || 'false',
+  VITE_EVOLUTION_API_URL: import.meta.env['VITE_EVOLUTION_API_URL'] || '',
+  VITE_SHOW_DEMO_CREDENTIALS: import.meta.env['VITE_SHOW_DEMO_CREDENTIALS'] || 'false'
 };
 
-// Runtime configuration state
-let runtimeConfig: RuntimeConfig | null = null;
-let configPromise: Promise<RuntimeConfig> | null = null;
-
-/**
- * Detects if we're running in production mode
- */
-function isProductionMode(): boolean {
-  // Check various production indicators
-  return (
-    import.meta.env.MODE === 'production' ||
-    import.meta.env.PROD === true ||
-    (typeof window !== 'undefined' && window.location.hostname.includes('railway.app')) ||
-    (typeof window !== 'undefined' && window.location.hostname.includes('up.railway.app'))
-  );
-}
-
-/**
- * Loads configuration from Railway's runtime environment
- * Falls back to build-time env vars, then to production defaults
- */
-async function loadRuntimeConfiguration(): Promise<RuntimeConfig> {
-  // Return cached config if available
-  if (runtimeConfig) {
-    return runtimeConfig;
-  }
-
-  const isProduction = isProductionMode();
-  if (!isProduction) {
-    logger.log('Loading configuration, production mode:', isProduction);
-  }
-
-  // In development, use Vite's import.meta.env directly
-  if (!isProduction) {
-    const apiBaseUrl = import.meta.env['VITE_API_BASE_URL'] || import.meta.env.VITE_API_BASE_URL || (import.meta.env.VITE_API_URL || "http://localhost:8000");
-    const apiUrl = import.meta.env['VITE_API_URL'] || import.meta.env.VITE_API_URL || `${apiBaseUrl}/api/v2`;
-    const wsBaseUrl = import.meta.env['VITE_WS_BASE_URL'] || import.meta.env['VITE_WS_URL'] || import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000/ws';
-
-    // Auto-upgrade WebSocket protocol in development if using HTTPS
-    const upgradedWsUrl = upgradeWebSocketProtocol(wsBaseUrl);
-
-    const devConfig: RuntimeConfig = {
-      VITE_API_URL: apiUrl,
-      ...(apiBaseUrl && { VITE_API_BASE_URL: apiBaseUrl }),
-      VITE_WS_URL: upgradedWsUrl,
-      ...(upgradedWsUrl && { VITE_WS_BASE_URL: upgradedWsUrl }),
-      ...(import.meta.env['VITE_WHATSAPP_INSTANCE_NAME'] && { VITE_WHATSAPP_INSTANCE_NAME: import.meta.env['VITE_WHATSAPP_INSTANCE_NAME'] }),
-
-      // Firebase Client Configuration
-      ...(import.meta.env['VITE_FIREBASE_API_KEY'] && { VITE_FIREBASE_API_KEY: import.meta.env['VITE_FIREBASE_API_KEY'] }),
-      ...(import.meta.env['VITE_FIREBASE_AUTH_DOMAIN'] && { VITE_FIREBASE_AUTH_DOMAIN: import.meta.env['VITE_FIREBASE_AUTH_DOMAIN'] }),
-      ...(import.meta.env['VITE_FIREBASE_PROJECT_ID'] && { VITE_FIREBASE_PROJECT_ID: import.meta.env['VITE_FIREBASE_PROJECT_ID'] }),
-      ...(import.meta.env['VITE_FIREBASE_STORAGE_BUCKET'] && { VITE_FIREBASE_STORAGE_BUCKET: import.meta.env['VITE_FIREBASE_STORAGE_BUCKET'] }),
-      ...(import.meta.env['VITE_FIREBASE_MESSAGING_SENDER_ID'] && { VITE_FIREBASE_MESSAGING_SENDER_ID: import.meta.env['VITE_FIREBASE_MESSAGING_SENDER_ID'] }),
-      ...(import.meta.env['VITE_FIREBASE_APP_ID'] && { VITE_FIREBASE_APP_ID: import.meta.env['VITE_FIREBASE_APP_ID'] }),
-      ...(import.meta.env['VITE_FIREBASE_MEASUREMENT_ID'] && { VITE_FIREBASE_MEASUREMENT_ID: import.meta.env['VITE_FIREBASE_MEASUREMENT_ID'] }),
-
-      // AI Feature Flags - Development defaults (enabled if API keys present)
-      VITE_AI_CHAT_ENABLED: import.meta.env['VITE_AI_CHAT_ENABLED'] || 'true',
-      VITE_AI_ANALYTICS_ENABLED: import.meta.env['VITE_AI_ANALYTICS_ENABLED'] || 'true',
-      VITE_AI_INSIGHTS_ENABLED: import.meta.env['VITE_AI_INSIGHTS_ENABLED'] || 'true',
-      VITE_AI_RECOMMENDATIONS_ENABLED: import.meta.env['VITE_AI_RECOMMENDATIONS_ENABLED'] || 'true',
-
-      // Monitoring & Analytics
-      ...(import.meta.env['VITE_SENTRY_DSN'] && { VITE_SENTRY_DSN: import.meta.env['VITE_SENTRY_DSN'] }),
-      ...(import.meta.env['VITE_ANALYTICS_TRACKING_ID'] && { VITE_ANALYTICS_TRACKING_ID: import.meta.env['VITE_ANALYTICS_TRACKING_ID'] }),
-
-      // Environment Settings
-      ...(import.meta.env['VITE_ENVIRONMENT'] && { VITE_ENVIRONMENT: import.meta.env['VITE_ENVIRONMENT'] }),
-      ...(import.meta.env['VITE_DEBUG_MODE'] && { VITE_DEBUG_MODE: import.meta.env['VITE_DEBUG_MODE'] }),
-      ...(import.meta.env['VITE_SESSION_TIMEOUT'] && { VITE_SESSION_TIMEOUT: import.meta.env['VITE_SESSION_TIMEOUT'] }),
-      ...(import.meta.env['VITE_TOKEN_REFRESH_THRESHOLD'] && { VITE_TOKEN_REFRESH_THRESHOLD: import.meta.env['VITE_TOKEN_REFRESH_THRESHOLD'] }),
-      ...(import.meta.env['VITE_MAX_FILE_SIZE'] && { VITE_MAX_FILE_SIZE: import.meta.env['VITE_MAX_FILE_SIZE'] }),
-      ...(import.meta.env['VITE_SUPPORTED_FILE_TYPES'] && { VITE_SUPPORTED_FILE_TYPES: import.meta.env['VITE_SUPPORTED_FILE_TYPES'] }),
-
-      // Evolution and Demo Configuration
-      ...(import.meta.env['VITE_ENABLE_EVOLUTION'] && { VITE_ENABLE_EVOLUTION: import.meta.env['VITE_ENABLE_EVOLUTION'] }),
-      ...(import.meta.env['VITE_EVOLUTION_API_URL'] && { VITE_EVOLUTION_API_URL: import.meta.env['VITE_EVOLUTION_API_URL'] }),
-      ...(import.meta.env['VITE_SHOW_DEMO_CREDENTIALS'] && { VITE_SHOW_DEMO_CREDENTIALS: import.meta.env['VITE_SHOW_DEMO_CREDENTIALS'] })
-    };
-
-    runtimeConfig = devConfig;
-    return devConfig;
-  }
-
-  // Production: Try multiple configuration sources
-  const configSources = [
-    loadFromRuntimeAPI,
-    loadFromWindowConfig,
-    loadFromMetaEnv,
-    loadFromFallback
-  ];
-
-  for (const loadSource of configSources) {
-    try {
-      const config = await loadSource();
-      if (config && isValidConfig(config)) {
-        if (!isProduction) {
-          logger.log('Successfully loaded from:', loadSource.name);
-        }
-        runtimeConfig = config;
-        return config;
-      }
-    } catch (error) {
-      if (!isProduction) {
-        logger.warn(`Failed to load from ${loadSource.name}:`, error);
-      }
-    }
-  }
-
-  // Final fallback
-  if (!isProduction) {
-    logger.warn('Using production fallback configuration');
-  }
-  runtimeConfig = PRODUCTION_FALLBACK_CONFIG;
-  return PRODUCTION_FALLBACK_CONFIG;
-}
-
-/**
- * Attempts to load config from runtime API endpoint
- */
-async function loadFromRuntimeAPI(): Promise<RuntimeConfig | null> {
-  if (typeof fetch !== 'function') {
-    if (import.meta.env['DEV']) {
-      logger.log('Fetch API unavailable, skipping /api/v2/system/config');
-    }
-    return null;
-  }
-
-  const controller = typeof AbortController !== 'undefined'
-    ? new AbortController()
-    : null;
-  const timeoutId = controller
-    ? setTimeout(() => controller.abort(), 4000)
-    : null;
-
-  try {
-    const requestInit: RequestInit = {
-      method: 'GET',
-      cache: 'no-store',
-      credentials: 'same-origin',
-      headers: {
-        'Accept': 'application/json'
-      },
-      ...(controller ? { signal: controller.signal } : {})
-    };
-
-    const response = await fetch('/api/v2/system/config', requestInit);
-
-    if (!response.ok) {
-      if (import.meta.env['DEV']) {
-        logger.warn(`/api/v2/system/config responded with status ${response.status}`);
-      }
-      return null;
-    }
-
-    const payload = await response.json();
-    const normalizedConfig = normalizeRuntimeApiPayload(payload);
-
-    if (normalizedConfig) {
-      const config = normalizeConfig(normalizedConfig);
-      if (typeof window !== 'undefined') {
-        (window as any).__ENV_CONFIG__ = {
-          ...(window as any).__ENV_CONFIG__ || {},
-          ...config
-        };
-      }
-      return config;
-    }
-  } catch (error) {
-    if (import.meta.env['DEV']) {
-      logger.warn('Failed to fetch /api/v2/system/config', error);
-    }
-  } finally {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-  }
-
-  return null;
-}
-
-function normalizeRuntimeApiPayload(payload: unknown): RuntimeConfig | null {
-  if (!payload || typeof payload !== 'object') {
-    return null;
-  }
-
-  const looksVersionedApiUrl = (value?: string) => {
-    return typeof value === 'string' && /\/api\/v2\/?$/.test(value);
-  };
-
-  const buildApiUrl = (baseUrl: string) => {
-    const normalized = baseUrl.replace(/\/+$/, '');
-    return `${normalized}/api/v2`;
-  };
-
-  const fallbackKeys = new Set(Object.keys(PRODUCTION_FALLBACK_CONFIG));
-  const normalized: Partial<RuntimeConfig> = {};
-
-  for (const [key, value] of Object.entries(payload as Record<string, unknown>)) {
-    if (!fallbackKeys.has(key)) {
-      continue;
-    }
-    if (typeof value === 'string' && value.length > 0) {
-      (normalized as Record<string, string>)[key] = value;
-    }
-  }
-
-  // Backend public config uses:
-  // - VITE_API_BASE_URL: versioned API base (/api/v2)
-  // - VITE_API_URL: API server URL (root domain)
-  // Frontend runtime config expects:
-  // - VITE_API_URL: versioned API base (/api/v2)
-  // - VITE_API_BASE_URL: root domain
-  const rawApiUrl = (payload as Record<string, unknown>)['VITE_API_URL'];
-  const rawApiBaseUrl = (payload as Record<string, unknown>)['VITE_API_BASE_URL'];
-  const apiUrlCandidate = typeof rawApiUrl === 'string' ? rawApiUrl : undefined;
-  const apiBaseCandidate = typeof rawApiBaseUrl === 'string' ? rawApiBaseUrl : undefined;
-
-  const versionedApiUrl =
-    looksVersionedApiUrl(apiUrlCandidate)
-      ? apiUrlCandidate
-      : looksVersionedApiUrl(apiBaseCandidate)
-        ? apiBaseCandidate
-        : undefined;
-  const baseApiUrl =
-    apiBaseCandidate && !looksVersionedApiUrl(apiBaseCandidate)
-      ? apiBaseCandidate
-      : apiUrlCandidate && !looksVersionedApiUrl(apiUrlCandidate)
-        ? apiUrlCandidate
-        : versionedApiUrl
-          ? versionedApiUrl.replace(/\/api\/v2\/?$/, '')
-          : undefined;
-
-  if (baseApiUrl) {
-    normalized.VITE_API_BASE_URL = baseApiUrl;
-  }
-
-  if (versionedApiUrl) {
-    normalized.VITE_API_URL = versionedApiUrl;
-  } else if (baseApiUrl) {
-    normalized.VITE_API_URL = buildApiUrl(baseApiUrl);
-  }
-
-  if (normalized.VITE_WS_BASE_URL && !normalized.VITE_WS_URL) {
-    normalized.VITE_WS_URL = normalized.VITE_WS_BASE_URL;
-  }
-
-  if (normalized.VITE_WS_URL && !normalized.VITE_WS_BASE_URL) {
-    normalized.VITE_WS_BASE_URL = normalized.VITE_WS_URL;
-  }
-
-  const legacyApiUrl = (payload as Record<string, unknown>)['apiUrl'];
-  if (typeof legacyApiUrl === 'string' && legacyApiUrl.length > 0 && !normalized.VITE_API_URL) {
-    normalized.VITE_API_URL = legacyApiUrl;
-  }
-
-  const legacyBackend = (payload as Record<string, unknown>)['backendUrl'];
-  if (typeof legacyBackend === 'string' && legacyBackend.length > 0 && !normalized.VITE_API_BASE_URL) {
-    normalized.VITE_API_BASE_URL = legacyBackend;
-  }
-
-  const legacyWs = (payload as Record<string, unknown>)['wsUrl'];
-  if (typeof legacyWs === 'string' && legacyWs.length > 0) {
-    if (!normalized.VITE_WS_URL) {
-      normalized.VITE_WS_URL = legacyWs;
-    }
-    if (!normalized.VITE_WS_BASE_URL) {
-      normalized.VITE_WS_BASE_URL = legacyWs;
-    }
-  }
-
-  if (Object.keys(normalized).length === 0) {
-    return null;
-  }
-
-  return { ...PRODUCTION_FALLBACK_CONFIG, ...normalized };
-}
-
-/**
- * Attempts to load config from window object (injected by server)
- */
-async function loadFromWindowConfig(): Promise<RuntimeConfig | null> {
-  // Check if config was injected by server-side rendering or runtime script
-  if (typeof window !== 'undefined' && (window as any).RUNTIME_CONFIG) {
-    const rawConfig = (window as any).RUNTIME_CONFIG;
-    const config = normalizeConfig(rawConfig);
-    if (import.meta.env['DEV']) {
-      logger.log('Loaded from window.RUNTIME_CONFIG');
-    }
-    return config;
-  }
-
-  if (typeof window !== 'undefined' && (window as any).__ENV_CONFIG__) {
-    const rawConfig = (window as any).__ENV_CONFIG__;
-    // Ensure WS variable aliases are set
-    const config = normalizeConfig(rawConfig);
-    if (import.meta.env['DEV']) {
-      logger.log('Loaded from window.__ENV_CONFIG__');
-    }
-    return config;
-  }
-
-  // Check if runtime config loader is available
-  if (typeof window !== 'undefined' && (window as any).__RUNTIME_CONFIG__) {
-    try {
-      const rawConfig = await (window as any).__RUNTIME_CONFIG__.loadConfig();
-      if (rawConfig) {
-        const config = normalizeConfig(rawConfig);
-        if (import.meta.env['DEV']) {
-          logger.log('Loaded from window.__RUNTIME_CONFIG__');
-        }
-        return config;
-      }
-    } catch (error) {
-      if (import.meta.env['DEV']) {
-        logger.warn('Runtime config loader failed:', error);
-      }
-    }
-  }
-
-  return null;
-}
-
-/**
- * Normalizes configuration to ensure both WS and API variable aliases are present
- */
-function normalizeConfig(config: any): RuntimeConfig {
-  // Ensure WS_BASE_URL and WS_URL are both set (use whichever is available)
-  const wsUrl = config.VITE_WS_BASE_URL || config.VITE_WS_URL || '';
-  // Auto-upgrade WebSocket protocol based on page protocol
-  const upgradedWsUrl = upgradeWebSocketProtocol(wsUrl);
-
-  // Ensure API_BASE_URL is set (prefer explicit base, else derive from API_URL)
-  const apiBaseUrl = config.VITE_API_BASE_URL || config.VITE_API_URL?.replace(/\/api\/v2$/, '') || '';
-
-  return {
-    ...config,
-    VITE_WS_URL: upgradedWsUrl,
-    VITE_WS_BASE_URL: upgradedWsUrl,
-    VITE_API_BASE_URL: apiBaseUrl
-  };
-}
-
-/**
- * Attempts to load config from Vite's import.meta.env
- */
-async function loadFromMetaEnv(): Promise<RuntimeConfig | null> {
-  // Check if any Vite environment variables are available
-  const metaEnvConfig: Partial<RuntimeConfig> = {};
-  let hasAnyConfig = false;
-
-  Object.keys(PRODUCTION_FALLBACK_CONFIG).forEach(key => {
-    const value = import.meta.env[key];
-    if (value) {
-      (metaEnvConfig as any)[key] = value;
-      hasAnyConfig = true;
-    }
+// Log config on load for debugging
+if (import.meta.env['DEV']) {
+  logger.log('Config loaded:', {
+    API_URL: CONFIG.VITE_API_URL,
+    API_BASE_URL: CONFIG.VITE_API_BASE_URL,
+    WS_URL: CONFIG.VITE_WS_URL
   });
-
-  if (hasAnyConfig) {
-    // Merge with fallback config for missing values
-    const config = { ...PRODUCTION_FALLBACK_CONFIG, ...metaEnvConfig };
-    if (import.meta.env['DEV']) {
-      logger.log('Loaded from import.meta.env with fallbacks');
-    }
-    return config;
-  }
-
-  return null;
 }
 
 /**
- * Returns the production fallback configuration
- */
-async function loadFromFallback(): Promise<RuntimeConfig> {
-  if (import.meta.env['DEV']) {
-    logger.log('Using production fallback configuration');
-  }
-  return PRODUCTION_FALLBACK_CONFIG;
-}
-
-/**
- * Validates that a configuration object has required fields
- */
-function isValidConfig(config: any): config is RuntimeConfig {
-  const requiredFields = ['VITE_API_URL'];
-
-  const missingFields = requiredFields.filter(field => {
-    const hasField = config && typeof config[field] === 'string' && config[field].length > 0;
-    if (!hasField && import.meta.env['DEV']) {
-      logger.warn(`Missing required field: ${field}`);
-    }
-    return !hasField;
-  });
-
-  if (missingFields.length > 0) {
-    logger.error(`Configuration validation failed. Missing required fields: ${missingFields.join(', ')}`);
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * Gets the runtime configuration (async)
- * This is the main function to use for loading configuration
+ * Gets the runtime configuration (async for compatibility)
  */
 export async function getRuntimeConfig(): Promise<RuntimeConfig> {
-  // Ensure only one configuration loading process happens
-  if (!configPromise) {
-    configPromise = loadRuntimeConfiguration();
-  }
-
-  return configPromise;
+  return CONFIG;
 }
 
 /**
- * Gets the runtime configuration synchronously (if already loaded)
- * Returns null if configuration hasn't been loaded yet
+ * Gets the runtime configuration synchronously
  */
-export function getRuntimeConfigSync(): RuntimeConfig | null {
-  return runtimeConfig;
+export function getRuntimeConfigSync(): RuntimeConfig {
+  return CONFIG;
 }
 
 /**
- * Forces a refresh of the runtime configuration
- * Useful for testing or when environment might have changed
+ * Forces a refresh of the runtime configuration (no-op in simplified version)
  */
 export async function refreshRuntimeConfig(): Promise<RuntimeConfig> {
-  runtimeConfig = null;
-  configPromise = null;
-  return getRuntimeConfig();
+  return CONFIG;
 }
 
 /**
@@ -560,16 +130,15 @@ export async function getConfigValue<K extends keyof RuntimeConfig>(
   key: K,
   fallback?: RuntimeConfig[K]
 ): Promise<RuntimeConfig[K] | undefined> {
-  const config = await getRuntimeConfig();
-  return config[key] || fallback;
+  return CONFIG[key] || fallback;
 }
 
 /**
  * Checks if the app is running in production mode
  */
 export function isProduction(): boolean {
-  return isProductionMode();
+  return import.meta.env.MODE === 'production' || import.meta.env.PROD === true;
 }
 
-// Export for debugging and testing
-export { PRODUCTION_FALLBACK_CONFIG };
+// Export the config object for direct access
+export { CONFIG as PRODUCTION_FALLBACK_CONFIG };

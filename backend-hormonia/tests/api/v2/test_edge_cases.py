@@ -3,12 +3,11 @@ Edge Case Testing for Route Corrections
 Tests boundary conditions, race conditions, and unusual scenarios.
 """
 
-import pytest
 from uuid import uuid4
-from datetime import date, datetime, timezone, timedelta
+from datetime import date, datetime, timedelta
 from fastapi import status
 from fastapi.testclient import TestClient
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import patch
 from concurrent.futures import ThreadPoolExecutor
 
 from app.models.user import User, UserRole

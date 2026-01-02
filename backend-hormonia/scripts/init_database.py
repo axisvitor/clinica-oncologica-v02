@@ -14,11 +14,9 @@ Usage:
 """
 
 import sys
-import os
 import asyncio
 import logging
 from pathlib import Path
-from typing import Optional
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -107,7 +105,6 @@ class DatabaseInitializer:
             sys.exit(0)
 
         from app.core.database import Base, engine
-        from sqlalchemy import text
 
         try:
             # Drop all tables
@@ -198,7 +195,7 @@ class DatabaseInitializer:
         logger.info("\n[5/5] Validating schema integrity...")
 
         from app.core.database import AsyncSessionLocal
-        from sqlalchemy import text, inspect
+        from sqlalchemy import text
 
         try:
             async with AsyncSessionLocal() as session:

@@ -189,7 +189,7 @@ export function useTemplates() {
       return response;
     } catch (error: unknown) {
       const errorMessage = error && typeof error === 'object' && 'response' in error
-        ? (error.response as any)?.data?.detail || 'Ocorreu um erro ao criar o template'
+        ? ((error.response as { data?: { detail?: string } })?.data?.detail) || 'Ocorreu um erro ao criar o template'
         : 'Ocorreu um erro ao criar o template';
       toast({
         title: 'Erro ao criar template',
@@ -216,7 +216,7 @@ export function useTemplates() {
       return response;
     } catch (error: unknown) {
       const errorMessage = error && typeof error === 'object' && 'response' in error
-        ? (error.response as any)?.data?.detail || 'Ocorreu um erro ao listar templates'
+        ? ((error.response as { data?: { detail?: string } })?.data?.detail) || 'Ocorreu um erro ao listar templates'
         : 'Ocorreu um erro ao listar templates';
       toast({
         title: 'Erro ao listar templates',
@@ -236,7 +236,7 @@ export function useTemplates() {
       return response;
     } catch (error: unknown) {
       const errorMessage = error && typeof error === 'object' && 'response' in error
-        ? (error.response as any)?.data?.detail || 'Template não encontrado'
+        ? ((error.response as { data?: { detail?: string } })?.data?.detail) || 'Template não encontrado'
         : 'Template não encontrado';
       toast({
         title: 'Erro ao buscar template',
@@ -265,7 +265,7 @@ export function useTemplates() {
       return response;
     } catch (error: unknown) {
       const errorMessage = error && typeof error === 'object' && 'response' in error
-        ? (error.response as any)?.data?.detail || 'Ocorreu um erro ao atualizar o template'
+        ? ((error.response as { data?: { detail?: string } })?.data?.detail) || 'Ocorreu um erro ao atualizar o template'
         : 'Ocorreu um erro ao atualizar o template';
       toast({
         title: 'Erro ao atualizar template',
@@ -294,7 +294,7 @@ export function useTemplates() {
       return true;
     } catch (error: unknown) {
       const errorMessage = error && typeof error === 'object' && 'response' in error
-        ? (error.response as any)?.data?.detail || 'Ocorreu um erro ao remover o template'
+        ? ((error.response as { data?: { detail?: string } })?.data?.detail) || 'Ocorreu um erro ao remover o template'
         : 'Ocorreu um erro ao remover o template';
       toast({
         title: 'Erro ao remover template',
@@ -322,7 +322,7 @@ export function useTemplates() {
       return response;
     } catch (error: unknown) {
       const errorMessage = error && typeof error === 'object' && 'response' in error
-        ? (error.response as any)?.data?.detail || 'Ocorreu um erro ao criar o quiz'
+        ? ((error.response as { data?: { detail?: string } })?.data?.detail) || 'Ocorreu um erro ao criar o quiz'
         : 'Ocorreu um erro ao criar o quiz';
       toast({
         title: 'Erro ao criar quiz',
@@ -348,7 +348,7 @@ export function useTemplates() {
       return response;
     } catch (error: unknown) {
       const errorMessage = error && typeof error === 'object' && 'response' in error
-        ? (error.response as any)?.data?.detail || 'Ocorreu um erro ao listar quizzes'
+        ? ((error.response as { data?: { detail?: string } })?.data?.detail) || 'Ocorreu um erro ao listar quizzes'
         : 'Ocorreu um erro ao listar quizzes';
       toast({
         title: 'Erro ao listar quizzes',
@@ -368,7 +368,7 @@ export function useTemplates() {
       return response;
     } catch (error: unknown) {
       const errorMessage = error && typeof error === 'object' && 'response' in error
-        ? (error.response as any)?.data?.detail || 'Quiz não encontrado'
+        ? ((error.response as { data?: { detail?: string } })?.data?.detail) || 'Quiz não encontrado'
         : 'Quiz não encontrado';
       toast({
         title: 'Erro ao buscar quiz',
@@ -397,7 +397,7 @@ export function useTemplates() {
       return response;
     } catch (error: unknown) {
       const errorMessage = error && typeof error === 'object' && 'response' in error
-        ? (error.response as any)?.data?.detail || 'Ocorreu um erro ao atualizar o quiz'
+        ? ((error.response as { data?: { detail?: string } })?.data?.detail) || 'Ocorreu um erro ao atualizar o quiz'
         : 'Ocorreu um erro ao atualizar o quiz';
       toast({
         title: 'Erro ao atualizar quiz',
@@ -426,7 +426,7 @@ export function useTemplates() {
       return true;
     } catch (error: unknown) {
       const errorMessage = error && typeof error === 'object' && 'response' in error
-        ? (error.response as any)?.data?.detail || 'Ocorreu um erro ao remover o quiz'
+        ? ((error.response as { data?: { detail?: string } })?.data?.detail) || 'Ocorreu um erro ao remover o quiz'
         : 'Ocorreu um erro ao remover o quiz';
       toast({
         title: 'Erro ao remover quiz',

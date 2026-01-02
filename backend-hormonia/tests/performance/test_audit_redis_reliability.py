@@ -1,8 +1,7 @@
 import pytest
 import asyncio
 import threading
-from app.core.redis_manager import get_redis_manager, RedisManager
-from unittest.mock import patch, MagicMock
+from app.core.redis_manager import RedisManager
 
 @pytest.mark.performance
 class TestRedisReliabilityAudit:

@@ -11,9 +11,7 @@ import {
 } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
 import { useAuth } from '@/app/providers/AuthContext'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
 interface DashboardMetrics {
@@ -114,17 +112,39 @@ StatCard.displayName = 'StatCard'
 const QuickStats = memo(() => {
   const { user, isInitializing: authLoading } = useAuth()
 
-  const { data: metrics, isLoading, error } = useQuery<DashboardMetrics>({
+  // OPTIMIZED: Share queryKey with DashboardPage to reuse cached data
+  // This eliminates duplicate API calls when both components mount
+  const { data: dashboardData, isLoading, error } = useQuery<any>({
     queryKey: ['dashboard-metrics'],
-    queryFn: () => apiClient.analytics.dashboard(),
-    enabled: !!user && !authLoading, // Only run when authenticated
-    refetchInterval: 60000, // Refresh every minute
-    staleTime: 30000, // Consider data stale after 30 seconds
-    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
+    queryFn: async () => {
+      const { apiClient } = await import('@/lib/api-client')
+      return apiClient.dashboard.getMain({ time_range: 'week' })
+    },
+    enabled: !!user && !authLoading,
+    refetchInterval: 60000,
+    staleTime: 30000, // Data is fresh for 30s - same as DashboardPage
+    gcTime: 5 * 60 * 1000,
     retry: 2
   })
 
-  // Memoize stats configuration to prevent recreating on every render
+  // Extract metrics from the dashboard response
+  // The main dashboard returns a nested structure
+  const metrics: DashboardMetrics = useMemo(() => {
+    if (!dashboardData) return {}
+
+    // Map from dashboard API response to QuickStats expected format
+    return {
+      active_patients: dashboardData.patient_metrics?.active_patients || dashboardData.active_patients || 0,
+      patients_change: dashboardData.patient_metrics?.patients_change || dashboardData.patients_change || 0,
+      active_patients_percentage: dashboardData.patient_metrics?.active_patients_percentage || dashboardData.active_patients_percentage || 0,
+      response_rate: dashboardData.message_metrics?.response_rate || dashboardData.response_rate || 0,
+      response_rate_change: dashboardData.message_metrics?.response_rate_change || dashboardData.response_rate_change || 0,
+      alerts_pending: dashboardData.alert_metrics?.pending_count || dashboardData.alerts_pending || 0,
+      alerts_change: dashboardData.alert_metrics?.alerts_change || dashboardData.alerts_change || 0,
+      completed_quizzes: dashboardData.flow_metrics?.completed_quizzes || dashboardData.completed_quizzes || 0,
+      quizzes_change: dashboardData.flow_metrics?.quizzes_change || dashboardData.quizzes_change || 0,
+    }
+  }, [dashboardData])
   const stats = useMemo(() => [
     {
       title: 'Pacientes Ativos',

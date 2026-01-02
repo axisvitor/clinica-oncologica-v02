@@ -172,9 +172,9 @@ function normalizeMonthPoint(point: CompletionTrendPoint) {
   }
 }
 
-function buildEngagementDistribution(data: PatientEngagementResponse): EngagementDistributionItem[] {
-  const total = data.total_active_patients || 0
-  const levels = data.engagement_levels
+function buildEngagementDistribution(engagementData: PatientEngagementResponse): EngagementDistributionItem[] {
+  const total = engagementData.total_active_patients || 0
+  const levels = engagementData.engagement_levels
   const entries: Array<[string, number]> = [
     ['Sem questionarios', levels.no_quizzes],
     ['Engajamento baixo (1-5)', levels.low_engagement],
@@ -204,7 +204,7 @@ export function createAnalyticsApi(client: ApiClientCore) {
 
   return {
     async dashboard(_params?: Record<string, unknown>): Promise<DashboardAnalyticsData> {
-      const [overview, status, trend, engagement] = await Promise.all([
+      const [overview, status, trend, _engagement] = await Promise.all([
         fetchOverview(),
         fetchQuizStatus(),
         fetchTrend(6),
@@ -271,7 +271,7 @@ export function createAnalyticsApi(client: ApiClientCore) {
 
     async treatmentDistribution(period: AnalyticsPeriod = '30d'): Promise<TreatmentDistribution> {
       const response = await client.get<TreatmentDistributionResponse>(
-        '/api/v2/analytics/treatment-distribution/',
+        '/api/v2/analytics/treatment-distribution',
         { period }
       )
       // Ensure colors exist
@@ -319,6 +319,21 @@ export function createAnalyticsApi(client: ApiClientCore) {
       if (params?.limit) query['limit'] = params.limit
       if (params?.lookback_days) query['lookback_days'] = params.lookback_days
       return client.get<RiskAssessmentResponse>('/api/v2/analytics/risk-assessment/', query)
+    },
+
+    async patientStatus(): Promise<{
+      distribution: Record<string, number>
+      total: number
+      active_percentage: number
+    }> {
+      return client.get('/api/v2/analytics/patient-status')
+    },
+
+    async alertsSummary(): Promise<{
+      severity_counts: Record<string, number>
+      total_unread: number
+    }> {
+      return client.get('/api/v2/alerts/summary')
     }
   }
 }
@@ -354,7 +369,7 @@ export function createEnhancedAnalyticsIntegration(client: ApiClientCore) {
           '/api/v2/enhanced-analytics/insights'
         )
         return response.data
-      } catch (error) {
+      } catch {
         logger.warn('Enhanced insights not available')
         return []
       }
@@ -379,11 +394,11 @@ export function createEnhancedAnalyticsIntegration(client: ApiClientCore) {
       try {
         const response = await client.get<{ success: boolean; data: Record<string, unknown> }>(
           '/api/v2/enhanced-analytics/metrics',
-          params as any
+          params as Record<string, string | number | boolean>
         )
         return response.data
-      } catch (error) {
-        logger.warn('Enhanced metrics not available', error)
+      } catch (metricsError) {
+        logger.warn('Enhanced metrics not available', metricsError)
         return { error: true, message: 'Enhanced metrics not available', metrics: {} }
       }
     },

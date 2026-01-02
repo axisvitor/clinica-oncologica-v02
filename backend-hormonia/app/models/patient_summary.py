@@ -76,7 +76,7 @@ class PatientSummary(BaseModel):
 
     # AI metadata
     token_usage = Column(Integer, nullable=True)
-    model_used = Column(String(100), nullable=True, default="gemini-2.5-flash-latest")
+    model_used = Column(String(100), nullable=True)
     generation_time_ms = Column(Integer, nullable=True)
 
     # Relationships

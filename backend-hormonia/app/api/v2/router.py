@@ -51,7 +51,10 @@ from .routers.quiz_responses import router as quiz_responses_router
 from .routers.quiz_alerts import router as quiz_alerts_router
 from .routers.monthly_quiz_management import router as monthly_quiz_management_router
 from .routers.monthly_quiz_operations import router as monthly_quiz_operations_router
+from .routers.monthly_quiz_operations.public import router as monthly_quiz_public_only_router
 from .routers.debug import router as debug_router
+from .routers.hive_mind import router as hive_mind_router
+from app.integrations.whatsapp.api.routes import router as whatsapp_router
 
 logger = logging.getLogger(__name__)
 api_v2_router = APIRouter(prefix="/api/v2", tags=["v2"])
@@ -111,6 +114,8 @@ api_v2_router.include_router(reports_router, prefix="/reports", tags=["reports-v
 api_v2_router.include_router(admin_router, prefix="/admin", tags=["admin-v2"])
 api_v2_router.include_router(webhooks_router, prefix="/webhooks", tags=["webhooks-v2"])
 api_v2_router.include_router(ai_router, prefix="/ai", tags=["ai-v2"])
+api_v2_router.include_router(hive_mind_router, prefix="/hive-mind", tags=["hive-mind-v2"])
+api_v2_router.include_router(whatsapp_router, tags=["whatsapp-v2"]) # prefix is already in router definition
 
 # Phase 5: Enhanced modules and Alerts
 api_v2_router.include_router(
@@ -192,7 +197,7 @@ api_v2_router.include_router(
 # Monthly Quiz Public Access - Alias for Frontend Compatibility
 # Frontend expects /monthly-quiz-public/*, so we register the operations router again with this prefix
 api_v2_router.include_router(
-    monthly_quiz_operations_router,
+    monthly_quiz_public_only_router,
     prefix="/monthly-quiz-public",
     tags=["monthly-quiz-public-v2"],
 )
@@ -202,6 +207,7 @@ api_v2_router.include_router(
     prefix="/monthly-quiz",
     tags=["monthly-quiz-compat-v2"],
 )
+
 
 # Phase 10: Complete V2 Migration - Critical Clinical Modules Added
 # ✅ Appointments, Treatments, and Medications modules now implemented

@@ -55,14 +55,17 @@ export function QuestionRenderer({
     case "yes_no":
       return (
         <YesNo
+          question={question}
           selectedAnswer={selectedAnswer}
           onAnswerChange={onAnswerChange}
         />
       )
 
     case "text":
+    case "free_text":
       return (
         <TextQuestion
+          question={question}
           selectedAnswer={selectedAnswer}
           onAnswerChange={onAnswerChange}
         />

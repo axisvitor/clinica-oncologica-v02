@@ -10,7 +10,7 @@
  * Coverage Goals: 100% for security-critical paths
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiClientCore } from "../core";
 
 describe("CSRF Race Condition Prevention", () => {
@@ -104,7 +104,7 @@ describe("CSRF Race Condition Prevention", () => {
 
     global.fetch = vi.fn(
       () =>
-        new Promise((resolve) => {
+        new Promise((_resolve) => {
           // Never resolves (simulates hanging request)
         })
     );
@@ -171,7 +171,7 @@ describe("CSRF Auto-Healing on 403 Errors", () => {
     // Make request that will initially fail with 403
     try {
       await apiClient.post("/api/v2/users", { name: "Test" });
-    } catch (error) {
+    } catch {
       // Expected to retry internally
     }
 
@@ -195,7 +195,7 @@ describe("CSRF Auto-Healing on 403 Errors", () => {
 
     try {
       await apiClient.post("/api/v2/users", { name: "Test" });
-    } catch (error) {
+    } catch {
       // Expected to fail after max retries
     }
 

@@ -22,7 +22,28 @@ import { useUserMutations } from './useUserMutations'
 import { useUserWebSocket } from './useUserWebSocket'
 import { useUserStats } from './useUserStats'
 import { useUserFilters } from './useUserFilters'
-import type { AdminUserActivity } from '@/types/admin'
+
+/**
+ * Hook to fetch user activity data
+ * This is a standalone hook that follows React's rules of hooks
+ *
+ * @param userId - The user ID to fetch activity for
+ * @param options - Optional configuration
+ * @returns Query result with user activity data
+ *
+ * @example
+ * ```tsx
+ * const { data: activity, isLoading } = useUserActivity('user-123')
+ * ```
+ */
+export function useUserActivity(userId: string | null | undefined, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['admin-user-activity', userId],
+    queryFn: () => apiClient.adminUsers.getActivity(userId!, { page: 1, size: 50 }),
+    enabled: !!userId && (options?.enabled !== false),
+    staleTime: 30000 // 30 seconds
+  })
+}
 
 export interface UseUserAdminOptions {
   /** Enable real-time updates via WebSocket */
@@ -166,18 +187,9 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
   // ============================================================================
   // USER ACTIVITY
   // ============================================================================
-  /**
-   * Fetch activity for a specific user
-   * Returns a query hook for user activity
-   */
-  const useUserActivity = useCallback((userId: string) => {
-    return useQuery({
-      queryKey: ['admin-user-activity', userId],
-      queryFn: () => apiClient.adminUsers.getActivity(userId, { page: 1, size: 50 }),
-      enabled: !!userId,
-      staleTime: 30000 // 30 seconds
-    })
-  }, [])
+  // Note: useUserActivity is now a standalone hook exported from this module.
+  // Use it directly: const { data } = useUserActivity(userId)
+  // This follows React's rules of hooks - hooks cannot be called inside callbacks.
 
   // ============================================================================
   // UTILITY FUNCTIONS
@@ -279,7 +291,6 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
     refetchUsers,
     refetchStats,
     refreshData,
-    useUserActivity,
 
     // WebSocket
     isRealTimeConnected,

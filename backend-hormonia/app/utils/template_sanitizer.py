@@ -13,7 +13,7 @@ Security Features:
 
 import re
 from typing import Dict, Any, Optional
-from markupsafe import escape, Markup
+from markupsafe import escape
 
 
 class TemplateSanitizer:

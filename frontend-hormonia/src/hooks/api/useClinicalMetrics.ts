@@ -24,8 +24,9 @@ export interface ClinicalMetrics {
 
 /**
  * Dashboard main response structure
+ * Used internally by the hook for type checking API responses
  */
-interface DashboardMainResponse {
+interface _DashboardMainResponse {
   total_patients: number
   active_patients: number
   active_patients_percentage: number

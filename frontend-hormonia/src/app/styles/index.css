@@ -30,6 +30,12 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
+  --success: oklch(0.723 0.191 142.5);
+  --success-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.795 0.184 86.047);
+  --warning-foreground: oklch(0.21 0.006 285.885);
+  --info: oklch(0.623 0.214 259.815);
+  --info-foreground: oklch(0.985 0 0);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
@@ -64,6 +70,12 @@
   --accent: oklch(0.371 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
+  --success: oklch(0.627 0.194 142.5);
+  --success-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.769 0.188 70.08);
+  --warning-foreground: oklch(0.145 0 0);
+  --info: oklch(0.623 0.214 259.815);
+  --info-foreground: oklch(0.985 0 0);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
@@ -102,6 +114,12 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -201,6 +219,25 @@
 
 .animate-spin {
   animation: spin 0.8s linear infinite;
+}
+
+/* Fallback for browsers that don't support dvh units */
+@supports not (height: 100dvh) {
+  .min-h-\[100dvh\] {
+    min-height: 100vh;
+  }
+  .h-\[calc\(100dvh-220px\)\] {
+    height: calc(100vh - 220px);
+  }
+  .min-h-\[calc\(100dvh-10rem\)\] {
+    min-height: calc(100vh - 10rem);
+  }
+  .min-h-\[calc\(100dvh-12rem\)\] {
+    min-height: calc(100vh - 12rem);
+  }
+  .max-h-\[calc\(100dvh-10rem\)\] {
+    max-height: calc(100vh - 10rem);
+  }
 }
 
 /* Utility: Hide scrollbar for horizontal scroll containers (mobile) */

@@ -1,5 +1,5 @@
 import type { QuizQuestion, SingleAnswer, MultipleAnswer } from "@/types/quiz"
-import { memo } from "react"
+import { memo, useCallback } from "react"
 
 interface ScaleProps {
   question: QuizQuestion
@@ -16,9 +16,42 @@ export const Scale = memo(function Scale({
   const scaleMax = question.max_value || 10
   const scaleValues = Array.from({ length: scaleMax - scaleMin + 1 }, (_, i) => scaleMin + i)
 
+  const currentValue = selectedAnswer ? parseInt(selectedAnswer as string, 10) : scaleMin
+
+  const handleSliderChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      onAnswerChange(e.target.value)
+    },
+    [onAnswerChange]
+  )
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center gap-2">
+      {/* Mobile: Slider with value display */}
+      <div className="sm:hidden space-y-3">
+        <div className="flex justify-center">
+          <span className="text-4xl font-bold text-primary">
+            {currentValue}
+          </span>
+        </div>
+        <input
+          id={`question-${question.id}-scale`}
+          name={`question-${question.id}-scale`}
+          type="range"
+          min={scaleMin}
+          max={scaleMax}
+          value={currentValue}
+          onChange={handleSliderChange}
+          className="w-full h-3 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+        />
+        <div className="flex justify-between text-sm text-muted-foreground">
+          <span>{scaleMin}</span>
+          <span>{scaleMax}</span>
+        </div>
+      </div>
+
+      {/* Desktop: Button row */}
+      <div className="hidden sm:flex justify-between items-center gap-2">
         {scaleValues.map((value) => (
           <button
             key={value}
@@ -35,9 +68,11 @@ export const Scale = memo(function Scale({
           </button>
         ))}
       </div>
-      <div className="flex justify-between text-sm text-muted-foreground">
-        <span>Mínimo ({scaleMin})</span>
-        <span>Máximo ({scaleMax})</span>
+
+      {/* Desktop: Labels */}
+      <div className="hidden sm:flex justify-between text-sm text-muted-foreground">
+        <span>Minimo ({scaleMin})</span>
+        <span>Maximo ({scaleMax})</span>
       </div>
     </div>
   )

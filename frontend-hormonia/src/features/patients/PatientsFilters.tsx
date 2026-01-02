@@ -95,7 +95,7 @@ export function PatientsFilters({
   }
 
   const handleStatusChange = (value: string) => {
-    updateFilter('status', value === 'all' ? undefined : value as any)
+    updateFilter('status', value === 'all' ? undefined : value as 'all' | 'active' | 'inactive')
   }
 
   const handleTreatmentTypeChange = (value: string) => {

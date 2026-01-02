@@ -14,11 +14,9 @@ Usage:
 """
 
 import sys
-import os
 import asyncio
 import logging
 from pathlib import Path
-from typing import Dict, Any, List
 
 # Add project root to path
 project_root = Path(__file__).parent.parent

@@ -12,7 +12,7 @@ from app.models.flow import PatientFlowState
 from app.repositories.message import MessageRepository
 from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
-from app.domain.flows.events import flow_event_broadcaster
+from app.services.flow.event_broadcaster import flow_event_broadcaster
 from app.services.platform_synchronization import get_platform_sync_service
 from app.domain.quizzes.integration.flow_integration import (
     get_conversational_quiz_service,
@@ -80,6 +80,9 @@ class ResponseProcessor:
         # Lazy initialization to avoid circular import
         self._follow_up_service = None
         self._follow_up_rehydrated = False
+        
+        # Sequential message handler for multi-message flows
+        self._sequential_handler = None
 
         logger.info(f"Response Processor initialized with config: {self.config}")
 
@@ -107,11 +110,11 @@ class ResponseProcessor:
                     f"Patient not found for phone: {inbound_message.patient_phone}"
                 )
 
-            # Store inbound message in database
-            message = await self._store_inbound_message(patient.id, inbound_message)
-
-            # Get current flow context
+            # Get current flow context FIRST (for enriched metadata)
             flow_state = self.flow_state_repo.get_active_flow(patient.id)
+
+            # Store inbound message in database with flow context
+            message = await self._store_inbound_message(patient.id, inbound_message, flow_state)
 
             # Check if patient is in quiz mode
             is_quiz_response = await self._is_quiz_response(patient.id, flow_state)
@@ -213,6 +216,10 @@ class ResponseProcessor:
             )
 
             logger.info(f"Processed inbound message for patient {patient.id}")
+            
+            # Trigger next sequential message if patient is in a multi-message flow
+            await self._trigger_sequential_continuation(patient.id, flow_state)
+            
             return result
 
         except Exception as e:
@@ -313,18 +320,50 @@ class ResponseProcessor:
             raise
 
     async def _store_inbound_message(
-        self, patient_id: UUID, inbound_message: InboundMessage
+        self, patient_id: UUID, inbound_message: InboundMessage,
+        flow_state: Optional[PatientFlowState] = None
     ) -> Message:
-        """Store inbound message in database."""
+        """
+        Store inbound message in database with enriched metadata.
+        
+        Includes flow context (day, question index) and idempotency key.
+        """
+        import hashlib
+        
         try:
+            # Build enriched metadata with flow context
+            metadata = dict(inbound_message.metadata) if inbound_message.metadata else {}
+            
+            # Add flow context if available
+            if flow_state and flow_state.step_data:
+                step_data = flow_state.step_data
+                metadata["flow_context"] = {
+                    "flow_kind": step_data.get("flow_kind"),
+                    "current_flow_day": step_data.get("current_flow_day"),
+                    "current_message_index": step_data.get("current_day_message_index", 0),
+                    "awaiting_response": step_data.get("awaiting_response", False),
+                    "flow_state_id": str(flow_state.id) if flow_state.id else None,
+                }
+            
+            # Generate idempotency key from content + timestamp + whatsapp_id
+            idempotency_source = f"{patient_id}:{inbound_message.content}:{inbound_message.whatsapp_id or ''}"
+            idempotency_key = hashlib.sha256(idempotency_source.encode()).hexdigest()[:32]
+            
+            # Check for duplicate message
+            existing = self.message_repo.get_by_idempotency_key(patient_id, idempotency_key)
+            if existing:
+                logger.warning(f"Duplicate inbound message detected: {idempotency_key}")
+                return existing
+            
             message = Message(
                 patient_id=patient_id,
                 direction=MessageDirection.INBOUND,
                 type=inbound_message.message_type,
                 content=inbound_message.content,
                 whatsapp_id=inbound_message.whatsapp_id,
-                status=MessageStatus.READ,  # Inbound messages are considered read
-                message_metadata=inbound_message.metadata,
+                status=MessageStatus.READ,
+                message_metadata=metadata,
+                idempotency_key=idempotency_key,
                 sent_at=inbound_message.timestamp,
                 delivered_at=inbound_message.timestamp,
                 read_at=inbound_message.timestamp,
@@ -417,6 +456,45 @@ class ResponseProcessor:
 
             self._follow_up_service = FollowUpSystemService(self.db)
         return self._follow_up_service
+
+    def _get_sequential_handler(self):
+        """Lazy initialization of SequentialMessageHandler to avoid circular imports."""
+        if self._sequential_handler is None:
+            from app.services.flow.sequential_message_handler import SequentialMessageHandler
+            self._sequential_handler = SequentialMessageHandler(self.db)
+        return self._sequential_handler
+
+    async def _trigger_sequential_continuation(
+        self, patient_id: UUID, flow_state: Optional[PatientFlowState]
+    ) -> None:
+        """
+        Trigger next sequential message if patient is in a multi-message flow.
+        
+        Called after processing an inbound message to check if we need to send
+        the next message in a sequential/wait_response/wait_each flow.
+        """
+        try:
+            if not flow_state:
+                return
+            
+            step_data = flow_state.step_data or {}
+            
+            # Check if we're awaiting response and should continue
+            if not step_data.get("awaiting_response"):
+                return
+            
+            # Get handler and trigger continuation
+            handler = self._get_sequential_handler()
+            result = await handler.handle_response_and_continue(patient_id)
+            
+            if result.get("status") == "waiting":
+                logger.info(f"Sent next sequential message to patient {patient_id}")
+            elif result.get("status") == "day_complete":
+                logger.info(f"Sequential flow day complete for patient {patient_id}")
+        
+        except Exception as e:
+            # Don't let sequential message failures break the main response flow
+            logger.error(f"Failed to trigger sequential continuation: {e}", exc_info=True)
 
     async def _process_follow_up_actions(
         self, result: ResponseProcessingResult

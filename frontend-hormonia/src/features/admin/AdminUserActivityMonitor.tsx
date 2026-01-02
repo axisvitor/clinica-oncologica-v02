@@ -6,13 +6,8 @@ import {
   UserX,
   Shield,
   RefreshCw,
-  Filter,
   Download,
   Search,
-  Calendar,
-  MapPin,
-  Monitor,
-  AlertTriangle,
   CheckCircle,
   XCircle
 } from 'lucide-react'
@@ -44,14 +39,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { AdminUserActivity, AdminActivityFilter } from '@/types/admin'
 import { apiClient } from '@/lib/api-client'
 import { createLogger } from '@/lib/logger'
@@ -163,7 +150,7 @@ export const AdminUserActivityMonitor: React.FC<AdminUserActivityMonitorProps> =
   const [filteredActivities, setFilteredActivities] = useState<AdminUserActivity[]>(mockActivityData)
   const [filters, setFilters] = useState<AdminActivityFilter>({})
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedActivity, setSelectedActivity] = useState<AdminUserActivity | null>(null)
+  const [_selectedActivity, setSelectedActivity] = useState<AdminUserActivity | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
@@ -175,7 +162,7 @@ export const AdminUserActivityMonitor: React.FC<AdminUserActivityMonitorProps> =
     try {
       // Using any cast here because the API response type might not match exactly what we expect yet
       // In a real scenario, we should define a proper response type
-      const response = await apiClient.request<{ items: AdminUserActivity[]; total: number }>('/admin/audit-logs', {
+      const response = await apiClient.request<{ items?: AdminUserActivity[]; data?: AdminUserActivity[]; total: number }>('/admin/audit-logs', {
         method: 'GET',
         params: {
           page: currentPage,
@@ -183,7 +170,7 @@ export const AdminUserActivityMonitor: React.FC<AdminUserActivityMonitorProps> =
           ...(dateRange.from && { start_date: dateRange.from.toISOString() }),
           ...(dateRange.to && { end_date: dateRange.to.toISOString() })
         }
-      }) as any
+      })
 
       if (response && response.items) {
         setActivities(response.items)

@@ -5,12 +5,10 @@ Scans all Python files for import issues, circular dependencies, and missing pac
 """
 
 import ast
-import os
 import sys
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set
 from collections import defaultdict
-import importlib.util
 
 
 class ImportValidator:

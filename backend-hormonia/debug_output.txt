@@ -1,0 +1,46 @@
+C:\Meu Projetos\clinica-oncologica-v02-1\backend-hormonia\scripts\test_message_send.py:1: SyntaxWarning: invalid escape sequence '\S'
+  """
+2026-01-02 12:58:08,987 - app.utils.rate_limiter - INFO - \u2705 Rate limiting ENABLED with Redis backend
+2026-01-02 12:58:08,988 - app.utils.rate_limiter - INFO -    Global limit: 60 requests/minute
+2026-01-02 12:58:08,988 - app.utils.rate_limiter - INFO -    Auth limit: 10 requests/minute
+2026-01-02 12:58:08,988 - app.utils.rate_limiter - INFO -    Redis backend: redis-14149.c322.us-east-1-2.ec2.redns.redis-cloud.com:14149
+2026-01-02 12:58:11,526 - app.utils.security - INFO - Using builtin bcrypt backend
+2026-01-02 12:58:11,531 - app.utils.key_validation.validators - INFO - \u2705 CSRF secret validation passed: length=43, entropy=4.99 bits/char, unique_chars=34
+2026-01-02 12:58:11,531 - app.config.settings.security - INFO - \u2705 CSRF secret validation passed
+2026-01-02 12:58:11,678 - app.core.database - INFO - Initializing AsyncEngine for background tasks (SSL: enabled)
+============================================================
+Traceback (most recent call last):
+MESSAGE SENDING TEST SCRIPT
+============================================================
+
+=== TEST 1: Async Engine Creation ===
+  File "C:\Meu Projetos\clinica-oncologica-v02-1\backend-hormonia\scripts\test_message_send.py", line 25, in test_async_engine
+    print(f"\u2705 Async engine created: {engine}")
+  File "C:\Users\joaov\AppData\Local\Programs\Python\Python312\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2705' in position 0: character maps to <undefined>
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Meu Projetos\clinica-oncologica-v02-1\backend-hormonia\scripts\test_message_send.py", line 155, in <module>
+    asyncio.run(main())
+  File "C:\Users\joaov\AppData\Local\Programs\Python\Python312\Lib\asyncio\runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\joaov\AppData\Local\Programs\Python\Python312\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\joaov\AppData\Local\Programs\Python\Python312\Lib\asyncio\base_events.py", line 686, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "C:\Meu Projetos\clinica-oncologica-v02-1\backend-hormonia\scripts\test_message_send.py", line 132, in main
+    if not await test_async_engine():
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Meu Projetos\clinica-oncologica-v02-1\backend-hormonia\scripts\test_message_send.py", line 27, in test_async_engine
+    print(f"\u274c Failed to create async engine: {e}")
+  File "C:\Users\joaov\AppData\Local\Programs\Python\Python312\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u274c' in position 0: character maps to <undefined>

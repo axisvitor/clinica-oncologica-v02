@@ -2,7 +2,7 @@ import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Users, Activity, Clock, CheckCircle } from 'lucide-react'
 import { apiClient } from '../../lib/api-client'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import type { Patient } from '@/lib/api-client'
 
@@ -28,7 +28,15 @@ export function PatientStats() {
     )
   }
 
-  const patients = ((patientsData as any)?.items || (patientsData as any)?.data || []) as Patient[]
+  // Handle different possible response shapes from API
+  interface PatientListResponse {
+    items?: Patient[];
+    data?: Patient[];
+  }
+  const typedPatientsData = patientsData as PatientListResponse | Patient[] | undefined
+  const patients: Patient[] = Array.isArray(typedPatientsData)
+    ? typedPatientsData
+    : (typedPatientsData?.items || typedPatientsData?.data || [])
   const totalPatients = patients.length
   const activePatients = patients.filter((p: Patient) => p.status === 'active').length
   const pausedPatients = patients.filter((p: Patient) => p.status === 'paused').length

@@ -21,7 +21,7 @@ import json
 import logging
 
 from app.database import SessionLocal
-from app.dependencies.auth_dependencies import get_current_user
+from app.dependencies.auth_dependencies import get_current_user_object_from_session
 from app.models.user import User
 from app.config import settings
 
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_rls_db(
-    current_user: Optional[User] = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user_object_from_session),
 ) -> Generator[Session, None, None]:
     """
     Get database session with RLS context injected.
@@ -100,7 +100,7 @@ def get_rls_db(
 
 
 def get_rls_db_required(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_object_from_session),
 ) -> Generator[Session, None, None]:
     """
     Get database session with RLS context, authentication required.
@@ -125,7 +125,7 @@ def get_rls_db_required(
 
 
 def get_rls_db_admin(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_object_from_session),
 ) -> Generator[Session, None, None]:
     """
     Get database session for admin users with RLS context.

@@ -39,7 +39,7 @@ from app.models.patient import Patient
 
 # MessageService for marking messages as failed
 from app.domain.messaging.core import MessageService
-from app.services.websocket_events import websocket_events
+from app.services import websocket_events as ws_events_module
 from app.schemas.websocket import WebSocketEventType
 from app.exceptions import ExternalServiceError
 from app.config import settings
@@ -233,15 +233,23 @@ class UnifiedWhatsAppService:
         """
         Garantir que o paciente esteja disponível para envio (Session sync ou AsyncSession).
         """
-        patient = getattr(message, "patient", None)
-        if patient:
-            return patient
+        # Avoid accessing message.patient directly if it might trigger sync lazy load
+        # Check if the relationship is already loaded
+        from sqlalchemy import inspect
+        ins = inspect(message)
+        
+        if "patient" not in ins.unloaded:
+            return message.patient
+            
         if not message.patient_id:
             return None
+            
         try:
             if isinstance(self.db, AsyncSession):
                 return await self.db.get(Patient, message.patient_id)
-            return self._db_sync.query(Patient).get(message.patient_id)
+            if self._db_sync:
+                return self._db_sync.query(Patient).get(message.patient_id)
+            return None
         except Exception as exc:
             logger.error(f"Failed to load patient {message.patient_id}: {exc}")
             return None
@@ -485,8 +493,34 @@ class UnifiedWhatsAppService:
 
         if self.message_service is not None:
             await self.message_service.mark_as_failed_async(message.id, error_message)
+        elif isinstance(self.db, AsyncSession):
+            # Use existing async session
+            try:
+                from app.models.message import Message as MessageModel, MessageStatus
+                stmt = (
+                    update(MessageModel)
+                    .where(MessageModel.id == message.id)
+                    .values(
+                        status=MessageStatus.FAILED,
+                        failed_at=datetime.now(timezone.utc),
+                        error_message=error_message,
+                        updated_at=datetime.now(timezone.utc),
+                    )
+                )
+                await self.db.execute(stmt)
+                await self.db.commit()
+                
+                logger.info(
+                    f"Message {message.id} marked as failed via async update",
+                    extra={"unified_error": unified_error},
+                )
+            except Exception as db_error:
+                logger.error(
+                    f"Failed to mark message {message.id} as failed (async): {db_error}",
+                    extra={"unified_error": unified_error, "db_error": str(db_error)},
+                )
         else:
-            # Direct database update when message_service not available
+            # Direct database update when message_service not available and using sync db
             try:
                 from app.core.database import get_scoped_session
                 from app.models.message import Message as MessageModel, MessageStatus
@@ -503,7 +537,8 @@ class UnifiedWhatsAppService:
                         )
                     )
                     session.execute(stmt)
-                    # get_scoped_session commits automatically on exit
+                    session.commit()
+                    # get_scoped_session commits automatically on exit but commit explicitly to be safe during updates
 
                 logger.info(
                     f"Message {message.id} marked as failed via direct update",
@@ -524,7 +559,8 @@ class UnifiedWhatsAppService:
         self, event_type: WebSocketEventType, message: Message, **kwargs
     ):
         """Publish unified WebSocket events."""
-        await websocket_events.publish_message_event(
+        if ws_events_module.websocket_events:
+            await ws_events_module.websocket_events.publish_message_event(
             event_type=event_type,
             message_id=message.id,
             patient_id=message.patient_id,

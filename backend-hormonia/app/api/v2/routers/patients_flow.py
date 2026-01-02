@@ -19,7 +19,7 @@ from typing import Dict
 from datetime import datetime, timezone
 import logging
 
-from fastapi import APIRouter, Depends, status, Request
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -353,7 +353,7 @@ async def get_patient_timeline(
             events.append({
                 "date": saga.started_at or saga.created_at,
                 "event": "saga_started",
-                "details": f"Saga de onboarding iniciada",
+                "details": "Saga de onboarding iniciada",
                 "metadata": {
                     "saga_id": str(saga.id),
                     "status": saga.status.value if saga.status else None,
@@ -365,7 +365,7 @@ async def get_patient_timeline(
                 events.append({
                     "date": saga.completed_at,
                     "event": "saga_completed",
-                    "details": f"Onboarding concluído com sucesso",
+                    "details": "Onboarding concluído com sucesso",
                     "metadata": {
                         "saga_id": str(saga.id),
                         "duration_seconds": saga._calculate_duration(),
@@ -402,14 +402,43 @@ async def get_patient_timeline(
         events.append({
             "date": archived_at or patient.updated_at,
             "event": "patient_archived",
-            "details": f"Paciente foi arquivado",
+            "details": "Paciente foi arquivado",
             "metadata": {
                 "archived_by": patient.patient_data.get("archived_by"),
             },
         })
 
+    def _safe_sort_key_debug(event_item):
+        try:
+            d = event_item.get("date")
+            if d is None:
+                return datetime.min.replace(tzinfo=timezone.utc)
+            
+            if isinstance(d, datetime):
+                if d.tzinfo is None:
+                    return d.replace(tzinfo=timezone.utc)
+                return d
+                
+            if isinstance(d, str):
+                try:
+                    if d.endswith("Z"):
+                        d = d[:-1] + "+00:00"
+                    dt = datetime.fromisoformat(d)
+                    if dt.tzinfo is None:
+                        return dt.replace(tzinfo=timezone.utc)
+                    return dt
+                except ValueError:
+                    pass
+
+            logger.warning(f"Sort key fallback for type {type(d)}: {d}")
+            return datetime.min.replace(tzinfo=timezone.utc)
+            
+        except Exception as e:
+            logger.error(f"Critical sort key error: {e}")
+            return datetime.min.replace(tzinfo=timezone.utc)
+
     # Sort events by date (most recent first)
-    events.sort(key=lambda x: x["date"] if x["date"] else datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+    events.sort(key=_safe_sort_key_debug, reverse=True)
 
     return {
         "patient_id": patient_id,

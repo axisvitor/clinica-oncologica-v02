@@ -25,7 +25,7 @@ interface FlowsTableProps {
 export function FlowsTable({ flows, isLoading }: FlowsTableProps) {
   const pauseFlow = usePauseFlow()
   const resumeFlow = useResumeFlow()
-  const [isMobile, setIsMobile] = useState(false)
+  const [_isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768)

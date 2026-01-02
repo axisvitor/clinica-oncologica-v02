@@ -13,8 +13,6 @@ Priority: P1 CRITICAL
 """
 
 import pytest
-import hashlib
-from unittest.mock import Mock, patch
 from uuid import uuid4
 
 from app.api.v2.routers.ai.dependencies import generate_cache_key

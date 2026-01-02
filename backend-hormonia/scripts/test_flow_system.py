@@ -10,7 +10,6 @@ This script tests:
 """
 import os
 import sys
-import json
 from datetime import datetime, timezone, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -27,7 +26,6 @@ SessionLocal = sessionmaker(bind=engine)
 
 # Import application modules
 from app.services.template_loader import EnhancedTemplateLoader, TemplateLoadError
-from app.core.flow_types import FlowType
 
 
 def test_template_loading(db):
@@ -93,7 +91,7 @@ def test_message_generation(db):
         try:
             message = loader.get_message_for_day(flow_key, day)
             if message:
-                print(f"✅ Mensagem encontrada:")
+                print("✅ Mensagem encontrada:")
                 print(f"   Intent: {message.intent}")
                 print(f"   Conteúdo: {message.base_content[:80]}...")
                 print(f"   Tipo: {message.message_type}")
@@ -158,7 +156,7 @@ def test_quiz_template():
         """)).fetchone()
         
         if result:
-            print(f"\n✅ Quiz Template Encontrado:")
+            print("\n✅ Quiz Template Encontrado:")
             print(f"   Nome: {result[0]}")
             print(f"   Versão: {result[1]}")
             print(f"   Ativo: {result[2]}")
@@ -225,8 +223,8 @@ def simulate_patient_journey(db):
         else:
             print(f"\n⏸️  Dia {day:2d} ({phase_name}) - Sem mensagem programada")
     
-    print(f"\n" + "-" * 50)
-    print(f"📊 RESUMO DA SIMULAÇÃO:")
+    print("\n" + "-" * 50)
+    print("📊 RESUMO DA SIMULAÇÃO:")
     print(f"   Dias simulados: {len(key_days)}")
     print(f"   Mensagens enviadas: {messages_sent}")
     print(f"   Taxa de cobertura: {messages_sent/len(key_days)*100:.1f}%")

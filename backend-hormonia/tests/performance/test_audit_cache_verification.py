@@ -1,8 +1,6 @@
 import pytest
-from unittest.mock import patch, MagicMock
 from app.infrastructure.cache.cache_decorators import cache, async_cache
 from app.infrastructure.cache.invalidation import invalidate_user_cache, invalidate_patient_cache, CacheInvalidator
-import time
 
 @pytest.mark.performance
 class TestCacheAuditVerification:

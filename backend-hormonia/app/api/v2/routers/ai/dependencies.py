@@ -17,7 +17,7 @@ from fastapi import Depends, HTTPException, status
 
 # Local application imports
 from app.config import settings
-from app.dependencies import get_current_user
+from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.models.user import User, UserRole
 from app.schemas.v2.ai import AIModelType, TokenUsage
 
@@ -31,7 +31,7 @@ _redis_pool: Optional[redis.ConnectionPool] = None
 
 
 async def verify_physician_or_admin(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_from_session),
 ) -> User:
     """Verify user is physician or admin."""
     role_value = (

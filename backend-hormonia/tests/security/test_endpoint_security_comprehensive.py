@@ -18,7 +18,7 @@ Coordination: Memory-based swarm coordination
 """
 
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 

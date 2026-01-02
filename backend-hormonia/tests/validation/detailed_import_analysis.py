@@ -5,8 +5,7 @@ Detailed Import Analysis - Analyzes specific import issues and provides fixes.
 
 import ast
 from pathlib import Path
-from typing import Dict, List, Set
-from collections import defaultdict
+from typing import Dict, List
 import json
 
 

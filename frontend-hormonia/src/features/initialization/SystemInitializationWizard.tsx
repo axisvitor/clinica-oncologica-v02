@@ -3,15 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { CheckCircle2, XCircle, Loader2, AlertTriangle, ArrowRight, RefreshCcw, Play } from 'lucide-react'
-import { LoadingSpinner } from './LoadingSpinner'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { CheckCircle2, XCircle, AlertTriangle, RefreshCcw, Play } from 'lucide-react'
 import { EnvironmentSetup } from './EnvironmentSetup'
 import { DatabaseChecker } from './DatabaseChecker'
 import { ServiceMonitor } from './ServiceMonitor'
 import { WelcomeFlow } from './WelcomeFlow'
 import { InitialUserSetup } from './InitialUserSetup'
-import { ErrorBoundary } from '@/components/common/ErrorBoundary'
+import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { useToast } from '@/components/ui/use-toast'
 import { createLogger } from '@/lib/logger'
 
@@ -40,7 +39,7 @@ export function SystemInitializationWizard({
 }: SystemInitializationWizardProps) {
   const { toast } = useToast()
   const [currentStep, setCurrentStep] = useState(0)
-  const [isInitializing, setIsInitializing] = useState(false)
+  const [_isInitializing, setIsInitializing] = useState(false)
   const [hasStarted, setHasStarted] = useState(autoStart)
   const [initializationSteps, setInitializationSteps] = useState<InitializationStep[]>([
     {
@@ -93,6 +92,7 @@ export function SystemInitializationWizard({
     if (autoStart && !hasStarted) {
       handleStart()
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- handleStart is stable and only called on auto-start condition
   }, [autoStart, hasStarted])
 
   const handleStart = () => {

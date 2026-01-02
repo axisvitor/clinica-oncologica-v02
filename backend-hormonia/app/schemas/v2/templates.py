@@ -300,7 +300,7 @@ class QuizTemplateV2Response(BaseModel):
     description: Optional[str] = None
     questions: List[Dict[str, Any]]
     category: Optional[str] = None
-    tags: List[str]
+    tags: Optional[List[str]] = Field(default_factory=list)
     passing_score: Optional[int] = None
     time_limit_minutes: Optional[int] = None
     randomize_questions: Optional[bool] = None

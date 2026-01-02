@@ -144,7 +144,7 @@ export function PrefetchLink({
   const handleTouchStart = (event: React.TouchEvent<HTMLAnchorElement>) => {
     // Call original handler if provided
     if (onTouchStartProp) {
-      onTouchStartProp(event as any);
+      onTouchStartProp(event);
     }
 
     // Skip if prefetch disabled or already triggered

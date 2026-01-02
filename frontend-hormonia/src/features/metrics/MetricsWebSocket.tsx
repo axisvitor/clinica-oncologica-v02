@@ -163,6 +163,7 @@ export const MetricsWebSocket = ({
     } else if (reconnectAttempts >= maxReconnectAttempts) {
       setError('Falha na conexão após múltiplas tentativas');
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- connect is intentionally excluded to prevent circular dependency
   }, [reconnectAttempts, maxReconnectAttempts, reconnectInterval, onDisconnect]);
 
   const connect = useCallback(() => {

@@ -13,9 +13,7 @@ import { PatientActions } from './PatientActions'
 
 import type { Patient } from '@/types/api'
 
-interface PatientRowProps {
-  style: React.CSSProperties
-  index: number
+interface PatientRowData {
   patients: Patient[]
   onNavigate: (id: string) => void
   onEdit?: (patient: Patient) => void
@@ -27,20 +25,32 @@ interface PatientRowProps {
   isResending: boolean
 }
 
+interface PatientRowProps {
+  style: React.CSSProperties
+  index: number
+  data: PatientRowData
+}
+
 const GRID_COLS = "grid-cols-[2.5fr_1.5fr_1fr_1fr_1fr_0.8fr_1.2fr_70px]"
 
 export const PatientRow = memo<PatientRowProps>(({
   style,
   index,
-  patients,
-  onNavigate,
-  onEdit,
-  onDelete,
-  onActivate,
-  onDeactivate,
-  onSendQuiz,
-  isResending
+  data
 }) => {
+  const {
+    patients,
+    onNavigate,
+    onEdit,
+    onDelete,
+    onActivate,
+    onDeactivate,
+    onSendQuiz,
+    isResending
+  } = data ?? {}
+
+  if (!patients || !patients.length) return null
+
   const patient = patients[index]
 
   if (!patient) return null

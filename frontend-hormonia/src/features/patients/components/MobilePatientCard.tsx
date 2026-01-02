@@ -13,9 +13,7 @@ import { PatientActions } from './PatientActions'
 
 import type { Patient } from '@/types/api'
 
-interface MobilePatientCardProps {
-  style: React.CSSProperties
-  index: number
+interface MobilePatientCardData {
   patients: Patient[]
   onNavigate: (id: string) => void
   onEdit?: (patient: Patient) => void
@@ -27,18 +25,28 @@ interface MobilePatientCardProps {
   isResending: boolean
 }
 
+interface MobilePatientCardProps {
+  style: React.CSSProperties
+  index: number
+  data: MobilePatientCardData
+}
+
 export const MobilePatientCard = memo<MobilePatientCardProps>(({
   style,
   index,
-  patients,
-  onNavigate,
-  onEdit,
-  onDelete,
-  onActivate,
-  onDeactivate,
-  onSendQuiz,
-  isResending
+  data
 }) => {
+  const {
+    patients,
+    onNavigate,
+    onEdit,
+    onDelete,
+    onActivate,
+    onDeactivate,
+    onSendQuiz,
+    isResending
+  } = data
+
   const patient = patients[index]
 
   if (!patient) return null

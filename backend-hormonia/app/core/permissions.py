@@ -10,11 +10,9 @@ from typing import Dict, List, Set, Optional, Tuple, Union, Any
 from enum import Enum
 from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel, field_validator
-from functools import wraps
 import re
 
-from fastapi import HTTPException, status
-from app.models.user import User, UserRole
+from app.models.user import UserRole
 
 logger = logging.getLogger(__name__)
 

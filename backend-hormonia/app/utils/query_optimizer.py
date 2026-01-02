@@ -472,7 +472,7 @@ def _sanitize_query_for_explain(query_str: str) -> str:
     upper_query = normalized.upper()
 
     if not any(upper_query.startswith(prefix) for prefix in allowed_prefixes):
-        raise ValueError(f"Only SELECT, INSERT, UPDATE, DELETE, or WITH statements can be analyzed")
+        raise ValueError("Only SELECT, INSERT, UPDATE, DELETE, or WITH statements can be analyzed")
 
     # Check for dangerous patterns that could indicate SQL injection
     dangerous_patterns = [

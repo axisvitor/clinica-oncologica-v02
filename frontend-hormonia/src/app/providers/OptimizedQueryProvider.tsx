@@ -1,8 +1,8 @@
 import React, { memo, useMemo } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
 // import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { createOptimizedQueryClient } from '../../lib/react-optimizations'
-import { environment } from '../../lib/environment'
+// import { environment } from '../../lib/environment' // Unused while devtools disabled
 
 interface OptimizedQueryProviderProps {
   children: React.ReactNode

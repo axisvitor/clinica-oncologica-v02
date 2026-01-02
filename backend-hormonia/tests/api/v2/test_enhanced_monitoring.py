@@ -23,7 +23,7 @@ import pytest
 from datetime import datetime
 from unittest.mock import Mock, patch, AsyncMock
 from fastapi.testclient import TestClient
-from fastapi import status
+from fastapi import status, HTTPException
 
 from app.main import app
 from app.models.user import User, UserRole

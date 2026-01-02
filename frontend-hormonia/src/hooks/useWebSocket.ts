@@ -125,6 +125,7 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
       logger.error('Failed to create WebSocket connection:', error)
       setConnectionState('error')
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- config is stable and adding it causes infinite reconnection loops
   }, [url, user?.token, token, reconnectAttempts, reconnectInterval, onMessage, onError, onOpen, onClose])
 
   const disconnect = useCallback(() => {
@@ -177,10 +178,8 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
       shouldReconnectRef.current = false
       disconnect()
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- connect/disconnect are stable via useCallback; including them causes infinite reconnection loops
   }, [user?.token, token])
-  // NOTE: connect/disconnect are intentionally NOT in dependencies
-  // They are stable via useCallback and adding them causes unnecessary reconnections
-  // ESLint warning is safe to ignore in this specific case
 
   return {
     isConnected,

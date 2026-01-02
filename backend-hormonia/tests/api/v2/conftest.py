@@ -7,11 +7,10 @@ alerts, and other resources needed for thorough API testing.
 
 import pytest
 from uuid import uuid4
-from datetime import date, datetime, timezone
-from unittest.mock import Mock, MagicMock, AsyncMock, patch
+from datetime import date
+from unittest.mock import MagicMock, AsyncMock, patch
 
 from sqlalchemy.orm import Session
-from fastapi.testclient import TestClient
 
 from app.models.user import User, UserRole
 from app.models.patient import Patient, FlowState

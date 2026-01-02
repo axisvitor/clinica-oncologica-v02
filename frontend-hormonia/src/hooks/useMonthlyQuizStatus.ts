@@ -64,7 +64,7 @@ export function useMonthlyQuizStatus(patientId: string) {
         }
       } catch (error: unknown) {
         // If patient has no quiz link, return not_sent status
-        const errorStatus = error && typeof error === 'object' && 'status' in error ? (error as any).status : null;
+        const errorStatus = error && typeof error === 'object' && 'status' in error ? (error as { status: number }).status : null;
         if (errorStatus === 404) {
           return {
             patient_id: patientId,
@@ -95,10 +95,8 @@ export function useBulkMonthlyQuizStatus(patientIds: string[]) {
       )
 
       results.forEach((result, index) => {
-        const patientId = patientIds[index]
-
         if (result.status === 'fulfilled') {
-          const data = result.value as any
+          const data = result.value as RawQuizStatusResponse[] | RawQuizStatusResponse
           const s = Array.isArray(data) ? data[0] : data
           const patientIdSafe = patientIds[index]
           if (patientIdSafe) {
@@ -171,7 +169,7 @@ export function useResendQuizLink() {
     mutationFn: async (sessionId: string) => {
       return await apiClient.monthlyQuiz.resend(sessionId)
     },
-    onSuccess: (_, sessionId) => {
+    onSuccess: () => {
       toast({
         title: 'Link reenviado',
         description: 'O link do quiz foi reenviado com sucesso'

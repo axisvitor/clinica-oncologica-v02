@@ -1,4 +1,3 @@
-import os
 import re
 
 file_path = r"c:\Meu Projetos\clinica-oncologica-v02-1\backend-hormonia\app\templates\arquivo\Fluxo HORMON[IA] - 16 A 45.md"

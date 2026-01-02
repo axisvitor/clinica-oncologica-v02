@@ -1,7 +1,7 @@
 import React from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { AlertTriangle, TrendingUp, Lightbulb, Brain } from 'lucide-react'
+import { AlertTriangle, Lightbulb, Brain } from 'lucide-react'
 import type { QuizAnalysisResponse } from '@/types/quiz'
 
 interface QuizAnalysisCardProps {

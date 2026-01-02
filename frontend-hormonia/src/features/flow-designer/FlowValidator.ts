@@ -1,7 +1,6 @@
 import {
   FlowDesign,
   FlowNode,
-  FlowConnection,
   FlowValidationResult,
   FlowValidationError,
   FlowValidationWarning,
@@ -156,7 +155,7 @@ export class FlowValidator {
     }
   }
 
-  private validateConditionNode(node: FlowNode, errors: FlowValidationError[], warnings: FlowValidationWarning[]) {
+  private validateConditionNode(node: FlowNode, errors: FlowValidationError[], _warnings: FlowValidationWarning[]) {
     const config = node.data.config
     const conditions = config['conditions']
 
@@ -197,7 +196,7 @@ export class FlowValidator {
     }
   }
 
-  private validateActionNode(node: FlowNode, errors: FlowValidationError[], warnings: FlowValidationWarning[]) {
+  private validateActionNode(node: FlowNode, errors: FlowValidationError[], _warnings: FlowValidationWarning[]) {
     const config = node.data.config
     const actionType = config['action_type']
 
@@ -238,7 +237,7 @@ export class FlowValidator {
     }
   }
 
-  private validateQuizNode(node: FlowNode, errors: FlowValidationError[], warnings: FlowValidationWarning[]) {
+  private validateQuizNode(node: FlowNode, errors: FlowValidationError[], _warnings: FlowValidationWarning[]) {
     const config = node.data.config
     const questions = config['questions']
 
@@ -253,7 +252,7 @@ export class FlowValidator {
     }
   }
 
-  private validateWebhookNode(node: FlowNode, errors: FlowValidationError[], warnings: FlowValidationWarning[]) {
+  private validateWebhookNode(node: FlowNode, errors: FlowValidationError[], _warnings: FlowValidationWarning[]) {
     const config = node.data.config
     const url = config['url']
 
@@ -268,7 +267,7 @@ export class FlowValidator {
     }
   }
 
-  private validateConnections(design: FlowDesign, errors: FlowValidationError[], warnings: FlowValidationWarning[]) {
+  private validateConnections(design: FlowDesign, errors: FlowValidationError[], _warnings: FlowValidationWarning[]) {
     design.connections.forEach(connection => {
       // Check if source and target nodes exist
       const sourceNode = design.nodes.find(node => node.id === connection.source)

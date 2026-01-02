@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, Phone, Mail, Calendar, Activity, Send, CheckCircle, TrendingUp, Brain, AlertTriangle, Lightbulb } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { ArrowLeft, Phone, Mail, Calendar, Activity, Send, CheckCircle, TrendingUp, Brain, AlertTriangle, Lightbulb, MessageSquare } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { apiClient } from '@/lib/api-client'
 import { Button } from '@/components/ui/button'
@@ -10,9 +10,11 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { PatientDetailSkeleton } from '@/features/patients/PatientDetailSkeleton'
 import { PatientTimeline } from '@/features/patients/PatientTimeline'
 import { FlowStatus } from '@/features/patients/FlowStatus'
+import { MessagesList } from '@/features/messages/MessagesList'
+import { MessageComposer } from '@/features/messages/MessageComposer'
 import { QuickActions } from '@/features/patients/QuickActions'
 import { QuizLinkStatus } from '@/features/quiz/QuizLinkStatus'
 import { SendQuizLinkModal } from '@/features/quiz/SendQuizLinkModal'
@@ -64,11 +66,22 @@ export function PatientDetailPage() {
   const { data: quizStatus } = useQuizLinkStatus(id || '')
   const { data: quizHistory, isLoading: quizHistoryLoading } = useQuizLinkHistory(id || '')
 
+  // Fetch patient messages
+  const { data: messagesData, isLoading: messagesLoading } = useQuery({
+    queryKey: ['messages', { patient_id: id }],
+    queryFn: () => {
+      if (!id) throw new Error('Patient ID is required')
+      return apiClient.messages.list({ patient_id: id })
+    },
+    enabled: !!id
+  })
+
   // Type guard to check if AI insights is an object (not an array)
   const isAIInsightsObject = (data: typeof aiInsights): data is import('@/lib/api-client/types').AIInsights => {
     return data != null && typeof data === 'object' && !Array.isArray(data) && 'patient_id' in data
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- isAIInsightsObject is a pure type guard function defined inline
   const aiInsightsData = useMemo(() => isAIInsightsObject(aiInsights) ? aiInsights : undefined, [aiInsights])
 
   const totalQuizzes = quizHistory?.length ?? 0
@@ -81,11 +94,7 @@ export function PatientDetailPage() {
     : 0, [totalQuizzes, completedQuizCount])
 
   if (patientLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner size="lg" />
-      </div>
-    )
+    return <PatientDetailSkeleton />
   }
 
   if (!patient) {
@@ -225,11 +234,29 @@ export function PatientDetailPage() {
         <TabsContent value="messages" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Mensagens</CardTitle>
-              <CardDescription>Histórico de comunicação com o paciente</CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5" />
+                Mensagens
+              </CardTitle>
+              <CardDescription>Histórico de comunicação com o paciente via WhatsApp</CardDescription>
             </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Painel de mensagens será implementado aqui...</p>
+            <CardContent className="space-y-4">
+              {id && patient && (
+                <>
+                  <MessagesList
+                    messages={messagesData?.items || messagesData?.data || []}
+                    isLoading={messagesLoading}
+                    patientName={patient.name}
+                  />
+                  <div className="border-t pt-4">
+                    <MessageComposer
+                      patientId={id}
+                      patientName={patient.name}
+                      onMessageSent={() => { }}
+                    />
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

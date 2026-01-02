@@ -14,7 +14,7 @@ Features:
 
 from fastapi import APIRouter
 
-from . import humanize, insights, analysis, health, stats, summary
+from . import humanize, insights, analysis, health, stats, summary, recommendations
 
 # Initialize main router with prefix and tags
 router = APIRouter(tags=["AI Services v2"])
@@ -26,5 +26,6 @@ router.include_router(analysis.router, prefix="/analyze", tags=["AI - Analysis"]
 router.include_router(health.router, prefix="/health", tags=["AI - Health"])
 router.include_router(stats.router, prefix="/usage", tags=["AI - Usage Stats"])
 router.include_router(summary.router, prefix="/summary", tags=["AI - Patient Summary"])
+router.include_router(recommendations.router, prefix="/recommendations", tags=["AI - Recommendations"])
 
 __all__ = ["router"]

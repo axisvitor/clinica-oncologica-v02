@@ -19,6 +19,7 @@ import { useToast } from '@/components/ui/use-toast'
 import { getErrorMessage } from '@/lib/utils/type-guards'
 import { generateTemporaryPassword } from '@/lib/utils/security/password-generator'
 import { createLogger } from '@/utils/logger'
+import type { WebSocketMessage } from './useUserWebSocket'
 
 const logger = createLogger('useUserMutations')
 
@@ -26,7 +27,7 @@ export interface UseUserMutationsOptions {
   /** Enable real-time updates via WebSocket */
   realTimeUpdates?: boolean
   /** Function to send WebSocket messages */
-  sendMessage?: (message: any) => void
+  sendMessage?: (message: WebSocketMessage) => void
   /** Whether WebSocket is connected */
   isConnected?: boolean
 }
@@ -85,7 +86,7 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
   /**
    * Send WebSocket notification
    */
-  const notifyWebSocket = useCallback((type: string, data: any) => {
+  const notifyWebSocket = useCallback((type: WebSocketMessage['type'], data: Record<string, unknown>) => {
     if (realTimeUpdates && isConnected && sendMessage) {
       sendMessage({ type, data })
     }

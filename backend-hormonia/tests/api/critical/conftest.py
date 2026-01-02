@@ -8,7 +8,6 @@ import os
 import json
 import pytest
 import requests
-from datetime import datetime, timedelta
 from typing import Generator
 from uuid import uuid4
 
@@ -20,7 +19,7 @@ os.environ["ENVIRONMENT"] = "testing"
 os.environ.setdefault("ENCRYPTION_KEY", "32byte-secret-key-for-testing-123")
 os.environ.setdefault("ENCRYPTION_SALT", "test-salt-16bytes")
 
-from sqlalchemy import create_engine, TypeDecorator, Text, Index, text
+from sqlalchemy import create_engine, TypeDecorator, Text, text
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool, NullPool
 from sqlalchemy.dialects.postgresql import JSONB, INET, BYTEA
@@ -325,7 +324,7 @@ def mock_saga_patient(db_session: Session, app_modules, app_instance):
     # Mock factory function that returns our mock coordinator
     def mock_get_coordinator(db, saga_orchestrator=None):
         """Mocked factory function."""
-        print(f"🔧 MOCK: get_onboarding_coordinator called (returning mock)")
+        print("🔧 MOCK: get_onboarding_coordinator called (returning mock)")
         return mock_coordinator
 
     # Patch at the SOURCE module (where function is defined)

@@ -11,10 +11,8 @@ import {
   UseAIChatOptions,
   UseAIAnalyticsOptions,
   UseAIInsightsOptions,
-  PatientEngagementMetrics,
   AIGeneratedMessage,
   ChatRole,
-  SentimentLabel,
   InsightType
 } from '@/types/api'
 import type { AIInsight } from '@/lib/api-client/types'
@@ -148,7 +146,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [session, setSession] = useState<ChatSession | null>(null)
-  const queryClient = useQueryClient()
+  const _queryClient = useQueryClient()
 
   // Create new session
   const createSession = useCallback(async () => {
@@ -214,7 +212,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
           suggestions: apiResponse.suggestions,
           entities: apiResponse.metadata
         }
-      } catch (error) {
+      } catch {
         // Fallback to mock response
         response = {
           message: `Entendi sua mensagem: "${content}". Esta é uma resposta simulada da IA.`,
@@ -496,7 +494,7 @@ export function useAIAnalyze() {
 
   return useMutation({
     mutationFn: async ({
-      patientId,
+      patientId: _patientId,
       analysisType,
       data
     }: {
@@ -537,7 +535,7 @@ export function useAIAnalyze() {
 /**
  * Hook for sentiment analysis with optimistic updates
  */
-export function useAISentiment(text?: string) {
+export function useAISentiment(_text?: string) {
   return useMutation({
     mutationFn: async (textToAnalyze: string): Promise<SentimentAnalysis> => {
       if (!FEATURES.AI_CHAT) {

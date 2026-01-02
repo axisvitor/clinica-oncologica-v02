@@ -1,0 +1,53 @@
+C:\Meu Projetos\clinica-oncologica-v02-1\backend-hormonia\scripts\test_message_send.py:1: SyntaxWarning: invalid escape sequence '\S'
+  """
+2026-01-02 12:59:42,513 - app.utils.rate_limiter - INFO - \u2705 Rate limiting ENABLED with Redis backend
+2026-01-02 12:59:42,513 - app.utils.rate_limiter - INFO -    Global limit: 60 requests/minute
+2026-01-02 12:59:42,513 - app.utils.rate_limiter - INFO -    Auth limit: 10 requests/minute
+2026-01-02 12:59:42,513 - app.utils.rate_limiter - INFO -    Redis backend: redis-14149.c322.us-east-1-2.ec2.redns.redis-cloud.com:14149
+2026-01-02 12:59:45,061 - app.utils.security - INFO - Using builtin bcrypt backend
+2026-01-02 12:59:45,065 - app.utils.key_validation.validators - INFO - \u2705 CSRF secret validation passed: length=43, entropy=4.99 bits/char, unique_chars=34
+2026-01-02 12:59:45,065 - app.config.settings.security - INFO - \u2705 CSRF secret validation passed
+2026-01-02 12:59:45,215 - app.core.database - INFO - Initializing AsyncEngine for background tasks (SSL: enabled)
+2026-01-02 12:59:45,999 - app.core.database_config - WARNING - \u26a0\ufe0f  WEB_CONCURRENCY not set in production. Defaulting to 4 workers. Please set WEB_CONCURRENCY explicitly to ensure proper connection pool sizing.
+2026-01-02 12:59:45,999 - app.core.database_config - INFO - Database pool configuration: environment=production, workers=4, pool_size=10, max_overflow=10, total_per_worker=20, total_all_workers=80
+2026-01-02 12:59:45,999 - app.core.database_config - WARNING - \u26a0\ufe0f  Total connections (80) approaching AWS RDS limits (~80). Monitor connection usage closely.
+2026-01-02 12:59:45,999 - app.core.database_config - WARNING - \u26a0\ufe0f  WEB_CONCURRENCY not set in production. Defaulting to 4 workers. Please set WEB_CONCURRENCY explicitly to ensure proper connection pool sizing.
+2026-01-02 12:59:45,999 - app.core.database_config - INFO - \u2705 Pool configuration validation passed
+2026-01-02 12:59:45,999 - app.database - INFO - \U0001f527 Initializing database with environment-aware pool: environment=production, pool_size=10, max_overflow=10, total_max=20
+2026-01-02 12:59:48,600 - app.services.websocket_heartbeat - INFO - WebSocket heartbeat manager initialized
+2026-01-02 12:59:48,601 - app.services.websocket_heartbeat - INFO - WebSocket heartbeat manager initialized
+2026-01-02 12:59:48,601 - app.services.websocket.connection_manager - INFO - UnifiedWebSocketConnectionManager initialized
+2026-01-02 12:59:50,016 - app.core.tracing - INFO - Distributed tracing initialized for clinica-oncologica
+2026-01-02 12:59:50,548 - app.services.unified_whatsapp_service - INFO - UnifiedWhatsAppService initialized with AsyncSession
+2026-01-02 12:59:50,549 - app.core.redis_circuit_breaker - INFO - Redis circuit breaker 'evolution_api' initialized
+2026-01-02 12:59:50,549 - app.services.unified_whatsapp_service - INFO - Circuit breaker initialized for Evolution API
+2026-01-02 12:59:50,549 - app.services.unified_whatsapp_service - INFO - Unified WhatsApp Service initialized in Queue Mode
+2026-01-02 12:59:50,552 - app.services.unified_whatsapp_service - ERROR - Queue send failed for message 6cdaf523-039a-4c79-9a3b-cce865abf9e2: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)
+2026-01-02 12:59:51,132 - app.services.unified_whatsapp_service - ERROR - Failed to mark message 6cdaf523-039a-4c79-9a3b-cce865abf9e2 as failed: Unconsumed column names: error_message, failed_at
+============================================================
+MESSAGE SENDING TEST SCRIPT
+============================================================
+
+=== TEST 1: Async Engine Creation ===
+OK Async engine created: <sqlalchemy.ext.asyncio.engine.AsyncEngine object at 0x000001DA82C4B190>
+
+=== TEST 2: Async Session Connection ===
+OK Async session connected, test query result: 1
+
+=== TEST 3: Fetch Latest Message ===
+OK Latest message fetched:
+   ID: 6cdaf523-039a-4c79-9a3b-cce865abf9e2
+   Content: Ola...
+   Status: MessageStatus.PENDING
+   Patient ID: 7a344f52-f4ef-46d6-bc38-76b1ec69e197
+
+=== TEST 4: UnifiedWhatsAppService ===
+OK Creating UnifiedWhatsAppService...
+   Service mode: queue
+   Default instance: default
+OK Calling send_message...
+WARN Message send returned False
+
+============================================================
+TEST COMPLETE
+============================================================

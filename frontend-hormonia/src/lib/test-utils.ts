@@ -6,7 +6,7 @@ import '@testing-library/jest-dom'
 import 'vitest'
 
 declare module 'vitest' {
-  // @ts-ignore
+  // @ts-ignore - Extending Vitest's Assertion interface with jest-dom matchers
   interface Assertion {
     toBeInTheDocument(): any
     toHaveClass(className: string): any

@@ -9,7 +9,7 @@
  * @module hooks/admin/useUserFilters
  */
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 
 export interface UserFilters {
   search?: string
@@ -52,12 +52,12 @@ export function useUserFilters(options: UseUserFiltersOptions = {}) {
     pageSize = 10
   } = options
 
-  // Initialize filters with defaults
-  const defaultFilters: UserFilters = {
+  // Initialize filters with defaults - memoized to prevent recreating on each render
+  const defaultFilters: UserFilters = useMemo(() => ({
     page: 1,
     size: pageSize,
     ...initialFilters
-  }
+  }), [pageSize, initialFilters])
 
   const [filters, setFilters] = useState<UserFilters>(defaultFilters)
 
@@ -95,12 +95,18 @@ export function useUserFilters(options: UseUserFiltersOptions = {}) {
     setFilters(prev => ({ ...prev, size, page: 1 }))
   }, [])
 
+  // Use ref to store defaultFilters for resetFilters callback
+  const defaultFiltersRef = useRef(defaultFilters)
+  useEffect(() => {
+    defaultFiltersRef.current = defaultFilters
+  }, [defaultFilters])
+
   /**
    * Reset filters to default state
    */
   const resetFilters = useCallback(() => {
-    setFilters(defaultFilters)
-  }, [defaultFilters])
+    setFilters(defaultFiltersRef.current)
+  }, [])
 
   /**
    * Check if any filters are active (excluding pagination)

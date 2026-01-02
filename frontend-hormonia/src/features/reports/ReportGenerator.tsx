@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -146,7 +146,7 @@ export function ReportGenerator({ open, onOpenChange, preselectedPatientId }: Re
                 <SelectValue placeholder="Selecione um paciente" />
               </SelectTrigger>
               <SelectContent>
-                {(patientsData?.items || [])?.map((patient: any) => (
+                {(patientsData?.items || [])?.map((patient: { id: string; name: string }) => (
                   <SelectItem key={patient.id} value={patient.id}>
                     <div className="flex items-center space-x-2">
                       <User className="h-4 w-4" />

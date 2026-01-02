@@ -118,7 +118,7 @@ export function usePatientImport(): UsePatientImportReturn {
         setValidating(false);
       }
     },
-    [apiClient]
+    []
   );
 
   /**
@@ -178,7 +178,7 @@ export function usePatientImport(): UsePatientImportReturn {
         setImporting(false);
       }
     },
-    [apiClient, validationResult, validateFile]
+    [validationResult, validateFile]
   );
 
   /**
@@ -207,7 +207,7 @@ export function usePatientImport(): UsePatientImportReturn {
         setUploading(false);
       }
     },
-    [apiClient]
+    []
   );
 
   /**
@@ -248,7 +248,7 @@ export function usePatientImport(): UsePatientImportReturn {
         return [];
       }
     },
-    [apiClient]
+    []
   );
 
   /**

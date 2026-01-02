@@ -16,7 +16,7 @@ import {
   ExternalLink
 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { LoadingSpinner } from './LoadingSpinner'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { toast } from '@/hooks/use-toast'
 import { createLogger } from '@/lib/logger'
 import { loadConfig } from '@/config'
@@ -125,6 +125,7 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
   useEffect(() => {
     // Auto-start service checks
     handleCheckServices()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- handleCheckServices is intentionally only called on mount
   }, [])
 
   const updateServiceStatus = (
@@ -132,7 +133,7 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
     status: Service['status'],
     responseTime?: number,
     error?: string,
-    details?: any
+    details?: Record<string, unknown>
   ) => {
     setServices(prev => prev.map(service =>
       service.id === id
@@ -270,7 +271,7 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
         configured: true,
         projectId: (config['FIREBASE_CONFIG'] as { projectId?: string }).projectId || 'N/A'
       })
-    } catch (error) {
+    } catch {
       throw new Error('Falha na validação Firebase')
     }
   }
@@ -367,7 +368,7 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
         throw new Error(`Healthcheck IA retornou status ${response.status}`)
       }
 
-      const data = await response.json() as any
+      const data = await response.json() as { status?: string; gemini_api?: { status?: string; enabled?: boolean } }
       const backendStatus = (data?.status as string | undefined) || 'unknown'
       const geminiStatus = (data?.gemini_api?.status as string | undefined) || 'unknown'
       const geminiEnabled = data?.gemini_api?.enabled === true

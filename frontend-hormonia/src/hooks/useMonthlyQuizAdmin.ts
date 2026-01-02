@@ -71,7 +71,7 @@ export function useMonthlyQuizAdmin() {
 
   // Use query to get quiz link status with caching
   const useQuizLinkStatus = (patientId: string) => {
-    return useQuery<any>({
+    return useQuery<QuizLinkStatus | null>({
       queryKey: ['monthly-quiz-status', patientId],
       queryFn: async () => {
         const list = await getQuizLinkStatus(patientId)

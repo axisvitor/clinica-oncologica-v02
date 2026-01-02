@@ -1,5 +1,5 @@
 import React, { ErrorInfo } from 'react';
-import { AlertTriangle, RefreshCw, Home, Bug } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 export interface ErrorFallbackProps {

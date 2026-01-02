@@ -19,7 +19,7 @@ import {
   EyeOff
 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { LoadingSpinner } from './LoadingSpinner'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { toast } from '@/hooks/use-toast'
 import { createLogger } from '@/lib/logger'
 import { useForm } from 'react-hook-form'
@@ -146,7 +146,7 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
       ? ['name', 'email', 'phone']
       : ['crm', 'specialization', 'role']
 
-    const isStepValid = await trigger(fieldsToValidate as any)
+    const isStepValid = await trigger(fieldsToValidate as (keyof UserSetupForm)[])
     if (isStepValid) {
       setStep(step + 1)
     }
@@ -315,7 +315,7 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
                               ? 'border-blue-500 bg-blue-50'
                               : 'hover:border-gray-400'
                             }`}
-                          onClick={() => setValue('role', role.value as any)}
+                          onClick={() => setValue('role', role.value as UserSetupForm['role'])}
                         >
                           <CardContent className="pt-4">
                             <div className="flex items-center space-x-2 mb-2">

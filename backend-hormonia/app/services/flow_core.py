@@ -16,7 +16,7 @@ from app.domain.messaging.core import MessageTemplate
 
 from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
-from app.domain.flows.events import flow_event_broadcaster
+from app.services.flow.event_broadcaster import flow_event_broadcaster
 
 logger = logging.getLogger(__name__)
 
@@ -551,15 +551,12 @@ class FlowCore:
         self, flow_type: FlowType, day: int
     ) -> Optional[MessageTemplate]:
         """
-        Get message template for specific flow type and day with comprehensive error handling.
-
-        Args:
-            flow_type: Type of flow
-            day: Day number in the flow
-
-        Returns:
-            MessageTemplate or None if all fallbacks fail
+        Get message template for specific flow type and day.
+        
+        DEPRECATED: Use SequentialMessageHandler.send_day_messages instead.
+        This method relies on the old single-message structure.
         """
+        logger.warning("get_message_template_for_day is deprecated. Use SequentialMessageHandler.")
         try:
             # Load flow template with proper error handling
             from app.services.template_loader import TemplateLoadError, FlowTemplateData

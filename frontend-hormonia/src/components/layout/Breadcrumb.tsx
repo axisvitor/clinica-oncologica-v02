@@ -65,7 +65,7 @@ export function Breadcrumb({
   maxItems = 4
 }: BreadcrumbProps) {
   const location = useLocation();
-  const params = useParams();
+  const _params = useParams(); // Used for dynamic route detection, prefixed with _ to mark intentionally unused
 
   // Generate breadcrumb items from URL path if not provided
   const breadcrumbItems = React.useMemo(() => {
@@ -121,7 +121,7 @@ export function Breadcrumb({
     }
 
     return generatedItems;
-  }, [location.pathname, params, items, showIcons, maxItems]);
+  }, [location.pathname, items, showIcons, maxItems]);
 
   if (breadcrumbItems.length === 0 && !showHome) return null;
 

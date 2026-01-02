@@ -9,6 +9,7 @@ Row Level Security policies.
 from sqlalchemy import event, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.pool import QueuePool
 from sqlalchemy.exc import OperationalError
 from typing import Generator, Optional, Dict, Any
@@ -28,6 +29,10 @@ logger = logging.getLogger(__name__)
 # Database engine configurations for different RLS modes
 _engines = {}
 _session_factories = {}
+
+# Async engine (lazy initialized)
+_async_engine = None
+_async_session_factory = None
 
 
 class RLSConnectionManager:
@@ -487,6 +492,88 @@ def is_pool_healthy(use_service_role: bool = True) -> bool:
         )
     except Exception:
         return False
+
+
+# ==============================================================================
+# ASYNC DATABASE SUPPORT
+# ==============================================================================
+
+
+def get_async_engine():
+    """
+    Get or create an AsyncEngine for async database operations.
+
+    Lazily initializes the async engine on first call.
+    Uses the same DATABASE_URL but with asyncpg driver.
+
+    Returns:
+        AsyncEngine instance
+    """
+    global _async_engine
+
+    if _async_engine is None:
+        # Convert sync URL to async URL (asyncpg driver)
+        sync_url = settings.DATABASE_URL
+        # Handle different PostgreSQL driver formats
+        async_url = sync_url.replace(
+            "postgresql+psycopg://", "postgresql+asyncpg://"
+        ).replace(
+            "postgresql+psycopg2://", "postgresql+asyncpg://"
+        ).replace(
+            "postgresql://", "postgresql+asyncpg://"
+        )
+        
+        # Check if sslmode is in URL and configure SSL accordingly
+        # asyncpg doesn't accept sslmode as query param - needs ssl=True in connect_args
+        import ssl as ssl_module
+        connect_args = {}
+        
+        if "sslmode=require" in async_url or "sslmode=verify" in async_url:
+            # Remove sslmode from URL for asyncpg
+            async_url = async_url.replace("?sslmode=require", "")
+            async_url = async_url.replace("&sslmode=require", "")
+            async_url = async_url.replace("?sslmode=verify-ca", "")
+            async_url = async_url.replace("?sslmode=verify-full", "")
+            # Use SSL with no verification (similar to sslmode=require)
+            ssl_context = ssl_module.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl_module.CERT_NONE
+            connect_args["ssl"] = ssl_context
+
+        logger.info(f"Initializing AsyncEngine for background tasks (SSL: {'enabled' if connect_args.get('ssl') else 'disabled'})")
+
+        _async_engine = create_async_engine(
+            async_url,
+            pool_size=10,  # Smaller pool for async background tasks
+            max_overflow=5,
+            pool_pre_ping=True,
+            pool_recycle=1800,
+            echo=settings.APP_ENABLE_DEBUG,
+            connect_args=connect_args,
+        )
+
+    return _async_engine
+
+
+def get_async_session_factory():
+    """
+    Get or create an async session factory.
+
+    Returns:
+        async_sessionmaker bound to the async engine
+    """
+    global _async_session_factory
+
+    if _async_session_factory is None:
+        engine = get_async_engine()
+        _async_session_factory = async_sessionmaker(
+            engine,
+            class_=AsyncSession,
+            expire_on_commit=False,
+            autoflush=False,
+        )
+
+    return _async_session_factory
 
 
 class RLSError(Exception):

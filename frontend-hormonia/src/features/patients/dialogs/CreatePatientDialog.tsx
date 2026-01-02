@@ -42,20 +42,25 @@ export function CreatePatientDialog({ open, onOpenChange }: CreatePatientDialogP
     isAdminUser ? '' : userId
   )
 
-  // Fetch doctor list for admins
+  // Fetch doctor list for admins (filter locally to avoid backend role filter issues)
   const { data: doctorList = [], isLoading: isLoadingDoctors } = useQuery<DoctorUser[]>({
     queryKey: ['admin-doctors', isAdminUser],
     queryFn: async () => {
-      const response = await apiClient.adminUsers.list({ size: 100, role: 'doctor' })
+      const response = await apiClient.adminUsers.list({ size: 100 })
+      const responseRecord = response as { items?: unknown[]; data?: unknown[]; role?: string }
       const rawList = Array.isArray(response)
         ? response
-        : Array.isArray((response as any)?.items)
-          ? (response as any).items
-          : Array.isArray((response as any)?.data)
-            ? (response as any).data
+        : Array.isArray(responseRecord?.items)
+          ? responseRecord.items
+          : Array.isArray(responseRecord?.data)
+            ? responseRecord.data
             : []
-      return rawList.filter((doctor: unknown): doctor is DoctorUser =>
-        typeof doctor === 'object' && doctor !== null && 'id' in doctor && typeof doctor.id === 'string'
+      // Return all users without role filtering
+      return rawList.filter((user: unknown): user is DoctorUser =>
+        typeof user === 'object' &&
+        user !== null &&
+        'id' in user &&
+        typeof (user as DoctorUser).id === 'string'
       )
     },
     enabled: isAdminUser
@@ -94,7 +99,7 @@ export function CreatePatientDialog({ open, onOpenChange }: CreatePatientDialogP
   }
 
   // Validation before submit
-  const handleSubmitWrapper = (data: any) => {
+  const handleSubmitWrapper = (data: Record<string, unknown>) => {
     if (isAdminUser && requiresDoctorSelection && !selectedDoctorId) {
       toast({
         title: 'Selecione o médico responsável',
@@ -118,7 +123,14 @@ export function CreatePatientDialog({ open, onOpenChange }: CreatePatientDialogP
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[600px]" onOpenAutoFocus={(e) => {
+        // Prevent default focus to avoid conflicts with Select trigger and aria-hidden
+        e.preventDefault()
+        // Wait a tick to ensure aria-hidden is cleared by Radix before focusing
+        setTimeout(() => {
+          document.getElementById('name')?.focus()
+        }, 50)
+      }}>
         <DialogHeader>
           <DialogTitle>Novo Paciente</DialogTitle>
           <DialogDescription>

@@ -1,9 +1,8 @@
 import React, { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Eye, EyeOff, AlertCircle, Check } from 'lucide-react'
+import { Eye, EyeOff, Check } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
 import { AdminUser } from '@/types/admin'
-import { UserRole } from '@/types/shared'
 import {
   Dialog,
   DialogContent,
@@ -19,7 +18,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useToast } from '@/components/ui/use-toast'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 
@@ -174,7 +172,7 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
     const fullName = form['full_name']
     const password = form['password']
     const role = form['role']
-    const notes = form.notes
+    const _notes = form.notes
 
     const userData = {
       email: typeof email === 'string' ? email.trim() : '',

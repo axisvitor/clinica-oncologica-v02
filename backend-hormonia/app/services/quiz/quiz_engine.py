@@ -21,7 +21,6 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Local application imports
-from app.core.exceptions import NotFoundError, ValidationError
 from app.models.quiz import QuizResponse, QuizSession, QuizTemplate
 from app.repositories.quiz import QuizResponseRepository, QuizSessionRepository
 from app.schemas.quiz import QuizQuestion, QuestionType

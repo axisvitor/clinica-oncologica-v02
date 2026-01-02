@@ -11,7 +11,7 @@
 
 import React, { memo, Suspense } from 'react'
 import { BrowserRouter } from 'react-router-dom'
-import { ErrorBoundary } from '@/components/common/ErrorBoundary'
+import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { OptimizedQueryProvider } from '@/app/providers/OptimizedQueryProvider'
 import { AuthProvider } from '@/app/providers/AuthContext'
 import { Toaster } from '@/components/ui/toaster'

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, UTC, timezone
+from datetime import datetime, UTC
 from typing import Dict
 from uuid import UUID
 

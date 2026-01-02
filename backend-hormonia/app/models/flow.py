@@ -17,10 +17,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-import enum
 
 from app.models.base import BaseModel
-from app.models.enums import FlowState  # Consolidated enum
 
 # Re-export for backward compatibility
 # FlowState is now defined in app.models.enums

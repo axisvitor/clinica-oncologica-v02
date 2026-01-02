@@ -8,7 +8,7 @@ infrastructure context data.
 import logging
 from typing import Dict, Any, List, Optional, TYPE_CHECKING
 from uuid import UUID, uuid4
-from datetime import datetime, timezone
+from datetime import datetime
 
 if TYPE_CHECKING:
     from .rule_engine import RuleEngine

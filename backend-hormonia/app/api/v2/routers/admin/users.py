@@ -62,18 +62,20 @@ logger = logging.getLogger(__name__)
 @router.get(
     "/users",
     response_model=UserListResponse,
-    summary="List Users with Cursor Pagination",
-    description="Retrieve paginated list of users with cursor-based pagination, field selection, and eager loading.",
+    summary="List Users with Pagination",
+    description="Retrieve paginated list of users with cursor-based or offset-based pagination, field selection, and eager loading.",
 )
 @limiter.limit("100/minute")
-@cache_response(ttl=300, key_prefix="admin:users:list")  # Cache for 5 minutes
 async def list_users(
     request: Request,
+    # Cursor-based pagination
     cursor: Optional[str] = Query(None, description="Pagination cursor"),
-    limit: int = Query(20, ge=1, le=100, description="Items per page"),
-    fields: Optional[str] = Query(
-        None, description="Comma-separated fields to include"
-    ),
+    limit: int = Query(20, ge=1, le=100, description="Items per page (used with cursor)"),
+    # Offset-based pagination (for backwards compatibility)
+    page: int = Query(1, ge=1, description="Page number"),
+    size: int = Query(20, ge=1, le=100, description="Page size"),
+    # Filters
+    fields: Optional[str] = Query(None, description="Comma-separated fields to include"),
     role: Optional[str] = Query(None, description="Filter by role"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     search: Optional[str] = Query(None, description="Search in email and full_name"),
@@ -82,19 +84,19 @@ async def list_users(
     context: RequestContext = Depends(get_request_context),
 ):
     """
-    List all users with cursor pagination and filters.
+    List all users with pagination and filters.
 
     Features:
     - Cursor-based pagination (efficient for large datasets)
+    - Offset-based pagination (page/size) for backwards compatibility
     - Field selection (?fields=id,email,role)
     - Role and status filters
     - Search by email or name
-    - Redis caching (5 min TTL)
     """
     try:
-        # Parse pagination params
-        pagination = get_pagination_params(cursor, limit)
-        cursor_data = pagination["cursor_data"]
+        # Determine pagination mode
+        use_cursor = cursor is not None
+        effective_limit = limit if use_cursor else size
 
         # Parse field selection
         field_list = get_field_selection(fields) if fields else None
@@ -102,9 +104,12 @@ async def list_users(
         # Build base query
         query = db.query(User)
 
-        # Apply cursor pagination
-        if cursor_data:
-            query = query.filter(User.id > cursor_data.get("id", 0))
+        # Apply cursor pagination if using cursor mode
+        if use_cursor:
+            pagination = get_pagination_params(cursor, effective_limit)
+            cursor_data = pagination.get("cursor_data")
+            if cursor_data:
+                query = query.filter(User.id > cursor_data.get("id", 0))
 
         # Apply filters
         if role:
@@ -129,51 +134,70 @@ async def list_users(
                 )
             )
 
-        # Order by ID for consistent cursor pagination
+        # Order by ID for consistent pagination
         query = query.order_by(User.id)
 
+        # Get total count for offset-based pagination
+        total = None
+        if not use_cursor:
+            total = query.count()
+            # Apply offset
+            offset = (page - 1) * size
+            query = query.offset(offset)
+
         # Fetch limit + 1 to check if there's more
-        users = query.limit(limit + 1).all()
+        users = query.limit(effective_limit + 1).all()
 
         # Check if there are more results
-        has_more = len(users) > limit
+        has_more = len(users) > effective_limit
         if has_more:
-            users = users[:limit]
+            users = users[:effective_limit]
 
-        # Create next cursor
+        # Create next cursor (only for cursor-based pagination)
         next_cursor = None
-        if has_more and users:
+        if use_cursor and has_more and users:
             next_cursor = create_cursor(users[-1].id)
 
         # Serialize users
         serialized_users = [_serialize_user(user, field_list) for user in users]
 
-        # Log action
-        await _log_admin_action(
-            db,
-            "list_users",
-            admin_user,
-            context,
-            additional_data={
-                "count": len(users),
-                "filters": {"role": role, "is_active": is_active, "search": search},
-            },
-        )
+        try:
+            # Log action
+            await _log_admin_action(
+                db,
+                "list_users",
+                admin_user,
+                context,
+                additional_data={
+                    "count": len(users),
+                    "filters": {"role": role, "is_active": is_active, "search": search},
+                },
+            )
+        except Exception as e:
+            logger.error(f"FAILED TO LOG ACTION: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            # Don't fail the request just because logging failed
+            pass
 
         return {
             "data": serialized_users,
             "next_cursor": next_cursor,
             "has_more": has_more,
-            "total": None,  # Cursor pagination doesn't include total for performance
+            "total": total,
         }
 
     except HTTPException:
         raise
+
+
     except Exception as e:
+        import traceback
         logger.error(f"Error listing users: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error retrieving user list",
+            detail=f"Error retrieving user list: {str(e)}",
         )
 
 

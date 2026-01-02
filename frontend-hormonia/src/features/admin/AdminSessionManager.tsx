@@ -28,7 +28,7 @@ const SESSION_REFRESH_INTERVAL = 60 * 1000 // Check every minute
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000 // 30 minutes of inactivity
 
 export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ className }) => {
-  const { user, isAuthenticated, logout } = useAuth()
+  const { isAuthenticated, logout } = useAuth()
   const [sessionWarning, setSessionWarning] = useState<SessionWarning | null>(null)
   const [lastActivity, setLastActivity] = useState<Date>(new Date())
   const [isExtending, setIsExtending] = useState(false)
@@ -60,7 +60,7 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
       // Firebase automatically refreshes tokens, just reset activity tracking
       setSessionWarning(null)
       updateActivity()
-    } catch (error) {
+    } catch {
       setSessionWarning({
         type: 'expired',
         message: 'Session extension failed. Please login again.',

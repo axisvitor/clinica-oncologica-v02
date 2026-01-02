@@ -379,6 +379,22 @@ class UnifiedEncryptionService(BaseEncryptionService):
         return self._phone_encryptor.decrypt(encrypted_phone)
 
     # =========================================================================
+    # HASH METHODS (for searchable lookup)
+    # =========================================================================
+
+    def hash_cpf(self, cpf: Optional[str]) -> Optional[str]:
+        """Generate searchable hash for CPF."""
+        return SearchableHash.hash_cpf(cpf)
+
+    def hash_email(self, email: Optional[str]) -> Optional[str]:
+        """Generate searchable hash for email."""
+        return SearchableHash.hash_email(email)
+
+    def hash_phone(self, phone: Optional[str]) -> Optional[str]:
+        """Generate searchable hash for phone."""
+        return SearchableHash.hash_phone(phone)
+
+    # =========================================================================
     # PATIENT DATA ENCRYPTION
     # =========================================================================
 

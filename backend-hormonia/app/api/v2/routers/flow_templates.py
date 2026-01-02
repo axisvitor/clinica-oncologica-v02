@@ -19,12 +19,11 @@ from app.schemas.v2.templates import (
     FlowKindV2List,
     FlowKindV2Create,
 )
-from app.dependencies.auth_dependencies import get_redis_cache
+from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.api.v2.dependencies import apply_field_selection
 from app.utils.rate_limiter import limiter
 
 from app.api.v2.templates_shared import (
-    _get_current_user_simple,
     _extract_user_context,
     _check_write_permission,
     _get_cache_key,
@@ -56,8 +55,7 @@ async def list_flow_templates(
     fields: Optional[str] = Query(None),
     include: Optional[str] = Query(None),
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
-    redis_cache=Depends(get_redis_cache),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
         cache_key = _get_cache_key(
@@ -146,7 +144,7 @@ async def get_flow_template(
     template_id: UUID,
     include: Optional[str] = Query(None),
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
         cache_key = _get_cache_key(
@@ -184,7 +182,7 @@ async def create_flow_template(
     request: Request,
     template: FlowTemplateV2Create,
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
         _check_write_permission(current_user)
@@ -234,7 +232,7 @@ async def create_flow_template(
             template_name=template.template_name or template.display_name,
             description=template.description,
             messages=template.steps,
-            template_metadata=template.metadata or {},
+            metadata_json=template.metadata or {},
             is_active=template.is_active if template.is_active is not None else False,
             is_draft=template.is_draft if template.is_draft is not None else True,
             published_at=None if template.is_draft else datetime.now(timezone.utc),
@@ -284,7 +282,7 @@ async def update_flow_template(
     template_id: UUID,
     updates: FlowTemplateV2Update,
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
         _check_write_permission(current_user)
@@ -303,7 +301,7 @@ async def update_flow_template(
         if updates.steps is not None:
             template.messages = updates.steps
         if updates.metadata is not None:
-            template.template_metadata = updates.metadata
+            template.metadata_json = updates.metadata
         if updates.is_active is not None:
             template.is_active = updates.is_active
         if updates.is_draft is not None:
@@ -358,7 +356,7 @@ async def delete_flow_template(
     template_id: UUID,
     soft_delete: bool = Query(True),
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
         _check_write_permission(current_user)
@@ -415,7 +413,7 @@ async def duplicate_flow_template(
     template_id: UUID,
     duplicate_data: FlowTemplateV2Duplicate,
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
         _check_write_permission(current_user)
@@ -446,8 +444,8 @@ async def duplicate_flow_template(
             or f"{source.template_name} (Copy)",
             description=duplicate_data.description or source.description,
             messages=source.messages,
-            template_metadata=source.template_metadata.copy()
-            if source.template_metadata
+            metadata_json=source.metadata_json.copy()
+            if source.metadata_json
             else {},
             is_active=False,
             is_draft=True,
@@ -495,7 +493,7 @@ async def list_flow_kinds(
     request: Request,
     is_active: Optional[bool] = Query(None),
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
         cache_key = _get_cache_key("flow_kinds", is_active=is_active)
@@ -529,7 +527,7 @@ async def create_flow_kind(
     request: Request,
     kind_data: FlowKindV2Create,
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
         _check_write_permission(current_user)

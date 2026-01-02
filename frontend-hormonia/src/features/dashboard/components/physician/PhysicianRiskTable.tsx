@@ -6,14 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { RiskBadge } from '@/features/patients/components/RiskBadge'
 
-interface PatientRiskData {
-  patient_id: string
-  patient_name: string
-  risk_level: 'low' | 'medium' | 'high' | 'critical'
-  risk_score: number
-  recent_alerts: any[]
-  assessment_date: string
-}
+import type { PatientRiskAssessment } from '@/types/api-wave2'
+
+type PatientRiskData = PatientRiskAssessment
 
 interface PhysicianRiskTableProps {
   patients: PatientRiskData[]

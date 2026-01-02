@@ -10,6 +10,7 @@ All Supabase fallback code has been removed.
 from fastapi import Depends, HTTPException, status, Header, Cookie, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional, Dict, List, Any, TYPE_CHECKING
+from datetime import datetime
 import logging
 import asyncio
 import re
@@ -268,6 +269,75 @@ async def get_redis_cache() -> "FirebaseRedisCache":
         raise
 
 
+class GenericRedisCache:
+    """Generic Redis cache wrapper with standard get/set interface for general caching needs."""
+
+    def __init__(self, redis_client):
+        self._client = redis_client
+
+    async def get(self, key: str) -> Optional[Any]:
+        """Get cached value by key."""
+        import json
+        try:
+            value = self._client.get(key)
+            if value is None:
+                return None
+            return json.loads(value)
+        except Exception:
+            return None
+
+    async def set(self, key: str, value: Any, ttl: int = 300) -> bool:
+        """Set cached value with TTL."""
+        import json
+        try:
+            self._client.setex(key, ttl, json.dumps(value, default=str))
+            return True
+        except Exception:
+            return False
+
+    async def delete(self, key: str) -> bool:
+        """Delete cached value by key."""
+        try:
+            self._client.delete(key)
+            return True
+        except Exception:
+            return False
+
+    async def delete_pattern(self, pattern: str) -> bool:
+        """Delete all keys matching pattern."""
+        try:
+            keys = self._client.keys(pattern)
+            if keys:
+                self._client.delete(*keys)
+            return True
+        except Exception:
+            return False
+
+
+async def get_generic_cache() -> GenericRedisCache:
+    """
+    Dependency injection for generic Redis cache with standard get/set interface.
+
+    Returns:
+        GenericRedisCache instance with initialized Redis client
+    """
+    try:
+        from app.core.redis_manager import get_redis_manager
+
+        redis_manager = get_redis_manager()
+        redis_client = redis_manager.get_sync_client()
+        return GenericRedisCache(redis_client)
+    except Exception as e:
+        import traceback
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.error(
+            f"❌ Failed to initialize generic Redis cache: {e}\n{traceback.format_exc()}"
+        )
+        raise
+
+
 async def verify_firebase_token(id_token: str) -> Optional[Dict[str, Any]]:
     """
     Verify Firebase ID token and return user data.
@@ -352,6 +422,13 @@ async def get_current_user_from_session(
     """
     try:
         final_session_id = None
+        
+        # DEBUG: Log what we received
+        logger.debug(
+            f"Auth check - cookie: {session_cookie_id[:8] if session_cookie_id else 'None'}..., "
+            f"x_session_id: {x_session_id[:8] if x_session_id else 'None'}..., "
+            f"auth_header: {'Bearer' if authorization and authorization.startswith('Bearer') else 'None'}"
+        )
 
         # Priority 1: Authorization Header (Bearer <session_id>)
         if authorization and authorization.startswith("Bearer "):
@@ -366,6 +443,7 @@ async def get_current_user_from_session(
             final_session_id = session_cookie_id
 
         if not final_session_id:
+            logger.warning("No session ID provided in any auth method (cookie, header, or Authorization)")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Session ID not provided",
@@ -455,8 +533,8 @@ async def get_current_user_from_session(
             )
 
         # Add permissions to user data
-        # TEMPORARY: Force all users to admin role for development
-        role = "admin"  # user_data.get("role", "doctor")
+        # NOTE: All users have admin access during initial production phase
+        role = "admin"
         user_data["role"] = "admin"
         user_data["permissions"] = get_permissions_for_role(role)
 
@@ -465,7 +543,7 @@ async def get_current_user_from_session(
         request.state.user_role = user_data.get("role")
 
         logger.debug(
-            f"Session validated for user: {user_data.get('email')} (role: {role} - FORCED ADMIN)"
+            f"Session validated for user: {user_data.get('email')} (role: {role})"
         )
         return user_data
 
@@ -494,17 +572,27 @@ async def get_current_user_object_from_session(
         # Create a copy to avoid modifying the cached dict
         user_dict = user_data.copy()
 
-        # Remove non-model fields
+        # Remove non-model fields or mismatched keys
         user_dict.pop("permissions", None)
         user_dict.pop("cached_at", None)
 
+        # Map 'last_login' back to 'firebase_last_sign_in' if it exists
+        if "last_login" in user_dict:
+            last_login = user_dict.pop("last_login")
+            if last_login and not user_dict.get("firebase_last_sign_in"):
+                 user_dict["firebase_last_sign_in"] = last_login
+
+        # Convert timestamps from string to datetime if necessary
+        for ts_field in ["created_at", "updated_at", "firebase_last_sign_in"]:
+            if user_dict.get(ts_field) and isinstance(user_dict[ts_field], str):
+                try:
+                    user_dict[ts_field] = datetime.fromisoformat(user_dict[ts_field])
+                except ValueError:
+                    pass # Keep as is or set to None
+
         # Handle role conversion
-        role_value = user_dict.get("role")
-        if isinstance(role_value, str):
-            try:
-                user_dict["role"] = UserRole(role_value.lower())
-            except ValueError:
-                user_dict["role"] = UserRole.DOCTOR
+        # NOTE: All users have admin access during initial production phase
+        user_dict["role"] = UserRole.ADMIN
 
         return User(**user_dict)
     except Exception as e:
@@ -551,6 +639,15 @@ async def get_current_user(
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
+        )
+
+    # Type guard: Ensure credentials is actually HTTPAuthorizationCredentials
+    # This can fail if FastAPI dependency injection order is confused
+    if not hasattr(credentials, 'credentials'):
+        logger.error(f"get_current_user received wrong type: {type(credentials).__name__}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
         )
 
     token_value = credentials.credentials

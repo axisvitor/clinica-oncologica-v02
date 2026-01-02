@@ -4,10 +4,8 @@ import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
   Search,
-  Filter,
   Download,
   RefreshCw,
-  Calendar,
   User,
   Shield,
   AlertTriangle,
@@ -16,22 +14,20 @@ import {
   XCircle,
   Eye,
   FileText,
-  Clock,
-  ExternalLink
 } from 'lucide-react'
-import { apiClient } from '@/lib/api-client'
+// import { apiClient } from '@/lib/api-client' // Unused - using mock data
 import { AuditLogEntry } from '@/types/admin'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { DateRangePicker } from '@/components/ui/date-range-picker'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+// import { DateRangePicker } from '@/components/ui/date-range-picker' // Unused currently
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Pagination } from '@/components/ui/pagination'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { PermissionGuard } from './PermissionGuard'
-import { FixedSizeList } from 'react-window'
+import { FixedSizeList, ListChildComponentProps } from 'react-window'
 import AutoSizer from 'react-virtualized-auto-sizer'
 import { cn } from '@/lib/utils'
 
@@ -137,8 +133,18 @@ const getActionDescription = (log: AuditLogEntry) => {
   }
 }
 
-const AuditLogRow = memo(({ style, index, items, compact, gridCols }: any) => {
+interface AuditLogItemData {
+  items: AuditLogEntry[];
+  compact: boolean;
+  gridCols: string;
+}
+
+const AuditLogRow = memo(({ style, index, data }: ListChildComponentProps<AuditLogItemData>) => {
+  const { items, compact, gridCols } = data
   const log = items[index]
+
+  // Early return if log is undefined (shouldn't happen but satisfies TypeScript)
+  if (!log) return null
 
   return (
     <div
@@ -192,8 +198,16 @@ const AuditLogRow = memo(({ style, index, items, compact, gridCols }: any) => {
   )
 })
 
-const AuditLogTimelineItem = memo(({ style, index, items }: any) => {
+interface AuditLogTimelineItemData {
+  items: AuditLogEntry[];
+}
+
+const AuditLogTimelineItem = memo(({ style, index, data }: ListChildComponentProps<AuditLogTimelineItemData>) => {
+  const { items } = data
   const log = items[index]
+
+  // Early return if log is undefined
+  if (!log) return null
 
   return (
     <div style={style} className="px-4 py-2">
@@ -258,7 +272,6 @@ export function AuditLogViewer({
   const {
     data: auditLogs,
     isLoading,
-    error,
     refetch
   } = useQuery({
     queryKey: ['audit-logs', filters],
@@ -605,7 +618,7 @@ export function AuditLogViewer({
                           itemSize={compact ? 50 : 60}
                           itemData={itemData}
                         >
-                          {AuditLogRow as any}
+                          {AuditLogRow}
                         </FixedSizeList>
                       )}
                    </AutoSizer>
@@ -622,7 +635,7 @@ export function AuditLogViewer({
                         itemSize={120}
                         itemData={itemData}
                       >
-                        {AuditLogTimelineItem as any}
+                        {AuditLogTimelineItem}
                       </FixedSizeList>
                     )}
                   </AutoSizer>

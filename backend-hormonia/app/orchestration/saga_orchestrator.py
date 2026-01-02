@@ -12,12 +12,11 @@ from app.models.patient import Patient
 from app.models.flow import PatientFlowState
 from app.models.patient_onboarding_saga import PatientOnboardingSaga
 from app.models.enums import SagaStatus
-from app.models.message import Message, MessageType, MessageStatus
+from app.models.message import Message, MessageType
 from app.models.template import MessageTemplate
 from app.schemas.patient import PatientCreate
 from app.repositories.patient import PatientRepository
 from app.services.patient.flow_service import PatientFlowService
-from app.services.unified_whatsapp_service import UnifiedWhatsAppService
 from app.domain.messaging.core import MessageService
 from app.core.redis_client import get_redis_client
 from app.core.distributed_lock import acquire_lock, LockAcquisitionError
@@ -71,8 +70,9 @@ class SagaOrchestrator:
         # Services
         self.patient_repo = PatientRepository(db)
         self.flow_service = PatientFlowService(db)
-        self.whatsapp_service = UnifiedWhatsAppService(db)
         self.message_service = MessageService(db)
+        # NOTE: WhatsApp service removed - messages are now sent via Celery tasks
+        # to avoid blocking the saga (see _step_send_welcome_message)
 
     async def execute_patient_onboarding_saga(
         self,
@@ -417,7 +417,17 @@ class SagaOrchestrator:
     async def _step_send_welcome_message(
         self, saga: PatientOnboardingSaga, patient: Patient
     ):
-        """Step 3/4: Send Welcome Message"""
+        """
+        Step 3/4: Schedule Welcome Message (NON-BLOCKING).
+
+        PERFORMANCE FIX: Instead of calling WhatsApp service directly (which was
+        blocking and failing due to AsyncSession mismatch), we now:
+        1. Create the message record in the database
+        2. Schedule a Celery task to send it asynchronously
+
+        This reduces patient creation time from ~8s to <2s by making the WhatsApp
+        send truly asynchronous via Celery background worker.
+        """
         try:
             # Try to load from template
             template = (
@@ -456,67 +466,39 @@ class SagaOrchestrator:
                 message_metadata={"message_type": "welcome", "saga_id": str(saga.id)},
             )
 
-            # Send via Unified Service (usa paciente do relacionamento lazy)
-            success = False
-            send_error = None
+            # PERFORMANCE FIX: Schedule Celery task to send message asynchronously
+            # instead of blocking the saga with direct WhatsApp API call.
+            # This prevents the ~5-7s delay caused by:
+            # 1. AsyncSession mismatch (UnifiedWhatsAppService expects AsyncSession)
+            # 2. Circuit breaker checks and connection setup
+            # 3. Potential API timeouts
+            #
+            # The message is already in PENDING status from schedule_message(),
+            # and the Celery task will handle sending and retries.
             try:
-                success = await self.whatsapp_service.send_message(message)
-            except Exception as send_exc:
-                send_error = send_exc
+                from app.tasks.messaging import send_scheduled_message
+
+                # Schedule task with small delay to ensure DB commit happens first
+                send_scheduled_message.apply_async(
+                    args=[str(message.id)],
+                    countdown=2,  # 2 second delay to ensure transaction commits
+                )
+                logger.info(
+                    f"Saga {saga.id}: Welcome message {message.id} scheduled for async send",
+                    extra={"patient_id": str(patient.id), "message_id": str(message.id)},
+                )
+            except Exception as task_exc:
+                # If Celery scheduling fails, message stays in PENDING status
+                # and retry_pending_welcome_messages task will pick it up later
                 logger.warning(
-                    f"Saga {saga.id}: Welcome message send failed (non-fatal): {type(send_exc).__name__}",
+                    f"Saga {saga.id}: Failed to schedule Celery task for welcome message: {type(task_exc).__name__}",
                     exc_info=True,
                 )
 
-            if success:
-                try:
-                    self.message_service.mark_as_sent(message.id, "queued")
-                except Exception as mark_exc:
-                    logger.warning(
-                        f"Saga {saga.id}: Failed to mark welcome message as sent: {type(mark_exc).__name__}",
-                        exc_info=True,
-                    )
-            else:
-                try:
-                    # Keep welcome message in PENDING so retry_pending_welcome_messages can pick it up
-                    message.status = MessageStatus.PENDING
-                    message.message_metadata = {
-                        **(message.message_metadata or {}),
-                        "welcome_send_failed": True,
-                        "welcome_send_error_type": type(send_error).__name__
-                        if send_error
-                        else None,
-                        "welcome_send_failed_at": datetime.now(timezone.utc).isoformat(),
-                    }
-
-                    # BUG FIX 4: Add error handling for flush operation
-                    try:
-                        # Use flush() instead of commit() - persist to DB but don't commit transaction
-                        self.db.flush()
-                    except Exception as flush_error:
-                        logger.warning(
-                            f"Saga {saga.id}: Flush failed updating message metadata: {flush_error}",
-                            exc_info=True
-                        )
-                        # Don't fail the step - message metadata is non-critical
-                except Exception as update_exc:
-                    logger.warning(
-                        f"Saga {saga.id}: Failed to keep welcome message pending: {type(update_exc).__name__}",
-                        exc_info=True,
-                    )
-
-            # Update Saga (welcome sending is best-effort; do not fail onboarding)
+            # Update Saga (message scheduling is best-effort; do not fail onboarding)
             saga.current_step = 4  # Mapped to STEP_4_MESSAGE_SENT
             saga.status = SagaStatus.STEP_4_MESSAGE_SENT
-            if success:
-                saga.add_log_entry(4, "send_message", "success")
-            else:
-                saga.add_log_entry(
-                    4,
-                    "send_message",
-                    "failed_nonfatal",
-                    str(send_error) if send_error else "send_message returned False",
-                )
+            saga.add_log_entry(4, "send_message", "scheduled_async")
 
             # BUG FIX 4: Add error handling for flush operation
             try:
@@ -527,7 +509,7 @@ class SagaOrchestrator:
                     f"Saga {saga.id}: Flush failed in send_welcome_message step: {flush_error}",
                     exc_info=True
                 )
-                # Don't fail the step - message sending is already non-fatal
+                # Don't fail the step - message scheduling is already non-fatal
 
         except Exception as e:
             logger.error(f"Step 3 (Message) failed: {type(e).__name__}", exc_info=True)

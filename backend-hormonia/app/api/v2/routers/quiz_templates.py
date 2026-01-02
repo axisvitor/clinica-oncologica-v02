@@ -19,9 +19,9 @@ from app.schemas.v2.templates import (
 )
 from app.api.v2.dependencies import apply_field_selection
 from app.utils.rate_limiter import limiter
+from app.dependencies.auth_dependencies import get_current_user_from_session
 
 from app.api.v2.templates_shared import (
-    _get_current_user_simple,
     _extract_user_context,
     _check_write_permission,
     _get_cache_key,
@@ -47,12 +47,12 @@ def _serialize_quiz_template(template) -> dict:
         "questions": template.questions,
         "is_active": template.is_active,
         "category": template.category,
-        "tags": template.tags,
+        "tags": template.tags or [],
         "passing_score": template.passing_score,
         "time_limit_minutes": template.time_limit_minutes,
         "randomize_questions": template.randomize_questions,
-        "created_at": template.created_at,
-        "updated_at": template.updated_at,
+        "created_at": template.created_at.isoformat() if template.created_at else None,
+        "updated_at": template.updated_at.isoformat() if template.updated_at else None,
     }
 
 
@@ -66,7 +66,7 @@ async def list_quiz_templates(
     category: Optional[str] = Query(None),
     fields: Optional[str] = Query(None),
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
         cache_key = _get_cache_key(
@@ -143,7 +143,7 @@ async def get_quiz_template(
     request: Request,
     template_id: UUID,
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
         query = db.query(QuizTemplate).filter(QuizTemplate.id == template_id)
@@ -164,7 +164,7 @@ async def create_quiz_template(
     request: Request,
     template: QuizTemplateV2Create,
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
         _check_write_permission(current_user)
@@ -219,7 +219,7 @@ async def update_quiz_template(
     template_id: UUID,
     updates: QuizTemplateV2Update,
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
         _check_write_permission(current_user)
@@ -287,7 +287,7 @@ async def delete_quiz_template(
     request: Request,
     template_id: UUID,
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
         _check_write_permission(current_user)
@@ -329,7 +329,7 @@ async def duplicate_quiz_template(
     template_id: UUID,
     duplicate_data: QuizTemplateV2Duplicate,
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
         _check_write_permission(current_user)

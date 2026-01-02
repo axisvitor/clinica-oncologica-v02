@@ -179,7 +179,7 @@ def test_backend_auth(id_token: str) -> Optional[Dict]:
                 "headers": dict(response.headers)
             }
         else:
-            print_error(f"Backend authentication failed")
+            print_error("Backend authentication failed")
             print_info(f"Response: {response.text}")
             return None
 

@@ -3,8 +3,7 @@ Unit tests for Audit Logger utility.
 Verifies structured audit logging functionality.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from app.utils.audit_logger import AuditLogger, AuditAction
 
 

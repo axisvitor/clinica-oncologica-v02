@@ -229,7 +229,7 @@ export function useUserProfile() {
 
   const updateProfileMutation = useMutation({
     mutationFn: settingsApi.updateProfile,
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
       toast({
         title: 'Perfil atualizado',
@@ -248,7 +248,7 @@ export function useUserProfile() {
 
   const uploadAvatarMutation = useMutation({
     mutationFn: settingsApi.uploadAvatar,
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
       toast({
         title: 'Avatar atualizado',
@@ -311,8 +311,8 @@ export function useUserPreferences() {
 
   const updatePreferencesMutation = useMutation({
     mutationFn: settingsApi.updatePreferences,
-    onSuccess: (data) => {
-      queryClient.setQueryData(['user', 'preferences'], data)
+    onSuccess: (updatedData) => {
+      queryClient.setQueryData(['user', 'preferences'], updatedData)
       toast({
         title: 'Preferências salvas',
         description: 'Suas preferências foram salvas com sucesso.',

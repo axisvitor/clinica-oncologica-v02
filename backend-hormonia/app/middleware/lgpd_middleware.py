@@ -21,8 +21,7 @@ Add to main.py middleware stack:
 import logging
 import time
 from datetime import datetime, timezone
-from typing import List
-from fastapi import Request, Response
+from fastapi import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 logger = logging.getLogger(__name__)

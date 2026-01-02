@@ -40,10 +40,11 @@ export function MedicalInfoSection({ form, mode }: MedicalInfoSectionProps) {
             Tipo de tratamento {mode === 'create' && '*'}
           </Label>
           <Select
+            name="treatment_type"
             value={watch('treatment_type') ?? ''}
             onValueChange={(value) => setValue('treatment_type', value)}
           >
-            <SelectTrigger>
+            <SelectTrigger id="treatment_type">
               <SelectValue placeholder="Selecione o tratamento" />
             </SelectTrigger>
             <SelectContent>
@@ -74,10 +75,11 @@ export function MedicalInfoSection({ form, mode }: MedicalInfoSectionProps) {
         <div className="space-y-2">
           <Label htmlFor="treatment_phase">Fase do Tratamento</Label>
           <Select
+            name="treatment_phase"
             value={watch('treatment_phase') ?? ''}
-            onValueChange={(value) => setValue('treatment_phase', value as any)}
+            onValueChange={(value) => setValue('treatment_phase', value as 'initial' | 'adjustment' | 'maintenance' | 'monitoring' | 'followup' | 'completed')}
           >
-            <SelectTrigger>
+            <SelectTrigger id="treatment_phase">
               <SelectValue placeholder="Selecione a fase" />
             </SelectTrigger>
             <SelectContent>
@@ -105,10 +107,11 @@ export function MedicalInfoSection({ form, mode }: MedicalInfoSectionProps) {
         <div className="space-y-2">
           <Label htmlFor="timezone">Fuso Horário</Label>
           <Select
+            name="timezone"
             value={watch('timezone') ?? 'America/Sao_Paulo'}
             onValueChange={(value) => setValue('timezone', value)}
           >
-            <SelectTrigger>
+            <SelectTrigger id="timezone">
               <SelectValue placeholder="Selecione o fuso horário" />
             </SelectTrigger>
             <SelectContent>

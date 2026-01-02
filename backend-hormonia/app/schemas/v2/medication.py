@@ -3,7 +3,7 @@ Medication schemas for API v2
 Enhanced medication models with field selection and eager loading support.
 """
 
-from typing import Optional, List
+from typing import Optional
 from datetime import date, datetime
 from decimal import Decimal
 from pydantic import BaseModel, Field, field_validator, ConfigDict

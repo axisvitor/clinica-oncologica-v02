@@ -44,6 +44,7 @@ export interface QuizQuestionData {
 }
 
 export interface MonthlyQuizAccess {
+  quiz_id: string; // Added to match backend response
   quiz_session_id: string;
   patient_name: string;
   template_name: string;
@@ -53,12 +54,13 @@ export interface MonthlyQuizAccess {
   total_questions: number;
   expires_at: string;
   session_id?: string;
-  quiz_template?: any;
+  quiz_template?: Record<string, unknown>;
   patient_id?: string;
 }
 
 export interface MonthlyQuizSubmit {
   token: string;
+  quiz_id: string; // Added for URL parameter
   question_id?: string;
   response_value?: string;
   response_metadata?: Record<string, unknown>;

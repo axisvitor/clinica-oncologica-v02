@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  AlertTriangle, Clock, CheckCircle, X, Filter,
+  AlertTriangle, Clock, CheckCircle, Filter,
   AlertCircle, Info, Zap, Heart
 } from 'lucide-react';
 

@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-import { QuizQuestion, QuestionOption } from '@/types/api'
+import { QuizQuestion } from '@/types/api'
 
 /**
  * Props for QuestionForm component

@@ -41,7 +41,7 @@ const MetricCardComponent = ({
   trend = 'up',
   variant = 'default',
   description,
-  format
+  format: _format
 }: MetricCardProps) => {
   const formatChange = (change: number) => {
     const sign = change >= 0 ? '+' : ''

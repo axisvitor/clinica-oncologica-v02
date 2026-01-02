@@ -8,6 +8,7 @@ sqlalchemy>=2.0.23,<2.1.0
 alembic>=1.12.1,<1.15.0
 # Switch to psycopg (v3) for Python 3.13 compatibility (update DATABASE_URL to postgresql+psycopg://)
 psycopg[binary]>=3.1.8,<3.3.0
+asyncpg>=0.29.0,<0.31.0  # Async PostgreSQL driver for background tasks
 
 # Authentication and security
 python-jose[cryptography]>=3.3.0,<4.0.0

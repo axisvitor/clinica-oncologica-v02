@@ -150,7 +150,7 @@ class CreationService:
             # Use FastAPI's global thread pool (prevents thread leak)
             try:
                 patient = await run_in_threadpool(repository.create, patient_dict)
-            except Exception as e:
+            except Exception:
                 self._logger.error("Failed to create patient", exc_info=True)
                 raise
 
@@ -193,7 +193,7 @@ class CreationService:
                     "Patient creation failed due to data integrity constraints",
                     code="integrity_error"
                 )
-        except Exception as e:
+        except Exception:
             self._logger.error("Unexpected error during patient creation", exc_info=True)
             await run_in_threadpool(self.db.rollback)
             raise

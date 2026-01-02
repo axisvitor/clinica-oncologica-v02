@@ -11,7 +11,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from '@/components/ui/toaster'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { HealthStatusMonitor } from '@/components/system/HealthStatusMonitor'
-import { PageSkeleton } from '@/components/ui/skeletons'
+import { PageSkeleton } from '@/components/ui/skeleton'
 import { environment, PRODUCTION_FLAGS, RAILWAY_CONFIG } from '@/lib/environment'
 import { logger } from '@/lib/logger'
 import { initializeReact19Optimizations } from '@/lib/react-optimizations'
@@ -180,8 +180,9 @@ export const ProductionProvider = memo<ProductionProviderProps>(({ children }) =
 
       if (environment.enableErrorReporting) {
         // Report to monitoring service
-        if ((window as any).Sentry) {
-          (window as any).Sentry.captureException(event.reason)
+        const windowWithSentry = window as Window & { Sentry?: { captureException: (error: unknown) => void } }
+        if (windowWithSentry.Sentry) {
+          windowWithSentry.Sentry.captureException(event.reason)
         }
       }
     }
@@ -191,8 +192,9 @@ export const ProductionProvider = memo<ProductionProviderProps>(({ children }) =
 
       if (environment.enableErrorReporting) {
         // Report to monitoring service
-        if ((window as any).Sentry) {
-          (window as any).Sentry.captureException(event.error)
+        const windowWithSentry = window as Window & { Sentry?: { captureException: (error: unknown) => void } }
+        if (windowWithSentry.Sentry) {
+          windowWithSentry.Sentry.captureException(event.error)
         }
       }
     }

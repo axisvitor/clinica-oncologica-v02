@@ -46,8 +46,8 @@ import type {
   CreateFlowTemplateRequest,
   UpdateFlowTemplateRequest,
   FlowAdvanceRequest,
-  FlowPauseRequest,
-  FlowProcessResponseRequest,
+  FlowPauseRequest as _FlowPauseRequest,
+  FlowProcessResponseRequest as _FlowProcessResponseRequest,
   FlowAnalytics,
   Alert,
   AlertListFilters,
@@ -56,7 +56,7 @@ import type {
   UnreadCountResponse,
   Report,
   ReportListFilters,
-  GenerateReportRequest,
+  GenerateReportRequest as _GenerateReportRequest,
   ScheduleReportRequest,
   ScheduledReport,
   AdminUser,
@@ -76,29 +76,29 @@ import type {
   SystemHealth,
   SystemMetrics,
   SystemStats,
-  AIChatRequest,
+  AIChatRequest as _AIChatRequest,
   AIChatResponse,
   AIHealthResponse,
-  AIAnalysisRequest,
+  AIAnalysisRequest as _AIAnalysisRequest,
   AIAnalysisResponse,
-  AIGenerateResponseRequest,
+  AIGenerateResponseRequest as _AIGenerateResponseRequest,
   AIGenerateResponseResponse,
-  SentimentAnalysisRequest,
+  SentimentAnalysisRequest as _SentimentAnalysisRequest,
   SentimentAnalysisResponse,
   AIInsights,
   AIRecommendations,
   QuizTemplate,
   QuizTemplateResponse,
-  QuizSessionStartRequest,
+  QuizSessionStartRequest as _QuizSessionStartRequest,
   QuizSession,
-  QuizSubmitRequest,
+  QuizSubmitRequest as _QuizSubmitRequest,
   QuizSessionListFilters,
   QuizSessionResponses,
   QuizSessionAnalysis,
   PatientQuizResponses,
   NotificationListResponse,
-  RiskAssessmentRequest,
-  RiskAssessmentsResponse,
+  RiskAssessmentRequest as _RiskAssessmentRequest,
+  RiskAssessmentsResponse as _RiskAssessmentsResponse,
   PhysicianRiskAssessmentsResponse,
   PaginatedResponse,
   MessageResponse,
@@ -203,7 +203,7 @@ export class ApiClient extends ApiClientCore {
   private createMessagesApi(): MessagesApi {
     return {
       list: async (options: MessagesListOptions = {}) => {
-        const { page, size, cursor, limit, ...filters } = options;
+        const { size, cursor, limit, ...filters } = options;
         const effLimit = limit ?? size ?? 20;
         const params: Record<string, string | number | boolean> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...filters };
         const res = await this.get<PaginatedResponse<Message>>("/api/v2/messages", params);
@@ -237,23 +237,23 @@ export class ApiClient extends ApiClientCore {
   private createFlowsApi(): FlowsApi {
     return {
       // Flow Instances (V2: /api/v2/flows)
-      list: (options?: FlowListFilters) => this.get("/api/v2/flows/", options as Record<string, string | number | boolean>),
+      list: (options?: FlowListFilters) => this.get("/api/v2/flows", options as Record<string, string | number | boolean>),
 
-      get: (flowId: string) => this.get(`/api/v2/flows/templates/${flowId}`),
+      get: (flowId: string) => this.get(`/api/v2/templates/flows/${flowId}`),
 
-      create: (data: CreateFlowTemplateRequest) => this.post<FlowTemplate>("/api/v2/flows/templates/", data),
+      create: (data: CreateFlowTemplateRequest) => this.post<FlowTemplate>("/api/v2/templates/flows", data),
 
-      update: (flowId: string, data: UpdateFlowTemplateRequest) => this.put<FlowTemplate>(`/api/v2/flows/templates/${flowId}`, data),
+      update: (flowId: string, data: UpdateFlowTemplateRequest) => this.put<FlowTemplate>(`/api/v2/templates/flows/${flowId}`, data),
 
-      delete: (flowId: string) => this.delete(`/api/v2/flows/templates/${flowId}`),
+      delete: (flowId: string) => this.delete(`/api/v2/templates/flows/${flowId}`),
 
       // V2 doesn't have separate activate/deactivate for templates
       // Templates are activated when assigned to patients
       activate: (flowId: string) =>
-        this.put(`/api/v2/flows/templates/${flowId}`, { is_active: true }),
+        this.put(`/api/v2/templates/flows/${flowId}`, { is_active: true }),
 
       deactivate: (flowId: string) =>
-        this.put(`/api/v2/flows/templates/${flowId}`, { is_active: false }),
+        this.put(`/api/v2/templates/flows/${flowId}`, { is_active: false }),
 
       // Execute not directly available in V2 - use advance instead
       execute: (flowId: string, data?: FlowAdvanceRequest) =>
@@ -294,14 +294,14 @@ export class ApiClient extends ApiClientCore {
       resume: (patientId: string) =>
         this.post(`/api/v2/flows/${patientId}/resume`),
 
-      getAnalytics: () => this.get("/api/v2/flows/analytics/"),
+      getAnalytics: () => this.get("/api/v2/flows/analytics"),
 
       // Templates management
-      getTemplates: () => this.get("/api/v2/flows/templates/"),
-      createTemplate: (template: CreateFlowTemplateRequest) => this.post("/api/v2/flows/templates/", template),
+      getTemplates: () => this.get("/api/v2/templates/flows"),
+      createTemplate: (template: CreateFlowTemplateRequest) => this.post("/api/v2/templates/flows", template),
       updateTemplate: (templateId: string, data: UpdateFlowTemplateRequest) =>
-        this.put(`/api/v2/flows/templates/${templateId}`, data),
-      deleteTemplate: (templateId: string) => this.delete(`/api/v2/flows/templates/${templateId}`),
+        this.put(`/api/v2/templates/flows/${templateId}`, data),
+      deleteTemplate: (templateId: string) => this.delete(`/api/v2/templates/flows/${templateId}`),
     };
   }
 
@@ -312,7 +312,7 @@ export class ApiClient extends ApiClientCore {
   private createAlertsApi(): AlertsApi {
     return {
       list: async (options: AlertsListOptions = {}) => {
-        const { page, size, cursor, limit, ...filters } = options;
+        const { size, cursor, limit, ...filters } = options;
         const effLimit = limit ?? size ?? 20;
         const params: Record<string, string | number | boolean> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...filters };
         const res = await this.get<PaginatedResponse<Alert>>("/api/v2/alerts", params);
@@ -328,14 +328,15 @@ export class ApiClient extends ApiClientCore {
 
       delete: (alertId: string) => this.delete(`/api/v2/alerts/${alertId}`),
 
-      markAsRead: (alertId: string) => this.patch(`/api/v2/alerts/${alertId}/read`),
+      markAsRead: (alertId: string) => this.patch(`/api/v2/alerts/${alertId}/read`, {}),
 
       markAllAsRead: () => this.post("/api/v2/alerts/read-all"),
 
-      // unread count, acknowledge, resolve not in V2 (use list with filters)
+      // Fixed: acknowledge uses the /read endpoint (PATCH)
+      // Backend only has 'acknowledged' status, no separate 'resolve'
       getUnreadCount: () => this.get("/api/v2/alerts/unread-count"),
-      acknowledge: (alertId: string) => this.post(`/api/v2/alerts/${alertId}/acknowledge`),
-      resolve: (alertId: string) => this.post(`/api/v2/alerts/${alertId}/resolve`),
+      acknowledge: (alertId: string) => this.patch(`/api/v2/alerts/${alertId}/read`, {}),
+      resolve: (alertId: string) => this.patch(`/api/v2/alerts/${alertId}/read`, { notes: 'Resolved' }),
     };
   }
 
@@ -346,7 +347,7 @@ export class ApiClient extends ApiClientCore {
   private createReportsApi(): ReportsApi {
     return {
       list: async (options: ReportsListOptions = {}) => {
-        const { page, size, cursor, limit, ...filters } = options;
+        const { size, cursor, limit, ...filters } = options;
         const effLimit = limit ?? size ?? 20;
         const params: Record<string, string | number | boolean> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...filters };
         const res = await this.get<PaginatedResponse<Report>>("/api/v2/reports", params);
@@ -380,12 +381,19 @@ export class ApiClient extends ApiClientCore {
         return response.blob();
       },
 
-      delete: (reportId: string) => this.delete(`/api/v2/reports/${reportId}`),
+      // WARNING: delete endpoint NOT IMPLEMENTED in backend v2
+      // Throws error to prevent silent API failure in production
+      delete: (_reportId: string) => {
+        throw new Error("Delete report not implemented in backend v2");
+      },
 
-      schedule: (data: ScheduleReportRequest) => this.post<ScheduledReport>("/api/v2/reports/schedule/", data),
+      schedule: (data: ScheduleReportRequest) => this.post<ScheduledReport>("/api/v2/reports/schedule", data),
 
-      // getScheduled not in V2 (use list with filter)
-      getScheduled: () => this.get<ScheduledReport[]>("/api/v2/reports/scheduled/"),
+      // WARNING: getScheduled endpoint NOT IMPLEMENTED in backend v2
+      // Throws error to prevent silent API failure in production
+      getScheduled: () => {
+        throw new Error("Get scheduled reports not implemented in backend v2");
+      },
     };
   }
 
@@ -396,15 +404,15 @@ export class ApiClient extends ApiClientCore {
   private createAdminApi(): AdminApi {
     return {
       users: {
-        list: async (page = 1, size = 20) => {
+        list: async (_page = 1, size = 20) => {
           const params: Record<string, string | number | boolean> = { limit: size };
-          const res = await this.get<PaginatedResponse<AdminUser>>("/api/v2/admin/users/", params);
+          const res = await this.get<PaginatedResponse<AdminUser>>("/api/v2/admin/users", params);
           return Array.isArray(res?.data) ? res.data : (res?.items ?? []);
         },
 
         get: (userId: string) => this.get<AdminUser>(`/api/v2/admin/users/${userId}`),
 
-        create: (data: CreateAdminUserRequest) => this.post<AdminUser>("/api/v2/admin/users/", data),
+        create: (data: CreateAdminUserRequest) => this.post<AdminUser>("/api/v2/admin/users", data),
 
         update: (userId: string, data: UpdateAdminUserRequest) => this.put<AdminUser>(`/api/v2/admin/users/${userId}`, data),
 
@@ -419,9 +427,9 @@ export class ApiClient extends ApiClientCore {
 
       // roles/audit/settings remain on V1 (not in V2 user management)
       roles: {
-        list: () => this.get<Role[]>("/api/v2/admin/roles/"),
+        list: () => this.get<Role[]>("/api/v2/admin/roles"),
 
-        create: (data: CreateRoleRequest) => this.post<Role>("/api/v2/admin/roles/", data),
+        create: (data: CreateRoleRequest) => this.post<Role>("/api/v2/admin/roles", data),
 
         update: (roleId: string, data: Partial<CreateRoleRequest>) => this.put<Role>(`/api/v2/admin/roles/${roleId}`, data),
 
@@ -430,7 +438,7 @@ export class ApiClient extends ApiClientCore {
 
       audit: {
         list: (page = 1, size = 20, filters?: AuditLogFilters) =>
-          this.get<PaginatedResponse<AuditLogEntry>>("/api/v2/admin/audit/", { page, size, ...filters }),
+          this.get<PaginatedResponse<AuditLogEntry>>("/api/v2/admin/audit", { page, size, ...filters }),
 
         get: (auditId: string) => this.get<AuditLogEntry>(`/api/v2/admin/audit/${auditId}`),
 
@@ -456,24 +464,24 @@ export class ApiClient extends ApiClientCore {
       },
 
       settings: {
-        get: () => this.get<SystemSettings>("/api/v2/admin/settings/"),
+        get: () => this.get<SystemSettings>("/api/v2/admin/settings"),
 
-        update: (data: Partial<SystemSettings>) => this.put<SystemSettings>("/api/v2/admin/settings/", data),
+        update: (data: Partial<SystemSettings>) => this.put<SystemSettings>("/api/v2/admin/settings", data),
 
-        reset: () => this.post("/api/v2/admin/settings/reset/"),
+        reset: () => this.post("/api/v2/admin/settings/reset"),
       },
 
       system: {
-        getHealth: () => this.get<SystemHealth>("/api/v2/admin/system/health/"),
+        getHealth: () => this.get<SystemHealth>("/api/v2/admin/system/health"),
 
-        getMetrics: () => this.get<SystemMetrics>("/api/v2/admin/system/metrics/"),
+        getMetrics: () => this.get<SystemMetrics>("/api/v2/admin/system/metrics"),
 
         // Use the correct endpoint name from backend
-        systemStats: () => this.get<SystemStats>("/api/v2/admin/system-stats/"),
+        systemStats: () => this.get<SystemStats>("/api/v2/admin/system-stats"),
 
-        clearCache: () => this.post<MessageResponse>("/api/v2/admin/system/clear-cache/"),
+        clearCache: () => this.post<MessageResponse>("/api/v2/admin/system/clear-cache"),
 
-        runMaintenance: () => this.post<MessageResponse>("/api/v2/admin/system/maintenance/"),
+        runMaintenance: () => this.post<MessageResponse>("/api/v2/admin/system/maintenance"),
       },
     };
   }
@@ -482,64 +490,64 @@ export class ApiClient extends ApiClientCore {
     return {
       list: (options: AdminUsersListOptions = {}) => {
         const { page = 1, size = 20, ...filters } = options;
-        return this.get<PaginatedResponse<AdminUser>>("/api/v2/admin/users/", { page, size, ...filters });
+        return this.get<PaginatedResponse<AdminUser>>("/api/v2/admin/users", { page, size, ...filters });
       },
 
       get: (userId: string) => this.get<AdminUser>(`/api/v2/admin/users/${userId}`),
 
-      create: (data: CreateAdminUserRequest) => this.post<AdminUser>("/api/v2/admin/users/", data),
+      create: (data: CreateAdminUserRequest) => this.post<AdminUser>("/api/v2/admin/users", data),
 
-      update: (userId: string, data: UpdateAdminUserRequest) => this.put<AdminUser>(`/api/v2/admin/users/${userId}/`, data),
+      update: (userId: string, data: UpdateAdminUserRequest) => this.put<AdminUser>(`/api/v2/admin/users/${userId}`, data),
 
-      delete: (userId: string) => this.delete<MessageResponse>(`/api/v2/admin/users/${userId}/`),
+      delete: (userId: string) => this.delete<MessageResponse>(`/api/v2/admin/users/${userId}`),
 
-      activate: (userId: string) => this.post(`/api/v2/admin/users/${userId}/activate/`),
+      activate: (userId: string) => this.post(`/api/v2/admin/users/${userId}/activate`),
 
-      deactivate: (userId: string) => this.post(`/api/v2/admin/users/${userId}/deactivate/`),
+      deactivate: (userId: string) => this.post(`/api/v2/admin/users/${userId}/deactivate`),
 
       updatePermissions: (userId: string, permissions: string[]) =>
-        this.put(`/api/v2/admin/users/${userId}/permissions/`, { permissions }),
+        this.put(`/api/v2/admin/users/${userId}/permissions`, { permissions }),
 
       updateRole: (userId: string, role: string) =>
-        this.put(`/api/v2/admin/users/${userId}/role/`, { role }),
+        this.put(`/api/v2/admin/users/${userId}/role`, { role }),
 
       getActivity: (userId: string, options: AdminUserActivityOptions = {}) => {
         const { page = 1, size = 20, ...filters } = options;
-        return this.get(`/api/v2/admin/users/${userId}/activity/`, { page, size, ...filters });
+        return this.get(`/api/v2/admin/users/${userId}/activity`, { page, size, ...filters });
       },
 
       resetPassword: (userId: string, payload: ResetPasswordRequest) =>
-        this.post(`/api/v2/admin/users/${userId}/reset-password/`, {
+        this.post(`/api/v2/admin/users/${userId}/reset-password`, {
           new_password: payload.new_password,
           force_change: payload.force_change ?? false
         }),
 
-      unlock: (userId: string) => this.post(`/api/v2/admin/users/${userId}/unlock/`),
+      unlock: (userId: string) => this.post(`/api/v2/admin/users/${userId}/unlock`),
 
-      enable2FA: (userId: string) => this.post(`/api/v2/admin/users/${userId}/2fa/enable/`),
+      enable2FA: (userId: string) => this.post(`/api/v2/admin/users/${userId}/2fa/enable`),
 
-      disable2FA: (userId: string) => this.post(`/api/v2/admin/users/${userId}/2fa/disable/`),
+      disable2FA: (userId: string) => this.post(`/api/v2/admin/users/${userId}/2fa/disable`),
     };
   }
 
   private createAiApi(): AiApi {
     return {
-      health: () => this.get<AIHealthResponse>("/api/v2/ai/health/"),
+      health: () => this.get<AIHealthResponse>("/api/v2/ai/health"),
 
       chat: (message: string, context?: Record<string, unknown>) =>
-        this.post<AIChatResponse>("/api/v2/ai/chat/", { message, context }),
+        this.post<AIChatResponse>("/api/v2/ai/chat", { message, context }),
 
       analyze: (data: unknown, analysisType: string) =>
-        this.post<AIAnalysisResponse>("/api/v2/ai/analyze/", { data, analysis_type: analysisType }),
+        this.post<AIAnalysisResponse>("/api/v2/ai/analyze", { data, analysis_type: analysisType }),
 
       generateResponse: (patientId: string, messageHistory: Array<{ role: string; content: string }>, intent?: string) =>
-        this.post<AIGenerateResponseResponse>("/api/v2/ai/generate-response/", {
+        this.post<AIGenerateResponseResponse>("/api/v2/ai/generate-response", {
           patient_id: patientId,
           message_history: messageHistory,
           intent,
         }),
 
-      sentiment: (text: string) => this.post<SentimentAnalysisResponse>("/api/v2/ai/sentiment/", { text }),
+      sentiment: (text: string) => this.post<SentimentAnalysisResponse>("/api/v2/ai/sentiment", { text }),
 
       insights: (patientId: string, timeframe?: string) =>
         this.get<AIInsights>(`/api/v2/ai/insights/${patientId}`, timeframe ? { timeframe } : undefined),
@@ -549,7 +557,7 @@ export class ApiClient extends ApiClientCore {
 
       // Patient Summary API
       generateSummary: (request: import('@/types/api').GenerateSummaryRequest) =>
-        this.post<import('@/types/api').PatientSummaryResponse>('/api/v2/ai/summary/', request),
+        this.post<import('@/types/api').PatientSummaryResponse>('/api/v2/ai/summary', request),
 
       getSummaries: (patientId: string, limit = 10, offset = 0) =>
         this.get<import('@/types/api').PatientSummaryListResponse>(
@@ -589,8 +597,8 @@ export class ApiClient extends ApiClientCore {
   private createQuizApi(): QuizApi {
     return {
       // Templates migrated to V2
-      templates: async (): Promise<QuizTemplateResponse> => {
-        const res = await this.get<unknown>("/api/v2/templates/quiz/")
+      templates: async (params?: Record<string, string | number | boolean>): Promise<QuizTemplateResponse> => {
+        const res = await this.get<unknown>("/api/v2/templates/quizzes", params)
         return Array.isArray(res) ? { items: res as QuizTemplate[] } : res as QuizTemplateResponse
       },
 
@@ -602,13 +610,13 @@ export class ApiClient extends ApiClientCore {
         }),
       // List sessions (V2) with cursor pagination; keep backward-compatible shape
       sessions: async (options?: QuizSessionListFilters) => {
-        const { page, size, limit, cursor, patient_id, ...rest } = options || {};
+        const { size, limit, cursor, patient_id, ...rest } = options || {};
         const effLimit = limit ?? size ?? 20;
         const params: Record<string, string | number | boolean> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...rest };
 
         const endpoint = patient_id
-          ? `/api/v2/quiz/patients/${patient_id}/quiz-responses/`
-          : `/api/v2/quiz/sessions/`;
+          ? `/api/v2/quiz/patients/${patient_id}/quiz-responses`
+          : `/api/v2/quiz/sessions`;
 
         const res = await this.get<PaginatedResponse<QuizSession>>(endpoint, params);
         const items = Array.isArray(res?.data) ? res.data : (res?.items ?? []);
@@ -651,28 +659,28 @@ export class ApiClient extends ApiClientCore {
    */
   private createQuizTemplatesApi(): QuizTemplatesApi {
     return {
-      list: () => this.quiz.templates(),
-      listTemplates: () => this.quiz.templates(),
+      list: (options) => this.quiz.templates(options),
+      listTemplates: (options) => this.quiz.templates(options),
 
-      // Template CRUD migrated to V2
-      createTemplate: (template: CreateQuizTemplateRequest) => this.post<QuizTemplate>("/api/v2/templates/quiz/", template as unknown as CreateFlowTemplateRequest),
-      create: (template: CreateQuizTemplateRequest) => this.post<QuizTemplate>("/api/v2/templates/quiz/", template),
+      // Template CRUD - Fixed: uses /quizzes (plural) to match backend
+      createTemplate: (template: CreateQuizTemplateRequest) => this.post<QuizTemplate>("/api/v2/templates/quizzes", template as unknown as CreateFlowTemplateRequest),
+      create: (template: CreateQuizTemplateRequest) => this.post<QuizTemplate>("/api/v2/templates/quizzes", template),
 
       updateTemplate: (templateId: string, data: UpdateFlowTemplateRequest) =>
-        this.put(`/api/v2/templates/quiz/${templateId}`, data),
+        this.put(`/api/v2/templates/quizzes/${templateId}`, data),
 
       deleteTemplate: (templateId: string) =>
-        this.delete(`/api/v2/templates/quiz/${templateId}`),
+        this.delete(`/api/v2/templates/quizzes/${templateId}`),
 
-      // Analytics migrated to V2
+      // Analytics endpoint
       getTemplateAnalytics: (templateId: string) =>
-        this.get(`/api/v2/quiz/templates/${templateId}/analytics`),
+        this.get(`/api/v2/templates/quizzes/${templateId}/analytics`),
     };
   }
 
   private createNotificationsApi(): NotificationsApi {
     return {
-      list: () => this.get("/api/v2/notifications/"),
+      list: () => this.get("/api/v2/notifications"),
     };
   }
 
@@ -686,7 +694,7 @@ export class ApiClient extends ApiClientCore {
         if (daysLookback) {
           params["days_lookback"] = daysLookback;
         }
-        return this.get<PhysicianRiskAssessmentsResponse>("/api/v2/physician/risk-assessments/", params);
+        return this.get<PhysicianRiskAssessmentsResponse>("/api/v2/physician/risk-assessments", params);
       },
     };
   }
@@ -856,7 +864,7 @@ interface AiApi {
 }
 
 interface QuizApi {
-  templates: () => Promise<QuizTemplateResponse>;
+  templates: (params?: Record<string, string | number | boolean>) => Promise<QuizTemplateResponse>;
   start: (patientId: string, quizTemplateId: string) => Promise<QuizSession>;
   getSession: (sessionId: string) => Promise<QuizSession>;
   submitResponse: (
@@ -872,8 +880,8 @@ interface QuizApi {
 }
 
 interface QuizTemplatesApi {
-  list: () => Promise<QuizTemplateResponse>;
-  listTemplates: () => Promise<QuizTemplateResponse>;
+  list: (params?: Record<string, string | number | boolean>) => Promise<QuizTemplateResponse>;
+  listTemplates: (params?: Record<string, string | number | boolean>) => Promise<QuizTemplateResponse>;
   createTemplate: (template: CreateQuizTemplateRequest) => Promise<QuizTemplate>;
   create: (template: CreateQuizTemplateRequest) => Promise<QuizTemplate>;
   updateTemplate: (templateId: string, data: UpdateQuizTemplateRequest) => Promise<QuizTemplate>;

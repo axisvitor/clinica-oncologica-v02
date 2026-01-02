@@ -8,7 +8,6 @@ when ALLOW_AI_SIMULATION is set to False.
 import pytest
 from unittest.mock import patch, MagicMock
 from fastapi import HTTPException
-from datetime import datetime, timezone
 from uuid import uuid4
 
 from app.api.v2.routers.ai.insights import generate_patient_insights

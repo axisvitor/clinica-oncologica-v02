@@ -3,12 +3,12 @@ Repository for Flow Template Version management.
 Standardized to match the RDS PostgreSQL schema (no status column).
 """
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Any
 from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import text, desc
 
-from app.models.flow import FlowTemplateVersion, FlowKind
+from app.models.flow import FlowTemplateVersion
 from app.repositories.base import BaseRepository
 
 

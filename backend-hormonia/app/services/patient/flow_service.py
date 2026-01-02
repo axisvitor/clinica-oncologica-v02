@@ -18,7 +18,6 @@ from typing import Any, Optional, TYPE_CHECKING
 from uuid import UUID
 
 # Third-party imports
-from sqlalchemy.ext.asyncio import AsyncSession
 
 # Local application imports
 from app.config import settings

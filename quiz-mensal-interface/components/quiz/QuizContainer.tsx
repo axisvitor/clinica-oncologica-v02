@@ -1,6 +1,5 @@
 "use client"
 
-import { useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import type { QuizSession } from "@/types/quiz"
 import { QuizHeader } from "./QuizHeader"
@@ -8,6 +7,7 @@ import { QuizProgress } from "./QuizProgress"
 import { QuizNavigation } from "./QuizNavigation"
 import { QuizCompletion } from "./QuizCompletion"
 import { QuestionRenderer } from "./QuestionRenderer"
+import { QuestionTransition } from "./QuestionTransition"
 import { useQuizState } from "@/hooks/quiz/useQuizState"
 import { useQuizAnswer } from "@/hooks/quiz/useQuizAnswer"
 import { useQuizNavigation } from "@/hooks/quiz/useQuizNavigation"
@@ -38,7 +38,7 @@ export default function QuizContainer({
 
   const navigation = useQuizNavigation({
     currentToken: token, // Only used for initial setup, not stored
-    currentQuestionIndex: quizState.currentQuestionIndex || 0,
+    currentQuestionIndex: quizState.currentQuestionIndex,
     currentQuestionId: quizState.currentQuestion.id,
     isLastQuestion: quizState.isLastQuestion,
     selectedAnswer: quizState.selectedAnswer,
@@ -48,7 +48,7 @@ export default function QuizContainer({
       quizState.setAnswers(new Map(quizState.answers.set(questionId, answer)))
     },
     onNextQuestion: () => {
-      quizState.setCurrentQuestionIndex((prev) => (prev || 0) + 1)
+      quizState.setCurrentQuestionIndex((prev) => prev + 1)
       quizState.setSelectedAnswer(null)
     },
     onComplete: () => {
@@ -61,9 +61,8 @@ export default function QuizContainer({
   const handleOtherTextChange = (text: string, otherOptionValue: string) => {
     quizState.setOtherTexts(new Map(quizState.otherTexts.set(quizState.currentQuestion.id, text)))
     const updatedAnswer = quizAnswer.handleOtherTextChange(text, otherOptionValue, quizState.selectedAnswer)
-    if (updatedAnswer) {
-      quizState.setSelectedAnswer(updatedAnswer)
-    }
+
+    quizState.setSelectedAnswer(updatedAnswer)
   }
 
   // Completion screen
@@ -80,43 +79,44 @@ export default function QuizContainer({
         />
 
         <QuizProgress
-          currentQuestion={(quizState.currentQuestionIndex || 0) + 1}
+          currentQuestion={quizState.currentQuestionIndex + 1}
           totalQuestions={quizState.totalQuestions}
           progress={quizState.progress}
         />
 
-        <Card className="p-6 space-y-6">
-          <div className="space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold flex-shrink-0">
-                {(quizState.currentQuestionIndex || 0) + 1}
+        <Card className="p-6 space-y-6 overflow-hidden">
+          <QuestionTransition
+            questionId={quizState.currentQuestion.id}
+            direction={quizState.navigationDirection}
+          >
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold flex-shrink-0">
+                  {quizState.currentQuestionIndex + 1}
+                </div>
+                <h2 className="text-lg font-semibold text-balance leading-relaxed flex-1">
+                  {quizState.currentQuestion.text}
+                </h2>
               </div>
-              <h2 className="text-lg font-semibold text-balance leading-relaxed flex-1">
-                {quizState.currentQuestion.text}
-              </h2>
-            </div>
 
-            <div className="pl-11">
-              <QuestionRenderer
-                question={quizState.currentQuestion}
-                selectedAnswer={quizState.selectedAnswer}
-                otherText={quizState.otherTexts.get(quizState.currentQuestion.id) || ""}
-                onAnswerChange={quizState.setSelectedAnswer}
-                onOtherTextChange={handleOtherTextChange}
-              />
+              <div className="pl-11">
+                <QuestionRenderer
+                  question={quizState.currentQuestion}
+                  selectedAnswer={quizState.selectedAnswer}
+                  otherText={quizState.otherTexts.get(quizState.currentQuestion.id) || ""}
+                  onAnswerChange={quizState.setSelectedAnswer}
+                  onOtherTextChange={handleOtherTextChange}
+                />
+              </div>
             </div>
-          </div>
+          </QuestionTransition>
 
           <QuizNavigation
-            currentQuestionIndex={quizState.currentQuestionIndex || 0}
+            currentQuestionIndex={quizState.currentQuestionIndex}
             isLastQuestion={quizState.isLastQuestion}
             isSubmitting={quizState.isSubmitting}
             hasAnswer={!!quizState.selectedAnswer}
-            onPrevious={() => {
-              if ((quizState.currentQuestionIndex || 0) > 0) {
-                quizState.setCurrentQuestionIndex((prev) => (prev || 0) - 1)
-              }
-            }}
+            onPrevious={quizState.goToPreviousQuestion}
             onSubmit={navigation.handleSubmitAnswer}
           />
         </Card>

@@ -13,7 +13,6 @@ from sqlalchemy import func
 
 from app.models.user import User
 from app.models.appointment import Appointment
-from app.services.audit import AuditService
 from app.dependencies import RequestContext
 from app.api.v2.dependencies import apply_field_selection
 
@@ -94,7 +93,7 @@ async def _log_admin_action(
     Log admin actions for audit trail.
 
     Args:
-        db: Database session
+        db: Database session (unused in simplified version)
         action: Action performed (e.g., 'create_user', 'update_role')
         admin_user: Admin user who performed the action
         context: Request context with IP, user agent, etc.
@@ -102,27 +101,29 @@ async def _log_admin_action(
         additional_data: Optional additional event data
     """
     try:
-        audit_service = AuditService(db)
-
+        # Simplified logging - just use application logger
+        # AuditService was causing db session issues
         event_data = {
             "action": action,
             "admin_user_id": str(admin_user.id),
             "admin_user_email": admin_user.email,
+            "ip_address": context.ip_address,
+            "user_agent": context.user_agent,
             **(additional_data or {}),
         }
 
         if target_user_id:
             event_data["target_user_id"] = str(target_user_id)
 
-        audit_service.log_event(
-            event_type=f"admin_{action}",
-            event_category="admin",
-            severity="info",
-            user_id=admin_user.id,
-            ip_address=context.ip_address,
-            user_agent=context.user_agent,
-            event_data=event_data,
-            result="success",
+        logger.info(
+            f"Admin action: {action} by {admin_user.email}",
+            extra={
+                "event_type": f"admin_{action}",
+                "category": "admin",
+                "user_id": str(admin_user.id),
+                "ip": context.ip_address,
+                "data": event_data,
+            },
         )
     except Exception as e:
         logger.error(f"Failed to log admin action {action}: {e}")

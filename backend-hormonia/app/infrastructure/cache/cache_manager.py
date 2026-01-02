@@ -11,7 +11,6 @@ from typing import Any, Callable, Optional, Union, List, Dict
 from datetime import timedelta, datetime, timezone
 from dataclasses import dataclass, field
 from enum import Enum
-from concurrent.futures import ThreadPoolExecutor
 
 from redis import Redis
 from redis.asyncio import Redis as AsyncRedis

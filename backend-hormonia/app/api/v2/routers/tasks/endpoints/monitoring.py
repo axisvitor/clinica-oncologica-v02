@@ -22,7 +22,7 @@ from app.schemas.v2.tasks import (
     TaskStatisticsV2,
     QueueStatusV2,
 )
-from app.dependencies.auth_dependencies import get_redis_cache
+from app.dependencies.auth_dependencies import get_generic_cache
 from app.utils.rate_limiter import limiter
 from app.utils.task_monitoring import get_task_monitoring_data
 
@@ -50,7 +50,7 @@ async def get_task_logs(
     limit: int = Query(100, ge=1, le=1000, description="Maximum log entries"),
     level: Optional[str] = Query(None, description="Filter by log level"),
     db=Depends(get_db),
-    redis_cache=Depends(get_redis_cache),
+    redis_cache=Depends(get_generic_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> Dict[str, Any]:
     """
@@ -125,7 +125,7 @@ async def get_task_statistics(
     request: Request,
     hours: int = Query(24, ge=1, le=168, description="Analysis period in hours"),
     db=Depends(get_db),
-    redis_cache=Depends(get_redis_cache),
+    redis_cache=Depends(get_generic_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> TaskStatisticsV2:
     """
@@ -258,7 +258,7 @@ async def get_task_statistics(
 async def get_queue_status(
     request: Request,
     db=Depends(get_db),
-    redis_cache=Depends(get_redis_cache),
+    redis_cache=Depends(get_generic_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> List[QueueStatusV2]:
     """

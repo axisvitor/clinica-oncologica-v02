@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { getAuth, reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'firebase/auth'
+import { getAuth, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth'
 import { toast } from '@/hooks/use-toast'
 import { apiClient } from '@/lib/api-client'
 import { logger } from '@/lib/logger'

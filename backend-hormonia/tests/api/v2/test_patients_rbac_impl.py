@@ -215,7 +215,7 @@ class TestPatientsRBAC:
         
         # Fetch first page
         response1 = client.get("/api/v2/patients?limit=10", headers=auth_headers)
-        assert response.status_code == 200
+        assert response1.status_code == 200
         page1 = response1.json()
         
         assert len(page1["data"]) == 10

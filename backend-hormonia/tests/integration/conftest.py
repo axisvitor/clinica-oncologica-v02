@@ -23,10 +23,6 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import NullPool
 
 # Database session is created directly in fixtures
-from app.models.patient import Patient
-from app.models.patient_onboarding_saga import PatientOnboardingSaga
-from app.models.flow import PatientFlowState
-from app.models.notification import Notification
 from app.orchestration.saga_orchestrator import SagaOrchestrator
 
 

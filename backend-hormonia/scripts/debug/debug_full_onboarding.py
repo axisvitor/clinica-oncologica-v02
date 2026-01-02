@@ -123,7 +123,7 @@ async def test_patient_registration(db_session, doctor_id: UUID):
             )
             
             if patient:
-                print(f"\n✅ Patient created successfully!")
+                print("\n✅ Patient created successfully!")
                 print(f"   ID: {patient.id}")
                 print(f"   Name: {patient.full_name}")
                 print(f"   Phone: {patient.phone}")
@@ -186,7 +186,7 @@ async def test_daily_flows(db_session, patient_id: UUID):
             
             result = await engine.process_patient_flow(patient)
             
-            print(f"\n✅ Flow processed:")
+            print("\n✅ Flow processed:")
             print(f"   Result: {result}")
             print(f"\n📊 WhatsApp Messages Sent: {mock_whatsapp.messages_sent}")
             for msg in mock_whatsapp.message_history:

@@ -300,3 +300,76 @@ async def get_treatment_distribution(
 
     logger.info(f"Returning result with {result['total_patients']} patients")
     return result
+
+
+@router.get(
+    "/patient-status",
+    summary="Get patient status distribution",
+    description="Get count of patients by flow state (active, paused, completed, etc.)",
+)
+async def get_patient_status_distribution(
+    db=Depends(get_db),
+    current_user=Depends(get_current_user_from_session),
+):
+    """
+    Get patient status distribution.
+
+    Returns count of patients grouped by their flow state:
+    - active: Currently receiving treatment
+    - paused: Treatment temporarily suspended
+    - completed: Treatment finished
+    - onboarding: Initial setup
+    - cancelled: Archived/cancelled
+    """
+    role, user_uuid = get_role_and_user(current_user)
+
+    # Check cache first
+    cache_key = get_cache_key(
+        "patient-status",
+        role=role.value,
+        user=str(user_uuid) if user_uuid else None,
+    )
+    cached_result = await get_cached_result(cache_key)
+    if cached_result:
+        return cached_result
+
+    # Query patient counts by flow_state
+    query = db.query(
+        Patient.flow_state,
+        func.count(Patient.id).label("count")
+    )
+
+    # Filter by doctor if not admin
+    if role != UserRole.ADMIN and user_uuid:
+        query = query.filter(Patient.doctor_id == user_uuid)
+
+    results = query.group_by(Patient.flow_state).all()
+
+    # Build distribution dict
+    status_counts = {
+        "active": 0,
+        "paused": 0,
+        "completed": 0,
+        "onboarding": 0,
+        "cancelled": 0,
+    }
+
+    for flow_state, count in results:
+        if flow_state:
+            state_value = flow_state.value if hasattr(flow_state, 'value') else str(flow_state)
+            if state_value in status_counts:
+                status_counts[state_value] = count
+
+    total = sum(status_counts.values())
+
+    result = {
+        "distribution": status_counts,
+        "total": total,
+        "active_percentage": round((status_counts["active"] / total * 100) if total > 0 else 0, 1),
+    }
+
+    # Cache the result
+    await set_cached_result(cache_key, result)
+
+    return result
+

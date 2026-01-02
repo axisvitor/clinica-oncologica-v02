@@ -42,6 +42,83 @@ def get_flow_service_dependency(
     return FlowService(db, flow_management, flow_analytics, flow_dashboard, flow_engine)
 
 
+# Static routes must come before parameterized routes
+@router.get("/analytics", summary="Get flow analytics and statistics")
+async def get_flow_analytics(
+    db=Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get aggregated flow analytics for dashboard display.
+
+    Returns:
+    - Total flows count (active, paused, completed)
+    - Weekly/monthly trends
+    - Average response times
+    - Completion rates
+    """
+    from sqlalchemy import func
+    from app.models.patient import Patient
+    from app.models.user import UserRole
+    from datetime import datetime, timedelta, timezone
+
+    user_role = current_user.role
+    user_id = current_user.id
+
+    # Build base query
+    query = db.query(Patient.flow_state, func.count(Patient.id).label("count"))
+
+    # Filter by doctor if not admin
+    if user_role != UserRole.ADMIN:
+        query = query.filter(Patient.doctor_id == user_id)
+
+    results = query.group_by(Patient.flow_state).all()
+
+    # Build status counts
+    status_counts = {
+        "active": 0,
+        "paused": 0,
+        "completed": 0,
+        "onboarding": 0,
+        "cancelled": 0,
+    }
+
+    for flow_state, count in results:
+        if flow_state:
+            state_value = flow_state.value if hasattr(flow_state, 'value') else str(flow_state)
+            if state_value in status_counts:
+                status_counts[state_value] = count
+
+    total = sum(status_counts.values())
+    active_count = status_counts["active"]
+    completed_count = status_counts["completed"]
+
+    # Calculate completion rate
+    completion_rate = round((completed_count / total * 100) if total > 0 else 0, 1)
+
+    # Get 7-day trend (simplified)
+    seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    recent_query = db.query(func.count(Patient.id)).filter(
+        Patient.created_at >= seven_days_ago
+    )
+    if user_role != UserRole.ADMIN:
+        recent_query = recent_query.filter(Patient.doctor_id == user_id)
+    new_patients_7d = recent_query.scalar() or 0
+
+    return {
+        "total_flows": total,
+        "active_flows": active_count,
+        "paused_flows": status_counts["paused"],
+        "completed_flows": completed_count,
+        "onboarding_flows": status_counts["onboarding"],
+        "completion_rate": completion_rate,
+        "new_patients_7d": new_patients_7d,
+        "status_distribution": status_counts,
+        "avg_response_time_minutes": 0,  # TODO: Calculate from quiz responses
+        "weekly_trend": [],  # TODO: Add weekly data points
+    }
+
+
 @router.get("/{patient_id}/state")
 # @router.get("/{patient_id}/state", response_model=FlowStateV2Response)
 async def get_flow_state(
@@ -111,6 +188,7 @@ async def start_flow(
     return await service.start_patient_flow(patient_id, flow_type, current_user.id)
 
 
+
 @router.post("/{patient_id}/response", response_model=FlowAdvanceV2Response)
 async def process_patient_response(
     patient_id: UUID,
@@ -122,3 +200,4 @@ async def process_patient_response(
     return await service.process_patient_response(
         patient_id, response_text, response_metadata or {}
     )
+

@@ -126,7 +126,7 @@ def create_cursor(last_id: int) -> str:
         str: Base64-encoded cursor
     """
     cursor_data = {"id": last_id}
-    cursor_json = json.dumps(cursor_data)
+    cursor_json = json.dumps(cursor_data, default=str)
     return base64.b64encode(cursor_json.encode("utf-8")).decode("utf-8")
 
 

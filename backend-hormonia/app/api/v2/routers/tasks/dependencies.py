@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from uuid import UUID, uuid4
 import logging
 
-from fastapi import Depends, HTTPException, status, Header
+from fastapi import Depends, HTTPException, status, Header, Cookie
 from celery.result import AsyncResult
 from celery import states
 
@@ -24,17 +24,39 @@ task_registry: Dict[str, Dict[str, Any]] = {}
 
 async def _get_current_user_simple(
     session_id: str = Header(None, alias="X-Session-ID"),
+    session_cookie_id: str = Cookie(None, alias="session_id"),
+    authorization: str = Header(None),
     db=Depends(get_db),
     redis_cache=Depends(get_redis_cache),
 ) -> Dict[str, Any]:
-    """Simplified session validation for V2 endpoints."""
-    if not session_id:
+    """Simplified session validation for V2 endpoints.
+    
+    Supports multiple authentication sources (in priority order):
+    1. Authorization header (Bearer <session_id>)
+    2. X-Session-ID header
+    3. session_id cookie
+    """
+    final_session_id = None
+    
+    # Priority 1: Authorization Header (Bearer <session_id>)
+    if authorization and authorization.startswith("Bearer "):
+        final_session_id = authorization.split(" ")[1]
+    
+    # Priority 2: X-Session-ID Header
+    if not final_session_id and session_id:
+        final_session_id = session_id
+        
+    # Priority 3: Cookie
+    if not final_session_id and session_cookie_id:
+        final_session_id = session_cookie_id
+
+    if not final_session_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session ID not provided in X-Session-ID header",
+            detail="Session ID not provided",
         )
 
-    session_data = await redis_cache.get_session(session_id)
+    session_data = await redis_cache.get_session(final_session_id)
     if not session_data:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

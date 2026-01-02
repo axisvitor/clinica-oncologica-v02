@@ -245,12 +245,6 @@ def send_daily_flow_questions() -> dict:
                 from datetime import date
                 from app.models.patient import Patient
                 from app.models.enums import FlowState
-                from app.models.message import (
-                    Message,
-                    MessageType,
-                    MessageDirection,
-                    MessageStatus,
-                )
 
                 # Define fallback messages for each flow phase (Portuguese)
                 FLOW_MESSAGES = {
@@ -355,52 +349,44 @@ def send_daily_flow_questions() -> dict:
                             skipped += 1
                             continue
 
-                        # Get message template
-                        template_data = FLOW_MESSAGES.get(flow_phase, {
-                            "content": "Olá {patient_name}! Como você está hoje? 💙",
-                            "intent": "general_checkin",
-                        })
-
-                        # Personalize message content
-                        message_content = template_data["content"].replace(
-                            "{patient_name}", patient.name or "Paciente"
-                        )
-
-                        # Create message record
-                        message = Message(
-                            patient_id=patient.id,
-                            direction=MessageDirection.OUTBOUND,
-                            type=MessageType.TEXT,
-                            content=message_content,
-                            status=MessageStatus.PENDING,
-                            message_metadata={
-                                "source": "daily_flow_question",
-                                "flow_phase": flow_phase,
-                                "flow_day": current_day,
-                                "template_intent": template_data["intent"],
-                                "patient_phone": patient_phone,  # For WhatsApp delivery
-                            },
-                        )
-                        db.add(message)
-                        db.flush()
-
-                        # Send via WhatsApp
+                        # Use SequentialMessageHandler for proper multi-message flow
                         try:
-                            from app.services.unified_whatsapp_service import (
-                                UnifiedWhatsAppService,
-                                MessagingMode,
+                            from app.services.flow.sequential_message_handler import (
+                                SequentialMessageHandler,
                             )
-                            unified_service = UnifiedWhatsAppService(
-                                db, messaging_mode=MessagingMode.DIRECT
-                            )
+                            
+                            handler = SequentialMessageHandler(db)
+                            
+                            # Determine the correct day number for this flow phase
+                            if flow_phase == "initial_15_days":
+                                day_in_flow = current_day
+                            elif flow_phase == "days_16_45":
+                                day_in_flow = current_day  # Days 16-45 use actual day number
+                            else:  # monthly_recurring
+                                day_in_cycle = (current_day - 45) % 30
+                                # Map to monthly flow days (1, 4, 8, 11, 15, 18, 22, 26, 30)
+                                day_in_flow = day_in_cycle + 1
+                            
                             # Use async_to_sync for Celery compatibility
-                            async_to_sync(unified_service.send_message)(message)
-                        except Exception as send_error:
-                            logger.warning(
-                                f"Failed to send via WhatsApp for patient {patient.id}: {send_error}. "
-                                f"Message queued for retry."
+                            result = async_to_sync(handler.send_day_messages)(
+                                patient_id=patient.id,
+                                day_number=day_in_flow,
+                                flow_kind=flow_phase
                             )
-                            # Message is already in DB with PENDING status for retry
+                            
+                            if result.get("status") == "error":
+                                logger.error(
+                                    f"SequentialMessageHandler returned error for patient {patient.id}: "
+                                    f"{result.get('message')}"
+                                )
+                                # Continue to next patient instead of falling back
+                                continue
+                            
+                        except Exception as send_error:
+                            logger.error(
+                                f"Failed to send via SequentialMessageHandler for patient {patient.id}: {send_error}"
+                            )
+                            continue
 
                         db.commit()
 

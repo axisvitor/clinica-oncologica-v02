@@ -97,7 +97,7 @@ export const FlowDesignerDialog = memo<FlowDesignerDialogProps>(({
           onOpenChange(false);
         }
       }
-    } catch (error) {
+    } catch {
       toast({
         title: 'Erro',
         description: 'Falha ao salvar template',

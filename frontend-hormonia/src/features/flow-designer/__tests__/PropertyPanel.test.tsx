@@ -3,10 +3,10 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import '@testing-library/jest-dom/vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PropertyPanel } from '../PropertyPanel'
-import { FlowDesign, FlowNode, FlowNodeType, FlowValidationResult } from '@/types/flow-designer'
+import { FlowDesign, FlowNodeType, FlowValidationResult } from '@/types/flow-designer'
 
 // Helper to create a test design
 function createTestDesign(): FlowDesign {

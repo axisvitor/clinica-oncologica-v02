@@ -73,12 +73,12 @@ interface DLQMessage {
   error_type: string;
   failure_reason: "webhook" | "whatsapp" | "flow" | "quiz" | "notification" | "other";
   status:
-    | "pending"
-    | "retrying"
-    | "retry_scheduled"
-    | "resolved"
-    | "discarded"
-    | "max_retries_exceeded";
+  | "pending"
+  | "retrying"
+  | "retry_scheduled"
+  | "resolved"
+  | "discarded"
+  | "max_retries_exceeded";
   retry_count: number;
   created_at: string;
   last_retry_at?: string;
@@ -387,6 +387,7 @@ export function DLQDashboard() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
+                  name="dlqSearch"
                   placeholder="Buscar por ID ou paciente..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -395,7 +396,7 @@ export function DLQDashboard() {
               </div>
             </div>
 
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select name="statusFilter" value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full md:w-[200px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -410,7 +411,7 @@ export function DLQDashboard() {
               </SelectContent>
             </Select>
 
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <Select name="categoryFilter" value={categoryFilter} onValueChange={setCategoryFilter}>
               <SelectTrigger className="w-full md:w-[200px]">
                 <SelectValue placeholder="Categoria" />
               </SelectTrigger>

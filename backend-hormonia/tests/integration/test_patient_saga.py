@@ -22,7 +22,6 @@ from app.models.patient_onboarding_saga import (
     SagaStep
 )
 from app.orchestration.saga_orchestrator import SagaOrchestrator
-from app.domain.patient.onboarding.coordinator import PatientOnboardingCoordinator
 
 
 @pytest.mark.integration

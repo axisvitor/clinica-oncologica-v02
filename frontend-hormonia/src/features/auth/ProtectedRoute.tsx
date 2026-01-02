@@ -5,7 +5,6 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
 import {
-  UserRole,
   getRolePermissions,
   isAdmin,
   isDoctor,
@@ -67,7 +66,7 @@ export function ProtectedRoute({
   requiredRole,
   requiredRoles,
   requiredPermission,
-  redirectTo = "/unauthorized",
+  redirectTo: _redirectTo = "/unauthorized",
 }: ProtectedRouteProps) {
   const { isAuthenticated, isInitializing, user } = useAuth();
   const location = useLocation();
@@ -222,6 +221,7 @@ export function ProtectedRoute({
  *   return <Unauthorized />;
  * }
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useRoleGuard() {
   const { user, isAuthenticated } = useAuth();
   const userRole = user?.role || "";

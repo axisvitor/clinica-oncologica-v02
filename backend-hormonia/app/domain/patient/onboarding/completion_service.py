@@ -175,7 +175,7 @@ class CompletionService:
 
             return existing_patient
 
-        except Exception as e:
+        except Exception:
             self._logger.error(
                 "Error completing partial onboarding",
                 exc_info=True,
@@ -236,7 +236,7 @@ class CompletionService:
                     "Updated patient data",
                     extra={"patient_id": str(existing_patient.id)}
                 )
-            except Exception as e:
+            except Exception:
                 self._logger.error("Failed to commit patient updates in executor", exc_info=True)
                 raise
 

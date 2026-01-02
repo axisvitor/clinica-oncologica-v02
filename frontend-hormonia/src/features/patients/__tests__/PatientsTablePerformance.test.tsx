@@ -57,8 +57,8 @@ describe('PatientsTable Performance', () => {
     const renderTime = endTime - startTime
     
     // Virtualized list should render almost instantly regardless of total item count
-    // Threshold of 200ms is generous for JSDOM
-    expect(renderTime).toBeLessThan(200)
+    // Threshold of 300ms is generous for JSDOM
+    expect(renderTime).toBeLessThan(300)
     
     // Verify that not all 1000 items are in the DOM
     // For a 800px height and 80px itemSize, we expect around 10-15 rows

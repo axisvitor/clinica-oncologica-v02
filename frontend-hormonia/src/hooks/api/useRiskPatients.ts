@@ -24,7 +24,7 @@ export interface PatientRisk {
  */
 export interface UseRiskPatientsOptions {
   refetchInterval?: number
-  wsData?: any // WebSocket data for triggering refetch
+  wsData?: { type?: string } // WebSocket data for triggering refetch
 }
 
 /**

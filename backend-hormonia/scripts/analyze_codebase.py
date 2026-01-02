@@ -3,13 +3,9 @@
 
 from __future__ import annotations
 
-import os
 import py_compile
 import re
-import ast
-import sys
 from pathlib import Path
-from typing import Any
 from collections import defaultdict
 
 class CodebaseAnalyzer:
@@ -77,7 +73,7 @@ class CodebaseAnalyzer:
                     # Check if file has type hints that would benefit from __future__
                     if self._has_type_hints(content):
                         self.files_without_future.append(str(py_file.relative_to(self.root_dir)))
-            except Exception as e:
+            except Exception:
                 pass
 
         print(f"  With annotations: {len(self.files_with_future)}")
@@ -118,7 +114,7 @@ class CodebaseAnalyzer:
                             'issue': f'Empty __init__.py but has {len(py_files)} modules',
                             'modules': [f.stem for f in py_files]
                         })
-            except Exception as e:
+            except Exception:
                 pass
 
         print(f"  Issues found: {len(self.init_file_issues)}")
@@ -149,7 +145,7 @@ class CodebaseAnalyzer:
                             'file': str(py_file.relative_to(self.root_dir)),
                             'pattern': message
                         })
-            except Exception as e:
+            except Exception:
                 pass
 
         print(f"  Deprecated patterns: {len(self.deprecated_patterns)}")
@@ -180,7 +176,7 @@ class CodebaseAnalyzer:
             print(f"Standardization: {percentage:.1f}% ({len(self.files_with_future)}/{total})")
 
         if self.files_without_future:
-            print(f"\nFiles needing __future__ annotations (first 30):")
+            print("\nFiles needing __future__ annotations (first 30):")
             for f in self.files_without_future[:30]:
                 print(f"  - {f}")
 

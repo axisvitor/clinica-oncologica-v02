@@ -11,7 +11,7 @@ sys.path.append(os.getcwd())
 from fastapi.testclient import TestClient
 from app.main import app
 from app.dependencies.auth_dependencies import get_current_user_from_session
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.models.patient import Patient
 from app.database import SessionLocal
 

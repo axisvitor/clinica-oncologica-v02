@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Any, Optional
 from uuid import UUID
 from app.services.question_humanizer import get_question_humanizer

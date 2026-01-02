@@ -5,11 +5,9 @@ Tests the integration of CORS and CSRF protection together.
 Updated for simplified middleware implementation.
 """
 
-import pytest
 from unittest.mock import patch, MagicMock
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from starlette.responses import JSONResponse
 
 
 class TestCORSWithCSRF:

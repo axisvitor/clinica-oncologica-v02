@@ -16,7 +16,7 @@ async function globalTeardown(config: FullConfig) {
     try {
       await fs.rmdir(authDir, { recursive: true })
       console.log('🗑️ Cleaned up authentication state')
-    } catch (error) {
+    } catch (_error) {
       // Directory might not exist, which is fine
       console.log('ℹ️ No authentication state to clean up')
     }
@@ -48,7 +48,7 @@ async function cleanupTestData() {
           console.log(`🗑️ Cleaned up test file: ${file}`)
         }
       }
-    } catch (error) {
+    } catch (_error) {
       // Directory might not exist
       console.log('ℹ️ No test uploads to clean up')
     }

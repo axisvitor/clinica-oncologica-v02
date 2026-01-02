@@ -1,4 +1,4 @@
-import React, { memo, useState } from 'react'
+import React, { memo } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -49,6 +49,12 @@ interface UsersTableProps {
   onSort?: (field: string) => void
 }
 
+// Mutation type for user operations
+interface UserMutation {
+  isPending: boolean
+  mutate: (id: string) => void
+}
+
 interface RowData {
   users: AdminUser[]
   onViewUser: (user: AdminUser) => void
@@ -56,19 +62,23 @@ interface RowData {
   selectedUsers: string[]
   onToggleUserSelection?: (userId: string) => void
   setDeleteUserId: (id: string) => void
-  activateMutation: any
-  deactivateMutation: any
-  unlockMutation: any
-  enable2FAMutation: any
-  disable2FAMutation: any
+  activateMutation: UserMutation
+  deactivateMutation: UserMutation
+  unlockMutation: UserMutation
+  enable2FAMutation: UserMutation
+  disable2FAMutation: UserMutation
   gridCols: string
 }
 
-const MobileUserCard = memo(({ style, index, users, onViewUser, onEditUser, selectedUsers, onToggleUserSelection, setDeleteUserId, activateMutation, deactivateMutation, unlockMutation, enable2FAMutation, disable2FAMutation }: any) => {
+const MobileUserCard = memo(({ style, index, data }: { style: React.CSSProperties; index: number; data: RowData }) => {
+  const { users, onViewUser, onEditUser, selectedUsers, onToggleUserSelection, setDeleteUserId, activateMutation, deactivateMutation, unlockMutation, enable2FAMutation, disable2FAMutation } = data
   const user = users[index]
 
-  const isUserLocked = (user: AdminUser): boolean => {
-    return !!(user.locked_until && new Date(user.locked_until) > new Date())
+  // Early return if user is undefined (shouldn't happen but satisfies TypeScript)
+  if (!user) return null
+
+  const isUserLocked = (u: AdminUser): boolean => {
+    return !!(u.locked_until && new Date(u.locked_until) > new Date())
   }
   const isLocked = isUserLocked(user)
   const selected = selectedUsers.includes(user.id)
@@ -197,11 +207,15 @@ const MobileUserCard = memo(({ style, index, users, onViewUser, onEditUser, sele
   )
 })
 
-const UserRow = memo(({ style, index, users, onViewUser, onEditUser, selectedUsers, onToggleUserSelection, setDeleteUserId, activateMutation, deactivateMutation, unlockMutation, enable2FAMutation, disable2FAMutation, gridCols }: any) => {
+const UserRow = memo(({ style, index, data }: { style: React.CSSProperties; index: number; data: RowData }) => {
+  const { users, onViewUser, onEditUser, selectedUsers, onToggleUserSelection, setDeleteUserId, activateMutation, deactivateMutation, unlockMutation, enable2FAMutation, disable2FAMutation, gridCols } = data
   const user = users[index]
 
-  const isUserLocked = (user: AdminUser): boolean => {
-    return !!(user.locked_until && new Date(user.locked_until) > new Date())
+  // Early return if user is undefined (shouldn't happen but satisfies TypeScript)
+  if (!user) return null
+
+  const isUserLocked = (u: AdminUser): boolean => {
+    return !!(u.locked_until && new Date(u.locked_until) > new Date())
   }
 
   const getRoleBadge = (role: string) => {
@@ -233,6 +247,13 @@ const UserRow = memo(({ style, index, users, onViewUser, onEditUser, selectedUse
     }
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onViewUser(user)
+    }
+  }
+
   return (
     <div
       style={style}
@@ -242,6 +263,10 @@ const UserRow = memo(({ style, index, users, onViewUser, onEditUser, selectedUse
         selectedUsers.includes(user.id) ? 'bg-blue-50' : ''
       )}
       onClick={() => onViewUser(user)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      aria-label={`Ver detalhes do usuario ${user.full_name}`}
     >
       {onToggleUserSelection && (
         <div onClick={(e) => e.stopPropagation()}>
@@ -284,7 +309,7 @@ const UserRow = memo(({ style, index, users, onViewUser, onEditUser, selectedUse
       <div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
+            <Button variant="ghost" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()} aria-label="Acoes">
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -461,7 +486,7 @@ export function UsersTable({
 
   return (
     <>
-      <div className="space-y-4 h-[calc(100vh-220px)] min-h-[500px] flex flex-col">
+      <div className="space-y-4 h-[calc(100dvh-220px)] min-h-[500px] flex flex-col">
         {/* Desktop Table */}
         <div className="hidden md:flex flex-1 flex-col rounded-md border overflow-hidden">
           <div className={cn("grid bg-gray-50 font-medium text-sm border-b", gridCols)}>
@@ -507,7 +532,7 @@ export function UsersTable({
                   itemSize={60}
                   itemData={itemData}
                 >
-                  {UserRow as any}
+                  {UserRow}
                 </FixedSizeList>
               )}
             </AutoSizer>
@@ -525,7 +550,7 @@ export function UsersTable({
                 itemSize={350}
                 itemData={itemData}
               >
-                {MobileUserCard as any}
+                {MobileUserCard}
               </FixedSizeList>
             )}
           </AutoSizer>

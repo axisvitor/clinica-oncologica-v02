@@ -42,6 +42,7 @@ RATE_LIMIT_SEARCH = "30/minute"
 async def _get_current_user_simple(
     session_cookie_id: Optional[str] = Cookie(None, alias="session_id"),
     x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),
+    authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db),
     redis_cache=Depends(get_redis_cache),
 ) -> Dict[str, Any]:
@@ -50,9 +51,15 @@ async def _get_current_user_simple(
     Validates user session from cookie or header and retrieves user data
     from cache or database. Used as dependency for template endpoints.
 
+    Supports multiple authentication sources (in priority order):
+    1. Authorization header (Bearer <session_id>)
+    2. X-Session-ID header
+    3. session_id cookie
+
     Args:
         session_cookie_id: Session ID from cookie. Defaults to None.
         x_session_id: Session ID from X-Session-ID header. Defaults to None.
+        authorization: Authorization header (Bearer token). Defaults to None.
         db: Database session from dependency injection.
         redis_cache: Redis cache instance from dependency injection.
 
@@ -72,7 +79,20 @@ async def _get_current_user_simple(
         >>> print(user["email"])
         "user@example.com"
     """
-    final_session_id = session_cookie_id or x_session_id
+    final_session_id = None
+    
+    # Priority 1: Authorization Header (Bearer <session_id>)
+    if authorization and authorization.startswith("Bearer "):
+        final_session_id = authorization.split(" ")[1]
+    
+    # Priority 2: X-Session-ID Header
+    if not final_session_id and x_session_id:
+        final_session_id = x_session_id
+        
+    # Priority 3: Cookie
+    if not final_session_id and session_cookie_id:
+        final_session_id = session_cookie_id
+
     if not final_session_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Session ID not provided"

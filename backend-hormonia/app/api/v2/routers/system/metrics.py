@@ -14,7 +14,6 @@ import json
 
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 
-from app.models.user import UserRole
 from app.schemas.v2.system import (
     SystemInfoResponse,
     SystemMetrics,

@@ -19,7 +19,7 @@ import pytest
 import time
 import hmac
 import hashlib
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -445,7 +445,6 @@ class TestCSRFCookieHandling:
 
         @app.get("/csrf-token")
         def csrf_endpoint(response):
-            from fastapi import Response
             token = get_csrf_token()
             set_csrf_cookie(response, token)
             return {"csrf_token": token}

@@ -160,7 +160,7 @@ export function QuizPage() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Paciente</label>
-                <Select value={selectedPatient} onValueChange={setSelectedPatient}>
+                <Select name="selectedPatient" value={selectedPatient} onValueChange={setSelectedPatient}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione um paciente" />
                   </SelectTrigger>
@@ -176,7 +176,7 @@ export function QuizPage() {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Template</label>
-                <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                <Select name="selectedTemplate" value={selectedTemplate} onValueChange={setSelectedTemplate}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione um template" />
                   </SelectTrigger>

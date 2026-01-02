@@ -5,10 +5,19 @@ import { Badge } from '@/components/ui/badge'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import type { AIInsight } from '@/types/api'
 
+interface Recommendation {
+  id: string
+  title: string
+  description: string
+  priority?: string
+  type?: string
+  rationale?: string
+}
+
 interface PhysicianInsightsPanelProps {
   isLoading: boolean
   insights: AIInsight[] | undefined
-  recommendations: any[] | undefined
+  recommendations: Recommendation[] | undefined
 }
 
 export function PhysicianInsightsPanel({ isLoading, insights, recommendations }: PhysicianInsightsPanelProps) {

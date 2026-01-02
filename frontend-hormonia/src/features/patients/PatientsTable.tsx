@@ -68,7 +68,12 @@ export function PatientsTable({
 
   if (patients.length === 0) {
     return (
-      <div className="text-center py-8">
+      <div
+        className="text-center py-8"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
         <p className="text-gray-500">Nenhum paciente encontrado</p>
         <p className="text-sm text-gray-400 mt-1">
           Tente ajustar os filtros ou criar um novo paciente
@@ -90,7 +95,7 @@ export function PatientsTable({
   }
 
   return (
-    <div className="space-y-4 h-[calc(100vh-220px)] min-h-[500px] flex flex-col">
+    <div className="space-y-4 h-[calc(100dvh-220px)] min-h-[500px] flex flex-col">
       {/* Desktop Table - hidden on mobile */}
       <div className="hidden md:flex flex-1 flex-col overflow-hidden border md:rounded-lg">
         <div className={cn("grid bg-muted/50 font-medium text-sm border-b", GRID_COLS)}>
@@ -114,7 +119,7 @@ export function PatientsTable({
                 itemSize={80}
                 itemData={itemData}
               >
-                {PatientRow as any}
+                {PatientRow}
               </FixedSizeList>
             )}
           </AutoSizer>
@@ -132,7 +137,7 @@ export function PatientsTable({
               itemSize={300}
               itemData={itemData}
             >
-              {MobilePatientCard as any}
+              {MobilePatientCard}
             </FixedSizeList>
           )}
           </AutoSizer>

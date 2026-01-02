@@ -16,8 +16,8 @@ Coordination: Memory-based swarm coordination
 """
 
 import pytest
-from unittest.mock import patch, MagicMock
-from fastapi import FastAPI, Depends, HTTPException
+from unittest.mock import patch
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from fastapi.responses import JSONResponse
 

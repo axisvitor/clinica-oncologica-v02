@@ -28,32 +28,34 @@ export function ResumeQuizDialog({ open, progress, onResume, onStartFresh }: Res
             <PlayCircle className="w-5 h-5 text-primary" />
             Continuar Questionário?
           </AlertDialogTitle>
-          <AlertDialogDescription className="space-y-4 pt-4">
-            <p className="text-base">
-              Encontramos um questionário em andamento. Você gostaria de continuar de onde parou?
-            </p>
+          <AlertDialogDescription className="space-y-4 pt-4" asChild>
+            <div>
+              <p className="text-base">
+                Encontramos um questionário em andamento. Você gostaria de continuar de onde parou?
+              </p>
 
-            <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-foreground">Progresso</p>
-                <div className="space-y-2">
-                  <Progress value={progressPercentage} className="h-2" />
-                  <p className="text-xs text-muted-foreground">
-                    {answeredQuestions} de {progress.totalQuestions} perguntas respondidas ({Math.round(progressPercentage)}%)
+              <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">Progresso</p>
+                  <div className="space-y-2">
+                    <Progress value={progressPercentage} className="h-2" />
+                    <p className="text-xs text-muted-foreground">
+                      {answeredQuestions} de {progress.totalQuestions} perguntas respondidas ({Math.round(progressPercentage)}%)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">Paciente</p>
+                  <p className="text-sm text-muted-foreground">{progress.patientName}</p>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">Último salvamento</p>
+                  <p className="text-sm text-muted-foreground">
+                    {timeAgo} ({lastSavedDate.toLocaleString("pt-BR")})
                   </p>
                 </div>
-              </div>
-
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-foreground">Paciente</p>
-                <p className="text-sm text-muted-foreground">{progress.patientName}</p>
-              </div>
-
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-foreground">Último salvamento</p>
-                <p className="text-sm text-muted-foreground">
-                  {timeAgo} ({lastSavedDate.toLocaleString("pt-BR")})
-                </p>
               </div>
             </div>
           </AlertDialogDescription>

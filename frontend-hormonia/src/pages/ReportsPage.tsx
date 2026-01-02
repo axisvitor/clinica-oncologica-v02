@@ -5,13 +5,14 @@ import { apiClient } from '@/lib/api-client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { ReportsSkeleton } from '@/features/reports/ReportsSkeleton'
 import { ReportCard } from '@/features/reports/ReportCard'
 import { ReportGenerator } from '@/features/reports/ReportGenerator'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuth } from '@/hooks/useAuth'
 import { createLogger } from '@/lib/logger'
 import type { Report } from '@/lib/api-client/types'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 const logger = createLogger('ReportsPage')
 
@@ -20,9 +21,9 @@ export function ReportsPage() {
   const currentPage = 1
   const [showFilters, setShowFilters] = useState(false)
   const [showGenerateDialog, setShowGenerateDialog] = useState(false)
-  const searchQuery = ''
-  const statusFilter: string = ''
-  const typeFilter: string = ''
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [typeFilter, setTypeFilter] = useState<string>('all')
   const [downloading, setDownloading] = useState<string | null>(null)
   const { toast } = useToast()
   const { token } = useAuth()
@@ -40,11 +41,11 @@ export function ReportsPage() {
         params['search'] = searchQuery.trim()
       }
 
-      if (statusFilter) {
+      if (statusFilter && statusFilter !== 'all') {
         params['status'] = statusFilter
       }
 
-      if (typeFilter) {
+      if (typeFilter && typeFilter !== 'all') {
         params['type'] = typeFilter
       }
 
@@ -134,7 +135,7 @@ export function ReportsPage() {
   const getReportsStats = () => {
     const reports = reportsData?.items || []
     return {
-      total: reports.length,
+      total: reportsData?.total || 0,
       completed: reports.filter((r) => r.status === 'completed').length,
       generating: reports.filter((r) => r.status === 'generating').length,
       failed: reports.filter((r) => r.status === 'failed').length
@@ -225,20 +226,61 @@ export function ReportsPage() {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-center space-x-4">
-            <div className="flex-1 relative">
-              <Input
-                placeholder="Buscar relatórios..."
-                className="pl-4"
-              />
+          <div className="space-y-4">
+            <div className="flex items-center space-x-4">
+              <div className="flex-1 relative">
+                <Input
+                  name="searchQuery"
+                  placeholder="Buscar relatórios..."
+                  className="pl-4"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => setShowFilters(!showFilters)}
+                className={showFilters ? 'bg-muted' : ''}
+              >
+                <Filter className="mr-2 h-4 w-4" />
+                Filtros
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => setShowFilters(!showFilters)}
-            >
-              <Filter className="mr-2 h-4 w-4" />
-              Filtros
-            </Button>
+
+            {showFilters && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Status</label>
+                  <Select name="statusFilter" value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione o status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os status</SelectItem>
+                      <SelectItem value="completed">Concluídos</SelectItem>
+                      <SelectItem value="generating">Processando</SelectItem>
+                      <SelectItem value="failed">Falharam</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Tipo</label>
+                  <Select name="typeFilter" value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os tipos</SelectItem>
+                      <SelectItem value="monthly">Relatório Mensal</SelectItem>
+                      <SelectItem value="quarterly">Relatório Trimestral</SelectItem>
+                      <SelectItem value="treatment_progress">Progresso do Tratamento</SelectItem>
+                      <SelectItem value="engagement">Engajamento</SelectItem>
+                      <SelectItem value="custom">Personalizado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -246,9 +288,7 @@ export function ReportsPage() {
       {/* Reports Grid */}
       <div>
         {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <LoadingSpinner size="lg" />
-          </div>
+          <ReportsSkeleton />
         ) : reportsData?.items?.length === 0 ? (
           <Card>
             <CardContent className="pt-6">

@@ -1,5 +1,5 @@
 import { useQuery, UseQueryOptions, UseQueryResult } from '@tanstack/react-query';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createLogger } from '@/lib/logger';
 
 export interface QueryPerformanceMetrics {
@@ -24,13 +24,13 @@ interface DedupeCacheEntry<TData> {
   data?: TData;
 }
 
-type QueryFunctionType<TData, TError> = NonNullable<UseQueryOptions<TData, TError>['queryFn']>;
+type QueryFunctionType<TData, _TError> = NonNullable<UseQueryOptions<TData, _TError>['queryFn']>;
 
-type ExecutableQueryFn<TData, TError> = (...args: unknown[]) => Promise<TData> | TData;
+type ExecutableQueryFn<TData> = (...args: unknown[]) => Promise<TData> | TData;
 
-function isExecutableQueryFn<TData, TError>(
-  fn?: QueryFunctionType<TData, TError>
-): fn is ExecutableQueryFn<TData, TError> {
+function isExecutableQueryFn<TData>(
+  fn?: QueryFunctionType<TData, unknown>
+): fn is ExecutableQueryFn<TData> {
   return typeof fn === 'function';
 }
 
@@ -78,17 +78,17 @@ export function useConfiguredQuery<TData, TError>(
   });
 }
 
-interface DedupeHookParams<TData, TError> {
+interface DedupeHookParams<TData> {
   queryKeyString: string;
   deduplicationWindow: number;
-  originalQueryFn?: QueryFunctionType<TData, TError>;
+  originalQueryFn?: QueryFunctionType<TData, unknown>;
 }
 
-export function useDedupeAwareQueryFn<TData, TError>({
+export function useDedupeAwareQueryFn<TData>({
   queryKeyString,
   deduplicationWindow,
   originalQueryFn,
-}: DedupeHookParams<TData, TError>) {
+}: DedupeHookParams<TData>) {
   const dedupeCacheRef = useRef<Record<string, DedupeCacheEntry<TData>>>({});
   const dedupeWindowMs = Math.max(deduplicationWindow, 0);
 

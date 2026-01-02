@@ -12,7 +12,6 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 
-from app.models.user import UserRole
 from app.schemas.v2.system import (
     ConfigValidationRequest,
     ConfigValidationResponse,

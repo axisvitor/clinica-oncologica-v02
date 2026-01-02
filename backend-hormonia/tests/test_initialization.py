@@ -5,7 +5,6 @@ Comprehensive tests for all initialization scripts and utilities.
 """
 
 import pytest
-import asyncio
 from unittest.mock import Mock, patch, AsyncMock
 from pathlib import Path
 
@@ -262,7 +261,7 @@ class TestEnvironmentValidator:
         with patch.dict('os.environ', {
             'DATABASE_URL': 'mysql://user:pass@localhost/db'  # Wrong protocol
         }):
-            from scripts.validate_env import EnvironmentValidator, Severity
+            from scripts.validate_env import EnvironmentValidator
 
             validator = EnvironmentValidator()
             validator._validate_database_url()
@@ -276,7 +275,7 @@ class TestEnvironmentValidator:
         with patch.dict('os.environ', {
             'SECRET_KEY': 'short'  # Too short
         }):
-            from scripts.validate_env import EnvironmentValidator, Severity
+            from scripts.validate_env import EnvironmentValidator
 
             validator = EnvironmentValidator()
             validator._validate_security_keys()

@@ -33,7 +33,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { AdminNavItem, AdminUser } from '@/types/admin'
+import { AdminNavItem } from '@/types/admin'
 import { useAuth } from '@/app/providers/AuthContext'
 import { createLogger } from '@/lib/logger'
 
@@ -237,7 +237,7 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
   const [searchQuery, setSearchQuery] = useState('')
   const [filteredNavItems, setFilteredNavItems] = useState<AdminNavItem[]>(adminNavItems)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [criticalAlerts, setCriticalAlerts] = useState(2) // Mock data
+  const [criticalAlerts, _setCriticalAlerts] = useState(2) // Mock data
 
   // Auto-expand current section
   useEffect(() => {
@@ -254,6 +254,7 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
     })
 
     setExpandedItems(newExpanded)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- expandedItems is intentionally excluded to prevent infinite loop
   }, [location.pathname])
 
   // Filter navigation items based on search

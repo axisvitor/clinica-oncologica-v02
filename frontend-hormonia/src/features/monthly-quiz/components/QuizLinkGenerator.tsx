@@ -6,13 +6,25 @@
 import React, { useState } from 'react';
 import { useMonthlyQuiz } from '../hooks/useMonthlyQuiz';
 import type { DeliveryMethod } from '../types';
-import { MonthlyQuizLinkCreate } from '../types';
+import type { MonthlyQuizLinkCreate } from '../types';
+
+// Local type that matches what useMonthlyQuiz returns
+interface QuizLinkResponse {
+  session_id?: string
+  quiz_session_id?: string
+  patient_id: string
+  quiz_template_id: string
+  link_url?: string
+  link?: string
+  expires_at: string
+  created_at: string
+}
 import { toast } from '@/components/ui/use-toast';
 
 interface QuizLinkGeneratorProps {
   patientId: string;
   quizTemplateId: string;
-  onLinkCreated?: (link: any) => void;
+  onLinkCreated?: (link: QuizLinkResponse) => void;
 }
 
 export const QuizLinkGenerator: React.FC<QuizLinkGeneratorProps> = ({

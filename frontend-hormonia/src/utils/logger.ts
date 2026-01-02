@@ -21,6 +21,12 @@
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
+// Sentry global type
+interface SentryGlobal {
+  captureException: (error: Error, context?: { extra?: Record<string, unknown> }) => void;
+  captureMessage: (message: string, context?: { level?: string; extra?: Record<string, unknown> }) => void;
+}
+
 interface LoggerConfig {
   enabled: boolean;
   minLevel: LogLevel;
@@ -84,18 +90,20 @@ class Logger {
     }
 
     // Check if Sentry is available
-    if (typeof window !== 'undefined' && (window as any).Sentry) {
-      const Sentry = (window as any).Sentry;
+    if (typeof window !== 'undefined' && (window as Window & { Sentry?: SentryGlobal }).Sentry) {
+      const Sentry = (window as Window & { Sentry?: SentryGlobal }).Sentry;
 
-      if (error instanceof Error) {
-        Sentry.captureException(error, {
-          extra: context,
-        });
-      } else {
-        Sentry.captureMessage(error, {
-          level: 'error',
-          extra: context,
-        });
+      if (Sentry) {
+        if (error instanceof Error) {
+          Sentry.captureException(error, {
+            extra: context,
+          });
+        } else {
+          Sentry.captureMessage(error, {
+            level: 'error',
+            extra: context,
+          });
+        }
       }
     }
   }
@@ -180,7 +188,7 @@ class Logger {
   /**
    * Log table (for arrays/objects)
    */
-  table(data: any): void {
+  table(data: unknown): void {
     if (this.shouldLog('debug')) {
       console.table(data);
     }

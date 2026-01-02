@@ -53,8 +53,9 @@ function createLazyChart<P extends object>(
   componentName: string
 ): React.LazyExoticComponent<React.ComponentType<P>> {
   return lazy(() =>
-    import('recharts').then((module: any) => ({
-      default: module[componentName] as React.ComponentType<P>
+    import('recharts').then((module) => ({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      default: (module as unknown as Record<string, React.ComponentType<any>>)[componentName] as React.ComponentType<P>
     }))
   );
 }

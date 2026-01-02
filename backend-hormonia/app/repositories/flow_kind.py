@@ -4,7 +4,6 @@ Standardized to match the RDS PostgreSQL schema.
 """
 
 from typing import List, Optional
-from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 

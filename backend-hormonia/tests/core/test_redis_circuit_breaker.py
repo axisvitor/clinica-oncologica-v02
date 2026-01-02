@@ -11,7 +11,7 @@ These tests verify:
 
 import asyncio
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 import json
 
 from app.core.redis_circuit_breaker import (

@@ -122,7 +122,6 @@ def create_application(
 
     # Configure API v2 exception handlers
     from app.core.exceptions import APIException
-    from fastapi.exceptions import RequestValidationError
 
     @app.exception_handler(APIException)
     async def api_exception_handler(request: Request, exc: APIException):

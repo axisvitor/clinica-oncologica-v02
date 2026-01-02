@@ -12,7 +12,6 @@ from datetime import datetime, timezone
 from app.utils.version_utils import (
     normalize_version,
     is_valid_version,
-    compare_versions,
     DEFAULT_VERSION,
     VersionError,
 )

@@ -27,10 +27,10 @@ export default function PacientesList() {
       setLoading(true)
       const params: { size?: number; search?: string } = { size: 50 }
       if (searchTerm) params.search = searchTerm
-      const resp = await apiClient.patients.list(params as any)
-      const mapped: Paciente[] = (resp.items || []).map((p: any) => ({
+      const resp = await apiClient.patients.list(params)
+      const mapped: Paciente[] = (resp.items || []).map((p: { id: string; name?: string; cpf?: string; birth_date?: string; phone?: string; email?: string }) => ({
         id: p.id,
-        nome: p.name,
+        nome: p.name || '',
         cpf: p.cpf || '',
         data_nascimento: p.birth_date || '',
         telefone: p.phone || '',
@@ -202,9 +202,8 @@ export default function PacientesList() {
 
                       {/* Expand/Collapse Icon */}
                       <ChevronDown
-                        className={`w-5 h-5 text-gray-400 transition-transform duration-300 flex-shrink-0 ml-2 ${
-                          isExpanded ? 'transform rotate-180' : ''
-                        }`}
+                        className={`w-5 h-5 text-gray-400 transition-transform duration-300 flex-shrink-0 ml-2 ${isExpanded ? 'transform rotate-180' : ''
+                          }`}
                       />
                     </div>
 
@@ -225,9 +224,8 @@ export default function PacientesList() {
 
                   {/* Expanded Content */}
                   <div
-                    className={`transition-all duration-300 ease-in-out ${
-                      isExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-                    } overflow-hidden`}
+                    className={`transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                      } overflow-hidden`}
                   >
                     <div className="px-6 pb-6 space-y-3 border-t border-gray-100 pt-4">
                       {/* Email */}

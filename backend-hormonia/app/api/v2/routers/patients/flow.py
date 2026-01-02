@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from typing import Dict
 
 # Third-party imports
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 

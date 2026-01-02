@@ -83,7 +83,7 @@ class FlowTemplateV2Base(BaseModel):
     )
     duration_days: int = Field(..., ge=1, le=365, description="Flow duration in days")
     is_active: bool = Field(True, description="Whether template is active")
-    template_data: Dict[str, Any] = Field(
+    metadata_json: Dict[str, Any] = Field(
         ..., description="Template configuration data"
     )
 
@@ -98,18 +98,18 @@ class FlowTemplateV2Base(BaseModel):
             raise ValueError("Version parts must be numeric")
         return v
 
-    @field_validator("template_data")
+    @field_validator("metadata_json")
     @classmethod
-    def validate_template_data(cls, v):
+    def validate_metadata_json(cls, v):
         """Validate template data structure"""
         required_fields = ["steps", "triggers"]
         for field in required_fields:
             if field not in v:
-                raise ValueError(f"template_data must contain '{field}' field")
+                raise ValueError(f"metadata_json must contain '{field}' field")
 
         steps = v.get("steps", [])
         if not isinstance(steps, list) or len(steps) == 0:
-            raise ValueError("template_data.steps must be a non-empty list")
+            raise ValueError("metadata_json.steps must be a non-empty list")
 
         return v
 
@@ -127,14 +127,14 @@ class FlowTemplateV2Update(BaseModel):
     description: Optional[str] = Field(None, max_length=1000)
     duration_days: Optional[int] = Field(None, ge=1, le=365)
     is_active: Optional[bool] = None
-    template_data: Optional[Dict[str, Any]] = None
+    metadata_json: Optional[Dict[str, Any]] = None
 
-    @field_validator("template_data")
+    @field_validator("metadata_json")
     @classmethod
-    def validate_template_data(cls, v):
+    def validate_metadata_json(cls, v):
         if v is not None and "steps" in v:
             if not isinstance(v["steps"], list) or len(v["steps"]) == 0:
-                raise ValueError("template_data.steps must be a non-empty list")
+                raise ValueError("metadata_json.steps must be a non-empty list")
         return v
 
 

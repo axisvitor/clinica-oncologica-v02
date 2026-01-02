@@ -133,7 +133,7 @@ export function createPatientsApi(client: ApiClientCore) {
         ...rest
       }
 
-      const res: any = await client.get<any>('/api/v2/patients/', query)
+      const res = await client.get<{ data?: BackendPatient[]; items?: BackendPatient[]; total?: number; total_count?: number; pages?: number; has_more?: boolean; next_cursor?: string }>('/api/v2/patients/', query)
 
       // Normalize to keep backward compatibility with components expecting `items`
       const rawItems = Array.isArray(res?.data) ? res.data : (res?.items ?? [])
@@ -141,7 +141,7 @@ export function createPatientsApi(client: ApiClientCore) {
       const total = res?.total ?? res?.total_count ?? items.length ?? 0
       const has_more = res?.has_more ?? (typeof res?.pages === 'number' && page < res.pages)
       const next_cursor = res?.next_cursor ?? null
-      const normalized: any = {
+      const normalized: PaginatedResponse<Patient> & { data: Patient[]; has_more: boolean; next_cursor: string | null } = {
         items,
         total,
         page,
@@ -172,7 +172,7 @@ export function createPatientsApi(client: ApiClientCore) {
         throw new Error('doctor_id is required to create a patient')
       }
       // Denormalize frontend data to backend format before sending
-      const backendData = denormalizePatient(data as any)
+      const backendData = denormalizePatient(data as PatientCreate | PatientUpdate)
       const patient = await client.post<BackendPatient>('/api/v2/patients/', backendData)
       return normalizePatient(patient)
     },
@@ -182,7 +182,7 @@ export function createPatientsApi(client: ApiClientCore) {
      */
     update: async (patientId: string, data: PatientUpdate, options?: { headers?: Record<string, string> }): Promise<Patient> => {
       // Denormalize frontend data to backend format before sending
-      const backendData = denormalizePatient(data as any)
+      const backendData = denormalizePatient(data as PatientCreate | PatientUpdate)
 
       // If options.headers provided, we need to pass them through request options
       // Since patch doesn't support options, we'll call request directly
@@ -221,7 +221,7 @@ export function createPatientsApi(client: ApiClientCore) {
      */
     activate: async (patientId: string): Promise<Patient> => {
       // Using update to set status to active
-      const backendData = denormalizePatient({ status: 'active' } as any)
+      const backendData = denormalizePatient({ status: 'active' } as PatientUpdate)
       const patient = await client.patch<BackendPatient>(`/api/v2/patients/${patientId}`, backendData)
       return normalizePatient(patient)
     },
@@ -231,7 +231,7 @@ export function createPatientsApi(client: ApiClientCore) {
      */
     deactivate: async (patientId: string): Promise<Patient> => {
       // Using update to set status to paused
-      const backendData = denormalizePatient({ status: 'paused' } as any)
+      const backendData = denormalizePatient({ status: 'paused' } as PatientUpdate)
       const patient = await client.patch<BackendPatient>(`/api/v2/patients/${patientId}`, backendData)
       return normalizePatient(patient)
     },
@@ -275,7 +275,7 @@ export function createPatientsApi(client: ApiClientCore) {
      */
     exportToCsv: async (filters?: PatientFilters): Promise<Blob> => {
       const response = await fetch(
-        `${client.getBaseURL()}/api/v2/patients/export?${new URLSearchParams(filters as any)}`,
+        `${client.getBaseURL()}/api/v2/patients/export?${new URLSearchParams(filters as Record<string, string>)}`,
         {
           method: 'GET',
           headers: {

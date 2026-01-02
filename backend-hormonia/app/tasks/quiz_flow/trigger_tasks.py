@@ -39,7 +39,6 @@ def check_quiz_triggers_task(self, limit: int = 100) -> dict[str, Any]:
     Raises:
         Exception: If quiz trigger checking fails after all retries
     """
-    import asyncio
 
     try:
         with next(get_db()) as db:

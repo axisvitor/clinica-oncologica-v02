@@ -7,7 +7,7 @@ Consolidated from: app/services/message_factory.py
 
 from typing import List, Optional, Any, Dict
 from uuid import UUID
-from datetime import datetime, timezone
+from datetime import datetime
 import logging
 
 from sqlalchemy.orm import Session

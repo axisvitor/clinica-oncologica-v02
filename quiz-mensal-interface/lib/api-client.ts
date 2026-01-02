@@ -255,11 +255,25 @@ class QuizApiClient {
   /**
    * Access quiz using URL token
    * Exchanges URL token for secure session (HttpOnly cookie)
+   * 
+   * OPTIMIZATION: Pre-starts CSRF handshake before preparing request body
+   * This reduces latency by running CSRF fetch and body prep in parallel.
    */
   async accessQuiz(tokenLink: string): Promise<QuizSession> {
-    return this.request<QuizSession>("/monthly-quiz-public/access", {
+    // Start CSRF handshake early (non-blocking)
+    // This runs in parallel while we prepare the request
+    const csrfPromise = this.ensureCsrfToken();
+
+    // Prepare request body (can happen while CSRF is fetching)
+    const body = JSON.stringify({ token: tokenLink });
+
+    // Wait for CSRF to complete before making the POST
+    await csrfPromise;
+
+    // Note: API_BASE_URL already includes /monthly-quiz-public prefix
+    return this.request<QuizSession>("/access", {
       method: "POST",
-      body: JSON.stringify({ token: tokenLink }),
+      body,
     });
   }
 
@@ -269,7 +283,8 @@ class QuizApiClient {
    */
   async recoverSession(): Promise<QuizSession | null> {
     try {
-      return await this.request<QuizSession>("/monthly-quiz-public/session/active", {
+      // Note: API_BASE_URL already includes /monthly-quiz-public prefix
+      return await this.request<QuizSession>("/session/active", {
         method: "GET",
       });
     } catch (error) {
@@ -295,7 +310,8 @@ class QuizApiClient {
     responseValue: string | string[],
     metadata?: Record<string, unknown>
   ): Promise<QuizSubmitResponse> {
-    return this.request<QuizSubmitResponse>("/monthly-quiz-public/submit", {
+    // Note: API_BASE_URL already includes /monthly-quiz-public prefix
+    return this.request<QuizSubmitResponse>("/submit", {
       method: "POST",
       body: JSON.stringify({
         question_id: questionId,
@@ -310,7 +326,8 @@ class QuizApiClient {
    */
   async logout(): Promise<void> {
     try {
-      await this.request<void>("/monthly-quiz-public/logout", {
+      // Note: API_BASE_URL already includes /monthly-quiz-public prefix
+      await this.request<void>("/logout", {
         method: "POST",
       });
     } finally {

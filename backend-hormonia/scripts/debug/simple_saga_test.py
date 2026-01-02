@@ -7,8 +7,8 @@ import asyncio
 import sys
 from pathlib import Path
 from datetime import datetime, date
-from uuid import UUID, uuid4
-from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
+from unittest.mock import patch
 
 # Add parent directories to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -105,7 +105,7 @@ async def main():
         # 4. Report results
         print("\n[4/4] Results:")
         if patient:
-            print(f"  ✅ SUCCESS!")
+            print("  ✅ SUCCESS!")
             print(f"     Patient ID: {patient.id}")
             print(f"     Name: {patient.name}")
             print(f"     Phone: {patient.phone}")

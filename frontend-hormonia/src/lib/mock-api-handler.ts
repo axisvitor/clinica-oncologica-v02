@@ -75,6 +75,8 @@ export class MockApiHandler {
       return this.handleMessagesEndpoint(pathname, searchParams, method, body) as T
     } else if (pathname.startsWith('/api/v2/flows')) {
       return this.handleFlowsEndpoint(pathname, searchParams, method) as T
+    } else if (pathname.startsWith('/api/v2/templates/flows')) {
+      return this.handleFlowTemplatesEndpoint(pathname, searchParams, method, body) as T
     } else if (pathname.startsWith('/api/v2/analytics')) {
       return this.handleAnalyticsEndpoint(pathname, searchParams) as T
     } else if (pathname.startsWith('/api/v2/alerts')) {
@@ -195,10 +197,7 @@ export class MockApiHandler {
       })
     }
 
-    // GET /api/v2/flows/templates - List flow templates
-    if (pathname === '/api/v2/flows/templates' && method === 'GET') {
-      return getMockFlowTemplates()
-    }
+
 
     // POST /api/v2/flows/start - Start flow
     if (pathname === '/api/v2/flows/start' && method === 'POST') {
@@ -206,6 +205,28 @@ export class MockApiHandler {
         id: `flow-${Date.now()}`,
         status: 'active',
         started_at: new Date().toISOString()
+      }
+    }
+
+    return { error: 'Endpoint not found' }
+  }
+
+  /**
+   * Handle flow templates endpoints
+   */
+  private handleFlowTemplatesEndpoint(pathname: string, params: URLSearchParams, method: string, body?: unknown): unknown {
+    // GET /api/v2/templates/flows - List flow templates
+    if (pathname === '/api/v2/templates/flows' && method === 'GET') {
+      return getMockFlowTemplates()
+    }
+
+    // POST /api/v2/templates/flows - Create flow template
+    if (pathname === '/api/v2/templates/flows' && method === 'POST') {
+      const bodyData = (body as Record<string, unknown>) || {}
+      return {
+        id: `template-${Date.now()}`,
+        ...bodyData,
+        created_at: new Date().toISOString()
       }
     }
 
