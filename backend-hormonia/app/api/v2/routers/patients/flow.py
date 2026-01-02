@@ -24,7 +24,7 @@ Lines: 57-416
 # OpenAPI schema generation issues with Query() and Depends() parameters
 import logging
 from datetime import datetime, timezone
-from typing import Dict
+from typing import Any, Dict, List, Optional
 
 # Third-party imports
 from fastapi import APIRouter, Depends, Request
@@ -58,6 +58,26 @@ from .base import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _normalize_datetime(dt: Any) -> datetime:
+    """Helper to normalize mixed datetime/string types for sorting."""
+    if dt is None:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    if isinstance(dt, datetime):
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt
+    if isinstance(dt, str):
+        try:
+            # Handle ISO strings, including those with 'Z'
+            parsed = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                return parsed.replace(tzinfo=timezone.utc)
+            return parsed
+        except (ValueError, TypeError):
+            return datetime.min.replace(tzinfo=timezone.utc)
+    return datetime.min.replace(tzinfo=timezone.utc)
 
 
 @router.post(
@@ -354,7 +374,7 @@ async def get_patient_timeline(
         })
 
     # Sort events by date (most recent first)
-    events.sort(key=lambda x: x["date"] if x["date"] else datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+    events.sort(key=lambda x: _normalize_datetime(x.get("date")), reverse=True)
 
     return {
         "patient_id": patient_id,

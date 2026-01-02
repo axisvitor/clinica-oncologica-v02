@@ -12,8 +12,8 @@
 *   [x] Task: Conductor - User Manual Verification 'Fix Authentication Role Access' (Protocol in workflow.md)
 
 ## Phase 3: Fix Timeline Sorting (DateTime vs Str)
-*   [ ] Task: Create a unit test for `get_patient_timeline` logic in `backend-hormonia/app/api/v2/routers/patients/flow.py` injecting mock data with mixed `datetime` objects and ISO format strings.
-*   [ ] Task: Implement a normalization helper or map function to ensure all dates are converted to `datetime` objects (with timezone) before the `sort()` operation.
+*   [x] Task: Create a unit test for `get_patient_timeline` logic in `backend-hormonia/app/api/v2/routers/patients/flow.py` injecting mock data with mixed `datetime` objects and ISO format strings.
+*   [~] Task: Implement a normalization helper or map function to ensure all dates are converted to `datetime` objects (with timezone) before the `sort()` operation.
 *   [ ] Task: Conductor - User Manual Verification 'Fix Timeline Sorting (DateTime vs Str)' (Protocol in workflow.md)
 
 ## Phase 4: Fix Flow Engine & Templates (SAGA/Onboarding)

@@ -375,7 +375,7 @@ def _serialize_flow_template(template: FlowTemplateVersion) -> Dict[str, Any]:
         "template_name": template.template_name,
         "description": template.description,
         "steps": template.messages,
-        "metadata": template.template_metadata or {},
+        "metadata_json": template.metadata_json or {},
         "is_active": template.is_active,
         "is_draft": template.is_draft,
         "published_at": template.published_at.isoformat()
