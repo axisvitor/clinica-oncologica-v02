@@ -31,18 +31,27 @@ _redis_pool: Optional[redis.ConnectionPool] = None
 
 
 async def verify_physician_or_admin(
-    current_user: User = Depends(get_current_user_from_session),
-) -> User:
+    current_user: Any = Depends(get_current_user_from_session),
+) -> Any:
     """Verify user is physician or admin."""
-    role_value = (
-        current_user.role.value
-        if isinstance(current_user.role, UserRole)
-        else str(current_user.role or "").lower()
-    )
+    # Handle both dictionary (from session) and User object (from DB)
+    if isinstance(current_user, dict):
+        role_value = current_user.get("role", "")
+        user_id = current_user.get("id", "unknown")
+    else:
+        role_value = (
+            current_user.role.value
+            if isinstance(current_user.role, UserRole)
+            else str(current_user.role or "")
+        )
+        user_id = str(getattr(current_user, "id", "unknown"))
+
+    # Normalize role value for comparison
+    role_value = str(role_value).lower()
 
     if role_value not in {UserRole.DOCTOR.value, UserRole.ADMIN.value}:
         logger.warning(
-            f"Unauthorized AI access by user {current_user.id} with role {role_value}"
+            f"Unauthorized AI access by user {user_id} with role {role_value}"
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
