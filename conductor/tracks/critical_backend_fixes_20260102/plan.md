@@ -1,10 +1,10 @@
 # Implementation Plan - Critical Backend & Flow Fixes
 
-## Phase 1: Fix Service Initialization (PatientCRUDService)
+## Phase 1: Fix Service Initialization (PatientCRUDService) [checkpoint: 49c7cf4]
 *   [x] Task: Create a reproduction unit test that initializes `ServiceProvider` and requests `patient_service`, verifying the `TypeError`.
 *   [x] Task: Analyze `backend-hormonia/app/service_provider.py` and `backend-hormonia/app/services/patient.py` to identify the signature mismatch.
 *   [x] Task: Fix the `PatientCRUDService` instantiation or class definition to match arguments.
-*   [~] Task: Conductor - User Manual Verification 'Fix Service Initialization (PatientCRUDService)' (Protocol in workflow.md)
+*   [x] Task: Conductor - User Manual Verification 'Fix Service Initialization (PatientCRUDService)' (Protocol in workflow.md)
 
 ## Phase 2: Fix Authentication Role Access
 *   [ ] Task: Create a unit test for `verify_physician_or_admin` dependency in `backend-hormonia/app/api/v2/routers/ai/dependencies.py` that mocks `current_user` as a dictionary to reproduce the `AttributeError`.
