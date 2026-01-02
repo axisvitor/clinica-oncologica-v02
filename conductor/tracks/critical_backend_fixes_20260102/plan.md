@@ -6,10 +6,10 @@
 *   [x] Task: Fix the `PatientCRUDService` instantiation or class definition to match arguments.
 *   [x] Task: Conductor - User Manual Verification 'Fix Service Initialization (PatientCRUDService)' (Protocol in workflow.md)
 
-## Phase 2: Fix Authentication Role Access
+## Phase 2: Fix Authentication Role Access [checkpoint: 3503a47]
 *   [x] Task: Create a unit test for `verify_physician_or_admin` dependency in `backend-hormonia/app/api/v2/routers/ai/dependencies.py` that mocks `current_user` as a dictionary to reproduce the `AttributeError`.
-*   [~] Task: Modify `verify_physician_or_admin` to handle `current_user` robustly (support both Pydantic models and dictionaries, or ensure consistent type).
-*   [ ] Task: Conductor - User Manual Verification 'Fix Authentication Role Access' (Protocol in workflow.md)
+*   [x] Task: Modify `verify_physician_or_admin` to handle `current_user` robustly (support both Pydantic models and dictionaries, or ensure consistent type).
+*   [x] Task: Conductor - User Manual Verification 'Fix Authentication Role Access' (Protocol in workflow.md)
 
 ## Phase 3: Fix Timeline Sorting (DateTime vs Str)
 *   [ ] Task: Create a unit test for `get_patient_timeline` logic in `backend-hormonia/app/api/v2/routers/patients/flow.py` injecting mock data with mixed `datetime` objects and ISO format strings.
