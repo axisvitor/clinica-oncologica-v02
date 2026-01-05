@@ -167,12 +167,27 @@ export function createPatientsApi(client: ApiClientCore) {
     /**
      * Create new patient
      */
-    create: async (data: PatientCreate): Promise<Patient> => {
+    create: async (
+      data: PatientCreate,
+      options?: { headers?: Record<string, string> }
+    ): Promise<Patient> => {
       if (!data?.doctor_id) {
         throw new Error('doctor_id is required to create a patient')
       }
       // Denormalize frontend data to backend format before sending
       const backendData = denormalizePatient(data as PatientCreate | PatientUpdate)
+
+      if (options?.headers) {
+        const patient = await client.request<BackendPatient>('/api/v2/patients/', {
+          method: 'POST',
+          body: JSON.stringify(backendData),
+          headers: {
+            ...options.headers
+          }
+        })
+        return normalizePatient(patient)
+      }
+
       const patient = await client.post<BackendPatient>('/api/v2/patients/', backendData)
       return normalizePatient(patient)
     },

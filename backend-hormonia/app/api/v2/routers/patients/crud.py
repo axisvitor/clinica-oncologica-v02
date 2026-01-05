@@ -281,7 +281,7 @@ async def get_patient(
     description="Create a new patient with saga orchestration, WhatsApp registration, and idempotency support",
 )
 @require_doctor_or_admin()
-@limiter.limit("1000/hour")  # TEMPORARILY INCREASED FOR TESTING (was 20/hour)
+@limiter.limit("60/hour")  # Production limit
 async def create_patient(
     request: Request,
     patient_data: PatientV2Create,
@@ -312,6 +312,8 @@ async def create_patient(
         repo = PatientRepository(db)
         existing = repo.get_by_idempotency_key(x_idempotency_key)
         if existing:
+            # SECURITY: ensure current user can access this patient
+            await ensure_patient_access(current_user, existing.doctor_id)
             logger.info(
                 f"Idempotency key {x_idempotency_key} already processed (DB), returning existing patient"
             )

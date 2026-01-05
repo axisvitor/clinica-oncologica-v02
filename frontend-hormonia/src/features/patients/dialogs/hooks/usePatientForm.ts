@@ -97,14 +97,15 @@ export function usePatientForm({
       if (data.treatment_start_date) cleanData.treatment_start_date = data.treatment_start_date
       if (data.doctor_notes) cleanData.doctor_notes = data.doctor_notes
 
-      // QW-004: Include idempotency key to prevent duplicate patient creation
-      // The key is sent as custom header and as part of the payload
-      const payloadWithIdempotency = {
-        ...cleanData,
-        idempotency_key: idempotencyKeyRef.current
-      }
-
-      return apiClient.patients.create(payloadWithIdempotency as Parameters<typeof apiClient.patients.create>[0])
+      // QW-004: Send idempotency key via header to prevent duplicates
+      return apiClient.patients.create(
+        cleanData as Parameters<typeof apiClient.patients.create>[0],
+        {
+          headers: {
+            'X-Idempotency-Key': idempotencyKeyRef.current
+          }
+        }
+      )
     },
     onSuccess: () => {
       // QW-004: Reset idempotency key for next patient creation
