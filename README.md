@@ -118,6 +118,15 @@ npm run test:unit
 | backend | `alembic upgrade head` | Rodar migrations |
 | backend | `pytest` | Testes |
 
+## Admin - Compensation Failures
+
+- Dashboard: `/admin/system/compensation` para listar falhas de compensacao e executar retry/cleanup manual.
+- Endpoints:
+  - `GET /api/v2/admin/compensation-failures`
+  - `POST /api/v2/admin/compensation-failures/{saga_id}/retry`
+  - `POST /api/v2/admin/compensation-failures/{saga_id}/cleanup`
+- Listagem de pacientes exclui quarantined por padrao (`include_quarantined=true` para incluir).
+
 ## Importante
 
 - **NÃO** execute `npm install` na raiz do projeto

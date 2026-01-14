@@ -1,0 +1,12 @@
+{
+  "source": "simulated",
+  "notes": "Metrics captured from DistributedLock with mocked Redis set() returning True.",
+  "metrics": {
+    "locks_acquired": 1,
+    "locks_released": 0,
+    "locks_failed": 0,
+    "locks_extended": 0,
+    "default_ttl": 30,
+    "acquire_timeout": 10
+  }
+}

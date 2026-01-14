@@ -1,0 +1,4 @@
+step,code_idempotent,test_run,notes
+message,yes,not_run,compensated_steps guard in _compensate_message
+flow,yes,not_run,compensated_steps guard in _compensate_flow
+patient,yes,not_run,compensated_steps guard in _compensate_patient
