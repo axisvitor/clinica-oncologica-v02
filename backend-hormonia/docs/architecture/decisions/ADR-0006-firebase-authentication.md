@@ -196,6 +196,27 @@ async def set_user_role(uid: str, role: str, physician_id: str = None):
     return {"message": "Role updated, client must refresh token"}
 ```
 
+### Role Resolution and Defaults
+
+Role resolution follows a strict priority order:
+1. **Firebase custom claims** (`role` or `roles`)
+2. **Database role** (stored on the User model)
+3. **Default role** (`doctor`)
+
+When issuing tokens, set custom claims securely from the backend only:
+
+```python
+from firebase_admin import auth
+
+auth.set_custom_user_claims(uid, {"role": "admin"})
+```
+
+Security considerations:
+- Role values are validated against the `UserRole` enum (admin/doctor).
+- Invalid or missing roles fall back to the database role or default doctor role.
+- Role resolution decisions are logged for audit visibility.
+- On role changes, invalidate Redis user cache to prevent stale permissions.
+
 ### Authentication Middleware
 
 ```python

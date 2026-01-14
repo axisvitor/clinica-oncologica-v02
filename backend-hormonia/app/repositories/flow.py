@@ -58,11 +58,15 @@ class FlowStateRepository(BaseRepository[PatientFlowState]):
         return query.offset(skip).limit(limit).all()
 
     def get_active_flow(self, patient_id: UUID) -> Optional[PatientFlowState]:
-        """Get active flow for a patient (not completed)"""
+        """Get active flow for a specific patient (if not deleted)"""
         return (
             self.db.query(PatientFlowState)
-            .filter(PatientFlowState.patient_id == patient_id)
-            .filter(PatientFlowState.completed_at.is_(None))
+            .join(Patient)
+            .filter(
+                PatientFlowState.patient_id == patient_id,
+                PatientFlowState.completed_at.is_(None),
+                Patient.deleted_at.is_(None)
+            )
             .order_by(PatientFlowState.started_at.desc())
             .first()
         )
@@ -73,7 +77,7 @@ class FlowStateRepository(BaseRepository[PatientFlowState]):
         """Get flow states by template version ID"""
         return (
             self.db.query(PatientFlowState)
-            .filter(PatientFlowState.template_version_id == template_version_id)
+            .filter(PatientFlowState.flow_template_version_id == template_version_id)
             .order_by(PatientFlowState.started_at.desc())
             .offset(skip)
             .limit(limit)
@@ -102,9 +106,10 @@ class FlowStateRepository(BaseRepository[PatientFlowState]):
         self, limit: int = 1000, eager_load: bool = True
     ) -> List[PatientFlowState]:
         """
-        Get all active flows with eager loading.
+        Get all active flows for non-deleted patients.
 
         PERFORMANCE OPTIMIZATION: Eager loading enabled by default with nested relationships.
+        SAFETY: Automatically filters out patients that have been soft-deleted.
 
         Relationships loaded when eager_load=True:
         - patient: Patient information (joinedload - 1:1)
@@ -123,8 +128,22 @@ class FlowStateRepository(BaseRepository[PatientFlowState]):
 
         query = (
             self.db.query(PatientFlowState)
-            .filter(PatientFlowState.completed_at.is_(None))
-            .order_by(PatientFlowState.started_at.desc())
+            .join(Patient)  # Join to filter by patient status
+            .filter(
+                PatientFlowState.completed_at.is_(None),
+                Patient.deleted_at.is_(None)  # Exclude deleted patients
+            )
+            # FAIR ORDERING: Prevent starvation by processing oldest flows first
+            # 1. next_scheduled_at (oldest due first, nulls = never scheduled = highest priority)
+            # 2. last_interaction_at (those not interacted with recently)
+            # 3. started_at (oldest flows first as fallback for consistent ordering)
+            # 4. id (deterministic tie-breaker for identical timestamps)
+            .order_by(
+                PatientFlowState.next_scheduled_at.asc().nullsfirst(),
+                PatientFlowState.last_interaction_at.asc().nullsfirst(),
+                PatientFlowState.started_at.asc(),
+                PatientFlowState.id.asc()
+            )
         )
 
         if eager_load:
@@ -152,10 +171,10 @@ class FlowStateRepository(BaseRepository[PatientFlowState]):
             self.db.query(PatientFlowState)
             .join(
                 FlowTemplateVersion,
-                PatientFlowState.template_version_id == FlowTemplateVersion.id,
+                PatientFlowState.flow_template_version_id == FlowTemplateVersion.id,
             )
-            .join(FlowKind, FlowTemplateVersion.kind_id == FlowKind.id)
-            .filter(FlowKind.flow_type == flow_type)
+            .join(FlowKind, FlowTemplateVersion.flow_kind_id == FlowKind.id)
+            .filter(FlowKind.kind_key == flow_type)
             .filter(PatientFlowState.completed_at.is_(None))
             .filter(
                 cast(

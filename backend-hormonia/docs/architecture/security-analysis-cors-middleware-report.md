@@ -30,7 +30,7 @@ The CORS middleware allows parsing origins from both JSON arrays and comma-separ
 
 ```python
 # Parsing logic vulnerable to injection
-cors_env = os.getenv("CORS_ALLOWED_ORIGINS", os.getenv("CORS_ORIGINS", ""))
+cors_env = os.getenv("CORS_ALLOWED_ORIGINS", "")
 if cors_env.startswith("["):
     try:
         allowed_origins = json.loads(cors_env)  # JSON injection possible

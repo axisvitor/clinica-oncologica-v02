@@ -32,7 +32,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Callable, Dict, Optional
 
-from app.core.redis_manager import get_async_redis_client
+from app.core import redis_manager as redis_manager_module
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +133,7 @@ class RedisCircuitBreaker:
         """Get Redis client, caching for performance."""
         if self._redis is None:
             try:
-                self._redis = await get_async_redis_client()
+                self._redis = await redis_manager_module.get_async_redis_client()
             except Exception as e:
                 logger.warning(
                     f"Failed to get Redis client for circuit breaker '{self.name}': {e}. "

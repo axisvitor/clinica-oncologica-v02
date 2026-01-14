@@ -5,6 +5,7 @@ Handles password hashing bug in passlib/bcrypt.
 
 import logging
 import os
+import sys
 from typing import Optional, Any, List, Union
 from passlib.context import CryptContext
 import bcrypt as bcrypt_lib
@@ -12,7 +13,6 @@ from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 import re
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -62,14 +62,42 @@ BLOCKED_USER_AGENTS = [
 ]
 
 
+def _is_test_environment() -> bool:
+    return "PYTEST_CURRENT_TEST" in os.environ or "pytest" in sys.modules
+
+
+_settings_cache = None
+
+
+def _get_settings():
+    global _settings_cache
+    if _settings_cache is not None:
+        return _settings_cache
+    try:
+        from app.config import settings as config_settings
+    except Exception:
+        return None
+    _settings_cache = config_settings
+    return _settings_cache
+
+
+def _get_bcrypt_rounds() -> int:
+    settings = _get_settings()
+    rounds = getattr(settings, "AUTH_BCRYPT_ROUNDS", 12)
+    if _is_test_environment() and rounds > 4:
+        return 4
+    return rounds
+
+
 def create_pwd_context() -> CryptContext:
     """Create password context with proper configuration."""
     try:
+        rounds = _get_bcrypt_rounds()
         # Try to create with bcrypt
         pwd_context = CryptContext(
             schemes=["bcrypt"],
             deprecated="auto",
-            bcrypt__rounds=12,
+            bcrypt__rounds=rounds,
             bcrypt__ident="2b",  # Use 2b variant to avoid wraparound bug
         )
 
@@ -77,14 +105,16 @@ def create_pwd_context() -> CryptContext:
         try:
             from passlib.hash import bcrypt as passlib_bcrypt
 
-            passlib_bcrypt.set_backend("builtin")
-            logger.info("Using builtin bcrypt backend")
+            preferred_backend = "bcrypt" if _is_test_environment() else "builtin"
+            fallback_backend = "builtin" if preferred_backend == "bcrypt" else "bcrypt"
+            passlib_bcrypt.set_backend(preferred_backend)
+            logger.info("Using %s bcrypt backend", preferred_backend)
         except (ValueError, RuntimeError, ImportError):
             try:
                 from passlib.hash import bcrypt as passlib_bcrypt
 
-                passlib_bcrypt.set_backend("bcrypt")
-                logger.info("Using bcrypt library backend")
+                passlib_bcrypt.set_backend(fallback_backend)
+                logger.info("Using %s bcrypt backend", fallback_backend)
             except (ValueError, RuntimeError, ImportError):
                 logger.warning("Could not set specific bcrypt backend")
 
@@ -117,7 +147,7 @@ def hash_password(password: str) -> str:
             return pwd_context.hash(password_bytes.decode("utf-8"))
         else:
             # Direct bcrypt fallback
-            salt = bcrypt_lib.gensalt(rounds=12)
+            salt = bcrypt_lib.gensalt(rounds=_get_bcrypt_rounds())
             hashed = bcrypt_lib.hashpw(password_bytes, salt)
             return hashed.decode("utf-8")
     except Exception as e:
@@ -266,34 +296,58 @@ def mask_dict_secrets(data: dict, keys_to_mask: Optional[list] = None) -> dict:
 def create_access_token(
     data: dict[str, Any], expires_delta: Optional[timedelta] = None
 ) -> str:
-    """Create JWT access token using settings.SECURITY_SECRET_KEY and settings.SECURITY_ALGORITHM."""
+    """Create JWT access token using app settings."""
+    settings = _get_settings()
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (
-        expires_delta or timedelta(minutes=settings.AUTH_ACCESS_TOKEN_EXPIRE_MINUTES)
+        expires_delta
+        or timedelta(
+            minutes=getattr(settings, "AUTH_ACCESS_TOKEN_EXPIRE_MINUTES", 30)
+        )
     )
     to_encode.update({"exp": int(expire.timestamp()), "type": "access"})
     return jwt.encode(
-        to_encode, settings.SECURITY_SECRET_KEY, algorithm=settings.SECURITY_ALGORITHM
+        to_encode,
+        getattr(
+            settings,
+            "SECURITY_SECRET_KEY",
+            "dev-insecure-secret-key-must-be-changed-in-production-railway",
+        ),
+        algorithm=getattr(settings, "SECURITY_ALGORITHM", "HS256"),
     )
 
 
 def create_refresh_token(data: dict[str, Any]) -> str:
     """Create JWT refresh token with REFRESH_TOKEN_EXPIRE_DAYS."""
+    settings = _get_settings()
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(days=settings.AUTH_REFRESH_TOKEN_EXPIRE_DAYS)
+    expire = datetime.now(timezone.utc) + timedelta(
+        days=getattr(settings, "AUTH_REFRESH_TOKEN_EXPIRE_DAYS", 7)
+    )
     to_encode.update({"exp": int(expire.timestamp()), "type": "refresh"})
     return jwt.encode(
-        to_encode, settings.SECURITY_SECRET_KEY, algorithm=settings.SECURITY_ALGORITHM
+        to_encode,
+        getattr(
+            settings,
+            "SECURITY_SECRET_KEY",
+            "dev-insecure-secret-key-must-be-changed-in-production-railway",
+        ),
+        algorithm=getattr(settings, "SECURITY_ALGORITHM", "HS256"),
     )
 
 
 def verify_token(token: str, token_type: str = "access") -> Optional[Any]:
     """Verify and decode JWT token and return TokenData if valid, else None."""
     try:
+        settings = _get_settings()
         payload = jwt.decode(
             token,
-            settings.SECURITY_SECRET_KEY,
-            algorithms=[settings.SECURITY_ALGORITHM],
+            getattr(
+                settings,
+                "SECURITY_SECRET_KEY",
+                "dev-insecure-secret-key-must-be-changed-in-production-railway",
+            ),
+            algorithms=[getattr(settings, "SECURITY_ALGORITHM", "HS256")],
         )
         if payload.get("type") != token_type:
             return None

@@ -7,6 +7,7 @@ from typing import Optional, List
 from fastapi import Query, HTTPException, status
 import base64
 import json
+import uuid
 
 
 def get_pagination_params(
@@ -32,6 +33,13 @@ def get_pagination_params(
         try:
             decoded = base64.b64decode(cursor).decode("utf-8")
             cursor_data = json.loads(decoded)
+            if isinstance(cursor_data, dict):
+                cursor_id = cursor_data.get("id")
+                if isinstance(cursor_id, str):
+                    try:
+                        cursor_data["id"] = uuid.UUID(cursor_id)
+                    except ValueError:
+                        pass
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

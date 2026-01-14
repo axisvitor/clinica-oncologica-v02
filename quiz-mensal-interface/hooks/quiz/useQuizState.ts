@@ -20,10 +20,19 @@ export function useQuizState({ session, initialToken, onComplete, resumeFromSave
   const [isCompleted, setIsCompleted] = useState(false)
   const [navigationDirection, setNavigationDirection] = useState<"forward" | "backward">("forward")
 
-  const currentQuestion = session.questions[currentQuestionIndex]
-  const totalQuestions = session.questions.length
-  const progress = ((currentQuestionIndex + 1) / totalQuestions) * 100
-  const isLastQuestion = currentQuestionIndex === totalQuestions - 1
+  // Guard: Check for empty or invalid questions array
+  const hasValidQuestions = Array.isArray(session.questions) && session.questions.length > 0
+  const safeIndex = hasValidQuestions
+    ? Math.min(Math.max(0, currentQuestionIndex), session.questions.length - 1)
+    : 0
+
+  // Use safe access with fallback
+  const currentQuestion = hasValidQuestions
+    ? session.questions[safeIndex]
+    : { id: '', text: 'Quiz não disponível', type: 'text' as const, options: [] }
+  const totalQuestions = hasValidQuestions ? session.questions.length : 0
+  const progress = totalQuestions > 0 ? ((safeIndex + 1) / totalQuestions) * 100 : 0
+  const isLastQuestion = hasValidQuestions && safeIndex === totalQuestions - 1
 
   // Load saved progress on mount if resuming
   useEffect(() => {
@@ -133,6 +142,7 @@ export function useQuizState({ session, initialToken, onComplete, resumeFromSave
     totalQuestions,
     progress,
     isLastQuestion,
+    hasValidQuestions,
     navigationDirection,
     setCurrentQuestionIndex,
     setSelectedAnswer,

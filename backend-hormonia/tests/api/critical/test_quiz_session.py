@@ -1,12 +1,12 @@
 """
 Critical API Tests: Quiz Session Management
-Tests quiz CRUD endpoints at /api/v2/quiz/sessions.
+Tests quiz CRUD endpoints under /api/v2/quiz.
 
 Actual endpoints in quiz_sessions.py:
 - GET /api/v2/quiz/sessions - List quizzes
-- GET /api/v2/quiz/sessions/{quiz_id} - Get single quiz
-- POST /api/v2/quiz/sessions - Create quiz
-- DELETE /api/v2/quiz/sessions/{quiz_id} - Delete quiz
+- GET /api/v2/quiz/{quiz_id} - Get single quiz
+- POST /api/v2/quiz - Create quiz
+- DELETE /api/v2/quiz/{quiz_id} - Delete quiz
 
 Note: This API uses Firebase Auth, so authenticated endpoints
 require proper session/token from get_current_user_from_session.
@@ -41,17 +41,18 @@ class TestQuizSession:
 
     def test_get_quiz_requires_auth(self, client: TestClient):
         """Test that getting a quiz requires authentication."""
-        response = client.get(f"/api/v2/quiz/sessions/{self.quiz_id}")
+        response = client.get(f"/api/v2/quiz/{self.quiz_id}")
         # Without auth, should return 401 or 403
         assert response.status_code in [401, 403, 404]
 
     def test_create_quiz_requires_auth(self, client: TestClient):
         """Test that creating a quiz requires authentication."""
         response = client.post(
-            "/api/v2/quiz/sessions",
+            "/api/v2/quiz",
             json={
-                "name": "Test Quiz",
-                "description": "A test quiz"
+                "patient_id": str(uuid4()),
+                "quiz_template_id": str(uuid4()),
+                "status": "started",
             }
         )
         # Without auth, should return 401 or 403
@@ -60,7 +61,7 @@ class TestQuizSession:
 
     def test_delete_quiz_requires_auth(self, client: TestClient):
         """Test that deleting a quiz requires authentication."""
-        response = client.delete(f"/api/v2/quiz/sessions/{self.quiz_id}")
+        response = client.delete(f"/api/v2/quiz/{self.quiz_id}")
         # Without auth, should return 401 or 403
         assert response.status_code in [401, 403, 404]
 
@@ -69,16 +70,23 @@ class TestQuizSession:
         """Comprehensive test that all quiz endpoints require auth."""
         endpoints = [
             ("GET", "/api/v2/quiz/sessions"),
-            ("GET", f"/api/v2/quiz/sessions/{uuid4()}"),
-            ("POST", "/api/v2/quiz/sessions"),
-            ("DELETE", f"/api/v2/quiz/sessions/{uuid4()}"),
+            ("GET", f"/api/v2/quiz/{uuid4()}"),
+            ("POST", "/api/v2/quiz"),
+            ("DELETE", f"/api/v2/quiz/{uuid4()}"),
         ]
 
         for method, url in endpoints:
             if method == "GET":
                 response = client.get(url)
             elif method == "POST":
-                response = client.post(url, json={"name": "Test"})
+                response = client.post(
+                    url,
+                    json={
+                        "patient_id": str(uuid4()),
+                        "quiz_template_id": str(uuid4()),
+                        "status": "started",
+                    },
+                )
             elif method == "DELETE":
                 response = client.delete(url)
 
@@ -104,7 +112,7 @@ class TestQuizSession:
     def test_get_quiz_with_auth(self, authenticated_client: TestClient, db_session: Session):
         """Test getting a specific quiz with authentication."""
         # Try to get any existing quiz or test with non-existent ID
-        response = authenticated_client.get(f"/api/v2/quiz/sessions/{self.quiz_id}")
+        response = authenticated_client.get(f"/api/v2/quiz/{self.quiz_id}")
         # Should return 404 for non-existent quiz or 200 if found
         assert response.status_code in [200, 404]
 
@@ -112,10 +120,11 @@ class TestQuizSession:
     def test_create_quiz_with_auth(self, authenticated_client: TestClient):
         """Test creating a quiz with authentication."""
         quiz_data = {
-            "name": "Integration Test Quiz",
-            "description": "A test quiz created during integration testing"
+            "patient_id": str(uuid4()),
+            "quiz_template_id": str(uuid4()),
+            "status": "started",
         }
-        response = authenticated_client.post("/api/v2/quiz/sessions", json=quiz_data)
+        response = authenticated_client.post("/api/v2/quiz", json=quiz_data)
         # Should return 201 (created), 404 (not mounted), or 422 (validation error)
         assert response.status_code in [201, 404, 422]
         if response.status_code == 201:
@@ -126,10 +135,11 @@ class TestQuizSession:
     def test_create_quiz_validation(self, authenticated_client: TestClient):
         """Test quiz creation with invalid data."""
         invalid_data = {
-            "name": "",  # Empty name should fail validation
-            "description": None
+            "patient_id": "invalid",
+            "quiz_template_id": "invalid",
+            "status": "started",
         }
-        response = authenticated_client.post("/api/v2/quiz/sessions", json=invalid_data)
+        response = authenticated_client.post("/api/v2/quiz", json=invalid_data)
         # Should return 422 for validation error or 404 if router not mounted
         assert response.status_code in [404, 422]
 
@@ -137,7 +147,7 @@ class TestQuizSession:
     def test_delete_nonexistent_quiz(self, authenticated_client: TestClient):
         """Test deleting a quiz that doesn't exist."""
         nonexistent_id = str(uuid4())
-        response = authenticated_client.delete(f"/api/v2/quiz/sessions/{nonexistent_id}")
+        response = authenticated_client.delete(f"/api/v2/quiz/{nonexistent_id}")
         # Should return 404 for non-existent quiz
         assert response.status_code in [404]
 
@@ -208,7 +218,7 @@ class TestQuizSessionIntegrity:
     def test_quiz_id_format_validation(self, client: TestClient):
         """Test that invalid quiz ID format is rejected."""
         # Invalid UUID format
-        response = client.get("/api/v2/quiz/sessions/not-a-valid-uuid")
+        response = client.get("/api/v2/quiz/not-a-valid-uuid")
         # Should return 401 (auth required), 404, or 422 for invalid format
         assert response.status_code in [401, 403, 404, 422]
 

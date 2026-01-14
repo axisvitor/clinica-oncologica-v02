@@ -69,6 +69,14 @@ from app.models.upload import Upload
 # AI-generated patient summaries
 from app.models.patient_summary import PatientSummary
 
+# LGPD Audit models
+from app.models.lgpd_audit import (
+    LGPDAuditLog,
+    DataAccessRequest,
+    LGPDActionType,
+    LGPDDataCategory,
+)
+
 __all__ = [
     # Base
     "BaseModel",
@@ -159,4 +167,9 @@ __all__ = [
     "WebhookLog",
     # AI Patient Summaries
     "PatientSummary",
+    # LGPD Audit models
+    "LGPDAuditLog",
+    "DataAccessRequest",
+    "LGPDActionType",
+    "LGPDDataCategory",
 ]

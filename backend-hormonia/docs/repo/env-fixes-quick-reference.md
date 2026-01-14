@@ -51,38 +51,31 @@ HASH_SALT=5af51c11708d8d56dd5a9f8e5ca0071a3a662746ef415c1cecf3c04ef1c63d81
 **Critical Corrections:**
 
 ```bash
-# Line 44 - CHANGE FROM:
-ENCRYPTION_KEY_CURRENT=REPLACE_WITH_ENCRYPTION_KEY
-
-# TO:
+# Legacy (remove if present):
 SECURITY_ENCRYPTION_KEY=REPLACE_WITH_ENCRYPTION_KEY
+
+# Use:
+ENCRYPTION_KEY_CURRENT=REPLACE_WITH_ENCRYPTION_KEY
 
 # Line 31 - CHANGE FROM:
 AUTH_JWT_ALGORITHM=HS256
 
 # TO:
 SECURITY_ALGORITHM=HS256
-# AND ADD:
-AUTH_JWT_SECRET_KEY=REPLACE_WITH_JWT_SECRET_KEY_DIFFERENT_FROM_MAIN
-
 # Line 96 - CHANGE FROM:
 REDIS_MAX_CONNECTIONS=10
 
 # TO:
 REDIS_POOL_MAX_CONNECTIONS=25
 
-# Lines 179-181 - CHANGE FROM:
-AUTH_SESSION_COOKIE_SECURE=true
+# Lines 179-181 - REMOVE legacy AUTH_SESSION_* settings:
 AUTH_SESSION_COOKIE_HTTPONLY=true
 AUTH_SESSION_COOKIE_SAMESITE=Strict
 
-# TO:
+# Keep SESSION_* settings:
 SESSION_ENABLE_COOKIE_SECURE=true
 SESSION_ENABLE_COOKIE_HTTPONLY=true
-SESSION_COOKIE_SAMESITE=Strict
-SESSION_COOKIE_NAME=session_id
-SESSION_COOKIE_PATH=/
-SESSION_COOKIE_MAX_AGE_SECONDS=28800
+SESSION_COOKIE_SAMESITE=lax
 ```
 
 ---
@@ -156,7 +149,7 @@ REDIS_POOL_MAX_CONNECTIONS=50
 ```bash
 # Lines 70-73 - CHANGE TO:
 DATABASE_POOL_SIZE=20
-DATABASE_MAX_OVERFLOW=30
+DATABASE_POOL_MAX_OVERFLOW=30
 DATABASE_POOL_TIMEOUT_SECONDS=30
 DATABASE_POOL_RECYCLE_SECONDS=3600
 
@@ -290,11 +283,11 @@ NOTIFICATION_RETRY_DELAY_SECONDS=5
 # 1. Generate new main secret key
 python -c "import secrets; print('SECURITY_SECRET_KEY=' + secrets.token_urlsafe(64))"
 
-# 2. Generate new JWT secret key (DIFFERENT from main secret)
-python -c "import secrets; print('AUTH_JWT_SECRET_KEY=' + secrets.token_urlsafe(64))"
+# 2. Generate new PHI encryption key (base64, 32 bytes)
+python -c "import os, base64; print('PHI_ENCRYPTION_KEY=' + base64.b64encode(os.urandom(32)).decode())"
 
-# 3. Generate new encryption key
-python -c "from cryptography.fernet import Fernet; print('SECURITY_ENCRYPTION_KEY=' + Fernet.generate_key().decode())"
+# 3. Generate new Fernet key (legacy encryption)
+python -c "from cryptography.fernet import Fernet; print('ENCRYPTION_KEY_CURRENT=' + Fernet.generate_key().decode())"
 
 # 4. Generate new CSRF secret
 python -c "import secrets; print('SECURITY_CSRF_SECRET_KEY=' + secrets.token_urlsafe(32))"

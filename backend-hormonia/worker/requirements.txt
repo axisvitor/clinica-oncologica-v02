@@ -1,0 +1,2 @@
+# Shared backend dependencies for Railway worker service.
+-r ../requirements.txt

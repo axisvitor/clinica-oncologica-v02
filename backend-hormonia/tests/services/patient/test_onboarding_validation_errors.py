@@ -1,425 +1,138 @@
 """
-Unit tests for PatientOnboardingService - Validation Error Scenarios.
+Unit tests for OnboardingCoordinator - Validation and Error Scenarios.
 
-This test suite covers patient onboarding validation failures including:
+This test suite covers patient onboarding failures including:
 - Data validation errors
-- Database integrity constraint violations
-- Duplicate patient detection
-- Invalid field formats
-- Business rule violations
-
-Coverage Impact: +2%
-Priority: P0 - Critical Error Handling
-
-NOTE: PatientOnboardingService was renamed to OnboardingCoordinator.
+- Saga orchestrator failures
+- Error wrapping semantics
 """
 
 import pytest
-
-pytestmark = pytest.mark.skip(
-    reason="PatientOnboardingService renamed to OnboardingCoordinator - tests need API update"
-)
-
-from datetime import datetime
+from datetime import date
 from uuid import uuid4
-from unittest.mock import Mock, patch, AsyncMock
-from sqlalchemy.exc import IntegrityError
+from unittest.mock import Mock, AsyncMock
 
-from app.domain.patient.onboarding.coordinator import OnboardingCoordinator as PatientOnboardingService
-from app.schemas.patient import PatientCreate
+from app.domain.patient.onboarding.coordinator import OnboardingCoordinator
 from app.exceptions import ValidationError
+from app.schemas.patient import PatientCreate
+from app.utils.db_retry import reset_circuit_breaker
 
 
-class TestPatientOnboardingValidationErrors:
-    """Test patient onboarding validation error scenarios."""
+@pytest.fixture(autouse=True)
+def _reset_circuit_breaker_state():
+    reset_circuit_breaker()
 
-    @pytest.fixture
-    def mock_dependencies(self):
-        """Create all mocked dependencies for onboarding service."""
-        db = Mock()
-        integrity_service = Mock()
-        flow_service = Mock()
-        message_service = Mock()
-        whatsapp_service = Mock()
 
-        # Setup async methods
-        integrity_service.validate_patient_data = AsyncMock()
-        integrity_service.generate_patient_hash = Mock(return_value="test_hash")
-        flow_service.initialize_default_flow = AsyncMock()
+@pytest.fixture
+def mock_dependencies():
+    db = Mock()
+    integrity_service = Mock()
+    validation_service = Mock()
+    saga_orchestrator = Mock()
+    saga_orchestrator.execute_patient_onboarding_saga = AsyncMock()
+    notification_service = Mock()
+    completion_service = Mock()
+    creation_service = Mock()
 
-        return {
-            "db": db,
-            "integrity_service": integrity_service,
-            "flow_service": flow_service,
-            "message_service": message_service,
-            "whatsapp_service": whatsapp_service,
-            "saga_orchestrator": None,
-        }
+    return {
+        "db": db,
+        "integrity_service": integrity_service,
+        "validation_service": validation_service,
+        "saga_orchestrator": saga_orchestrator,
+        "notification_service": notification_service,
+        "completion_service": completion_service,
+        "creation_service": creation_service,
+    }
 
-    @pytest.fixture
-    def onboarding_service(self, mock_dependencies):
-        """Create PatientOnboardingService instance."""
-        return PatientOnboardingService(**mock_dependencies)
 
-    @pytest.fixture
-    def test_doctor_id(self):
-        """Test doctor UUID."""
-        return uuid4()
+@pytest.fixture
+def coordinator(mock_dependencies):
+    return OnboardingCoordinator(**mock_dependencies)
 
-    @pytest.mark.asyncio
-    async def test_validation_error_propagated(
-        self,
-        onboarding_service,
-        test_doctor_id,
-        mock_dependencies
-    ):
-        """
-        Test that validation errors from IntegrityService are propagated.
 
-        Verifies that validation errors bubble up correctly without being caught.
-        """
-        # Arrange
-        patient_data = PatientCreate(
-            name="Invalid Patient",
-            email="invalid-email",  # Invalid email format
-            phone="+5511999887766",
-            birth_date=datetime(1980, 5, 15),
-            treatment_type="Test"
+@pytest.fixture
+def valid_patient_data():
+    return PatientCreate(
+        name="Joao Silva",
+        email="joao.silva@example.com",
+        phone="+5511999887766",
+        birth_date=date(1980, 5, 15),
+    )
+
+
+@pytest.fixture
+def doctor_id():
+    return uuid4()
+
+
+def _enable_saga(monkeypatch):
+    from app.domain.patient.onboarding import coordinator as coordinator_module
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        coordinator_module,
+        "settings",
+        SimpleNamespace(ENABLE_SAGA_PATTERN=True),
+    )
+
+
+@pytest.mark.asyncio
+async def test_integrity_validation_error_propagated(
+    coordinator,
+    mock_dependencies,
+    valid_patient_data,
+    doctor_id,
+    monkeypatch,
+):
+    _enable_saga(monkeypatch)
+    mock_dependencies["integrity_service"].validate_patient_data.side_effect = ValidationError(
+        "Invalid email format"
+    )
+
+    with pytest.raises(ValidationError, match="Invalid email format"):
+        await coordinator.create_patient(
+            patient_data=valid_patient_data,
+            doctor_id=doctor_id,
         )
 
-        # Mock validation to raise error
-        mock_dependencies["integrity_service"].validate_patient_data.side_effect = ValidationError(
-            "Invalid email format"
+    mock_dependencies["saga_orchestrator"].execute_patient_onboarding_saga.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_saga_validation_error_passthrough(
+    coordinator,
+    mock_dependencies,
+    valid_patient_data,
+    doctor_id,
+    monkeypatch,
+):
+    _enable_saga(monkeypatch)
+    mock_dependencies["saga_orchestrator"].execute_patient_onboarding_saga.side_effect = ValidationError(
+        "Saga validation failure"
+    )
+
+    with pytest.raises(ValidationError, match="Saga validation failure"):
+        await coordinator.create_patient(
+            patient_data=valid_patient_data,
+            doctor_id=doctor_id,
         )
 
-        # Act & Assert
-        with pytest.raises(ValidationError, match="Invalid email format"):
-            await onboarding_service.create_patient(
-                patient_data=patient_data,
-                doctor_id=test_doctor_id
-            )
 
-        # Verify validation was attempted
-        mock_dependencies["integrity_service"].validate_patient_data.assert_called_once()
+@pytest.mark.asyncio
+async def test_saga_generic_error_wrapped(
+    coordinator,
+    mock_dependencies,
+    valid_patient_data,
+    doctor_id,
+    monkeypatch,
+):
+    _enable_saga(monkeypatch)
+    mock_dependencies["saga_orchestrator"].execute_patient_onboarding_saga.side_effect = Exception(
+        "Saga orchestrator error"
+    )
 
-    @pytest.mark.asyncio
-    async def test_duplicate_patient_cpf_error(
-        self,
-        onboarding_service,
-        test_doctor_id,
-        mock_dependencies
-    ):
-        """
-        Test handling of duplicate CPF constraint violation.
-
-        Verifies proper error handling when trying to create a patient
-        with a CPF that already exists for the same doctor.
-        """
-        # Arrange
-        patient_data = PatientCreate(
-            name="João Silva",
-            email="joao@example.com",
-            phone="+5511999887766",
-            birth_date=datetime(1980, 5, 15),
-            treatment_type="Quimioterapia",
-            cpf="12345678900"  # Duplicate CPF
+    with pytest.raises(ValidationError, match="Falha ao executar Saga Pattern"):
+        await coordinator.create_patient(
+            patient_data=valid_patient_data,
+            doctor_id=doctor_id,
         )
-
-        with patch("app.services.patient.onboarding_service.PatientRepository") as mock_repo_class:
-            mock_repo = Mock()
-            # Simulate unique constraint violation on CPF
-            mock_repo.create.side_effect = IntegrityError(
-                "duplicate key value violates unique constraint \"uq_patient_cpf_doctor\"",
-                None,
-                None
-            )
-            mock_repo_class.return_value = mock_repo
-
-            with patch("app.services.patient.onboarding_service.get_cache_manager"):
-                with patch("app.services.patient.onboarding_service.websocket_events") as mock_ws:
-                    mock_ws.publish_patient_event = AsyncMock()
-
-                    # Act & Assert
-                    with pytest.raises(ValidationError, match="data integrity constraints"):
-                        await onboarding_service.create_patient(
-                            patient_data=patient_data,
-                            doctor_id=test_doctor_id
-                        )
-
-        # Verify rollback was called
-        mock_dependencies["db"].rollback.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_duplicate_patient_email_error(
-        self,
-        onboarding_service,
-        test_doctor_id,
-        mock_dependencies
-    ):
-        """
-        Test handling of duplicate email constraint violation.
-
-        Verifies proper error handling when email already exists.
-        """
-        # Arrange
-        patient_data = PatientCreate(
-            name="Maria Santos",
-            email="duplicate@example.com",
-            phone="+5511988776655",
-            birth_date=datetime(1975, 3, 20),
-            treatment_type="Radioterapia"
-        )
-
-        with patch("app.services.patient.onboarding_service.PatientRepository") as mock_repo_class:
-            mock_repo = Mock()
-            mock_repo.create.side_effect = IntegrityError(
-                "duplicate key value violates unique constraint \"uq_patient_email_doctor\"",
-                None,
-                None
-            )
-            mock_repo_class.return_value = mock_repo
-
-            with patch("app.services.patient.onboarding_service.get_cache_manager"):
-                with patch("app.services.patient.onboarding_service.websocket_events") as mock_ws:
-                    mock_ws.publish_patient_event = AsyncMock()
-
-                    # Act & Assert
-                    with pytest.raises(ValidationError):
-                        await onboarding_service.create_patient(
-                            patient_data=patient_data,
-                            doctor_id=test_doctor_id
-                        )
-
-    @pytest.mark.asyncio
-    async def test_duplicate_patient_phone_error(
-        self,
-        onboarding_service,
-        test_doctor_id,
-        mock_dependencies
-    ):
-        """
-        Test handling of duplicate phone constraint violation.
-
-        Verifies proper error handling when phone number already exists.
-        """
-        # Arrange
-        patient_data = PatientCreate(
-            name="Pedro Oliveira",
-            email="pedro@example.com",
-            phone="+5511999999999",  # Duplicate phone
-            birth_date=datetime(1985, 7, 10),
-            treatment_type="Imunoterapia"
-        )
-
-        with patch("app.services.patient.onboarding_service.PatientRepository") as mock_repo_class:
-            mock_repo = Mock()
-            mock_repo.create.side_effect = IntegrityError(
-                "duplicate key value violates unique constraint \"uq_patient_phone_doctor\"",
-                None,
-                None
-            )
-            mock_repo_class.return_value = mock_repo
-
-            with patch("app.services.patient.onboarding_service.get_cache_manager"):
-                with patch("app.services.patient.onboarding_service.websocket_events") as mock_ws:
-                    mock_ws.publish_patient_event = AsyncMock()
-
-                    # Act & Assert
-                    with pytest.raises(ValidationError):
-                        await onboarding_service.create_patient(
-                            patient_data=patient_data,
-                            doctor_id=test_doctor_id
-                        )
-
-    @pytest.mark.asyncio
-    async def test_invalid_doctor_id_foreign_key_error(
-        self,
-        onboarding_service,
-        mock_dependencies
-    ):
-        """
-        Test handling of invalid doctor_id foreign key constraint.
-
-        Verifies proper error handling when doctor_id doesn't exist.
-        """
-        # Arrange
-        invalid_doctor_id = uuid4()
-        patient_data = PatientCreate(
-            name="Test Patient",
-            email="test@example.com",
-            phone="+5511999887766",
-            birth_date=datetime(1990, 1, 1),
-            treatment_type="Test"
-        )
-
-        with patch("app.services.patient.onboarding_service.PatientRepository") as mock_repo_class:
-            mock_repo = Mock()
-            mock_repo.create.side_effect = IntegrityError(
-                "insert or update on table \"patients\" violates foreign key constraint",
-                None,
-                None
-            )
-            mock_repo_class.return_value = mock_repo
-
-            with patch("app.services.patient.onboarding_service.get_cache_manager"):
-                with patch("app.services.patient.onboarding_service.websocket_events") as mock_ws:
-                    mock_ws.publish_patient_event = AsyncMock()
-
-                    # Act & Assert
-                    with pytest.raises(ValidationError):
-                        await onboarding_service.create_patient(
-                            patient_data=patient_data,
-                            doctor_id=invalid_doctor_id
-                        )
-
-    @pytest.mark.asyncio
-    async def test_database_connection_error_handling(
-        self,
-        onboarding_service,
-        test_doctor_id,
-        mock_dependencies
-    ):
-        """
-        Test handling of database connection errors.
-
-        Verifies that database errors are properly caught and handled.
-        """
-        # Arrange
-        patient_data = PatientCreate(
-            name="Test Patient",
-            email="test@example.com",
-            phone="+5511999887766",
-            birth_date=datetime(1990, 1, 1),
-            treatment_type="Test"
-        )
-
-        with patch("app.services.patient.onboarding_service.PatientRepository") as mock_repo_class:
-            mock_repo = Mock()
-            mock_repo.create.side_effect = Exception("Database connection lost")
-            mock_repo_class.return_value = mock_repo
-
-            with patch("app.services.patient.onboarding_service.get_cache_manager"):
-                with patch("app.services.patient.onboarding_service.websocket_events") as mock_ws:
-                    mock_ws.publish_patient_event = AsyncMock()
-
-                    # Act & Assert
-                    with pytest.raises(Exception, match="Database connection lost"):
-                        await onboarding_service.create_patient(
-                            patient_data=patient_data,
-                            doctor_id=test_doctor_id
-                        )
-
-        # Verify rollback was attempted
-        mock_dependencies["db"].rollback.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_validation_called_before_creation(
-        self,
-        onboarding_service,
-        test_doctor_id,
-        mock_dependencies
-    ):
-        """
-        Test that validation is always called before patient creation.
-
-        Ensures fail-fast behavior by validating before database operations.
-        """
-        # Arrange
-        patient_data = PatientCreate(
-            name="Test Patient",
-            email="test@example.com",
-            phone="+5511999887766",
-            birth_date=datetime(1990, 1, 1),
-            treatment_type="Test"
-        )
-
-        # Make validation fail
-        mock_dependencies["integrity_service"].validate_patient_data.side_effect = ValidationError(
-            "Invalid data"
-        )
-
-        with patch("app.services.patient.onboarding_service.PatientRepository") as mock_repo_class:
-            mock_repo = Mock()
-            mock_repo_class.return_value = mock_repo
-
-            # Act & Assert
-            with pytest.raises(ValidationError):
-                await onboarding_service.create_patient(
-                    patient_data=patient_data,
-                    doctor_id=test_doctor_id
-                )
-
-        # Verify repository create was NEVER called
-        mock_repo.create.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_rollback_on_integrity_error(
-        self,
-        onboarding_service,
-        test_doctor_id,
-        mock_dependencies
-    ):
-        """
-        Test that database rollback is called on integrity errors.
-
-        Verifies proper transaction management.
-        """
-        # Arrange
-        patient_data = PatientCreate(
-            name="Test Patient",
-            email="test@example.com",
-            phone="+5511999887766",
-            birth_date=datetime(1990, 1, 1),
-            treatment_type="Test"
-        )
-
-        with patch("app.services.patient.onboarding_service.PatientRepository") as mock_repo_class:
-            mock_repo = Mock()
-            mock_repo.create.side_effect = IntegrityError("Test error", None, None)
-            mock_repo_class.return_value = mock_repo
-
-            with patch("app.services.patient.onboarding_service.get_cache_manager"):
-                with patch("app.services.patient.onboarding_service.websocket_events") as mock_ws:
-                    mock_ws.publish_patient_event = AsyncMock()
-
-                    # Act & Assert
-                    with pytest.raises(ValidationError):
-                        await onboarding_service.create_patient(
-                            patient_data=patient_data,
-                            doctor_id=test_doctor_id
-                        )
-
-        # Verify rollback was called
-        assert mock_dependencies["db"].rollback.called
-
-    @pytest.mark.asyncio
-    async def test_missing_required_fields_validation(
-        self,
-        onboarding_service,
-        test_doctor_id,
-        mock_dependencies
-    ):
-        """
-        Test validation of missing required fields.
-
-        Verifies that missing required fields are caught by validation.
-        """
-        # Arrange - missing birth_date
-        patient_data = PatientCreate(
-            name="Test Patient",
-            email="test@example.com",
-            phone="+5511999887766",
-            treatment_type="Test"
-            # birth_date is missing
-        )
-
-        mock_dependencies["integrity_service"].validate_patient_data.side_effect = ValidationError(
-            "birth_date is required"
-        )
-
-        # Act & Assert
-        with pytest.raises(ValidationError, match="birth_date is required"):
-            await onboarding_service.create_patient(
-                patient_data=patient_data,
-                doctor_id=test_doctor_id
-            )

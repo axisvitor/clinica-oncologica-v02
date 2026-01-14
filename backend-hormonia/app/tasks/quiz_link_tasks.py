@@ -16,7 +16,7 @@ from typing import Dict, Any
 from uuid import UUID
 
 
-from app.celery_app import celery_app
+from app.task_queue import task_queue as celery_app
 from app.tasks.base import BaseTask, get_db_session
 from app.domain.quizzes.resilience import QuizLinkResilienceService, FailureReason
 from app.services.monthly_quiz_message_integration import MonthlyQuizMessageIntegration

@@ -23,14 +23,16 @@ from app.schemas.v2.tasks import (
 )
 from app.dependencies.auth_dependencies import get_redis_cache
 from app.utils.rate_limiter import limiter
-from app.celery_app import celery_app
+from app.task_queue import get_task as get_stored_task
+from app.task_queue import task_queue as celery_app
+from app.task_queue import update_task as update_stored_task
+from app.config import settings
+from app.api.v2 import tasks as tasks_module
 
 from ..dependencies import (
     _get_current_user_simple,
     _extract_user_role,
-    _get_task_from_celery,
     _serialize_task,
-    task_registry,
 )
 from ..utils import _calculate_retry_delay
 
@@ -60,14 +62,17 @@ async def cancel_task(
     """
     try:
         # Find task
-        celery_task_id = None
-        task_data = None
-
-        for cid, data in task_registry.items():
-            if data.get("id") == task_id:
-                celery_task_id = cid
-                task_data = data
-                break
+        if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
+            task_data = get_stored_task(task_id)
+            celery_task_id = task_id
+        else:
+            celery_task_id = None
+            task_data = None
+            for cid, data in tasks_module.task_registry.items():
+                if data.get("id") == task_id:
+                    celery_task_id = cid
+                    task_data = data
+                    break
 
         if not task_data:
             raise HTTPException(
@@ -85,26 +90,41 @@ async def cancel_task(
                     detail="You do not have access to this task",
                 )
 
-        # Cancel in Celery
-        celery_app.control.revoke(
-            celery_task_id,
-            terminate=cancel_data.force,
-            signal="SIGKILL" if cancel_data.force else "SIGTERM",
-        )
+        if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
+            from google.cloud import tasks_v2
 
-        # Update registry
-        task_registry[celery_task_id].update(
-            {
-                "status": TaskStatus.CANCELLED,
-                "completed_at": datetime.now(timezone.utc),
-                "metadata": {
-                    **task_data.get("metadata", {}),
-                    "cancellation_reason": cancel_data.reason,
-                    "cancelled_by": current_user.get("id"),
-                    "forced": cancel_data.force,
-                },
-            }
-        )
+            client = tasks_v2.CloudTasksClient()
+            task_path = client.task_path(
+                settings.CLOUD_TASKS_PROJECT_ID,
+                settings.CLOUD_TASKS_LOCATION,
+                settings.CLOUD_TASKS_QUEUE,
+                task_id,
+            )
+            try:
+                client.delete_task(task_path)
+            except Exception as exc:
+                logger.warning("Cloud Tasks delete failed for %s: %s", task_id, exc)
+        else:
+            celery_app.control.revoke(
+                celery_task_id,
+                terminate=cancel_data.force,
+                signal="SIGKILL" if cancel_data.force else "SIGTERM",
+            )
+
+        update_payload = {
+            "status": TaskStatus.CANCELLED.value,
+            "completed_at": datetime.now(timezone.utc),
+            "metadata": {
+                **task_data.get("metadata", {}),
+                "cancellation_reason": cancel_data.reason,
+                "cancelled_by": current_user.get("id"),
+                "forced": cancel_data.force,
+            },
+        }
+        if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
+            update_stored_task(task_id, update_payload)
+        else:
+            tasks_module.task_registry[celery_task_id].update(update_payload)
 
         # Invalidate caches
         await redis_cache.delete(f"task:{task_id}:*")
@@ -117,8 +137,12 @@ async def cancel_task(
         )
 
         # Get updated data
-        celery_data = _get_task_from_celery(celery_task_id)
-        merged_data = {**task_registry[celery_task_id], **celery_data}
+        celery_data = tasks_module._get_task_from_celery(celery_task_id)
+        if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
+            updated_task = get_stored_task(task_id) or task_data
+            merged_data = {**updated_task, **celery_data}
+        else:
+            merged_data = {**tasks_module.task_registry[celery_task_id], **celery_data}
 
         return _serialize_task(merged_data)
 
@@ -155,14 +179,17 @@ async def retry_task(
     """
     try:
         # Find task
-        celery_task_id = None
-        task_data = None
-
-        for cid, data in task_registry.items():
-            if data.get("id") == task_id:
-                celery_task_id = cid
-                task_data = data
-                break
+        if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
+            task_data = get_stored_task(task_id)
+            celery_task_id = task_id
+        else:
+            celery_task_id = None
+            task_data = None
+            for cid, data in tasks_module.task_registry.items():
+                if data.get("id") == task_id:
+                    celery_task_id = cid
+                    task_data = data
+                    break
 
         if not task_data:
             raise HTTPException(
@@ -182,7 +209,9 @@ async def retry_task(
 
         # Check if task can be retried
         current_status = task_data.get("status")
-        if current_status not in [TaskStatus.FAILURE, TaskStatus.RETRY]:
+        if hasattr(current_status, "value"):
+            current_status = current_status.value
+        if str(current_status) not in [TaskStatus.FAILURE.value, TaskStatus.RETRY.value]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Cannot retry task in {current_status} status",
@@ -214,19 +243,21 @@ async def retry_task(
         # Retry the task
         # Note: In a real implementation, you would requeue the original task
         # For now, we'll update the status
-        task_registry[celery_task_id].update(
-            {
-                "status": TaskStatus.RETRY,
-                "retry_count": retry_count + 1,
-                "metadata": {
-                    **task_data.get("metadata", {}),
-                    "manual_retry": True,
-                    "retry_notes": retry_data.notes,
-                    "retried_by": current_user.get("id"),
-                    "retried_at": datetime.now(timezone.utc).isoformat(),
-                },
-            }
-        )
+        update_payload = {
+            "status": TaskStatus.RETRY.value,
+            "retry_count": retry_count + 1,
+            "metadata": {
+                **task_data.get("metadata", {}),
+                "manual_retry": True,
+                "retry_notes": retry_data.notes,
+                "retried_by": current_user.get("id"),
+                "retried_at": datetime.now(timezone.utc).isoformat(),
+            },
+        }
+        if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
+            update_stored_task(task_id, update_payload)
+        else:
+            tasks_module.task_registry[celery_task_id].update(update_payload)
 
         # Invalidate caches
         await redis_cache.delete(f"task:{task_id}:*")
@@ -239,7 +270,11 @@ async def retry_task(
         )
 
         # Get updated data
-        merged_data = task_registry[celery_task_id]
+        merged_data = (
+            get_stored_task(task_id) or task_data
+            if settings.TASK_QUEUE_PROVIDER.lower() != "celery"
+            else tasks_module.task_registry[celery_task_id]
+        )
 
         return _serialize_task(merged_data)
 

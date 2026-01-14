@@ -34,7 +34,7 @@ This package handles monthly quiz operations, scheduling, and public access.
 - Comprehensive audit trail
 
 **Security:**
-- Public endpoints use base64-encoded JWT-like tokens
+- Public endpoints use signed JWT tokens (legacy base64 tokens still accepted)
 - Token expiration validation
 - IP logging for public access
 - Personal data sanitization in public responses

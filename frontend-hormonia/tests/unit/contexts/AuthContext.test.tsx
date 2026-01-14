@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
+import { createAuthLock, AUTH_LOCK_TIMEOUT_MS, type AuthLockState } from '@/app/providers/AuthContext'
 import { auth } from '@/lib/firebase'
 import { signInWithEmailAndPassword, signOut, User as FirebaseUser } from 'firebase/auth'
 import React from 'react'
@@ -26,6 +27,7 @@ vi.mock('@/lib/logger', () => ({
     error: vi.fn(),
     warn: vi.fn(),
     info: vi.fn(),
+    debug: vi.fn(),
   }),
 }))
 
@@ -319,6 +321,59 @@ describe('AuthContext', () => {
           await result.current.login('test@example.com', 'password')
         })
       }).rejects.toThrow('Network error')
+    })
+  })
+
+  describe('auth lock', () => {
+    const createLockRef = (state: Partial<AuthLockState> = {}) => ({
+      current: {
+        locked: false,
+        timestamp: 0,
+        operation: null,
+        ...state
+      }
+    })
+
+    it('Login adquire e libera lock corretamente', () => {
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1000)
+      const lockRef = createLockRef()
+      const logger = { log: vi.fn(), warn: vi.fn() }
+      const { acquireAuthLock, releaseAuthLock } = createAuthLock(lockRef, logger)
+
+      expect(acquireAuthLock('login')).toBe(true)
+      expect(lockRef.current.locked).toBe(true)
+      expect(logger.log).toHaveBeenCalledWith('Auth lock acquired for login')
+
+      releaseAuthLock()
+      expect(lockRef.current.locked).toBe(false)
+      expect(lockRef.current.operation).toBeNull()
+      expect(logger.log).toHaveBeenCalledWith('Auth lock released (login)')
+
+      nowSpy.mockRestore()
+    })
+
+    it('Login falha se lock ja esta ativo', () => {
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1000 + AUTH_LOCK_TIMEOUT_MS - 1)
+      const lockRef = createLockRef({ locked: true, timestamp: 1000, operation: 'login' })
+      const logger = { log: vi.fn(), warn: vi.fn() }
+      const { acquireAuthLock } = createAuthLock(lockRef, logger)
+
+      expect(acquireAuthLock('login')).toBe(false)
+      expect(logger.warn).toHaveBeenCalled()
+
+      nowSpy.mockRestore()
+    })
+
+    it('onAuthStateChanged respeita lock durante login', () => {
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(2000)
+      const lockRef = createLockRef({ locked: true, timestamp: 2000, operation: 'login' })
+      const logger = { log: vi.fn(), warn: vi.fn() }
+      const { acquireAuthLock } = createAuthLock(lockRef, logger)
+
+      nowSpy.mockReturnValue(2000 + 100)
+      expect(acquireAuthLock('restore')).toBe(false)
+
+      nowSpy.mockRestore()
     })
   })
 })

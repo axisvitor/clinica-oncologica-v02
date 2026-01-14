@@ -9,7 +9,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
-from app.celery_app import celery_app
+from app.task_queue import task_queue as celery_app
 from app.database import SessionLocal
 from app.services.audit import AuditService
 

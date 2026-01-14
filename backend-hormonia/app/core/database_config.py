@@ -33,6 +33,28 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _read_int_env(name: str, default: int) -> int:
+    value = os.getenv(name, "").strip()
+    if not value:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        logger.warning("Invalid %s=%r; using default %s", name, value, default)
+        return default
+
+
+def _get_db_connection_limits() -> tuple[int, int]:
+    max_connections = _read_int_env("DB_MAX_CONNECTIONS", 80)
+    warn_at_default = max(1, int(max_connections * 0.75))
+    warn_at = _read_int_env("DB_WARN_AT_CONNECTIONS", warn_at_default)
+    if warn_at < 1:
+        warn_at = warn_at_default
+    if warn_at > max_connections:
+        warn_at = max_connections
+    return max_connections, warn_at
+
+
 @dataclass
 class DatabasePoolConfig:
     """Database connection pool configuration."""
@@ -297,22 +319,23 @@ def get_pool_config(
     total_connections = config.total_connections * worker_count
 
     if environment == EnvironmentType.PRODUCTION:
-        if total_connections > 80:
+        max_connections, warn_at = _get_db_connection_limits()
+        if total_connections > max_connections:
             logger.error(
                 f"❌ CRITICAL: Total connections ({total_connections}) exceeds "
-                f"AWS RDS t3.micro limit (~80 available). "
+                f"database limit (~{max_connections} available). "
                 f"Current: {worker_count} workers × {config.total_connections} = {total_connections} connections. "
                 f"REQUIRED ACTION: Reduce workers or pool size to prevent connection exhaustion. "
                 f"Recommended: Set WEB_CONCURRENCY=4 or lower."
             )
-        elif total_connections > 60:
+        elif total_connections > warn_at:
             logger.warning(
                 f"⚠️  Total connections ({total_connections}) approaching "
-                f"AWS RDS limits (~80). Monitor connection usage closely."
+                f"database limit (~{max_connections}). Monitor connection usage closely."
             )
         else:
             logger.info(
-                f"✅ Connection pool within safe limits: {total_connections}/80 connections"
+                f"✅ Connection pool within safe limits: {total_connections}/{max_connections} connections"
             )
 
     # Additional validation for development to prevent misconfiguration
@@ -360,8 +383,11 @@ def validate_pool_config(config: DatabasePoolConfig, database_url: str) -> bool:
     if "rds.amazonaws.com" in database_url or "prod" in database_url.lower():
         worker_count = get_worker_count()
         total = config.total_connections * worker_count
-        if total > 80:
-            issues.append(f"total_connections ({total}) exceeds AWS RDS limits (~80)")
+        max_connections, _ = _get_db_connection_limits()
+        if total > max_connections:
+            issues.append(
+                f"total_connections ({total}) exceeds database limit (~{max_connections})"
+            )
 
     if issues:
         logger.error(f"❌ Pool configuration validation failed: {', '.join(issues)}")

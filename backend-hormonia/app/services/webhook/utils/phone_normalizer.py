@@ -8,6 +8,7 @@ from typing import Optional
 
 from app.models.patient import Patient
 from app.repositories.patient import PatientRepository
+from app.utils.pii_masking import mask_phone
 
 logger = logging.getLogger(__name__)
 

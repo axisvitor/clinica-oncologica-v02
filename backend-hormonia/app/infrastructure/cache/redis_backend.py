@@ -6,6 +6,7 @@ This module handles all Redis operations, serialization, and local cache fallbac
 
 import json
 import pickle
+import fnmatch
 from typing import Any, Optional, Union, Dict
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -169,16 +170,53 @@ class RedisBackend:
         """Get local cache size."""
         return len(self._local_cache)
 
+    def _get_local_cache_ttl(self, cache_key: str) -> Optional[int]:
+        """Get remaining TTL for a local cache entry."""
+        if not self.enable_local_fallback:
+            return None
+
+        cache_entry = self._local_cache.get(cache_key)
+        if not cache_entry:
+            return None
+
+        remaining = int(
+            (cache_entry["expires_at"] - datetime.now(timezone.utc)).total_seconds()
+        )
+        if remaining <= 0:
+            self._local_cache.pop(cache_key, None)
+            return None
+        return remaining
+
+    def _get_local_cache_keys(self, pattern: str) -> list:
+        """Get local cache keys matching a pattern."""
+        if not self.enable_local_fallback:
+            return []
+
+        now = datetime.now(timezone.utc)
+        matches = []
+        for key, entry in list(self._local_cache.items()):
+            if entry["expires_at"] <= now:
+                self._local_cache.pop(key, None)
+                continue
+            if fnmatch.fnmatch(key, pattern):
+                matches.append(key)
+        return matches
+
     # Sync Redis operations
     def redis_get(self, cache_key: str) -> Optional[bytes]:
         """Get value from Redis (synchronous)."""
         redis_client = self.get_sync_redis_client()
         if redis_client:
             try:
-                return redis_client.get(cache_key)
+                cached = redis_client.get(cache_key)
+                if cached is not None:
+                    return cached
             except Exception as e:
                 logger.warning(f"Redis GET failed for {cache_key}: {e}")
-        return None
+        local_value = self.get_from_local_cache(cache_key)
+        if local_value is not None:
+            logger.debug(f"Local cache fallback hit for key: {cache_key}")
+        return local_value
 
     def redis_set(self, cache_key: str, value: Union[str, bytes], ttl: int) -> bool:
         """Set value in Redis (synchronous)."""
@@ -188,9 +226,11 @@ class RedisBackend:
                 success = redis_client.set(cache_key, value, ex=ttl)
                 if success:
                     logger.debug(f"Cached in Redis for key: {cache_key} (TTL: {ttl}s)")
-                return bool(success)
+                    return True
             except Exception as e:
                 logger.warning(f"Redis SET failed for {cache_key}: {e}")
+        self.set_in_local_cache(cache_key, value, ttl)
+        logger.debug(f"Cached in local fallback for key: {cache_key} (TTL: {ttl}s)")
         return False
 
     def redis_delete(self, cache_key: str) -> bool:
@@ -210,10 +250,11 @@ class RedisBackend:
         redis_client = self.get_sync_redis_client()
         if redis_client:
             try:
-                return bool(redis_client.exists(cache_key))
+                if redis_client.exists(cache_key):
+                    return True
             except Exception as e:
                 logger.warning(f"Redis EXISTS failed for {cache_key}: {e}")
-        return False
+        return self.get_from_local_cache(cache_key) is not None
 
     def redis_ttl(self, cache_key: str) -> Optional[int]:
         """Get TTL for key in Redis (synchronous)."""
@@ -221,20 +262,26 @@ class RedisBackend:
         if redis_client:
             try:
                 ttl = redis_client.ttl(cache_key)
-                return ttl if ttl > 0 else None
+                if ttl > 0:
+                    return ttl
             except Exception as e:
                 logger.warning(f"Redis TTL failed for {cache_key}: {e}")
-        return None
+        local_ttl = self._get_local_cache_ttl(cache_key)
+        if local_ttl is not None:
+            logger.debug(f"Local cache TTL fallback for key: {cache_key}")
+        return local_ttl
 
     def redis_keys(self, pattern: str) -> list:
         """Get keys matching pattern from Redis (synchronous)."""
         redis_client = self.get_sync_redis_client()
         if redis_client:
             try:
-                return redis_client.keys(pattern)
+                keys = redis_client.keys(pattern)
+                if keys is not None:
+                    return keys
             except Exception as e:
                 logger.warning(f"Redis KEYS failed for {pattern}: {e}")
-        return []
+        return self._get_local_cache_keys(pattern)
 
     # Async Redis operations
     async def redis_get_async(self, cache_key: str) -> Optional[bytes]:

@@ -576,6 +576,25 @@ def get_async_session_factory():
     return _async_session_factory
 
 
+async def get_async_db() -> AsyncSession:
+    """
+    Dependency to get async database session.
+
+    Yields:
+        AsyncSession for async database operations
+    """
+    async_session_factory = get_async_session_factory()
+    async with async_session_factory() as session:
+        try:
+            yield session
+        except Exception as e:
+            logger.error(f"Async database session error: {e}")
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+
 class RLSError(Exception):
     """Custom exception for RLS-related errors."""
 

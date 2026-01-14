@@ -6,6 +6,7 @@ patient onboarding saga, keeping each step focused and testable.
 """
 
 import logging
+import time
 from typing import Optional, Any
 from datetime import datetime, timezone
 from uuid import UUID
@@ -75,6 +76,8 @@ class SagaStepExecutor:
         Raises:
             Exception: If patient creation fails
         """
+        step_start = time.time()
+        step_status = "success"
         try:
             patient_dict = patient_data.dict(exclude_unset=True)
             metadata = patient_dict.pop("metadata", {})
@@ -106,15 +109,28 @@ class SagaStepExecutor:
             return patient
 
         except Exception as e:
+            step_status = "failed"
             logger.error(f"Step 1 failed: {type(e).__name__}", exc_info=True)
             saga.add_log_entry(1, "create_patient", "failed", str(e))
             raise
+        finally:
+            duration = time.time() - step_start
+            logger.info(
+                f"Saga {saga.id}: create_patient duration {duration:.2f}s",
+                extra={
+                    "saga_id": str(saga.id),
+                    "step": "create_patient",
+                    "status": step_status,
+                    "duration_s": duration,
+                },
+            )
 
     async def step_initialize_flow(
         self,
         saga: PatientOnboardingSaga,
         patient: Patient,
         current_user: Any,
+        idempotency_key: Optional[str] = None,
     ) -> None:
         """
         Step 2/3: Initialize Flow.
@@ -123,10 +139,13 @@ class SagaStepExecutor:
             saga: The saga record being executed
             patient: The patient to initialize flow for
             current_user: Current user context
+            idempotency_key: Optional key to avoid duplicate flow creation
 
         Raises:
             Exception: If flow initialization fails
         """
+        step_start = time.time()
+        step_status = "success"
         try:
             current_user_id = (
                 current_user.id
@@ -134,10 +153,37 @@ class SagaStepExecutor:
                 else None
             )
 
-            await self.flow_service.initialize_default_flow(
+            if idempotency_key:
+                from app.models.flow import PatientFlowState
+
+                existing_flow = (
+                    self.db.query(PatientFlowState)
+                    .filter(PatientFlowState.patient_id == patient.id)
+                    .first()
+                )
+                if existing_flow:
+                    step_status = "skipped_existing_flow"
+                    saga.current_step = 3
+                    saga.status = SagaStatus.STEP_3_FLOW_INITIALIZED
+                    saga.add_log_entry(3, "initialize_flow", "skipped_existing_flow")
+                    try:
+                        self.db.flush()
+                    except Exception as flush_error:
+                        logger.warning(
+                            f"Saga {saga.id}: Flush failed in initialize_flow step: {flush_error}",
+                            exc_info=True,
+                        )
+                    return
+
+            flow_state = await self.flow_service.initialize_default_flow(
                 patient, current_user_id, auto_commit=False
             )
             await self.flow_service.activate_patient(patient.id, auto_commit=False)
+
+            if idempotency_key and flow_state:
+                flow_metadata = flow_state.flow_metadata or {}
+                flow_metadata["idempotency_key"] = idempotency_key
+                flow_state.flow_metadata = flow_metadata
 
             saga.current_step = 3
             saga.status = SagaStatus.STEP_3_FLOW_INITIALIZED
@@ -152,14 +198,27 @@ class SagaStepExecutor:
                 )
 
         except Exception as e:
+            step_status = "failed"
             logger.error(f"Step 2 (Flow) failed: {type(e).__name__}", exc_info=True)
             saga.add_log_entry(3, "initialize_flow", "failed", str(e))
             raise
+        finally:
+            duration = time.time() - step_start
+            logger.info(
+                f"Saga {saga.id}: initialize_flow duration {duration:.2f}s",
+                extra={
+                    "saga_id": str(saga.id),
+                    "step": "initialize_flow",
+                    "status": step_status,
+                    "duration_s": duration,
+                },
+            )
 
     async def step_send_welcome_message(
         self,
         saga: PatientOnboardingSaga,
         patient: Patient,
+        idempotency_key: Optional[str] = None,
     ) -> None:
         """
         Step 3/4: Schedule Welcome Message (NON-BLOCKING).
@@ -175,8 +234,43 @@ class SagaStepExecutor:
         Args:
             saga: The saga record being executed
             patient: The patient to send welcome message to
+            idempotency_key: Optional key to avoid duplicate welcome messages
         """
+        step_start = time.time()
+        step_status = "success"
         try:
+            if idempotency_key:
+                from app.models.message import Message
+
+                existing_message = (
+                    self.db.query(Message)
+                    .filter(
+                        Message.patient_id == patient.id,
+                        Message.message_metadata["idempotency_key"].astext
+                        == idempotency_key,
+                        Message.message_metadata["message_type"].astext == "welcome",
+                    )
+                    .first()
+                )
+                if existing_message:
+                    step_status = "skipped_existing_message"
+                    logger.info(
+                        f"Saga {saga.id}: Welcome message already exists "
+                        f"(message_id={existing_message.id}), skipping send"
+                    )
+                    saga.current_step = 4
+                    saga.status = SagaStatus.STEP_4_MESSAGE_SENT
+                    saga.add_log_entry(4, "send_message", "skipped_existing_message")
+                    try:
+                        self.db.flush()
+                    except Exception as flush_error:
+                        logger.warning(
+                            f"Saga {saga.id}: Flush failed in send_welcome_message step: "
+                            f"{flush_error}",
+                            exc_info=True,
+                        )
+                    return
+
             template = (
                 self.db.query(MessageTemplate)
                 .filter(
@@ -206,15 +300,20 @@ class SagaStepExecutor:
             if scheduled_for.tzinfo is None:
                 scheduled_for = scheduled_for.replace(tzinfo=timezone.utc)
 
+            message_metadata = {
+                "message_type": "welcome",
+                "saga_id": str(saga.id),
+            }
+            if idempotency_key:
+                message_metadata["idempotency_key"] = idempotency_key
+
             message = self.message_service.schedule_message(
                 patient_id=patient.id,
                 content=message_content,
                 scheduled_for=scheduled_for,
                 message_type=MessageType.TEXT,
-                message_metadata={
-                    "message_type": "welcome",
-                    "saga_id": str(saga.id),
-                },
+                message_metadata=message_metadata,
+                auto_commit=False,  # Defer commit to saga's Unit of Work
             )
 
             # PERFORMANCE FIX: Schedule Celery task to send message asynchronously
@@ -226,13 +325,18 @@ class SagaStepExecutor:
             #
             # The message is already in PENDING status from schedule_message(),
             # and the Celery task will handle sending and retries.
+            # 
+            # RACE CONDITION FIX: Increased countdown to 5s to ensure saga.commit()
+            # completes before the task runs. If task still runs early and returns
+            # "Message not found", the periodic process_scheduled_messages task
+            # will pick it up on the next cycle (runs every 30s).
             try:
                 from app.tasks.messaging import send_scheduled_message
 
-                # Schedule task with small delay to ensure DB commit happens first
+                # Schedule task with delay to ensure DB commit happens first
                 send_scheduled_message.apply_async(
                     args=[str(message.id)],
-                    countdown=2,  # 2 second delay to ensure transaction commits
+                    countdown=5,  # 5 second delay to ensure transaction commits
                 )
                 logger.info(
                     f"Saga {saga.id}: Welcome message {message.id} scheduled for async send",
@@ -240,7 +344,7 @@ class SagaStepExecutor:
                 )
             except Exception as task_exc:
                 # If Celery scheduling fails, message stays in PENDING status
-                # and retry_pending_welcome_messages task will pick it up later
+                # and process_scheduled_messages task will pick it up later
                 logger.warning(
                     f"Saga {saga.id}: Failed to schedule Celery task for welcome message: "
                     f"{type(task_exc).__name__}",
@@ -262,6 +366,7 @@ class SagaStepExecutor:
                 )
 
         except Exception as e:
+            step_status = "failed_nonfatal"
             logger.error(
                 f"Step 3 (Message) failed: {type(e).__name__}", exc_info=True
             )
@@ -275,3 +380,14 @@ class SagaStepExecutor:
                     f"Failed to flush message step state: {flush_err}", exc_info=True
                 )
             return
+        finally:
+            duration = time.time() - step_start
+            logger.info(
+                f"Saga {saga.id}: send_welcome_message duration {duration:.2f}s",
+                extra={
+                    "saga_id": str(saga.id),
+                    "step": "send_welcome_message",
+                    "status": step_status,
+                    "duration_s": duration,
+                },
+            )

@@ -30,16 +30,41 @@ class FlowType(str, Enum):
 
     Each flow type represents a different care pathway with specific
     steps, validations, and business rules.
+    
+    Note: Values must match the kind_key column in the flow_kinds table.
     """
 
+    # Canonical flow types (must match flow_kinds.kind_key)
     ONBOARDING = "onboarding"
     """Initial patient onboarding flow"""
 
+    DAILY_FOLLOW_UP = "daily_follow_up"
+    """Daily follow-up and engagement flow"""
+
+    QUIZ_MENSAL = "quiz_mensal"
+    """Monthly quiz/assessment flow"""
+
+    CUSTOM = "custom"
+    """Custom flow (user-defined)"""
+
+    # Legacy/generic flow types (backward compatibility)
+    INITIAL_15_DAYS = "initial_15_days"
+    """Legacy onboarding flow key"""
+
+    DAYS_16_45 = "days_16_45"
+    """Legacy follow-up flow key"""
+
+    MONTHLY_RECURRING = "monthly_recurring"
+    """Legacy recurring maintenance flow key"""
+
     DAILY_CHECKIN = "daily_checkin"
-    """Daily patient check-in flow"""
+    """Legacy daily check-in flow"""
+
+    DAILY_ENGAGEMENT = "daily_engagement"
+    """Legacy daily engagement flow"""
 
     MONTHLY_QUIZ = "monthly_quiz"
-    """Monthly health assessment flow"""
+    """Legacy monthly health assessment flow"""
 
     TREATMENT_ADHERENCE = "treatment_adherence"
     """Treatment adherence monitoring flow"""
@@ -62,8 +87,6 @@ class FlowType(str, Enum):
     MONITORING = "monitoring"
     """General monitoring flow (backward compatibility)"""
 
-    CUSTOM = "custom"
-    """Custom flow (user-defined)"""
 
 
 class FlowStatus(str, Enum):

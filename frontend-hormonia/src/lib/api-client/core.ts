@@ -188,11 +188,12 @@ export class ApiClientCore {
    * Set authentication token
    */
   setAuthToken(token: string | null): void {
-    logger.debug("[ApiClient] Setting auth token:", {
-      hasToken: !!token,
-      tokenLength: token?.length,
-    });
     this.authToken = token;
+    if (token !== null) {
+      logger.log("Auth token configured (Authorization + X-Session-ID headers)");
+    } else {
+      logger.log("Auth token cleared");
+    }
   }
 
   /**
@@ -349,13 +350,15 @@ export class ApiClientCore {
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      ...((fetchOptions.headers as Record<string, string>) || {}),
     };
 
     // Add auth token
-    if (this.authToken) {
+    if (this.authToken !== null) {
       headers["Authorization"] = `Bearer ${this.authToken}`;
+      headers["X-Session-ID"] = this.authToken;
     }
+
+    Object.assign(headers, (fetchOptions.headers as Record<string, string>) || {});
 
     // Add CSRF token for state-changing methods
     const method = (fetchOptions.method || "GET").toUpperCase();

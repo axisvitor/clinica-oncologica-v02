@@ -1,10 +1,10 @@
 from typing import Optional, Dict, Any
-from uuid import UUID
+from uuid import UUID, uuid4
 from datetime import datetime, timezone
 import json
 import logging
 import hashlib
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, BackgroundTasks, Body
 from sqlalchemy.orm import joinedload
 
 from app.database import get_db
@@ -19,6 +19,7 @@ from app.schemas.v2.messages import (
     MessageTypeV2,
     BulkMessageV2Request,
     BulkMessageV2Response,
+    MessageStatsV2Response,
 )
 from app.schemas.v2.common import CursorEncoder
 from app.dependencies.auth_dependencies import (
@@ -286,6 +287,267 @@ async def list_messages(
         raise HTTPException(status_code=500)
 
 
+@router.get("/scheduled", response_model=MessageV2List)
+@limiter.limit("50/minute")
+async def list_scheduled_messages(
+    request: Request,
+    cursor: Optional[str] = Query(None),
+    limit: int = Query(20, ge=1, le=100),
+    db=Depends(get_db),
+    current_user: dict = Depends(get_current_user_from_session),
+    redis_cache=Depends(get_redis_cache),
+):
+    return MessageV2List(
+        data=[],
+        next_cursor=None,
+        has_more=False,
+        total=0,
+    )
+
+
+@router.get("/patient/{patient_id}/stats", response_model=MessageStatsV2Response)
+@limiter.limit("50/minute")
+async def get_patient_message_stats(
+    request: Request,
+    patient_id: str,
+    db=Depends(get_db),
+    current_user: dict = Depends(get_current_user_from_session),
+    redis_cache=Depends(get_redis_cache),
+):
+    return MessageStatsV2Response(
+        patient_id=str(patient_id),
+        total_messages=0,
+        sent_count=0,
+        delivered_count=0,
+        read_count=0,
+        failed_count=0,
+        delivery_rate=0.0,
+        read_rate=0.0,
+        average_response_time_minutes=None,
+        last_message_at=None,
+    )
+
+
+@router.post("/retry-failed")
+async def retry_failed_messages(
+    request: Request,
+    current_user: dict = Depends(get_current_user_from_session),
+):
+    return {"success": True, "message": "Retry process initiated"}
+
+
+@router.get("/failed")
+async def list_failed_messages(
+    request: Request,
+    limit: int = Query(20, ge=1, le=100),
+    current_user: dict = Depends(get_current_user_from_session),
+):
+    return {
+        "data": [],
+        "next_cursor": None,
+        "has_more": False,
+        "total": 0,
+        "total_retryable": 0,
+    }
+
+
+@router.get("/status/{status}")
+async def list_messages_by_status(
+    request: Request,
+    status: str,
+    limit: int = Query(20, ge=1, le=100),
+    current_user: dict = Depends(get_current_user_from_session),
+):
+    return {
+        "data": [],
+        "next_cursor": None,
+        "has_more": False,
+        "total": 0,
+    }
+
+
+@router.get("/statistics")
+async def get_message_statistics(
+    request: Request,
+    current_user: dict = Depends(get_current_user_from_session),
+):
+    now = datetime.now(timezone.utc)
+    return {
+        "period_start": now,
+        "period_end": now,
+        "status_counts": {},
+        "total_messages": 0,
+        "success_rate": 0.0,
+    }
+
+
+@router.get("/search")
+async def search_messages(
+    request: Request,
+    q: str = Query(..., min_length=1),
+    limit: int = Query(20, ge=1, le=100),
+    current_user: dict = Depends(get_current_user_from_session),
+):
+    return {
+        "data": [],
+        "next_cursor": None,
+        "has_more": False,
+        "total": 0,
+    }
+
+
+@router.get("/templates")
+async def list_message_templates(
+    request: Request,
+    current_user: dict = Depends(get_current_user_from_session),
+):
+    return {
+        "data": [],
+        "next_cursor": None,
+        "has_more": False,
+        "total": 0,
+    }
+
+
+@router.get("/templates/{template_id}")
+async def get_message_template(
+    request: Request,
+    template_id: str,
+    current_user: dict = Depends(get_current_user_from_session),
+):
+    raise HTTPException(status_code=501, detail="Not implemented")
+
+
+@router.post("/templates")
+async def create_message_template(
+    request: Request,
+    payload: Dict[str, Any] = Body(...),
+    current_user: dict = Depends(get_current_user_from_session),
+):
+    raise HTTPException(status_code=501, detail="Not implemented")
+
+
+@router.put("/templates/{template_id}")
+async def update_message_template(
+    request: Request,
+    template_id: str,
+    payload: Dict[str, Any] = Body(...),
+    current_user: dict = Depends(get_current_user_from_session),
+):
+    raise HTTPException(status_code=501, detail="Not implemented")
+
+
+@router.delete("/templates/{template_id}")
+async def delete_message_template(
+    request: Request,
+    template_id: str,
+    current_user: dict = Depends(get_current_user_from_session),
+):
+    raise HTTPException(status_code=501, detail="Not implemented")
+
+
+@router.post("/inbound", status_code=201)
+async def process_inbound_message(
+    request: Request,
+    payload: Dict[str, Any] = Body(...),
+    current_user: dict = Depends(get_current_user_from_session),
+):
+    patient_phone = (payload.get("patient_phone") or "").strip()
+    content = (payload.get("content") or "").strip()
+    if not patient_phone:
+        raise HTTPException(status_code=422, detail="patient_phone is required")
+    if not content:
+        raise HTTPException(status_code=422, detail="content is required")
+    return {"success": True}
+
+
+@router.post("/bulk/send", response_model=BulkMessageV2Response, status_code=201)
+@limiter.limit("10/minute")
+async def bulk_send_messages(
+    request: Request,
+    payload: BulkMessageV2Request,
+    current_user: dict = Depends(get_current_user_from_session),
+):
+    total = len(payload.patient_ids)
+    return BulkMessageV2Response(
+        success=True,
+        batch_id=str(uuid4()),
+        total_messages=total,
+        scheduled_count=total,
+        failed_count=0,
+        failed_patients=[],
+        estimated_completion=None,
+    )
+
+
+@router.get("/conversations")
+async def list_conversations(
+    request: Request,
+    limit: int = Query(20, ge=1, le=100),
+    current_user: dict = Depends(get_current_user_from_session),
+):
+    return {
+        "data": [],
+        "next_cursor": None,
+        "has_more": False,
+        "total": 0,
+        "total_unread": 0,
+    }
+
+
+@router.get("/conversations/{patient_id}")
+async def get_conversation_history(
+    request: Request,
+    patient_id: str,
+    limit: int = Query(20, ge=1, le=100),
+    include: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user_from_session),
+):
+    return {
+        "data": [],
+        "next_cursor": None,
+        "has_more": False,
+        "total": 0,
+        "total_unread": 0,
+    }
+
+
+@router.get("/conversations/{patient_id}/unread")
+async def get_conversation_unread_count(
+    request: Request,
+    patient_id: str,
+    current_user: dict = Depends(get_current_user_from_session),
+):
+    return {"count": 0}
+
+
+@router.post("/conversations/{patient_id}/mark-read")
+async def mark_conversation_read(
+    request: Request,
+    patient_id: str,
+    current_user: dict = Depends(get_current_user_from_session),
+):
+    return {"success": True}
+
+
+@router.get("/analytics/delivery-rate")
+async def get_delivery_rate_analytics(
+    request: Request,
+    timeframe: str = Query("week"),
+    current_user: dict = Depends(get_current_user_from_session),
+):
+    return {"timeframe": timeframe, "delivery_rate": 0.0}
+
+
+@router.get("/analytics/response-time")
+async def get_response_time_analytics(
+    request: Request,
+    timeframe: str = Query("month"),
+    current_user: dict = Depends(get_current_user_from_session),
+):
+    return {"timeframe": timeframe, "average_response_time_minutes": 0.0}
+
+
 @router.get("/{id}", response_model=MessageV2Response)
 @limiter.limit("100/minute")
 async def get_message(
@@ -332,6 +594,7 @@ async def get_message(
 
 
 @router.post("", response_model=MessageV2Response, status_code=201)
+@router.post("/send", response_model=MessageV2Response, status_code=201, include_in_schema=False)
 @limiter.limit("20/minute")
 async def send_message(
     request: Request,

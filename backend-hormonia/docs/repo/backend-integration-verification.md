@@ -59,13 +59,13 @@ VITE_API_URL=https://api.hormonia.example.com/api/v2
 ```python
 # app/config/settings/security.py
 def get_cors_origins(self) -> List[str]:
-    if self.ENVIRONMENT.lower() == "production":
+    if self.APP_ENVIRONMENT.lower() == "production":
         origins = []
-        if self.FRONTEND_URL:
-            origins.append(self.FRONTEND_URL.rstrip("/"))
-        if self.QUIZ_URL:
-            origins.append(self.QUIZ_URL.rstrip("/"))
-        return origins if not self.ALLOWED_ORIGINS else self.ALLOWED_ORIGINS
+        if self.CORS_FRONTEND_URL:
+            origins.append(self.CORS_FRONTEND_URL.rstrip("/"))
+        if self.CORS_QUIZ_URL:
+            origins.append(self.CORS_QUIZ_URL.rstrip("/"))
+        return origins if not self.CORS_ALLOWED_ORIGINS else self.CORS_ALLOWED_ORIGINS
     else:
         return []  # Dev uses regex
 ```
@@ -73,10 +73,10 @@ def get_cors_origins(self) -> List[str]:
 **Required Backend Environment Variables:**
 ```bash
 # Production
-ENVIRONMENT=production
-FRONTEND_URL=https://app.hormonia.example.com
-QUIZ_URL=https://quiz.hormonia.example.com
-ALLOWED_ORIGINS=https://app.hormonia.example.com,https://quiz.hormonia.example.com
+APP_ENVIRONMENT=production
+CORS_FRONTEND_URL=https://app.hormonia.example.com
+CORS_QUIZ_URL=https://quiz.hormonia.example.com
+CORS_ALLOWED_ORIGINS=https://app.hormonia.example.com,https://quiz.hormonia.example.com
 ```
 
 **CORS Headers Configuration:**
@@ -239,26 +239,28 @@ VITE_SENTRY_DSN=https://YOUR_KEY@YOUR_ORG.ingest.sentry.io/PROJECT_ID
 **Key Configuration:**
 ```bash
 # Environment
-ENVIRONMENT=production
-DEBUG=false
+APP_ENVIRONMENT=production
+APP_ENABLE_DEBUG=false
 
 # Database (SSL required)
 DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST:PORT/DB?sslmode=require
 
 # Redis (SSL required)
 REDIS_URL=rediss://default:PASSWORD@HOST:PORT
-REDIS_SSL=true
+REDIS_ENABLE_SSL=true
 REDIS_SSL_CERT_REQS=required
 
 # CORS (HTTPS required)
-FRONTEND_URL=https://app.hormonia.example.com
-QUIZ_URL=https://quiz.hormonia.example.com
-ALLOWED_ORIGINS=https://app.hormonia.example.com,https://quiz.hormonia.example.com
+CORS_FRONTEND_URL=https://app.hormonia.example.com
+CORS_QUIZ_URL=https://quiz.hormonia.example.com
+CORS_ALLOWED_ORIGINS=https://app.hormonia.example.com,https://quiz.hormonia.example.com
 
 # Security
-JWT_SECRET=CHANGE_THIS_TO_SECURE_VALUE
-CSRF_SECRET_KEY=CHANGE_THIS_TO_SECURE_VALUE
-ENCRYPTION_KEY=CHANGE_THIS_TO_FERNET_KEY
+SECURITY_SECRET_KEY=CHANGE_THIS_TO_SECURE_VALUE
+SECURITY_CSRF_SECRET_KEY=CHANGE_THIS_TO_SECURE_VALUE
+PHI_ENCRYPTION_KEY=CHANGE_THIS_TO_BASE64_KEY
+ENCRYPTION_KEY_CURRENT=CHANGE_THIS_TO_FERNET_KEY
+HASH_SALT=CHANGE_THIS_TO_HEX_SALT
 
 # Monitoring
 SENTRY_DSN=https://PUBLIC_KEY@ORG.ingest.sentry.io/PROJECT_ID
@@ -299,14 +301,16 @@ Frontend API client correctly aligned with backend V2 routes:
 python -c "import secrets; print(secrets.token_urlsafe(32))"
 
 # Update .env with actual values
-ENVIRONMENT=production
-DEBUG=false
-FRONTEND_URL=https://your-actual-frontend-url.com
-QUIZ_URL=https://your-actual-quiz-url.com
-ALLOWED_ORIGINS=https://your-actual-frontend-url.com,https://your-actual-quiz-url.com
-JWT_SECRET=<generated-secret>
-CSRF_SECRET_KEY=<generated-secret>
-ENCRYPTION_KEY=<fernet-key>
+APP_ENVIRONMENT=production
+APP_ENABLE_DEBUG=false
+CORS_FRONTEND_URL=https://your-actual-frontend-url.com
+CORS_QUIZ_URL=https://your-actual-quiz-url.com
+CORS_ALLOWED_ORIGINS=https://your-actual-frontend-url.com,https://your-actual-quiz-url.com
+SECURITY_SECRET_KEY=<generated-secret>
+SECURITY_CSRF_SECRET_KEY=<generated-secret>
+PHI_ENCRYPTION_KEY=<base64-encoded-32-byte-key>
+ENCRYPTION_KEY_CURRENT=<fernet-key>
+HASH_SALT=<hex-encoded-salt>
 ```
 
 ### 2. Frontend Configuration
@@ -387,8 +391,8 @@ ws.onerror = (err) => console.error('Error:', err);
    - Set up Sentry for error tracking
 
 2. **Verify CORS Origins:**
-   - Ensure backend `FRONTEND_URL` matches actual frontend domain
-   - Ensure backend `ALLOWED_ORIGINS` includes both frontend and quiz URLs
+   - Ensure backend `CORS_FRONTEND_URL` matches actual frontend domain
+   - Ensure backend `CORS_ALLOWED_ORIGINS` includes both frontend and quiz URLs
    - Test CORS with actual production URLs
 
 3. **Test WebSocket Connection:**

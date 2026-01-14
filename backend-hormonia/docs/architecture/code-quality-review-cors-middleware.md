@@ -189,7 +189,7 @@ class MiddlewareConfig(BaseSettings):
     @validator('csrf_secret_key')
     def validate_csrf_secret(cls, v, values):
         if values.get('csrf_enabled') and not v:
-            raise ValueError("CSRF_SECRET_KEY must be set when CSRF is enabled")
+            raise ValueError("SECURITY_CSRF_SECRET_KEY must be set when CSRF is enabled")
         return v
 
     class Config:
@@ -753,11 +753,12 @@ def test_cors_configuration():
 **Good**:
 ```python
 # ✅ Environment-based configuration with fallbacks
-cors_env = os.getenv("CORS_ALLOWED_ORIGINS", os.getenv("CORS_ORIGINS", ""))
+cors_env = os.getenv("CORS_ALLOWED_ORIGINS", "")
 
 # ✅ Deprecation warnings for smooth migration
-if os.getenv("ENVIRONMENT") and not os.getenv("APP_ENVIRONMENT"):
-    warnings.warn("ENVIRONMENT is deprecated...", DeprecationWarning)
+# Optional: warn if deprecated env keys are detected
+if os.getenv("CORS_ORIGINS"):
+    warnings.warn("CORS_ORIGINS is deprecated...", DeprecationWarning)
 ```
 
 **Enhancement**:
@@ -775,8 +776,8 @@ class ConfigurationValidator:
             if not settings.CORS_ALLOWED_ORIGINS:
                 errors.append("CORS_ALLOWED_ORIGINS must be set in production")
 
-            if not settings.CSRF_SECRET_KEY:
-                errors.append("CSRF_SECRET_KEY must be set in production")
+            if not settings.SECURITY_CSRF_SECRET_KEY:
+                errors.append("SECURITY_CSRF_SECRET_KEY must be set in production")
 
             if not settings.REDIS_ENABLE_SSL:
                 errors.append("REDIS_ENABLE_SSL should be enabled in production")

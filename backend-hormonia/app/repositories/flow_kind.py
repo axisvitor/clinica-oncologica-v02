@@ -14,16 +14,105 @@ from app.repositories.base import BaseRepository
 class FlowKindRepository(BaseRepository):
     """Repository for FlowKind operations."""
 
+    FLOW_KIND_ALIASES = {
+        "onboarding": ["initial_15_days"],
+        "daily_follow_up": ["daily_checkin", "daily_engagement", "days_16_45"],
+        "quiz_mensal": ["monthly_quiz", "monthly_recurring"],
+        "custom": [],
+    }
+
     def __init__(self, db: Session):
         super().__init__(db, FlowKind)
 
+    def _resolve_kind_keys(self, kind_key: str) -> List[str]:
+        if not kind_key:
+            return []
+
+        normalized = kind_key.strip()
+        if normalized in self.FLOW_KIND_ALIASES:
+            return [normalized] + self.FLOW_KIND_ALIASES[normalized]
+
+        for canonical, aliases in self.FLOW_KIND_ALIASES.items():
+            if normalized in aliases:
+                return [normalized, canonical] + [
+                    alias for alias in aliases if alias != normalized
+                ]
+
+        return [normalized]
+
     def get_by_kind_key(self, kind_key: str) -> Optional[FlowKind]:
         """Get flow kind by its unique key."""
-        return self.db.query(FlowKind).filter(FlowKind.kind_key == kind_key).first()
+        candidates = self._resolve_kind_keys(kind_key)
+        if not candidates:
+            return None
+        return (
+            self.db.query(FlowKind)
+            .filter(FlowKind.kind_key.in_(candidates))
+            .first()
+        )
+
+    def get_by_flow_type(self, flow_type: str) -> Optional[FlowKind]:
+        """Alias for get_by_kind_key to preserve legacy service usage."""
+        return self.get_by_kind_key(flow_type)
+
+    def create_kind(
+        self,
+        flow_type: str,
+        name: str,
+        description: Optional[str] = None,
+        is_active: bool = True,
+    ) -> FlowKind:
+        """Create a new flow kind entry."""
+        kind = FlowKind(
+            kind_key=flow_type,
+            display_name=name,
+            description=description,
+            is_active=is_active,
+        )
+        self.db.add(kind)
+        self.db.flush()
+        return kind
+
+    def update_current_version(self, kind_id: str, version_id: str) -> bool:
+        """Set a specific version as active and deactivate others."""
+        try:
+            self.db.execute(
+                text(
+                    """
+                    UPDATE flow_template_versions
+                    SET is_active = false,
+                        updated_at = now()
+                    WHERE flow_kind_id = :kind_id
+                    """
+                ),
+                {"kind_id": kind_id},
+            )
+            self.db.execute(
+                text(
+                    """
+                    UPDATE flow_template_versions
+                    SET is_active = true,
+                        is_draft = false,
+                        published_at = COALESCE(published_at, now()),
+                        updated_at = now()
+                    WHERE id = :version_id
+                    """
+                ),
+                {"version_id": version_id},
+            )
+            self.db.flush()
+            return True
+        except Exception:
+            self.db.rollback()
+            return False
 
     def list_active(self) -> List[FlowKind]:
         """List all active flow kinds."""
         return self.db.query(FlowKind).filter(FlowKind.is_active == True).all()
+
+    def get_all_active(self) -> List[FlowKind]:
+        """Alias for list_active to match service expectations."""
+        return self.list_active()
 
     def get_with_current_version(self, kind_key: str):
         """Get flow kind with its currently active version details."""

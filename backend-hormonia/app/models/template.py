@@ -38,3 +38,4 @@ class MessageTemplate(BaseModel):
             return self.content.format(**kwargs)
         except KeyError as e:
             raise ValueError(f"Missing template variable: {e}")
+1

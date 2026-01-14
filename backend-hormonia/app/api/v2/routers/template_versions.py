@@ -91,7 +91,7 @@ async def list_template_versions(
         versions = (
             db.query(FlowTemplateVersion)
             .options(joinedload(FlowTemplateVersion.kind))
-            .filter(FlowTemplateVersion.kind_id == template.kind_id)
+            .filter(FlowTemplateVersion.flow_kind_id == template.flow_kind_id)
             .order_by(desc(FlowTemplateVersion.version_number))
             .all()
         )
@@ -220,7 +220,7 @@ async def rollback_template_version(
         # Get latest version number for this kind
         latest = (
             db.query(func.max(FlowTemplateVersion.version_number))
-            .filter(FlowTemplateVersion.kind_id == source_version.kind_id)
+            .filter(FlowTemplateVersion.flow_kind_id == source_version.flow_kind_id)
             .scalar()
         )
 
@@ -228,19 +228,20 @@ async def rollback_template_version(
 
         # Create rollback version
         rollback_version = FlowTemplateVersion(
-            kind_id=source_version.kind_id,
+            flow_kind_id=source_version.flow_kind_id,
             version_number=new_version_number,
             template_name=f"{source_version.template_name} (Rollback)",
             description=rollback_data.reason
             or f"Rollback to version {source_version.version_number}",
-            messages=source_version.messages,
-            template_metadata=source_version.template_metadata.copy()
-            if source_version.template_metadata
+            steps=source_version.steps,
+            metadata_json=source_version.metadata_json.copy()
+            if source_version.metadata_json
             else {},
             is_active=rollback_data.set_as_active
             if rollback_data.set_as_active is not None
             else False,
-            is_draft=False,  # Rollbacks are published by default
+            is_draft=False,
+            # Rollbacks are published by default
             published_at=datetime.now(timezone.utc),
             created_by=user_uuid,
         )
@@ -250,7 +251,7 @@ async def rollback_template_version(
         # If set_as_active, deactivate other versions
         if rollback_data.set_as_active:
             db.query(FlowTemplateVersion).filter(
-                FlowTemplateVersion.kind_id == source_version.kind_id,
+                FlowTemplateVersion.flow_kind_id == source_version.flow_kind_id,
                 FlowTemplateVersion.id != rollback_version.id,
             ).update({"is_active": False})
 
@@ -350,7 +351,7 @@ async def publish_template_version(
         if set_as_active:
             # Deactivate other versions
             db.query(FlowTemplateVersion).filter(
-                FlowTemplateVersion.kind_id == template.kind_id,
+                FlowTemplateVersion.flow_kind_id == template.flow_kind_id,
                 FlowTemplateVersion.id != template.id,
             ).update({"is_active": False})
             template.is_active = True

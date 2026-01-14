@@ -296,7 +296,7 @@ cat .env.example | grep -E "^[A-Z_]+=" | wc -l
 **Validation:**
 - [ ] All P0-related env vars documented in `.env.example`
 - [ ] Default values provided for non-sensitive vars
-- [ ] Sensitive vars marked with placeholder (e.g., `SECRET_KEY=your-secret-here`)
+- [ ] Sensitive vars marked with placeholder (e.g., `SECURITY_SECRET_KEY=your-secret-here`)
 - [ ] Railway-specific variables documented
 - [ ] Database SSL mode documented (`?sslmode=require`)
 
@@ -304,28 +304,30 @@ cat .env.example | grep -E "^[A-Z_]+=" | wc -l
 
 **Database:**
 - [ ] `DATABASE_URL` - PostgreSQL connection string with SSL
-- [ ] `DB_POOL_SIZE=30`
-- [ ] `DB_MAX_OVERFLOW=40`
-- [ ] `DB_POOL_TIMEOUT=30`
+- [ ] `DATABASE_POOL_SIZE=30`
+- [ ] `DATABASE_POOL_MAX_OVERFLOW=40`
+- [ ] `DATABASE_POOL_TIMEOUT_SECONDS=30`
 
 **Redis:**
 - [ ] `REDIS_URL` - Redis connection string with SSL
-- [ ] `REDIS_MAX_CONNECTIONS=50`
-- [ ] `REDIS_TIMEOUT=5`
+- [ ] `REDIS_POOL_MAX_CONNECTIONS=50`
+- [ ] `REDIS_SOCKET_TIMEOUT_SECONDS=5`
 
 **Security:**
-- [ ] `SECRET_KEY` - 32+ character random string
-- [ ] `CSRF_SECRET_KEY` - 32+ character random string (NEW)
-- [ ] `WEBHOOK_SECRET_KEY` - For webhook signature validation (NEW)
-- [ ] `CORS_ORIGINS` - Allowed frontend origins
+- [ ] `SECURITY_SECRET_KEY` - 32+ character random string
+- [ ] `SECURITY_CSRF_SECRET_KEY` - 32+ character random string
+- [ ] `WHATSAPP_EVOLUTION_WEBHOOK_SECRET` - For webhook signature validation
+- [ ] `CORS_FRONTEND_URL` - Main dashboard origin
+- [ ] `CORS_QUIZ_URL` - Quiz app origin
+- [ ] `CORS_ALLOWED_ORIGINS` - Additional allowed origins (optional)
 
-**HIPAA Audit:**
-- [ ] `HIPAA_AUDIT_ENABLED=true` (NEW)
-- [ ] `AUDIT_RETENTION_DAYS=2555` (7 years, NEW)
+**Audit Logging & Retention:**
+- [ ] `FIREBASE_ENABLE_AUDIT_LOGGING=true`
+- [ ] `RETENTION_AUDIT_LOG_DAYS=2555` (7 years)
 
 **Rate Limiting:**
-- [ ] `RATE_LIMIT_ENABLED=true` (NEW)
-- [ ] `RATE_LIMIT_WEBHOOK_REQUESTS_PER_MINUTE=60` (NEW)
+- [ ] `RATE_LIMIT_ENABLE_SERVICE=true`
+- [ ] `RATE_LIMIT_REDIS_URL=redis://...` (or leave empty to use `REDIS_URL`)
 
 ### 5.3 Configuration Validation Script **REQUIRED**
 
@@ -359,9 +361,9 @@ railway variables
 # Expected variables set:
 # - DATABASE_URL (from Railway PostgreSQL plugin)
 # - REDIS_URL (from Railway Redis plugin)
-# - SECRET_KEY
-# - CSRF_SECRET_KEY
-# - WEBHOOK_SECRET_KEY
+# - SECURITY_SECRET_KEY
+# - SECURITY_CSRF_SECRET_KEY
+# - WHATSAPP_EVOLUTION_WEBHOOK_SECRET
 ```
 
 **Validation:**

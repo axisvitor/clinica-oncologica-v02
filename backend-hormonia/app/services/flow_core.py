@@ -7,7 +7,6 @@ import logging
 from typing import Optional, Any, Dict
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
-from enum import Enum
 
 from app.models.flow import PatientFlowState, FlowKind, FlowTemplateVersion
 from app.models.patient import Patient
@@ -21,10 +20,7 @@ from app.services.flow.event_broadcaster import flow_event_broadcaster
 logger = logging.getLogger(__name__)
 
 
-class FlowType(Enum):
-    INITIAL_15_DAYS = "initial_15_days"
-    DAYS_16_45 = "days_16_45"
-    MONTHLY_RECURRING = "monthly_recurring"
+from app.services.flow.types import FlowType
 
 
 class NotFoundError(Exception):
@@ -98,15 +94,26 @@ class FlowCore:
         Raises:
             ConcurrentModificationError: If the record was modified by another process
         """
-        # Refresh from DB to get latest version
-        self.db.refresh(flow_state)
+        current_version = (
+            self.db.query(PatientFlowState.version)
+            .filter(PatientFlowState.id == flow_state.id)
+            .scalar()
+        )
 
-        if flow_state.version != expected_version:
+        if current_version is None:
             raise ConcurrentModificationError(
                 resource_type="PatientFlowState",
                 resource_id=str(flow_state.id),
                 expected_version=expected_version,
-                actual_version=flow_state.version,
+                actual_version=None,
+            )
+
+        if current_version != expected_version:
+            raise ConcurrentModificationError(
+                resource_type="PatientFlowState",
+                resource_id=str(flow_state.id),
+                expected_version=expected_version,
+                actual_version=current_version,
             )
 
         # Increment version and commit
@@ -271,11 +278,10 @@ class FlowCore:
             Appropriate flow type
         """
         if current_day <= 15:
-            return FlowType.INITIAL_15_DAYS
+            return FlowType.ONBOARDING
         elif current_day <= 45:
-            return FlowType.DAYS_16_45
-        else:
-            return FlowType.MONTHLY_RECURRING
+            return FlowType.DAILY_FOLLOW_UP
+        return FlowType.QUIZ_MENSAL
 
     async def advance_patient_flow(
         self, patient_id: UUID, force_day: Optional[int] = None
@@ -327,8 +333,9 @@ class FlowCore:
             # Update current step
             previous_day = flow_state.current_step
             flow_state.current_step = current_day
-            flow_state.step_data = flow_state.step_data or {}
-            flow_state.step_data["last_advancement"] = datetime.now(timezone.utc).isoformat()
+            step_data = dict(flow_state.step_data or {})
+            step_data["last_advancement"] = datetime.now(timezone.utc).isoformat()
+            flow_state.step_data = step_data
 
             # Commit with optimistic locking to prevent race conditions
             self._commit_flow_state_with_lock(flow_state, expected_version)
@@ -412,12 +419,14 @@ class FlowCore:
             }
 
             # Update step data
-            flow_state.step_data = flow_state.step_data or {}
-            flow_state.step_data["paused"] = {
+            step_data = dict(flow_state.step_data or {})
+            step_data["paused"] = {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "reason": reason or "Manual pause",
                 "current_step": flow_state.current_step,
             }
+            flow_state.step_data = step_data
+            flow_state.status = "paused"
 
             # Commit with optimistic locking to prevent race conditions
             self._commit_flow_state_with_lock(flow_state, expected_version)
@@ -468,13 +477,16 @@ class FlowCore:
             }
 
             # Remove pause data
-            if flow_state.step_data and "paused" in flow_state.step_data:
-                paused_data = flow_state.step_data.pop("paused")
-                flow_state.step_data["resumed"] = {
+            step_data = dict(flow_state.step_data or {})
+            if "paused" in step_data:
+                paused_data = step_data.pop("paused")
+                step_data["resumed"] = {
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "was_paused_at": paused_data.get("timestamp"),
                     "pause_reason": paused_data.get("reason"),
                 }
+                flow_state.step_data = step_data
+            flow_state.status = "active"
 
             # Commit with optimistic locking to prevent race conditions
             self._commit_flow_state_with_lock(flow_state, expected_version)

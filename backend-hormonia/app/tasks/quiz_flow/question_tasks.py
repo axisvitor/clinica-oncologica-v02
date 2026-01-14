@@ -7,9 +7,10 @@ Handles quiz question delivery and progress updates.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
-from celery import current_app as celery_app
+from app.task_queue import task_queue as celery_app
 
 from app.database import get_db
 
@@ -117,30 +118,42 @@ def send_quiz_progress_update_task(
     Raises:
         Exception: If progress update fails after all retries
     """
-    from asgiref.sync import async_to_sync
-
     try:
-        with next(get_db()) as db:
-            from app.domain.messaging.core import MessageFactory
-            from app.services.unified_whatsapp_service import UnifiedWhatsAppService
+        from app.core.database import get_async_session_factory
+        from app.models.message import (
+            Message,
+            MessageDirection,
+            MessageStatus,
+            MessageType,
+        )
+        from app.services.unified_whatsapp_service import (
+            create_unified_whatsapp_service,
+        )
+        from app.utils.async_helpers import run_async
 
-            message_factory = MessageFactory(db)
-            whatsapp_service = UnifiedWhatsAppService(db)
+        current_question = progress_data.get("current_question", 0)
+        total_questions = progress_data.get("total_questions", 0)
 
-            # Generate progress message
-            current_question = progress_data.get("current_question", 0)
-            total_questions = progress_data.get("total_questions", 0)
+        if current_question <= 0 or total_questions <= 0:
+            return {"success": False, "reason": "Invalid progress data"}
 
-            if current_question > 0 and total_questions > 0:
-                progress_percent = int((current_question / total_questions) * 100)
+        progress_percent = int((current_question / total_questions) * 100)
+        progress_content = (
+            "Você está indo muito bem! 🌟 Já respondeu "
+            f"{current_question} de {total_questions} perguntas "
+            f"({progress_percent}% completo). Continue assim! ✨"
+        )
 
-                progress_content = f"Você está indo muito bem! 🌟 Já respondeu {current_question} de {total_questions} perguntas ({progress_percent}% completo). Continue assim! ✨"
-
-                # Create message using factory
-                message = message_factory.create_outbound_message(
+        async def _send_progress_async() -> dict[str, Any]:
+            async_session_factory = get_async_session_factory()
+            async with async_session_factory() as db:
+                message = Message(
                     patient_id=UUID(patient_id),
+                    direction=MessageDirection.OUTBOUND,
+                    type=MessageType.TEXT,
                     content=progress_content,
-                    metadata={
+                    status=MessageStatus.PENDING,
+                    message_metadata={
                         "quiz_session_id": quiz_session_id,
                         "progress_percent": progress_percent,
                         "current_question": current_question,
@@ -148,19 +161,33 @@ def send_quiz_progress_update_task(
                         "template_type": "quiz_progress",
                     },
                 )
+                db.add(message)
+                await db.commit()
+                await db.refresh(message)
 
-                # Send via UnifiedWhatsAppService (async_to_sync for Celery compatibility)
-                success = async_to_sync(whatsapp_service.send_message)(message)
+                whatsapp_service = create_unified_whatsapp_service(db)
+                success = await whatsapp_service.send_message(message)
 
-                logger.info(f"Quiz progress update sent to patient {patient_id}")
+                if success:
+                    message.status = MessageStatus.SENT
+                    message.sent_at = datetime.now(timezone.utc)
+                else:
+                    message.status = MessageStatus.FAILED
+                    message.message_metadata["failure_reason"] = (
+                        "Message sending failed"
+                    )
+
+                await db.commit()
 
                 return {
                     "success": success,
                     "message_id": str(message.id),
                     "progress_percent": progress_percent,
                 }
-            else:
-                return {"success": False, "reason": "Invalid progress data"}
+
+        result = run_async(_send_progress_async())
+        logger.info(f"Quiz progress update sent to patient {patient_id}")
+        return result
 
     except Exception as exc:
         logger.error(f"Error in send_quiz_progress_update_task: {exc}")

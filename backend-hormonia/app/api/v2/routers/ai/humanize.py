@@ -29,13 +29,13 @@ from app.schemas.v2.ai import (
     TokenUsage,
 )
 from app.utils.rate_limiter import limiter
+from app.api.v2 import ai as ai_module
 
 from .constants import CACHE_TTL_AI_RESPONSE
 from .dependencies import (
     calculate_token_cost,
     generate_cache_key,
     get_cached_response,
-    get_redis_cache,
     set_cached_response,
     track_token_usage,
     verify_physician_or_admin,
@@ -79,7 +79,7 @@ async def humanize_message(
 
     try:
         # Get Redis client
-        redis_client = await get_redis_cache()
+        redis_client = await ai_module.get_redis_cache()
 
         # Generate cache key with user_id to prevent cross-user cache sharing (HIPAA/Privacy)
         cache_key = generate_cache_key(
@@ -428,7 +428,7 @@ async def get_humanize_cache_stats(
     """Get cache statistics for humanize endpoint."""
     from fastapi import HTTPException
 
-    redis_client = await get_redis_cache()
+    redis_client = await ai_module.get_redis_cache()
 
     if not redis_client:
         raise HTTPException(

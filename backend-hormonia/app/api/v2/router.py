@@ -5,7 +5,7 @@ Main router for API v2 endpoints.
 
 import os
 import logging
-from fastapi import APIRouter
+from fastapi import APIRouter, status
 from .routers.patients import router as patients_crud_router
 from .routers.auth import router as auth_router
 from .routers.users import router as users_router
@@ -21,6 +21,7 @@ from .routers.analytics import router as analytics_router
 from .routers.enhanced_analytics import router as enhanced_analytics_router
 from .routers.flows import router as flows_router
 from .routers.messages import router as messages_router
+from .routers.follow_up import router as follow_up_router
 from .routers.enhanced_messages import router as enhanced_messages_router
 from .routers.reports import router as reports_router
 from .routers.admin import router as admin_router
@@ -37,6 +38,7 @@ from .routers.template_admin import router as template_admin_router
 from .routers.ab_testing import router as ab_testing_router
 from .routers.platform_sync import router as platform_sync_router
 from .routers.tasks import router as tasks_router
+from .routers.internal_tasks import router as internal_tasks_router
 from .routers.upload import router as upload_router
 from .routers.localization import router as localization_router
 from .routers.dashboard import router as dashboard_router
@@ -55,6 +57,8 @@ from .routers.monthly_quiz_operations.public import router as monthly_quiz_publi
 from .routers.debug import router as debug_router
 from .routers.hive_mind import router as hive_mind_router
 from app.integrations.whatsapp.api.routes import router as whatsapp_router
+from app.api.v2.monitoring import whatsapp_monitoring_router
+from app.api.v2.patients import create_patient_compat, list_patients_compat
 
 logger = logging.getLogger(__name__)
 api_v2_router = APIRouter(prefix="/api/v2", tags=["v2"])
@@ -73,6 +77,19 @@ api_v2_router.include_router(
 )
 api_v2_router.include_router(
     patients_integrity_router, prefix="/patients", tags=["patients-integrity-v2"]
+)
+api_v2_router.add_api_route(
+    "/patients",
+    list_patients_compat,
+    methods=["GET"],
+    include_in_schema=False,
+)
+api_v2_router.add_api_route(
+    "/patients",
+    create_patient_compat,
+    methods=["POST"],
+    status_code=status.HTTP_201_CREATED,
+    include_in_schema=False,
 )
 api_v2_router.include_router(
     appointments_router, prefix="/appointments", tags=["appointments-v2"]
@@ -108,6 +125,9 @@ api_v2_router.include_router(
 api_v2_router.include_router(flows_router, prefix="/flows", tags=["flows-v2"])
 api_v2_router.include_router(messages_router, prefix="/messages", tags=["messages-v2"])
 api_v2_router.include_router(
+    follow_up_router, prefix="/follow-up", tags=["follow-up-v2"]
+)
+api_v2_router.include_router(
     enhanced_messages_router, prefix="/enhanced-messages", tags=["enhanced-messages-v2"]
 )
 api_v2_router.include_router(reports_router, prefix="/reports", tags=["reports-v2"])
@@ -120,6 +140,11 @@ api_v2_router.include_router(whatsapp_router, tags=["whatsapp-v2"]) # prefix is 
 # Phase 5: Enhanced modules and Alerts
 api_v2_router.include_router(
     enhanced_monitoring_router, prefix="/monitoring", tags=["enhanced-monitoring-v2"]
+)
+api_v2_router.include_router(
+    whatsapp_monitoring_router,
+    prefix="/monitoring/whatsapp",
+    tags=["whatsapp-monitoring-v2"],
 )
 api_v2_router.include_router(
     enhanced_quiz_router, prefix="/enhanced-quiz", tags=["enhanced-quiz-v2"]
@@ -151,6 +176,9 @@ api_v2_router.include_router(
 
 # Phase 7: Tasks, Upload, Localization, Dashboard
 api_v2_router.include_router(tasks_router, prefix="/tasks", tags=["tasks-v2"])
+api_v2_router.include_router(
+    internal_tasks_router, prefix="/internal/tasks", tags=["internal-tasks"]
+)
 api_v2_router.include_router(upload_router, prefix="/upload", tags=["upload-v2"])
 api_v2_router.include_router(
     localization_router, prefix="/localization", tags=["localization-v2"]

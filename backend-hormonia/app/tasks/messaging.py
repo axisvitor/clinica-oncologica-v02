@@ -7,7 +7,9 @@ from typing import Any, List, Optional
 from uuid import UUID
 from datetime import datetime, timedelta, timezone
 
-from app.celery_app import celery_app
+from celery.exceptions import Retry
+
+from app.task_queue import task_queue as celery_app
 from app.database import get_db
 from app.domain.messaging.core import MessageService
 from app.models.message import MessageStatus, MessageType
@@ -28,7 +30,7 @@ from app.utils.async_helpers import run_async
 
 @celery_app.task(bind=True, base=MessageTask, name="send_scheduled_message")
 def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
-    """Send a scheduled message to a patient.
+    """Send a scheduled message to a patient using AsyncSession.
 
     Args:
         message_id (str): UUID of the message to send
@@ -47,65 +49,155 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
     """
     self.log_task_start(message_id=message_id)
 
-    try:
-        # We need a session for MessageService to get the message details
-        with get_db_session() as db:
-            message_service = MessageService(db)
+    async def _send_message_async():
+        """Inner async function to send message with AsyncSession."""
+        from app.core.database import get_async_session_factory
+        from app.models.message import Message
+        from app.models.patient import Patient
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
 
-            # Get the message
-            message = message_service.get_message(message_id)
+        async_session_factory = get_async_session_factory()
+        
+        async with async_session_factory() as db:
+            # Get message with patient relationship loaded
+            stmt = (
+                select(Message)
+                .options(selectinload(Message.patient))
+                .where(Message.id == message_id)
+            )
+            result = await db.execute(stmt)
+            message = result.scalar_one_or_none()
+
             if not message:
-                logger.error(f"Message {message_id} not found")
                 return {
-                    "success": False,
+                    "found": False,
+                    "retry": True,
                     "error": "Message not found",
-                    "message_id": message_id,
                 }
 
             # Check if message is still pending
             if message.status != MessageStatus.PENDING:
-                logger.info(
-                    f"Message {message_id} already processed with status: {message.status}"
-                )
                 return {
-                    "success": True,
-                    "message": "Message already processed",
-                    "message_id": message_id,
+                    "found": True,
+                    "already_processed": True,
                     "status": message.status.value,
                 }
 
-            # Get patient phone number
+            # Get patient details
             patient = message.patient
-            if not patient or not patient.phone:
-                logger.error(f"Patient phone not found for message {message_id}")
+            if not patient:
                 return {
-                    "success": False,
-                    "error": "Patient phone number missing",
-                    "message_id": message_id,
+                    "found": True,
+                    "error": "Patient not found",
                 }
 
-            # Send using Unified WhatsApp Service
+            # SAFETY CHECK: Do not send messages to deleted patients
+            if patient.deleted_at:
+                message.status = MessageStatus.CANCELLED
+                message.failure_reason = "Patient deleted"
+                await db.commit()
+                return {
+                    "found": True,
+                    "cancelled": True,
+                    "error": "Patient deleted",
+                }
+
+            if not patient.phone:
+                return {
+                    "found": True,
+                    "error": "Patient phone number missing",
+                }
+
+            # Send using Unified WhatsApp Service with AsyncSession
             whatsapp_service = create_unified_whatsapp_service(db)
+            
+            # send_message is async and works with AsyncSession
+            success = await whatsapp_service.send_message(message)
 
-            # UnifiedWhatsAppService.send_message() accepts Message object directly
-            # Using run_async for efficient event loop reuse in Celery workers
-            success = run_async(whatsapp_service.send_message(message))
-
-            # Update status locally based on result
             if success:
-                message_service.mark_as_sent(message_id, "queued")
-                logger.info(f"Successfully sent scheduled message {message_id}")
+                # Mark as sent
+                message.status = MessageStatus.SENT
+                message.sent_at = datetime.now(timezone.utc)
+                await db.commit()
+                
+                return {
+                    "found": True,
+                    "success": True,
+                    "patient_id": str(message.patient_id),
+                }
             else:
-                logger.error(f"Failed to send scheduled message {message_id}")
-                raise ExternalServiceError("WhatsApp service returned failure")
+                # This shouldn't happen since send_message now raises on failure
+                return {
+                    "found": True,
+                    "success": False,
+                    "error": "WhatsApp service returned failure",
+                }
 
+    try:
+        # Run the async function
+        result = run_async(_send_message_async())
+
+        # Handle retry for "message not found" (race condition with saga commit)
+        if not result.get("found"):
+            retry_count = self.request.retries
+            if retry_count < 3:
+                countdown = 2 ** (retry_count + 1)  # 2s, 4s, 8s
+                logger.warning(
+                    f"Message {message_id} not found (attempt {retry_count + 1}/3), "
+                    f"retrying in {countdown}s"
+                )
+                raise self.retry(countdown=countdown, max_retries=3)
+            
+            logger.error(f"Message {message_id} not found after 3 retries")
+            return {
+                "success": False,
+                "error": "Message not found after retries",
+                "message_id": message_id,
+            }
+
+        # Handle already processed
+        if result.get("already_processed"):
+            logger.info(
+                f"Message {message_id} already processed with status: {result['status']}"
+            )
+            return {
+                "success": True,
+                "message": "Message already processed",
+                "message_id": message_id,
+                "status": result["status"],
+            }
+
+        # Handle cancelled
+        if result.get("cancelled"):
+            logger.warning(f"Message {message_id} cancelled: {result['error']}")
+            return {
+                "success": False,
+                "error": result["error"],
+                "message_id": message_id,
+                "status": "cancelled",
+            }
+
+        # Handle other errors
+        if result.get("error") and not result.get("success"):
+            raise ExternalServiceError(result["error"])
+
+        # Success!
+        if result.get("success"):
+            logger.info(f"Successfully sent scheduled message {message_id}")
             return {
                 "success": True,
                 "message_id": message_id,
-                "patient_id": str(message.patient_id),
+                "patient_id": result.get("patient_id"),
                 "sent_at": datetime.now(timezone.utc).isoformat(),
             }
 
+        # Fallback
+        raise ExternalServiceError("WhatsApp service returned failure")
+
+    except Retry:
+        # Re-raise Celery Retry exceptions
+        raise
     except Exception as exc:
         logger.error(
             f"Error sending scheduled message {message_id}: {exc}", exc_info=True
@@ -564,13 +656,14 @@ def process_whatsapp_dlq(limit: int = 50) -> dict[str, Any]:
                 from app.models.failed_message import FailureReason
 
                 auto_retry_reasons = [
-                    FailureReason.RATE_LIMIT,
-                    FailureReason.TIMEOUT,
-                    FailureReason.NETWORK_ERROR,
+                    FailureReason.RATE_LIMIT.value,
+                    FailureReason.TIMEOUT.value,
+                    FailureReason.NETWORK_ERROR.value,
                 ]
 
+                # Check error_code field (stores failure reason value)
                 if (
-                    failed_msg.failure_reason in auto_retry_reasons
+                    failed_msg.error_code in auto_retry_reasons
                     and failed_msg.retry_count < 3
                 ):
                     # Auto-approve and requeue (using run_async for event loop reuse)

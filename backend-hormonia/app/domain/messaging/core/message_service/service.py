@@ -169,6 +169,34 @@ class MessageService:
         return self.repository.get_conversation_history(patient_id, skip, limit)
 
     @with_db_retry(max_retries=3)
+    def process_inbound_message(
+        self,
+        patient_id: UUID,
+        content: str,
+        whatsapp_id: str,
+        message_type: MessageType = MessageType.TEXT,
+        message_metadata: Optional[Dict[str, Any]] = None,
+    ) -> Message:
+        """
+        Process an inbound message from WhatsApp.
+
+        Creates a message marked as read to represent patient inbound traffic.
+        """
+        idempotency_base = f"inbound:{patient_id}:{whatsapp_id or ''}:{content or ''}"
+        idempotency_key = hashlib.sha256(idempotency_base.encode("utf-8")).hexdigest()
+        message_data = {
+            "patient_id": patient_id,
+            "direction": MessageDirection.INBOUND,
+            "type": message_type,
+            "content": content,
+            "whatsapp_id": whatsapp_id,
+            "message_metadata": message_metadata or {},
+            "idempotency_key": idempotency_key,
+            "status": MessageStatus.READ,
+        }
+        return self.repository.create(message_data)
+
+    @with_db_retry(max_retries=3)
     def get_pending_messages(
         self, skip: int = 0, limit: int = 100, patient_id: Optional[UUID] = None
     ) -> List[Message]:
@@ -210,6 +238,7 @@ class MessageService:
         scheduled_for: datetime,
         message_type: MessageType = MessageType.TEXT,
         message_metadata: Optional[Dict[str, Any]] = None,
+        auto_commit: bool = True,
     ) -> Message:
         """
         Schedule a message for later delivery.
@@ -220,6 +249,8 @@ class MessageService:
             scheduled_for: Scheduled delivery time
             message_type: Type of message
             message_metadata: Optional metadata
+            auto_commit: If True (default), commits immediately.
+                         Set to False when using within a saga/Unit of Work pattern.
 
         Returns:
             Scheduled Message object
@@ -243,7 +274,7 @@ class MessageService:
             "status": MessageStatus.PENDING,
             "idempotency_key": idempotency_key,
         }
-        return self.repository.create(message_data)
+        return self.repository.create(message_data, auto_commit=auto_commit)
 
     @with_db_retry(max_retries=3)
     def mark_as_sent(
@@ -302,3 +333,59 @@ class MessageService:
         import asyncio
 
         return await asyncio.to_thread(self.mark_as_failed, message_id, error_message)
+
+    @with_db_retry(max_retries=3)
+    def get_messages_with_filters(
+        self,
+        status: Optional[MessageStatus] = None,
+        patient_id: Optional[UUID] = None,
+        limit: int = 100,
+    ) -> List[Message]:
+        """
+        Get messages matching filters.
+
+        Args:
+            status: Optional status filter
+            patient_id: Optional patient filter
+            limit: Maximum number of results
+
+        Returns:
+            List of Message objects matching filters
+        """
+        query = self.db.query(Message)
+        if status:
+            query = query.filter(Message.status == status)
+        if patient_id:
+            query = query.filter(Message.patient_id == patient_id)
+        return query.limit(limit).all()
+
+    @with_db_retry(max_retries=3)
+    def get_message_statistics(
+        self,
+        patient_id: Optional[UUID] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+    ) -> Dict[str, int]:
+        """
+        Get message count statistics by status.
+
+        Args:
+            patient_id: Optional patient filter
+            start_date: Optional start date filter
+            end_date: Optional end date filter
+
+        Returns:
+            Dictionary mapping status values to counts
+        """
+        from sqlalchemy import func
+
+        query = self.db.query(Message.status, func.count(Message.id))
+        if patient_id:
+            query = query.filter(Message.patient_id == patient_id)
+        if start_date:
+            query = query.filter(Message.created_at >= start_date)
+        if end_date:
+            query = query.filter(Message.created_at <= end_date)
+
+        results = query.group_by(Message.status).all()
+        return {str(status.value): count for status, count in results}

@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 from uuid import UUID
-from celery import current_app as celery_app
+from app.task_queue import task_queue as celery_app
 
 from app.database import get_db
 from app.exceptions import NotFoundError

@@ -33,7 +33,7 @@ class AtomicWebhookIdempotency:
 
     # Default TTLs for different event types
     DEFAULT_TTL_SECONDS = 7200  # 2 hours
-    STATUS_UPDATE_TTL = 3600  # 1 hour for status updates
+    STATUS_UPDATE_TTL = 7200  # 2 hours for status updates
     MESSAGE_TTL = 86400  # 24 hours for messages
 
     # Lua script for atomic acquire + get previous state
@@ -95,6 +95,8 @@ class AtomicWebhookIdempotency:
         self.default_ttl = default_ttl
         self._acquire_sha: Optional[str] = None
         self._conditional_sha: Optional[str] = None
+        self._metrics_key = "webhook:idem:metrics"
+        self._metrics_ttl_seconds = 604800  # 7 days
 
     async def _ensure_scripts_loaded(self) -> None:
         """Load Lua scripts if not already loaded."""
@@ -173,12 +175,14 @@ class AtomicWebhookIdempotency:
             )
 
             if acquired:
+                await self._record_metrics(duplicate=False)
                 logger.debug(
                     f"Acquired idempotency lock for {event_type}:{event_id}",
                     extra={"key": key, "worker": worker_id},
                 )
                 return True, "acquired"
             else:
+                await self._record_metrics(duplicate=True)
                 logger.info(
                     f"Duplicate webhook event detected: {event_type}:{event_id}",
                     extra={"key": key, "idempotency": "protected"},
@@ -194,7 +198,7 @@ class AtomicWebhookIdempotency:
             logger.error(
                 "Both Redis and DB idempotency checks failed. "
                 "Rejecting event to prevent duplicates.",
-                extra={"event_type": event_type, "event_id": event_id}
+                extra={"event_type": event_type, "event_id": event_id},
             )
             return False, "infrastructure_failure"
 
@@ -232,6 +236,7 @@ class AtomicWebhookIdempotency:
             )
 
             status_map = {1: "acquired", 2: "reprocessing", 0: "duplicate"}
+            await self._record_metrics(duplicate=result == 0)
 
             return result, status_map.get(result, "unknown")
 
@@ -378,6 +383,82 @@ class AtomicWebhookIdempotency:
             logger.error(f"DB fallback failed: {e}")
             # Fail-open as last resort
             return True, "fallback_error"
+
+    async def _record_metrics(self, duplicate: bool) -> None:
+        """Record idempotency metrics in Redis."""
+        try:
+            pipe = self.redis.pipeline()
+            pipe.hincrby(self._metrics_key, "total_events", 1)
+            if duplicate:
+                pipe.hincrby(self._metrics_key, "duplicates_detected", 1)
+            pipe.expire(self._metrics_key, self._metrics_ttl_seconds)
+            await pipe.execute()
+        except Exception as e:
+            logger.debug(f"Failed to record idempotency metrics: {e}")
+
+    async def get_metrics(self) -> Dict[str, Any]:
+        """Get aggregated idempotency metrics."""
+        try:
+            raw = await self.redis.hgetall(self._metrics_key)
+            metrics: Dict[str, int] = {}
+            for key, value in raw.items():
+                decoded_key = key.decode("utf-8") if isinstance(key, bytes) else key
+                decoded_value = (
+                    value.decode("utf-8") if isinstance(value, bytes) else value
+                )
+                metrics[decoded_key] = int(decoded_value)
+
+            total_events = metrics.get("total_events", 0)
+            duplicates = metrics.get("duplicates_detected", 0)
+            cache_hit_rate = (duplicates / total_events) if total_events > 0 else 0.0
+
+            return {
+                "total_events": total_events,
+                "duplicates_detected": duplicates,
+                "cache_hit_rate": round(cache_hit_rate, 4),
+            }
+        except Exception as e:
+            logger.error(f"Could not get idempotency metrics: {e}")
+            return {
+                "total_events": 0,
+                "duplicates_detected": 0,
+                "cache_hit_rate": 0.0,
+            }
+
+    async def cleanup_expired_keys(self, scan_count: int = 1000) -> Dict[str, int]:
+        """
+        Cleanup idempotency keys with missing TTLs.
+
+        Redis handles expired keys automatically, but this enforces TTLs
+        on any keys that were created without expiration.
+        """
+        fixed_ttl = 0
+        scanned = 0
+
+        try:
+            async for key in self.redis.scan_iter(
+                match="webhook:idem:*", count=scan_count
+            ):
+                scanned += 1
+                if isinstance(key, bytes):
+                    key_str = key.decode("utf-8")
+                else:
+                    key_str = key
+
+                if key_str == self._metrics_key:
+                    continue
+
+                ttl = await self.redis.ttl(key)
+                if ttl == -1:
+                    parts = key_str.split(":")
+                    event_type = parts[2] if len(parts) > 2 else "webhook"
+                    await self.redis.expire(key, self._get_ttl(event_type))
+                    fixed_ttl += 1
+
+            return {"scanned": scanned, "fixed_ttl": fixed_ttl}
+        except Exception as e:
+            logger.error(f"Could not cleanup idempotency keys: {e}")
+            return {"scanned": scanned, "fixed_ttl": fixed_ttl}
 
     async def get_processing_stats(self) -> Dict[str, Any]:
         """

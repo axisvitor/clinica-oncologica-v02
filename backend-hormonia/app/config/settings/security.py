@@ -19,10 +19,22 @@ class SecuritySettings(BaseAppSettings):
         default="dev-insecure-secret-key-must-be-changed-in-production-railway",
         description="Secret key for JWT signing. MUST be set via environment variable in production.",
     )
-    SECURITY_ENCRYPTION_KEY: Optional[str] = Field(
-        default=None, description="Encryption key for sensitive data"
-    )
     SECURITY_ALGORITHM: str = Field(default="HS256", description="JWT algorithm")
+    ENCRYPTION_KEY_CURRENT: Optional[str] = Field(
+        default=None,
+        description="Fernet key for legacy field encryption (base64)",
+    )
+    PHI_ENCRYPTION_KEY: Optional[str] = Field(
+        default=None,
+        description="Base64-encoded 32-byte key for PHI/PII encryption (AES-GCM)",
+    )
+    HASH_SALT: Optional[str] = Field(
+        default=None,
+        description="Hex-encoded salt for searchable hash generation",
+    )
+    SECURITY_ENCRYPTION_KEY: Optional[str] = Field(
+        default=None, description="Legacy fallback for ENCRYPTION_KEY_CURRENT"
+    )
 
     # ============================================================================
     # Authentication - Direct ENV names
@@ -75,6 +87,18 @@ class SecuritySettings(BaseAppSettings):
         description="Session cookie max age in seconds (default: 8 hours)",
     )
 
+    # ========================================================================
+    # Authentication Feature Flags
+    # ========================================================================
+    ENABLE_STRICT_UID_VALIDATION: bool = Field(
+        default=True,
+        description="Enable strict Firebase UID validation (28 chars)",
+    )
+    ENABLE_COOKIE_PRIORITY: bool = Field(
+        default=True,
+        description="Prioritize cookie over header for session ID",
+    )
+
     # ============================================================================
     # Security Features - Direct ENV names
     # ============================================================================
@@ -110,6 +134,9 @@ class SecuritySettings(BaseAppSettings):
     )
     FIREBASE_ADMIN_CLIENT_EMAIL: Optional[str] = Field(
         default=None, description="Firebase Admin SDK service account email"
+    )
+    FIREBASE_ADMIN_SDK_TIMEOUT: int = Field(
+        default=10, description="Timeout in seconds for Firebase Admin SDK calls"
     )
 
     # Firebase Security Configuration - Direct ENV names
@@ -156,6 +183,10 @@ class SecuritySettings(BaseAppSettings):
     FIREBASE_SESSION_TTL_SECONDS: int = Field(
         default=86400,
         description="Firebase session management TTL in seconds (Layer 3 - Default: 24 hours)",
+    )
+    SESSION_MAX_AGE_SECONDS: int = Field(
+        default=604800,  # 7 days
+        description="Maximum absolute session lifetime in seconds regardless of activity (Default: 7 days)",
     )
 
     # ============================================================================
@@ -291,18 +322,25 @@ class SecuritySettings(BaseAppSettings):
                     "  Generate with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
                 )
 
-            # Encryption Keys (check environment directly as they're not in settings)
-            encryption_key = os.getenv("ENCRYPTION_KEY_CURRENT") or os.getenv(
-                "SECURITY_ENCRYPTION_KEY"
-            )
+            # Encryption Keys
+            encryption_key = self.ENCRYPTION_KEY_CURRENT or self.SECURITY_ENCRYPTION_KEY
             if not encryption_key:
                 missing_vars.append(
                     "ENCRYPTION_KEY_CURRENT - Required for field-level encryption (PHI/PII)\n"
                     "  Generate with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
                 )
 
+            phi_encryption_key = self.PHI_ENCRYPTION_KEY or os.getenv(
+                "COMPLIANCE_PHI_ENCRYPTION_KEY"
+            )
+            if not phi_encryption_key:
+                missing_vars.append(
+                    "PHI_ENCRYPTION_KEY - Required for AES-GCM encryption\n"
+                    "  Generate with: python -c 'import os, base64; print(base64.b64encode(os.urandom(32)).decode())'"
+                )
+
             # Hash Salt for searchable encryption
-            hash_salt = os.getenv("HASH_SALT") or os.getenv("COMPLIANCE_HASH_SALT")
+            hash_salt = self.HASH_SALT or os.getenv("COMPLIANCE_HASH_SALT")
             if not hash_salt:
                 missing_vars.append(
                     "HASH_SALT - Required for searchable hash generation\n"
@@ -485,15 +523,34 @@ class SecuritySettings(BaseAppSettings):
                 "DEV-",
                 "MUST-BE-CHANGED",
             ]
-            for field in ["SECURITY_SECRET_KEY", "SECURITY_ENCRYPTION_KEY"]:
+            generation_commands = {
+                "SECURITY_SECRET_KEY": "python -c 'import secrets; print(secrets.token_urlsafe(64))'",
+                "SECURITY_CSRF_SECRET_KEY": "python -c 'import secrets; print(secrets.token_urlsafe(32))'",
+                "ENCRYPTION_KEY_CURRENT": "python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'",
+                "PHI_ENCRYPTION_KEY": "python -c 'import os, base64; print(base64.b64encode(os.urandom(32)).decode())'",
+                "HASH_SALT": "python -c 'import secrets; print(secrets.token_hex(32))'",
+                "SECURITY_ENCRYPTION_KEY": "python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'",
+            }
+            for field in [
+                "SECURITY_SECRET_KEY",
+                "SECURITY_CSRF_SECRET_KEY",
+                "ENCRYPTION_KEY_CURRENT",
+                "PHI_ENCRYPTION_KEY",
+                "HASH_SALT",
+                "SECURITY_ENCRYPTION_KEY",
+            ]:
                 if field in data:
                     v = data[field]
                     if v and any(
                         pattern in v.upper() for pattern in placeholder_patterns
                     ):
+                        command = generation_commands.get(
+                            field,
+                            "python -c 'import secrets; print(secrets.token_urlsafe(64))'",
+                        )
                         raise ValueError(
                             f"{field} must be changed from placeholder/default value in production. "
-                            f"Generate a secure key with: python -c 'import secrets; print(secrets.token_urlsafe(64))'"
+                            f"Generate a secure key with: {command}"
                         )
 
         return data
@@ -602,15 +659,26 @@ class SecuritySettings(BaseAppSettings):
                         self.SECURITY_SECRET_KEY
                     )
 
-                if self.SECURITY_ENCRYPTION_KEY:
-                    secrets_to_validate["SECURITY_ENCRYPTION_KEY"] = (
-                        self.SECURITY_ENCRYPTION_KEY
+                encryption_key_current = (
+                    self.ENCRYPTION_KEY_CURRENT or self.SECURITY_ENCRYPTION_KEY
+                )
+                if encryption_key_current:
+                    secrets_to_validate["ENCRYPTION_KEY_CURRENT"] = (
+                        encryption_key_current
                     )
 
                 if self.SECURITY_CSRF_SECRET_KEY:
                     secrets_to_validate["SECURITY_CSRF_SECRET_KEY"] = (
                         self.SECURITY_CSRF_SECRET_KEY
                     )
+
+                if self.PHI_ENCRYPTION_KEY:
+                    secrets_to_validate["PHI_ENCRYPTION_KEY"] = (
+                        self.PHI_ENCRYPTION_KEY
+                    )
+
+                if self.HASH_SALT:
+                    secrets_to_validate["HASH_SALT"] = self.HASH_SALT
 
                 # Validate all secrets
                 validation_results = validate_all_secrets(

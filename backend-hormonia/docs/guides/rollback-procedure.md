@@ -350,10 +350,10 @@ railway logs --follow
 **Revert any P0-specific environment variables:**
 ```bash
 # Check if these were added in P0 deployment
-railway variables list | grep -E "CSRF_SECRET_KEY|HIPAA_AUDIT_ENABLED|WEBHOOK_SECRET_KEY"
+railway variables list | grep -E "SECURITY_CSRF_SECRET_KEY|FIREBASE_ENABLE_AUDIT_LOGGING|WHATSAPP_EVOLUTION_WEBHOOK_SECRET"
 
 # If present and causing issues, revert:
-railway variables set HIPAA_AUDIT_ENABLED=false
+railway variables set FIREBASE_ENABLE_AUDIT_LOGGING=false
 # Note: Keep CSRF and webhook secrets even in rollback (they don't hurt)
 
 # Restart application if env vars changed

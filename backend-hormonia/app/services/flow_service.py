@@ -29,6 +29,14 @@ from app.services.analytics.flow_analytics import FlowAnalyticsService
 from app.services.flow_dashboard import FlowDashboardService
 from app.services.enhanced_flow_engine import EnhancedFlowEngine
 from app.core.redis_unified import get_async_redis
+from app.exceptions import (
+    FlowStateNotFoundError,
+    FlowStateConflictError,
+    FlowOperationError,
+    FlowValidationError,
+    NotFoundError as LegacyNotFoundError,
+)
+from app.core.exceptions import NotFoundError, BusinessRuleError
 
 logger = logging.getLogger(__name__)
 
@@ -81,21 +89,86 @@ class FlowService(FlowCore):
     async def get_flow_state(
         self, patient_id: UUID, include: Optional[List[str]]
     ) -> FlowStateV2Response:
-        flow_state = await self.flow_management.get_patient_flow_state(patient_id)
-        if include:
-            query = self.db.query(flow_state.__class__)
-            if "patient" in include:
-                query = query.options(joinedload(flow_state.__class__.patient))
-            if "template" in include:
-                query = query.options(joinedload(flow_state.__class__.template))
-            flow_state = query.filter_by(id=flow_state.id).first()
-        return flow_state
+        from app.schemas.v2.flows import FlowStatusV2
+        
+        # Get the flow state from flow_management (returns FlowStateResponse)
+        flow_state_response = await self.flow_management.get_patient_flow_state(patient_id)
+        
+        # If no active flow, return a minimal response
+        if not flow_state_response.has_active_flow:
+            # Return a response indicating no active flow
+            return FlowStateV2Response(
+                id="",
+                patient_id=str(patient_id),
+                flow_type="none",
+                template_version="",
+                current_step=0,
+                status=FlowStatusV2.COMPLETED,
+                started_at=datetime.now(timezone.utc),
+                state_data={"message": flow_state_response.message or "No active flow"},
+            )
+        
+        # Extract data from the nested flow_state dict
+        flow_data = flow_state_response.flow_state or {}
+        
+        # Map is_paused to status
+        is_paused = flow_data.get("is_paused", False)
+        if is_paused:
+            status = FlowStatusV2.PAUSED
+        elif flow_data.get("completed_at"):
+            status = FlowStatusV2.COMPLETED
+        else:
+            status = FlowStatusV2.ACTIVE
+        
+        # Parse started_at
+        started_at_str = flow_data.get("started_at")
+        if started_at_str:
+            try:
+                started_at = datetime.fromisoformat(started_at_str.replace("Z", "+00:00"))
+            except (ValueError, AttributeError):
+                started_at = datetime.now(timezone.utc)
+        else:
+            started_at = datetime.now(timezone.utc)
+        
+        # Parse completed_at if present
+        completed_at = None
+        completed_at_str = flow_data.get("completed_at")
+        if completed_at_str:
+            try:
+                completed_at = datetime.fromisoformat(completed_at_str.replace("Z", "+00:00"))
+            except (ValueError, AttributeError):
+                pass
+        
+        return FlowStateV2Response(
+            id=flow_data.get("id", ""),
+            patient_id=str(patient_id),
+            flow_type=flow_data.get("flow_type", "unknown"),
+            template_version=flow_data.get("template_version", "1.0.0"),
+            current_step=flow_data.get("current_step", 0),
+            status=status,
+            started_at=started_at,
+            completed_at=completed_at,
+            state_data=flow_data.get("state_data", {}),
+        )
 
     async def advance_patient_flow(
         self, patient_id: UUID, force_day: Optional[int]
     ) -> FlowAdvanceV2Response:
-        advancement = await self.flow_management.advance_patient_flow(
-            patient_id=patient_id, force_day=force_day
+        try:
+            advancement = await self.flow_management.advance_patient_flow(
+                patient_id=patient_id, force_day=force_day
+            )
+        except (FlowStateNotFoundError, LegacyNotFoundError) as e:
+            raise NotFoundError("Flow state", patient_id) from e
+        except (FlowStateConflictError, FlowValidationError, FlowOperationError) as e:
+            raise BusinessRuleError(str(e)) from e
+        logger.info(
+            "Flow advanced via API",
+            extra={
+                "patient_id": str(patient_id),
+                "previous_step": advancement.get("previous_step"),
+                "current_step": advancement.get("current_step"),
+            },
         )
         return FlowAdvanceV2Response(
             success=True,
@@ -113,11 +186,24 @@ class FlowService(FlowCore):
         duration_hours: Optional[float],
         user_id: UUID,
     ) -> FlowPauseV2Response:
-        pause_result = await self.flow_management.pause_patient_flow(
-            patient_id=patient_id,
-            reason=reason,
-            duration_hours=duration_hours,
-            user_id=user_id,
+        try:
+            pause_result = await self.flow_management.pause_patient_flow(
+                patient_id=patient_id,
+                reason=reason,
+                duration_hours=duration_hours,
+                user_id=user_id,
+            )
+        except (FlowStateNotFoundError, LegacyNotFoundError) as e:
+            raise NotFoundError("Flow state", patient_id) from e
+        except (FlowStateConflictError, FlowValidationError, FlowOperationError) as e:
+            raise BusinessRuleError(str(e)) from e
+        logger.info(
+            "Flow paused via API",
+            extra={
+                "patient_id": str(patient_id),
+                "reason": reason,
+                "auto_resume_at": pause_result.get("auto_resume_at"),
+            },
         )
         return FlowPauseV2Response(
             success=True,
@@ -131,8 +217,20 @@ class FlowService(FlowCore):
     async def resume_patient_flow(
         self, patient_id: UUID, user_id: UUID
     ) -> FlowResumeV2Response:
-        resume_result = await self.flow_management.resume_patient_flow(
-            patient_id=patient_id, user_id=user_id
+        try:
+            resume_result = await self.flow_management.resume_patient_flow(
+                patient_id=patient_id, user_id=user_id
+            )
+        except (FlowStateNotFoundError, LegacyNotFoundError) as e:
+            raise NotFoundError("Flow state", patient_id) from e
+        except (FlowStateConflictError, FlowValidationError, FlowOperationError) as e:
+            raise BusinessRuleError(str(e)) from e
+        logger.info(
+            "Flow resumed via API",
+            extra={
+                "patient_id": str(patient_id),
+                "resumed_at": resume_result.get("resumed_at"),
+            },
         )
         return FlowResumeV2Response(
             success=True,
@@ -156,7 +254,7 @@ class FlowService(FlowCore):
             if "patient" in include:
                 query = query.options(joinedload(FlowStateModel.patient))
             if "template" in include:
-                query = query.options(joinedload(FlowStateModel.template))
+                query = query.options(joinedload(FlowStateModel.template_version))
 
         if cursor_data and "id" in cursor_data:
             cursor_id = UUID(cursor_data["id"])
@@ -185,6 +283,44 @@ class FlowService(FlowCore):
             else None
         )
         current_flow = await self.flow_management.get_patient_flow_state(patient_id)
+        current_flow_v2 = None
+        if current_flow and getattr(current_flow, "has_active_flow", False):
+            flow_data = current_flow.flow_state or {}
+            is_paused = flow_data.get("is_paused", False)
+            if is_paused:
+                status = FlowStatusV2.PAUSED
+            elif flow_data.get("completed_at"):
+                status = FlowStatusV2.COMPLETED
+            else:
+                status = FlowStatusV2.ACTIVE
+
+            started_at = datetime.now(timezone.utc)
+            started_at_str = flow_data.get("started_at")
+            if started_at_str:
+                try:
+                    started_at = datetime.fromisoformat(started_at_str.replace("Z", "+00:00"))
+                except (ValueError, AttributeError):
+                    pass
+
+            completed_at = None
+            completed_at_str = flow_data.get("completed_at")
+            if completed_at_str:
+                try:
+                    completed_at = datetime.fromisoformat(completed_at_str.replace("Z", "+00:00"))
+                except (ValueError, AttributeError):
+                    completed_at = None
+
+            current_flow_v2 = FlowStateV2Response(
+                id=flow_data.get("id", ""),
+                patient_id=str(patient_id),
+                flow_type=flow_data.get("flow_type", "unknown"),
+                template_version=flow_data.get("template_version", "1.0.0"),
+                current_step=flow_data.get("current_step", 0),
+                status=status,
+                started_at=started_at,
+                completed_at=completed_at,
+                state_data=flow_data.get("state_data", {}),
+            )
 
         return FlowHistoryV2Response(
             patient_id=str(patient_id),
@@ -192,9 +328,7 @@ class FlowService(FlowCore):
             next_cursor=next_cursor,
             has_more=has_more,
             total=total,
-            current_flow=FlowStateV2Response.from_orm(current_flow)
-            if current_flow
-            else None,
+            current_flow=current_flow_v2,
         )
 
     async def get_dashboard_overview(
@@ -266,19 +400,29 @@ class FlowService(FlowCore):
     async def start_patient_flow(
         self, patient_id: UUID, flow_type: str, user_id: UUID
     ) -> FlowStateV2Response:
-        flow_state = await self.flow_management.start_patient_flow(
-            patient_id=patient_id, flow_type=flow_type
-        )
+        try:
+            flow_state = await self.flow_management.start_patient_flow(
+                patient_id=patient_id, flow_type=flow_type
+            )
+        except (FlowStateNotFoundError, LegacyNotFoundError) as e:
+            raise NotFoundError("Flow state", patient_id) from e
+        except (FlowStateConflictError, FlowValidationError, FlowOperationError) as e:
+            raise BusinessRuleError(str(e)) from e
         return FlowStateV2Response.from_orm(flow_state)
 
     async def process_patient_response(
         self, patient_id: UUID, response_text: str, metadata: Dict[str, Any]
     ) -> FlowAdvanceV2Response:
-        advancement = await self.flow_management.process_patient_response(
-            patient_id=patient_id,
-            response_text=response_text,
-            response_metadata=metadata,
-        )
+        try:
+            advancement = await self.flow_management.process_patient_response(
+                patient_id=patient_id,
+                response_text=response_text,
+                response_metadata=metadata,
+            )
+        except (FlowStateNotFoundError, LegacyNotFoundError) as e:
+            raise NotFoundError("Flow state", patient_id) from e
+        except (FlowStateConflictError, FlowValidationError, FlowOperationError) as e:
+            raise BusinessRuleError(str(e)) from e
         return FlowAdvanceV2Response(
             success=True,
             patient_id=str(patient_id),

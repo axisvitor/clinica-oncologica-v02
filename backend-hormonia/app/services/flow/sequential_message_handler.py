@@ -10,6 +10,7 @@ Handles sending messages sequentially within a day based on send_mode:
 
 import logging
 import asyncio
+import hashlib
 from typing import Optional, Dict, Any, List
 from uuid import UUID
 from datetime import datetime, timezone
@@ -18,8 +19,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from app.models.flow import PatientFlowState
+from app.models.message import Message, MessageDirection, MessageStatus, MessageType
 from app.models.patient import Patient
 from app.repositories.flow import FlowStateRepository
+from app.repositories.message import MessageRepository
 from app.services.unified_whatsapp_service import UnifiedWhatsAppService
 from app.services.enhanced_flow_engine import EnhancedFlowEngine
 
@@ -41,6 +44,7 @@ class SequentialMessageHandler:
     def __init__(self, db: Session, use_ai_personalization: bool = True):
         self.db = db
         self.flow_state_repo = FlowStateRepository(db)
+        self.message_repo = MessageRepository(db)
         self.whatsapp_service = UnifiedWhatsAppService(db)
         self.use_ai_personalization = use_ai_personalization
         self._enhanced_flow_engine: Optional[EnhancedFlowEngine] = None
@@ -270,6 +274,72 @@ class SequentialMessageHandler:
                 self.db.commit()
         
         return flow_state
+
+    def _build_idempotency_key(
+        self, patient_id: UUID, flow_kind: str, day_number: int, message_index: int
+    ) -> str:
+        """Create a deterministic idempotency key for flow messages."""
+        base = f"flow:{patient_id}:{flow_kind}:{day_number}:{message_index}"
+        return hashlib.sha256(base.encode("utf-8")).hexdigest()[:32]
+
+    async def _send_flow_message(
+        self,
+        patient: Patient,
+        content: str,
+        day_number: int,
+        flow_kind: str,
+        message_index: int,
+        expects_response: bool,
+    ) -> bool:
+        """Create a Message record and enqueue it via UnifiedWhatsAppService."""
+        idempotency_key = self._build_idempotency_key(
+            patient.id, flow_kind, day_number, message_index
+        )
+        flow_context = {
+            "flow_type": flow_kind,
+            "flow_day": day_number,
+            "message_index": message_index,
+            "expects_response": expects_response,
+            "source": "flow_sequential",
+        }
+
+        existing = self.message_repo.get_by_idempotency_key(
+            patient.id, idempotency_key
+        )
+        if existing:
+            if existing.status in {MessageStatus.FAILED, MessageStatus.CANCELLED}:
+                return await self.whatsapp_service.send_message(
+                    existing, flow_context=flow_context
+                )
+            logger.info(
+                "Skipping duplicate flow message",
+                extra={"patient_id": patient.id, "idempotency_key": idempotency_key},
+            )
+            return True
+
+        message = Message(
+            patient_id=patient.id,
+            direction=MessageDirection.OUTBOUND,
+            type=MessageType.TEXT,
+            content=content,
+            status=MessageStatus.PENDING,
+            scheduled_for=datetime.now(timezone.utc),
+            idempotency_key=idempotency_key,
+            message_metadata={
+                "source": "flow_sequential",
+                "flow_kind": flow_kind,
+                "flow_day": day_number,
+                "message_index": message_index,
+                "expects_response": expects_response,
+            },
+        )
+
+        self.db.add(message)
+        self.db.commit()
+
+        return await self.whatsapp_service.send_message(
+            message, flow_context=flow_context
+        )
     
     async def _send_all_sequential(
         self, 
@@ -285,12 +355,18 @@ class SequentialMessageHandler:
         
         for i, msg in enumerate(messages):
             content = await self._personalize_message_ai(msg.get("content", ""), patient, day_number, flow_kind)
-            
-            # Send via WhatsApp
-            await self.whatsapp_service.send_text_message(
-                phone=patient.phone,
-                content=content
+
+            success = await self._send_flow_message(
+                patient,
+                content,
+                day_number,
+                flow_kind,
+                i,
+                msg.get("expects_response", False),
             )
+            if not success:
+                return {"status": "error", "message": "Failed to send flow message"}
+
             sent_count += 1
             
             # Short delay between messages (except last)
@@ -323,12 +399,17 @@ class SequentialMessageHandler:
         
         msg = messages[index]
         content = await self._personalize_message_ai(msg.get("content", ""), patient, day_number, flow_kind)
-        
-        # Send via WhatsApp
-        await self.whatsapp_service.send_text_message(
-            phone=patient.phone,
-            content=content
+
+        success = await self._send_flow_message(
+            patient,
+            content,
+            day_number,
+            flow_kind,
+            index,
+            msg.get("expects_response", True),
         )
+        if not success:
+            return {"status": "error", "message": "Failed to send flow message"}
         
         # Update flow state
         step_data = flow_state.step_data or {}
@@ -360,11 +441,18 @@ class SequentialMessageHandler:
         # Send remaining messages sequentially
         for i, msg in enumerate(remaining):
             content = await self._personalize_message_ai(msg.get("content", ""), patient, day_number, flow_kind)
-            
-            await self.whatsapp_service.send_text_message(
-                phone=patient.phone,
-                content=content
+
+            message_index = start_index + i
+            success = await self._send_flow_message(
+                patient,
+                content,
+                day_number,
+                flow_kind,
+                message_index,
+                msg.get("expects_response", False),
             )
+            if not success:
+                return {"status": "error", "message": "Failed to send flow message"}
             
             # Short delay between
             if i < len(remaining) - 1:

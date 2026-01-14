@@ -15,6 +15,8 @@ from app.database import get_db
 from app.models.user import User, UserRole
 from app.schemas.v2.tasks import TaskStatus
 from app.dependencies.auth_dependencies import get_redis_cache
+from app.config import settings
+from app.task_queue import get_task as get_stored_task, store_task
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +133,38 @@ def _celery_status_to_task_status(celery_status: str) -> TaskStatus:
 
 def _get_task_from_celery(task_id: str) -> Dict[str, Any]:
     """Get task information from Celery."""
+    if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
+        stored = get_stored_task(task_id)
+        if not stored:
+            return {
+                "celery_task_id": task_id,
+                "status": TaskStatus.PENDING,
+                "result": None,
+                "error": None,
+                "traceback": None,
+            }
+
+        status_value = stored.get("status", TaskStatus.PENDING)
+        if isinstance(status_value, TaskStatus):
+            status = status_value
+        else:
+            try:
+                status = TaskStatus(str(status_value))
+            except ValueError:
+                status = TaskStatus.PENDING
+
+        return {
+            "celery_task_id": task_id,
+            "status": status,
+            "result": stored.get("result"),
+            "error": stored.get("error"),
+            "traceback": stored.get("traceback"),
+            "runtime_seconds": stored.get("runtime_seconds"),
+            "started_at": stored.get("started_at"),
+            "completed_at": stored.get("completed_at"),
+            "scheduled_at": stored.get("scheduled_at"),
+        }
+
     from app.celery_app import celery_app
 
     try:
@@ -179,6 +213,7 @@ def _register_task(
 
     task_registry[celery_task_id] = {
         "id": task_id,
+        "celery_task_id": celery_task_id,
         "task_name": task_name,
         "task_type": task_type.value,
         "priority": priority.value,
@@ -188,6 +223,9 @@ def _register_task(
         "retry_count": 0,
         "logs": [],
     }
+
+    if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
+        store_task(task_registry[celery_task_id])
 
     return task_id
 

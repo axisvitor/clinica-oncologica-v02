@@ -126,17 +126,17 @@ class TestNotificationServiceInitialization:
     ):
         """Test that default executor is created if not provided."""
         with patch(
-            "app.domain.patient.onboarding.notification_service.ThreadPoolExecutor"
-        ) as mock_thread_pool:
+            "app.domain.patient.onboarding.notification_service.get_notification_executor"
+        ) as mock_get_executor:
+            mock_executor = Mock()
+            mock_get_executor.return_value = mock_executor
             service = NotificationService(
                 message_service=mock_message_service,
                 whatsapp_service=mock_whatsapp_service,
             )
 
-            # Verify ThreadPoolExecutor was created
-            mock_thread_pool.assert_called_once_with(
-                max_workers=5, thread_name_prefix="notification_sync"
-            )
+            mock_get_executor.assert_called_once_with()
+            assert service._executor == mock_executor
 
     def test_init_without_websocket_service(
         self, mock_message_service, mock_whatsapp_service
@@ -170,10 +170,10 @@ class TestSendWelcomeMessage:
         with patch(
             "app.domain.patient.onboarding.notification_service.settings"
         ) as mock_settings:
-            mock_settings.ENABLE_WHATSAPP_ON_REGISTRATION = True
-            mock_settings.WHATSAPP_WELCOME_MESSAGE_ENABLED = True
-            mock_settings.CLINIC_NAME = "Test Clinic"
-            mock_settings.CLINIC_SUPPORT_PHONE = "+5511888888888"
+            mock_settings.WHATSAPP_ENABLE_ON_REGISTRATION = True
+            mock_settings.WHATSAPP_ENABLE_WELCOME_MESSAGE = True
+            mock_settings.WHATSAPP_CLINIC_NAME = "Test Clinic"
+            mock_settings.WHATSAPP_CLINIC_SUPPORT_PHONE = "+5511888888888"
 
             # Mock get_welcome_message
             with patch(
@@ -217,7 +217,7 @@ class TestSendWelcomeMessage:
         with patch(
             "app.domain.patient.onboarding.notification_service.settings"
         ) as mock_settings:
-            mock_settings.ENABLE_WHATSAPP_ON_REGISTRATION = False
+            mock_settings.WHATSAPP_ENABLE_ON_REGISTRATION = False
 
             result = await notification_service.send_welcome_message(
                 sample_patient, sample_user
@@ -234,8 +234,8 @@ class TestSendWelcomeMessage:
         with patch(
             "app.domain.patient.onboarding.notification_service.settings"
         ) as mock_settings:
-            mock_settings.ENABLE_WHATSAPP_ON_REGISTRATION = True
-            mock_settings.WHATSAPP_WELCOME_MESSAGE_ENABLED = False
+            mock_settings.WHATSAPP_ENABLE_ON_REGISTRATION = True
+            mock_settings.WHATSAPP_ENABLE_WELCOME_MESSAGE = False
 
             result = await notification_service.send_welcome_message(
                 sample_patient, sample_user
@@ -252,10 +252,10 @@ class TestSendWelcomeMessage:
         with patch(
             "app.domain.patient.onboarding.notification_service.settings"
         ) as mock_settings:
-            mock_settings.ENABLE_WHATSAPP_ON_REGISTRATION = True
-            mock_settings.WHATSAPP_WELCOME_MESSAGE_ENABLED = True
-            mock_settings.CLINIC_NAME = "Test Clinic"
-            mock_settings.CLINIC_SUPPORT_PHONE = "+5511888888888"
+            mock_settings.WHATSAPP_ENABLE_ON_REGISTRATION = True
+            mock_settings.WHATSAPP_ENABLE_WELCOME_MESSAGE = True
+            mock_settings.WHATSAPP_CLINIC_NAME = "Test Clinic"
+            mock_settings.WHATSAPP_CLINIC_SUPPORT_PHONE = "+5511888888888"
 
             with patch(
                 "app.domain.patient.onboarding.notification_service.get_welcome_message"
@@ -294,8 +294,8 @@ class TestSendWelcomeMessage:
         with patch(
             "app.domain.patient.onboarding.notification_service.settings"
         ) as mock_settings:
-            mock_settings.ENABLE_WHATSAPP_ON_REGISTRATION = True
-            mock_settings.WHATSAPP_WELCOME_MESSAGE_ENABLED = True
+            mock_settings.WHATSAPP_ENABLE_ON_REGISTRATION = True
+            mock_settings.WHATSAPP_ENABLE_WELCOME_MESSAGE = True
 
             with patch(
                 "app.domain.patient.onboarding.notification_service.get_welcome_message"
@@ -317,8 +317,8 @@ class TestSendWelcomeMessage:
         with patch(
             "app.domain.patient.onboarding.notification_service.settings"
         ) as mock_settings:
-            mock_settings.ENABLE_WHATSAPP_ON_REGISTRATION = True
-            mock_settings.WHATSAPP_WELCOME_MESSAGE_ENABLED = True
+            mock_settings.WHATSAPP_ENABLE_ON_REGISTRATION = True
+            mock_settings.WHATSAPP_ENABLE_WELCOME_MESSAGE = True
 
             with patch(
                 "app.domain.patient.onboarding.notification_service.get_welcome_message"
@@ -436,7 +436,7 @@ class TestPublishPatientCreatedEvent:
             assert result is True
             # Verify the action was passed correctly
             call_args = mock_ws_events.publish_patient_event.call_args
-            assert call_args.kwargs["changes"]["action"] == "onboarding_completed"
+            assert call_args.kwargs["data"]["action"] == "onboarding_completed"
 
 
 # ============================================================================
@@ -568,10 +568,10 @@ class TestNotificationServiceIntegration:
         with patch(
             "app.domain.patient.onboarding.notification_service.settings"
         ) as mock_settings:
-            mock_settings.ENABLE_WHATSAPP_ON_REGISTRATION = True
-            mock_settings.WHATSAPP_WELCOME_MESSAGE_ENABLED = True
-            mock_settings.CLINIC_NAME = "Test Clinic"
-            mock_settings.CLINIC_SUPPORT_PHONE = "+5511888888888"
+            mock_settings.WHATSAPP_ENABLE_ON_REGISTRATION = True
+            mock_settings.WHATSAPP_ENABLE_WELCOME_MESSAGE = True
+            mock_settings.WHATSAPP_CLINIC_NAME = "Test Clinic"
+            mock_settings.WHATSAPP_CLINIC_SUPPORT_PHONE = "+5511888888888"
 
             with patch(
                 "app.domain.patient.onboarding.notification_service.get_welcome_message"
@@ -627,10 +627,10 @@ class TestNotificationServiceIntegration:
         with patch(
             "app.domain.patient.onboarding.notification_service.settings"
         ) as mock_settings:
-            mock_settings.ENABLE_WHATSAPP_ON_REGISTRATION = True
-            mock_settings.WHATSAPP_WELCOME_MESSAGE_ENABLED = True
-            mock_settings.CLINIC_NAME = "Test Clinic"
-            mock_settings.CLINIC_SUPPORT_PHONE = "+5511888888888"
+            mock_settings.WHATSAPP_ENABLE_ON_REGISTRATION = True
+            mock_settings.WHATSAPP_ENABLE_WELCOME_MESSAGE = True
+            mock_settings.WHATSAPP_CLINIC_NAME = "Test Clinic"
+            mock_settings.WHATSAPP_CLINIC_SUPPORT_PHONE = "+5511888888888"
 
             with patch(
                 "app.domain.patient.onboarding.notification_service.get_welcome_message"
@@ -694,10 +694,10 @@ class TestNotificationServiceEdgeCases:
         with patch(
             "app.domain.patient.onboarding.notification_service.settings"
         ) as mock_settings:
-            mock_settings.ENABLE_WHATSAPP_ON_REGISTRATION = True
-            mock_settings.WHATSAPP_WELCOME_MESSAGE_ENABLED = True
-            mock_settings.CLINIC_NAME = "Test Clinic"
-            mock_settings.CLINIC_SUPPORT_PHONE = "+5511888888888"
+            mock_settings.WHATSAPP_ENABLE_ON_REGISTRATION = True
+            mock_settings.WHATSAPP_ENABLE_WELCOME_MESSAGE = True
+            mock_settings.WHATSAPP_CLINIC_NAME = "Test Clinic"
+            mock_settings.WHATSAPP_CLINIC_SUPPORT_PHONE = "+5511888888888"
 
             with patch(
                 "app.domain.patient.onboarding.notification_service.get_welcome_message"
@@ -736,10 +736,10 @@ class TestNotificationServiceEdgeCases:
         with patch(
             "app.domain.patient.onboarding.notification_service.settings"
         ) as mock_settings:
-            mock_settings.ENABLE_WHATSAPP_ON_REGISTRATION = True
-            mock_settings.WHATSAPP_WELCOME_MESSAGE_ENABLED = True
-            mock_settings.CLINIC_NAME = "Test Clinic"
-            mock_settings.CLINIC_SUPPORT_PHONE = "+5511888888888"
+            mock_settings.WHATSAPP_ENABLE_ON_REGISTRATION = True
+            mock_settings.WHATSAPP_ENABLE_WELCOME_MESSAGE = True
+            mock_settings.WHATSAPP_CLINIC_NAME = "Test Clinic"
+            mock_settings.WHATSAPP_CLINIC_SUPPORT_PHONE = "+5511888888888"
 
             with patch(
                 "app.domain.patient.onboarding.notification_service.get_welcome_message"

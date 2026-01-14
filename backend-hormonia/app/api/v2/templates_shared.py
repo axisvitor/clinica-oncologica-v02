@@ -19,6 +19,7 @@ from app.models.flow import FlowKind, FlowTemplateVersion
 from app.models.quiz import QuizTemplate
 from app.models.user import User, UserRole
 from app.dependencies.auth_dependencies import get_redis_cache
+from app.core.redis_unified import get_async_redis
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -263,8 +264,6 @@ async def _get_cached_result(cache_key: str) -> Optional[Dict[str, Any]]:
         ...     print(result["template_name"])
     """
     try:
-        from app.core.redis_unified import get_async_redis
-
         redis_client = await get_async_redis()
         if redis_client is None:
             return None
@@ -294,8 +293,6 @@ async def _set_cached_result(cache_key: str, data: Dict[str, Any], ttl: int) -> 
         ... )
     """
     try:
-        from app.core.redis_unified import get_async_redis
-
         redis_client = await get_async_redis()
         if redis_client is None:
             return
@@ -326,8 +323,6 @@ async def _invalidate_template_cache(
         >>> await _invalidate_template_cache("flow_template", template_uuid)
     """
     try:
-        from app.core.redis_unified import get_async_redis
-
         redis_client = await get_async_redis()
         if redis_client is None:
             return
@@ -374,10 +369,10 @@ def _serialize_flow_template(template: FlowTemplateVersion) -> Dict[str, Any]:
         "version_number": template.version_number,
         "template_name": template.template_name,
         "description": template.description,
-        "steps": template.messages,
-        "metadata_json": template.metadata_json or {},
+        "steps": template.messages or {},
+        "metadata": template.metadata_json or {},
         "is_active": template.is_active,
-        "is_draft": template.is_draft,
+        "is_draft": bool(template.is_draft),
         "published_at": template.published_at.isoformat()
         if template.published_at
         else None,

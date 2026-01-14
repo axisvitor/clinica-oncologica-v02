@@ -4,9 +4,17 @@
  * Flow type enum
  */
 export enum FlowType {
+    ONBOARDING = 'onboarding',
+    DAILY_FOLLOW_UP = 'daily_follow_up',
+    QUIZ_MENSAL = 'quiz_mensal',
+    CUSTOM = 'custom',
+    // Legacy keys for backward compatibility
     INITIAL_15_DAYS = 'initial_15_days',
     DAYS_16_45 = 'days_16_45',
-    MONTHLY_RECURRING = 'monthly_recurring'
+    MONTHLY_RECURRING = 'monthly_recurring',
+    MONTHLY_QUIZ = 'monthly_quiz',
+    DAILY_CHECKIN = 'daily_checkin',
+    DAILY_ENGAGEMENT = 'daily_engagement'
 }
 
 /**
@@ -141,6 +149,7 @@ export interface ResponseResult {
 export interface FlowAnalytics {
     total_flows: number
     active_flows: number
+    paused_flows?: number
     completed_flows: number
     completion_rate: number
     average_duration_days: number
@@ -150,10 +159,16 @@ export interface FlowAnalytics {
     average_response_time?: number
     flows_by_type?: Record<string, number>
     daily_metrics?: DailyMetric[]
+    status_distribution?: Record<string, number>
+    new_patients_7d?: number
+    avg_response_time_minutes?: number
+    weekly_trend?: Array<Record<string, unknown>>
+    template_completion_rates?: TemplateCompletionRate[]
+    template_duration_days?: TemplateDurationMetric[]
 }
 
-/**
- * Daily metric data point
+/** 
+ * Daily metric data point 
  */
 export interface DailyMetric {
     date: string
@@ -161,6 +176,25 @@ export interface DailyMetric {
     responses_received: number
     new_enrollments: number
     completions: number
+    active_flows?: number
+}
+
+export interface TemplateCompletionRate {
+    template_id: string
+    template_name: string
+    kind_key: string
+    version_number: number
+    total: number
+    completed: number
+    completion_rate: number
+}
+
+export interface TemplateDurationMetric {
+    template_id: string
+    template_name: string
+    kind_key: string
+    version_number: number
+    average_duration_days: number
 }
 
 /**

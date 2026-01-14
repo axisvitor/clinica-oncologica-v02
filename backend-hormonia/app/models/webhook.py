@@ -4,6 +4,7 @@ Stores webhook configurations, delivery history, and activity logs.
 """
 
 from datetime import datetime
+import sqlalchemy as sa
 from sqlalchemy import (
     Column,
     String,
@@ -35,7 +36,12 @@ class WebhookEndpoint(Base):
 
     __tablename__ = "webhook_endpoints"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
     url = Column(String(2048), nullable=False, comment="Target URL")
     description = Column(String(500), nullable=True)
     status = Column(
@@ -94,7 +100,12 @@ class WebhookDelivery(Base):
 
     __tablename__ = "webhook_deliveries"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
     webhook_id = Column(
         UUID(as_uuid=True),
         ForeignKey("webhook_endpoints.id", ondelete="CASCADE"),
@@ -140,7 +151,12 @@ class WebhookLog(Base):
 
     __tablename__ = "webhook_logs"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
     webhook_id = Column(
         UUID(as_uuid=True),
         ForeignKey("webhook_endpoints.id", ondelete="CASCADE"),

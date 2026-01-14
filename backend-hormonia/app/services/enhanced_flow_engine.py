@@ -139,7 +139,7 @@ class EnhancedFlowEngine(FlowCore):
         """
         template_version = (
             self.db.query(FlowTemplateVersion)
-            .filter(FlowTemplateVersion.id == flow_state.template_version_id)
+            .filter(FlowTemplateVersion.id == flow_state.flow_template_version_id)
             .first()
         )
 
@@ -149,7 +149,7 @@ class EnhancedFlowEngine(FlowCore):
 
         flow_kind = (
             self.db.query(FlowKind)
-            .filter(FlowKind.id == template_version.kind_id)
+            .filter(FlowKind.id == template_version.flow_kind_id)
             .first()
         )
 
@@ -445,12 +445,35 @@ class EnhancedFlowEngine(FlowCore):
             # Update flow state with response data
             if flow_state:
                 flow_state.state_data = flow_state.state_data or {}
+                flow_state.state_data.setdefault("responses", {})
+                flow_state.state_data.setdefault("step_timestamps", {})
+                flow_state.state_data.setdefault("flags", {})
+
+                current_step = flow_state.current_step or flow_state.state_data.get(
+                    "current_step"
+                )
+                if current_step:
+                    flow_state.state_data["responses"][
+                        f"step_{current_step}"
+                    ] = response_text
+                    flow_state.state_data["step_timestamps"][
+                        f"step_{current_step}"
+                    ] = datetime.now(timezone.utc).isoformat()
+
+                flow_state.state_data["flags"]["needs_attention"] = sentiment_analysis.get(
+                    "requires_attention", False
+                )
+                flow_state.state_data["flags"]["high_risk"] = sentiment_analysis.get(
+                    "medical_concerns", False
+                )
+
                 flow_state.state_data["last_response"] = {
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "sentiment": sentiment_analysis,
                     "text_length": len(response_text),
                     "engagement_score": engagement_score,
                 }
+                flow_state.last_interaction_at = datetime.now(timezone.utc)
                 self.db.commit()
 
             return {

@@ -1115,7 +1115,7 @@ railway logs | grep -i "500\|error" | tail -50
 
 # 3. Quick fixes:
 # - Increase database connection pool
-railway variables set DB_POOL_SIZE=50
+railway variables set DATABASE_POOL_SIZE=50
 # - Restart application
 railway restart
 
@@ -1174,8 +1174,8 @@ ANALYZE quiz_sessions;
 # 1. Check audit table exists
 railway run -- psql $DATABASE_URL -c "\d+ hipaa_audit_trail"
 
-# 2. Check audit middleware enabled
-railway variables get HIPAA_AUDIT_ENABLED
+# 2. Check audit logging enabled
+railway variables get FIREBASE_ENABLE_AUDIT_LOGGING
 # Expected: true
 
 # 3. Check recent logs for audit errors

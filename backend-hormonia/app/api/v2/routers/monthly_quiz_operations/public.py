@@ -12,12 +12,15 @@ Endpoints:
 
 import base64
 import json
+import jwt
 from uuid import UUID
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response, Cookie
 from pydantic import BaseModel
 
+from app.config import settings
+from app.domain.quizzes.session import TokenManager
 from ._shared import (
     logger,
     defaultdict,
@@ -37,6 +40,52 @@ from ._shared import (
 )
 
 router = APIRouter()
+
+
+def _decode_quiz_token(token: str) -> Dict[str, Any]:
+    """
+    Decode quiz access token.
+
+    Supports:
+    - JWT tokens (preferred, signed)
+    - Legacy base64 JSON tokens (fallback)
+    """
+    token = token.strip()
+
+    # Prefer JWT if it looks like one
+    if token.count(".") == 2:
+        try:
+            payload = TokenManager().verify_token(token)
+            return {
+                "quiz_id": payload.get("quiz_template_id"),
+                "patient_id": payload.get("patient_id"),
+                "session_id": payload.get("session_id"),
+                "exp": payload.get("exp"),
+                "type": payload.get("type", "quiz_access"),
+                "is_jwt": True,
+            }
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired"
+            )
+        except jwt.InvalidTokenError:
+            # Fall back to legacy base64
+            pass
+
+    try:
+        token_data = json.loads(base64.b64decode(token))
+        return {
+            "quiz_id": token_data.get("quiz_id"),
+            "patient_id": None,
+            "session_id": None,
+            "exp": token_data.get("exp"),
+            "type": token_data.get("type"),
+            "is_jwt": False,
+        }
+    except (ValueError, KeyError, json.JSONDecodeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format"
+        )
 
 
 # ==============================================================================
@@ -82,27 +131,26 @@ async def get_current_public_quiz(
     **Rate limited:** 20 requests/minute per IP
     **Security:** Token validation, IP logging, expiry checking
 
-    Token format (base64-encoded JSON):
-    {
-        "quiz_id": "uuid",
-        "exp": timestamp,
-        "type": "quiz_access"
-    }
+    Token format:
+    - JWT (preferred, signed) with quiz_template_id/patient_id/session_id/exp
+    - Legacy base64-encoded JSON:
+      {"quiz_id": "uuid", "exp": timestamp, "type": "quiz_access"}
     """
     logger.info(f"Public quiz access from IP: {request.client.host}")
 
     # Validate token
     try:
-        token_data = json.loads(base64.b64decode(token))
+        token_data = _decode_quiz_token(token)
         quiz_id = UUID(token_data.get("quiz_id"))
         exp_timestamp = token_data.get("exp")
         token_type = token_data.get("type")
 
-        # Check expiry
-        if exp_timestamp and datetime.fromtimestamp(exp_timestamp) < datetime.now(timezone.utc):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired"
-            )
+        # Check expiry for legacy tokens (JWT already verified)
+        if exp_timestamp and not token_data.get("is_jwt"):
+            if datetime.fromtimestamp(exp_timestamp, tz=timezone.utc) < datetime.now(timezone.utc):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired"
+                )
 
         # Check token type
         if token_type != "quiz_access":
@@ -110,7 +158,7 @@ async def get_current_public_quiz(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type"
             )
 
-    except (ValueError, KeyError, json.JSONDecodeError):
+    except (ValueError, TypeError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format"
         )
@@ -142,23 +190,43 @@ async def get_current_public_quiz(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Quiz has expired"
             )
 
-    # Create or get quiz session for public user
-    # Use a special public patient ID (in production, create a PUBLIC_USER patient)
+    # Resolve patient and session from token (JWT preferred, fallback to public)
+    patient_id = token_data.get("patient_id")
+    if token_data.get("is_jwt") and not patient_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
+        )
+    if not patient_id:
+        logger.warning("Legacy quiz token used without patient_id")
+        patient_id = str(PUBLIC_PATIENT_ID)
+    patient_uuid = UUID(patient_id)
+    session_id = token_data.get("session_id")
 
     # Find or create session
-    session = (
-        db.query(QuizSession)
-        .filter(
-            QuizSession.quiz_template_id == quiz_id,
-            QuizSession.patient_id == PUBLIC_PATIENT_ID,
-            QuizSession.status.in_(["in_progress", "pending"]),
+    session = None
+    if session_id:
+        try:
+            session = db.query(QuizSession).filter(
+                QuizSession.id == UUID(session_id)
+            ).first()
+        except ValueError:
+            session = None
+
+    if not session:
+        session = (
+            db.query(QuizSession)
+            .filter(
+                QuizSession.quiz_template_id == quiz_id,
+                QuizSession.patient_id == patient_uuid,
+                QuizSession.status.in_(["in_progress", "pending"]),
+            )
+            .first()
         )
-        .first()
-    )
 
     if not session:
         session = QuizSession(
-            patient_id=PUBLIC_PATIENT_ID,
+            patient_id=patient_uuid,
             quiz_template_id=quiz_id,
             status="in_progress",
             started_at=datetime.now(timezone.utc),
@@ -219,7 +287,7 @@ async def submit_public_quiz_response(
 
     # Validate token
     try:
-        token_data = json.loads(base64.b64decode(submission.token))
+        token_data = _decode_quiz_token(submission.token)
         token_quiz_id = UUID(token_data.get("quiz_id"))
         exp_timestamp = token_data.get("exp")
         token_type = token_data.get("type")
@@ -231,11 +299,12 @@ async def submit_public_quiz_response(
                 detail="Token does not match quiz ID",
             )
 
-        # Check expiry
-        if exp_timestamp and datetime.fromtimestamp(exp_timestamp) < datetime.now(timezone.utc):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired"
-            )
+        # Check expiry for legacy tokens (JWT already verified)
+        if exp_timestamp and not token_data.get("is_jwt"):
+            if datetime.fromtimestamp(exp_timestamp, tz=timezone.utc) < datetime.now(timezone.utc):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired"
+                )
 
         # Check token type
         if token_type not in ["quiz_access", "quiz_submission"]:
@@ -244,7 +313,7 @@ async def submit_public_quiz_response(
                 detail="Invalid token type for submission",
             )
 
-    except (ValueError, KeyError, json.JSONDecodeError):
+    except (ValueError, TypeError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format"
         )
@@ -268,21 +337,44 @@ async def submit_public_quiz_response(
             detail="Cannot submit to unpublished quiz",
         )
 
-    # Get or create session
-    session = (
-        db.query(QuizSession)
-        .filter(
-            QuizSession.quiz_template_id == quiz_id,
-            QuizSession.patient_id == PUBLIC_PATIENT_ID,
-            QuizSession.status.in_(["in_progress", "pending"]),
+    # Resolve patient and session from token (JWT preferred, fallback to public)
+    patient_id = token_data.get("patient_id")
+    if token_data.get("is_jwt") and not patient_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
         )
-        .first()
-    )
+    if not patient_id:
+        logger.warning("Legacy quiz token used without patient_id")
+        patient_id = str(PUBLIC_PATIENT_ID)
+    patient_uuid = UUID(patient_id)
+    session_id = token_data.get("session_id")
+
+    # Get or create session
+    session = None
+    if session_id:
+        try:
+            session = db.query(QuizSession).filter(
+                QuizSession.id == UUID(session_id)
+            ).first()
+        except ValueError:
+            session = None
+
+    if not session:
+        session = (
+            db.query(QuizSession)
+            .filter(
+                QuizSession.quiz_template_id == quiz_id,
+                QuizSession.patient_id == patient_uuid,
+                QuizSession.status.in_(["in_progress", "pending"]),
+            )
+            .first()
+        )
 
     if not session:
         # Create new session
         session = QuizSession(
-            patient_id=PUBLIC_PATIENT_ID,
+            patient_id=patient_uuid,
             quiz_template_id=quiz_id,
             status="in_progress",
             started_at=datetime.now(timezone.utc),
@@ -307,7 +399,7 @@ async def submit_public_quiz_response(
 
     # Create quiz response
     quiz_response = QuizResponse(
-        patient_id=PUBLIC_PATIENT_ID,
+        patient_id=patient_uuid,
         quiz_template_id=quiz_id,
         quiz_session_id=session.id,
         question_id=submission.question_id,
@@ -623,11 +715,27 @@ async def access_quiz_compatibility(
     
     # Reuse logic from get_current_public_quiz, but adapted
     try:
-        token_data = json.loads(base64.b64decode(access_req.token))
+        token_data = _decode_quiz_token(access_req.token)
         quiz_id = UUID(token_data.get("quiz_id"))
         exp_timestamp = token_data.get("exp")
-        # token_type validation same as above...
-    except (ValueError, KeyError, json.JSONDecodeError):
+        token_type = token_data.get("type")
+
+        # Validate expiration (legacy tokens only)
+        if exp_timestamp and not token_data.get("is_jwt"):
+            if datetime.fromtimestamp(exp_timestamp, tz=timezone.utc) < datetime.now(timezone.utc):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Token has expired"
+                )
+
+        # Validate token type
+        if token_type != "quiz_access":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type"
+            )
+
+    except (ValueError, TypeError):
         raise HTTPException(status_code=401, detail="Invalid token format")
 
     # Get Quiz
@@ -635,16 +743,39 @@ async def access_quiz_compatibility(
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
 
+    # Resolve patient and session from token (JWT preferred, fallback to public)
+    patient_id = token_data.get("patient_id")
+    if token_data.get("is_jwt") and not patient_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
+        )
+    if not patient_id:
+        logger.warning("Legacy quiz token used without patient_id")
+        patient_id = str(PUBLIC_PATIENT_ID)
+    patient_uuid = UUID(patient_id)
+    session_id = token_data.get("session_id")
+
     # Get/Create Session
-    session = db.query(QuizSession).filter(
-        QuizSession.quiz_template_id == quiz_id,
-        QuizSession.patient_id == PUBLIC_PATIENT_ID,
-        QuizSession.status == "started"
-    ).first()
+    session = None
+    if session_id:
+        try:
+            session = db.query(QuizSession).filter(
+                QuizSession.id == UUID(session_id)
+            ).first()
+        except ValueError:
+            session = None
+
+    if not session:
+        session = db.query(QuizSession).filter(
+            QuizSession.quiz_template_id == quiz_id,
+            QuizSession.patient_id == patient_uuid,
+            QuizSession.status == "started"
+        ).first()
 
     if not session:
         session = QuizSession(
-            patient_id=PUBLIC_PATIENT_ID,
+            patient_id=patient_uuid,
             quiz_template_id=quiz_id,
             status="started",
             started_at=datetime.now(timezone.utc)
@@ -660,14 +791,14 @@ async def access_quiz_compatibility(
             quiz.tags = {"total_accessed": 1}
         db.commit()
 
-    # Set Session Cookie
+    # Set Session Cookie (secure=True in production for HTTPS only)
     response.set_cookie(
         key="quiz_session_id",
         value=str(session.id),
         httponly=True,
-        secure=False, # Set True in production if HTTPS
+        secure=settings.SESSION_ENABLE_COOKIE_SECURE,
         samesite="lax",
-        max_age=86400 # 24h
+        max_age=86400  # 24h
     )
 
     # Transform questions using cached function (Performance optimization)
@@ -832,8 +963,9 @@ async def submit_answer_compatibility(
         )
         db.add(new_response)
     
-    # Update session progress
-    session.answered_questions = (session.answered_questions or 0) + 1
+    # Update session progress (only increment for new responses, not updates)
+    if not existing:
+        session.answered_questions = (session.answered_questions or 0) + 1
     session.current_question = question_index + 1
     
     total_questions = len(quiz.questions or [])

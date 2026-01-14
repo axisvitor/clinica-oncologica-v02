@@ -118,16 +118,10 @@ class WebSocketManager {
         return resolve()
       }
 
-      // HYBRID AUTH: Include both session_id and token for authentication
-      // Backend WebSocket supports both authentication methods
+      // HYBRID AUTH: Prefer Firebase token for WebSocket authentication
+      // Session IDs remain in httpOnly cookies and are not persisted client-side
       let wsUrl = base
       const params = new URLSearchParams()
-
-      // Get session_id from localStorage (stored after successful login)
-      const sessionId = localStorage.getItem('session_id')
-      if (sessionId) {
-        params.append('session_id', sessionId)
-      }
 
       // Also include Firebase token as fallback
       if (token) {

@@ -42,10 +42,13 @@ class WhatsAppSecurity:
             - Constant-time comparison (prevents timing attacks)
         """
         # If no secret configured, skip validation (development mode)
-        webhook_secret = getattr(settings, "EVOLUTION_WEBHOOK_SECRET", None)
+        webhook_secret = (
+            getattr(settings, "WHATSAPP_EVOLUTION_WEBHOOK_SECRET", None)
+            or getattr(settings, "EVOLUTION_WEBHOOK_SECRET", None)
+        )
         if not webhook_secret:
             logger.warning(
-                "SECURITY WARNING: EVOLUTION_WEBHOOK_SECRET not configured. "
+                "SECURITY WARNING: WHATSAPP_EVOLUTION_WEBHOOK_SECRET not configured. "
                 "Webhook signature validation is DISABLED. This is insecure for production!"
             )
             return True

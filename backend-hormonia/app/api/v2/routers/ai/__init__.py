@@ -15,6 +15,7 @@ Features:
 from fastapi import APIRouter
 
 from . import humanize, insights, analysis, health, stats, summary, recommendations
+from .dependencies import get_redis_cache
 
 # Initialize main router with prefix and tags
 router = APIRouter(tags=["AI Services v2"])
@@ -28,4 +29,4 @@ router.include_router(stats.router, prefix="/usage", tags=["AI - Usage Stats"])
 router.include_router(summary.router, prefix="/summary", tags=["AI - Patient Summary"])
 router.include_router(recommendations.router, prefix="/recommendations", tags=["AI - Recommendations"])
 
-__all__ = ["router"]
+__all__ = ["router", "get_redis_cache"]

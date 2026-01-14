@@ -144,6 +144,16 @@ export interface CreateRoleRequest {
   permissions: string[]
 }
 
+export interface CompensationFailure {
+  saga_id: string
+  patient_id: string | null
+  patient_name: string | null
+  timestamp: string | null
+  error_details: string
+  failed_steps: Array<{ step: number; error: string }>
+  status?: string
+}
+
 // ============================================================================
 // ADMIN API METHODS
 // ============================================================================
@@ -280,6 +290,56 @@ export function createAdminApi(client: ApiClientCore) {
         size,
         pages: response?.pages ?? Math.ceil((response?.total ?? items.length) / size)
       }
+    },
+
+    // ========================================================================
+    // COMPENSATION FAILURES
+    // ========================================================================
+
+    /**
+     * List compensation failures with pagination
+     */
+    listCompensationFailures: async (
+      page: number = 1,
+      size: number = 20
+    ): Promise<PaginatedResponse<CompensationFailure>> => {
+      const params = { page, limit: size }
+      const response = await client.get<{ data?: CompensationFailure[]; items?: CompensationFailure[]; total?: number; pages?: number }>(
+        '/api/v2/admin/compensation-failures',
+        params
+      )
+
+      const items = Array.isArray(response?.data) ? response.data : (response?.items ?? [])
+
+      return {
+        items,
+        total: response?.total ?? items.length,
+        page,
+        size,
+        pages: response?.pages ?? Math.ceil((response?.total ?? items.length) / size)
+      }
+    },
+
+    /**
+     * Retry compensation for a failed saga
+     */
+    retryCompensation: async (
+      sagaId: string
+    ): Promise<{ message: string; success: boolean }> => {
+      return client.post<{ message: string; success: boolean }>(
+        `/api/v2/admin/compensation-failures/${sagaId}/retry`
+      )
+    },
+
+    /**
+     * Cleanup compensation failure artifacts
+     */
+    cleanupCompensation: async (
+      sagaId: string
+    ): Promise<{ message: string }> => {
+      return client.post<{ message: string }>(
+        `/api/v2/admin/compensation-failures/${sagaId}/cleanup`
+      )
     },
 
     // ========================================================================

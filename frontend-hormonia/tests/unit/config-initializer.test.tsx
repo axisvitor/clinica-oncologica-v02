@@ -355,7 +355,8 @@ describe('Configuration Initializer - Unit Tests', () => {
     it('should detect incomplete API configuration', async () => {
       vi.mocked(runtimeConfig.getRuntimeConfig).mockResolvedValue({
         ...mockConfig,
-        VITE_API_URL: undefined
+        VITE_API_URL: undefined,
+        VITE_API_BASE_URL: undefined
       } as any);
 
       const TestComponent = () => {
@@ -379,25 +380,14 @@ describe('Configuration Initializer - Unit Tests', () => {
         new Error('Config error')
       );
 
-      const TestComponent = () => {
-        const { isValid, error } = useConfigValidation();
-        return (
-          <div>
-            <p>Valid: {isValid.toString()}</p>
-            <p>Error: {error}</p>
-          </div>
-        );
-      };
-
       render(
         <ConfigProvider>
-          <TestComponent />
+          <div>App Content</div>
         </ConfigProvider>
       );
 
       await waitFor(() => {
-        expect(screen.getByText('Valid: false')).toBeInTheDocument();
-        expect(screen.getByText(/Error: Config error/)).toBeInTheDocument();
+        expect(screen.getByText('Erro de Configuração')).toBeInTheDocument();
       });
     });
   });
@@ -421,19 +411,21 @@ describe('Configuration Initializer - Unit Tests', () => {
     });
 
     it('should log initialization process', async () => {
-      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
       vi.mocked(runtimeConfig.getRuntimeConfig).mockResolvedValue(mockConfig);
 
       await initializeConfiguration();
 
-      expect(consoleLogSpy).toHaveBeenCalledWith(
-        '[ConfigInitializer] Initializing runtime configuration...'
+      expect(consoleInfoSpy).toHaveBeenCalledWith(
+        '[ConfigInitializer]',
+        'Initializing runtime configuration...'
       );
-      expect(consoleLogSpy).toHaveBeenCalledWith(
-        '[ConfigInitializer] Configuration initialized successfully'
+      expect(consoleInfoSpy).toHaveBeenCalledWith(
+        '[ConfigInitializer]',
+        'Configuration initialized successfully'
       );
 
-      consoleLogSpy.mockRestore();
+      consoleInfoSpy.mockRestore();
     });
 
     it('should log error on failure', async () => {
@@ -448,7 +440,8 @@ describe('Configuration Initializer - Unit Tests', () => {
       }
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        '[ConfigInitializer] Failed to initialize configuration:',
+        '[ConfigInitializer]',
+        'Failed to initialize configuration:',
         error
       );
 
@@ -500,22 +493,17 @@ describe('Configuration Initializer - Unit Tests', () => {
       expect(resolveCount).toBeGreaterThan(0);
     });
 
-    it('should handle null/undefined config values', async () => {
+    it('should surface error when runtime config is null', async () => {
       vi.mocked(runtimeConfig.getRuntimeConfig).mockResolvedValue(null as any);
-
-      const TestComponent = () => {
-        const { config } = useConfig();
-        return <div>Config: {config ? 'present' : 'null'}</div>;
-      };
 
       render(
         <ConfigProvider>
-          <TestComponent />
+          <div>App Content</div>
         </ConfigProvider>
       );
 
       await waitFor(() => {
-        expect(screen.getByText('Config: null')).toBeInTheDocument();
+        expect(screen.getByText('Erro de Configuração')).toBeInTheDocument();
       });
     });
 

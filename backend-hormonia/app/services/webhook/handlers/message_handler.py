@@ -3,6 +3,7 @@ Message webhook handler for Evolution API integration.
 Processes incoming WhatsApp messages through the flow engine.
 """
 
+import asyncio
 import logging
 from typing import Any, Optional, Dict
 from datetime import datetime, timedelta, timezone
@@ -18,7 +19,7 @@ from app.repositories.flow import FlowStateRepository
 from app.services.flow import FlowEngine
 
 # NOTE: EnhancedFlowEngine imported lazily to avoid circular import
-from app.services.websocket_events import websocket_events
+import app.services.websocket_events as websocket_events_module
 from app.schemas.websocket import WebSocketEventType
 from app.schemas.message import MessageCreate
 from app.integrations.openai_client import get_langchain_orchestrator
@@ -66,7 +67,10 @@ class MessageWebhookHandler:
 
     @with_db_retry(max_retries=3)
     async def process_message(
-        self, event_data: Dict[str, Any], webhook_store: Optional[Any] = None
+        self,
+        event_data: Dict[str, Any],
+        webhook_store: Optional[Any] = None,
+        webhook_id: Optional[str] = None,
     ) -> Optional[str]:
         """
         Process incoming message webhook from Evolution API.
@@ -74,27 +78,36 @@ class MessageWebhookHandler:
         Args:
             event_data: Webhook event data
             webhook_store: Optional webhook persistence store
+            webhook_id: Optional webhook event ID header (for persistence)
 
         Returns:
             Message ID if processed successfully, None otherwise
         """
-        webhook_id = None
+        stored_event_id = None
         try:
             # Step 0: Persist webhook event
             if webhook_store:
-                webhook_id = await webhook_store.persist_event(
-                    event_type="message.received",
-                    source="evolution_api",
-                    payload=event_data,
-                )
+                if webhook_id:
+                    _, stored_event_id = await webhook_store.persist_event_atomic(
+                        event_id=webhook_id,
+                        event_type="message.received",
+                        source="evolution_api",
+                        payload=event_data,
+                    )
+                else:
+                    stored_event_id = await webhook_store.persist_event(
+                        event_type="message.received",
+                        source="evolution_api",
+                        payload=event_data,
+                    )
 
             # Step 1: Extract message data
             message_data = extract_message_data(event_data)
             if not message_data:
                 logger.warning("No valid message data found in webhook")
-                if webhook_id and webhook_store:
+                if stored_event_id and webhook_store:
                     await webhook_store.mark_processed(
-                        webhook_id, False, "No valid message data"
+                        stored_event_id, False, "No valid message data"
                     )
                 return None
 
@@ -103,9 +116,9 @@ class MessageWebhookHandler:
             # FIX: Validate whatsapp_id to prevent key collision with "None"
             if not whatsapp_id:
                 logger.warning("WhatsApp ID is None or empty, skipping message")
-                if webhook_id and webhook_store:
+                if stored_event_id and webhook_store:
                     await webhook_store.mark_processed(
-                        webhook_id, False, "Missing WhatsApp ID"
+                        stored_event_id, False, "Missing WhatsApp ID"
                     )
                 return None
 
@@ -138,6 +151,20 @@ class MessageWebhookHandler:
                         logger.info(
                             f"Message {whatsapp_id} being processed by another worker, checking DB"
                         )
+                        for _ in range(3):
+                            await asyncio.sleep(0.2)
+                            existing_message = (
+                                self.db.query(Message)
+                                .filter(Message.whatsapp_id == whatsapp_id)
+                                .first()
+                            )
+                            if existing_message:
+                                await redis_client.set(
+                                    idempotency_key,
+                                    str(existing_message.id),
+                                    ex=cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS,
+                                )
+                                return str(existing_message.id)
 
             # DB fallback check (also catches race condition edge cases)
             existing_message = (
@@ -158,7 +185,7 @@ class MessageWebhookHandler:
 
             # Step 3: Find patient with security monitoring
             patient = await self._find_patient_with_security(
-                message_data, webhook_id, webhook_store
+                message_data, stored_event_id, webhook_store
             )
             if not patient:
                 return None
@@ -210,15 +237,15 @@ class MessageWebhookHandler:
                 await self._handle_general_chat(patient, message)
 
             # Step 8: Mark webhook as processed
-            if webhook_id and webhook_store:
-                await webhook_store.mark_processed(webhook_id, True)
+            if stored_event_id and webhook_store:
+                await webhook_store.mark_processed(stored_event_id, True)
 
             return str(message.id)
 
         except Exception as e:
             logger.error(f"Error processing message webhook: {e}", exc_info=True)
-            if webhook_id and webhook_store:
-                await webhook_store.mark_processed(webhook_id, False, str(e))
+            if stored_event_id and webhook_store:
+                await webhook_store.mark_processed(stored_event_id, False, str(e))
             return None
 
     async def _find_patient_with_security(
@@ -326,28 +353,36 @@ class MessageWebhookHandler:
             )
 
             # Process response through enhanced flow engine
+            # Note: process_patient_response calculates current_day internally
+            # Returns: status, sentiment_analysis, engagement_score, follow_up_message, requires_attention, medical_concerns
             response = await self.enhanced_flow_engine.process_patient_response(
                 patient_id=patient.id,
                 response_text=message.content,
-                current_day=current_day,
             )
 
-            if response.get("should_advance"):
-                advancement = await self.enhanced_flow_engine.advance_patient_flow(
-                    patient_id=patient.id
-                )
-                logger.info(f"Flow advanced for patient {patient.id}: {advancement}")
+            # Always advance flow when patient responds (tracks engagement)
+            advancement = await self.enhanced_flow_engine.advance_patient_flow(
+                patient_id=patient.id
+            )
+            logger.info(
+                f"Flow advanced for patient {patient.id}: {advancement}",
+                extra={
+                    "requires_attention": response.get("requires_attention", False),
+                    "medical_concerns": response.get("medical_concerns", False),
+                }
+            )
 
-            # Send response if available
-            if response.get("ai_response"):
+            # Send follow-up response if generated by AI (typically for attention cases)
+            if response.get("follow_up_message"):
                 await self._send_response(
                     patient_id=patient.id,
-                    content=response["ai_response"],
+                    content=response["follow_up_message"],
                     metadata={
                         "context": "flow",
                         "flow_state_id": str(flow_state.id),
                         "current_day": current_day,
                         "response_to": str(message.id),
+                        "requires_attention": response.get("requires_attention", False),
                     },
                 )
 
@@ -594,6 +629,10 @@ class MessageWebhookHandler:
             message: Message to publish
             patient_id: Patient ID
         """
+        websocket_events = websocket_events_module.websocket_events
+        if not websocket_events:
+            logger.debug("WebSocket events service unavailable; skipping message event")
+            return
         await websocket_events.publish_message_event(
             event_type=WebSocketEventType.NEW_MESSAGE,
             message_id=message.id,
@@ -602,5 +641,5 @@ class MessageWebhookHandler:
             message_type=message.type.value,
             content=message.content,
             whatsapp_id=message.whatsapp_id,
-            metadata=message.metadata,
+            metadata=message.message_metadata or {},
         )

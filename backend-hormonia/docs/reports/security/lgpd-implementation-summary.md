@@ -314,12 +314,9 @@ Ensure these are set:
 
 ```bash
 # For encryption (already configured)
-ENCRYPTION_KEY=<your-32-byte-key>
-ENCRYPTION_SALT=<your-salt>
-HASH_SALT=<your-hash-salt>
-
-# For PHI encryption
 PHI_ENCRYPTION_KEY=<your-phi-key>
+ENCRYPTION_KEY_CURRENT=<your-fernet-key>
+HASH_SALT=<your-hash-salt>
 ```
 
 ### 3. Add Middleware to Application

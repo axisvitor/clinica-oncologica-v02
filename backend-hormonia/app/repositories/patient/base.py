@@ -9,6 +9,7 @@ LGPD compliance and Redis caching support.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -483,6 +484,40 @@ class PatientRepositoryBase(BaseRepository[Patient]):
         """Count soft-deleted patients"""
         return self.db.query(Patient).filter(Patient.deleted_at.isnot(None)).count()
 
+    def _get_idempotency_cutoff(self) -> datetime:
+        """Return cutoff timestamp for valid idempotency keys."""
+        return datetime.now(timezone.utc) - timedelta(hours=24)
+
+    def clear_expired_idempotency_keys(
+        self, cutoff: Optional[datetime] = None
+    ) -> int:
+        """
+        Clear expired idempotency keys to avoid permanent blocking.
+
+        Args:
+            cutoff: Timestamp threshold for expiration (defaults to 24 hours).
+
+        Returns:
+            Number of records updated.
+        """
+        cutoff = cutoff or self._get_idempotency_cutoff()
+        cleared = (
+            self.db.query(Patient)
+            .filter(
+                Patient.idempotency_key.isnot(None),
+                Patient.created_at < cutoff,
+            )
+            .update({Patient.idempotency_key: None}, synchronize_session=False)
+        )
+        if cleared:
+            try:
+                self.db.flush()
+            except Exception as flush_error:
+                self._logger.debug(
+                    f"Failed to flush idempotency cleanup: {flush_error}"
+                )
+        return cleared
+
     def get_by_idempotency_key(self, idempotency_key: str) -> Optional[Patient]:
         """
         Get patient by idempotency key.
@@ -495,10 +530,30 @@ class PatientRepositoryBase(BaseRepository[Patient]):
         Returns:
             Patient if found, None otherwise
         """
+        cutoff = self._get_idempotency_cutoff()
+        self.clear_expired_idempotency_keys(cutoff)
         return (
             self.db.query(Patient)
             .filter(
-                Patient.idempotency_key == idempotency_key, Patient.deleted_at.is_(None)
+                Patient.idempotency_key == idempotency_key,
+                Patient.deleted_at.is_(None),
+                Patient.created_at >= cutoff,
             )
             .first()
         )
+
+    def get_active_patients(self, limit: int = 500, eager_load: bool = False) -> List[Patient]:
+        """
+        Get active (non-deleted) patients for bulk operations.
+
+        This is an alias for get_all_active with reasonable defaults for
+        background task processing (no eager loading to reduce memory).
+
+        Args:
+            limit: Maximum number of patients to return (default 500)
+            eager_load: Whether to load relationships (default False for performance)
+
+        Returns:
+            List of active Patient objects
+        """
+        return self.get_all_active(skip=0, limit=limit, eager_load=eager_load)

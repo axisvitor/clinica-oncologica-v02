@@ -8,13 +8,13 @@ Author: Backend API Developer
 Created: 2025-01-16
 """
 
-from celery import shared_task
 from typing import List
 from datetime import datetime, timezone
 import logging
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.task_queue import task_queue as celery_app
 from app.monitoring.deprecation_tracking import get_deprecation_tracker
 
 logger = logging.getLogger(__name__)
@@ -264,7 +264,7 @@ def get_client_by_id(db: Session, client_id: str) -> APIClient:
 # ============================================================================
 
 
-@shared_task(name="send_deprecation_notifications")
+@celery_app.task(name="send_deprecation_notifications")
 def send_deprecation_notifications():
     """
     Weekly task to email clients still using deprecated APIs.
@@ -386,7 +386,7 @@ def send_deprecation_notifications():
         db.close()
 
 
-@shared_task(name="update_sunset_metrics")
+@celery_app.task(name="update_sunset_metrics")
 def update_sunset_metrics():
     """
     Daily task to update Prometheus metrics for sunset countdown.

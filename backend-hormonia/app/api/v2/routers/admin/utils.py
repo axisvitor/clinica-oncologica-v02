@@ -44,7 +44,16 @@ def _serialize_user(user: User, fields: Optional[List[str]] = None) -> dict:
     }
 
     if fields:
-        data = apply_field_selection(data, fields)
+        required_fields = {
+            "id",
+            "email",
+            "role",
+            "is_active",
+            "created_at",
+            "updated_at",
+        }
+        normalized_fields = list(set(fields) | required_fields)
+        data = apply_field_selection(data, normalized_fields)
 
     return data
 

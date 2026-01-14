@@ -270,15 +270,16 @@ def sample_patient_data(unique_phone_number, unique_email) -> Dict[str, Any]:
 
 
 @pytest.fixture(scope="function")
-def event_loop():
+def event_loop_policy():
     """
-    Create an instance of the default event loop for each test case.
+    Configure event loop policy for async tests.
+    
+    Note: Custom event_loop fixtures are deprecated in pytest-asyncio 0.23+.
+    Use asyncio_mode in pytest.ini instead. This fixture is kept for backward
+    compatibility but may be removed in future versions.
+    """
+    return asyncio.DefaultEventLoopPolicy()
 
-    This is needed for async tests to work properly.
-    """
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
 
 
 @pytest.fixture

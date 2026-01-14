@@ -100,7 +100,7 @@ class CacheMiddleware(BaseHTTPMiddleware):
         if_none_match = request.headers.get("If-None-Match")
 
         # Try to get cached response
-        cached_data = self.cache_manager.get(cache_key, namespace="http_cache")
+        cached_data = self.cache_manager.get("http_cache", key_parts=[cache_key])
 
         if cached_data:
             cached_etag = cached_data.get("etag")
@@ -172,7 +172,7 @@ class CacheMiddleware(BaseHTTPMiddleware):
                 }
 
             self.cache_manager.set(
-                cache_key, cache_data, ttl=ttl, namespace="http_cache"
+                "http_cache", cache_data, key_parts=[cache_key], ttl_override=ttl
             )
             logger.debug(f"Cached response for: {cache_key} (TTL: {ttl}s)")
 
@@ -246,16 +246,23 @@ class CacheMiddleware(BaseHTTPMiddleware):
 
         # SECURITY: Include user_id for authenticated requests
         # This prevents cache leakage between different users
-        if self._is_authenticated(request):
+        is_authenticated = self._is_authenticated(request)
+        if is_authenticated:
             user_id = self._extract_user_id(request)
             if user_id:
                 key_parts.append(f"user:{user_id}")
+            else:
+                auth_header = request.headers.get("Authorization", "")
+                if auth_header:
+                    auth_hash = hashlib.sha256(auth_header.encode()).hexdigest()[:16]
+                    key_parts.append(f"auth:{auth_hash}")
+        key_parts.append(f"auth:{'1' if is_authenticated else '0'}")
 
         key_string = "|".join(key_parts)
 
         # Hash for shorter keys
         key_hash = hashlib.md5(key_string.encode()).hexdigest()
-        return f"http:{key_hash}"
+        return key_hash
 
     def _generate_etag(self, content: bytes) -> str:
         """

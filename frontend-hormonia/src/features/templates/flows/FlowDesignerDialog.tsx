@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { FlowDesigner } from '@/features/flow-designer/FlowDesigner';
 import { useTemplates, type FlowTemplate } from '@/hooks/useTemplates';
 import { useToast } from '@/components/ui/use-toast';
@@ -41,6 +42,7 @@ export const FlowDesignerDialog = memo<FlowDesignerDialogProps>(({
   const [versionNumber, setVersionNumber] = useState<number>(1);
   const [isDraft, setIsDraft] = useState<boolean>(false);
   const [isActive, setIsActive] = useState<boolean>(true);
+  const [changelog, setChangelog] = useState<string>('');
 
   // Initialize version controls when template changes
   useEffect(() => {
@@ -48,23 +50,39 @@ export const FlowDesignerDialog = memo<FlowDesignerDialogProps>(({
       setVersionNumber((createNewVersion.version_number || 1) + 1);
       setIsDraft(true);
       setIsActive(false);
+      setChangelog('');
     } else if (template) {
       setVersionNumber(template.version_number || 1);
       setIsDraft(template.is_draft || false);
       setIsActive(template.is_active || false);
+      setChangelog(template.description || '');
     } else {
       setVersionNumber(1);
       setIsDraft(false);
       setIsActive(true);
+      setChangelog('');
     }
   }, [template, createNewVersion]);
 
   const handleSave = async (design: FlowDesign) => {
     try {
+      if (createNewVersion && !changelog.trim()) {
+        toast({
+          title: 'Changelog obrigatorio',
+          description: 'Informe o motivo da nova versao antes de salvar',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const templateDescription = createNewVersion
+        ? changelog.trim()
+        : design.description;
       const templateData = convertDesignToTemplate(design, {
         versionNumber,
         isDraft,
         isActive,
+        description: templateDescription,
       });
 
       if (template && !createNewVersion) {
@@ -72,7 +90,7 @@ export const FlowDesignerDialog = memo<FlowDesignerDialogProps>(({
         const updated = await updateFlowTemplate(template.id, {
           ...templateData,
           template_name: design.name,
-          description: design.description,
+          description: templateDescription,
         });
 
         if (updated) {
@@ -180,6 +198,18 @@ export const FlowDesignerDialog = memo<FlowDesignerDialogProps>(({
                 <p>• Status: {isActive ? 'Ativo' : 'Inativo'}</p>
               </div>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Changelog</label>
+            <Textarea
+              value={changelog}
+              onChange={(e) => setChangelog(e.target.value)}
+              placeholder="Resumo das alteracoes desta versao"
+            />
+            <p className="text-xs text-muted-foreground">
+              Usado como descricao da versao e auditoria
+            </p>
           </div>
         </div>
 

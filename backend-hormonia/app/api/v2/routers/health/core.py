@@ -85,7 +85,7 @@ async def readiness_probe(
 
     # Check workers (non-blocking)
     try:
-        from app.celery_app import celery_app
+        from app.task_queue import task_queue as celery_app
 
         inspect = celery_app.control.inspect(timeout=1.0)
         active = inspect.active()

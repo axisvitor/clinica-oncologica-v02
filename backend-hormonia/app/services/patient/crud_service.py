@@ -222,6 +222,8 @@ class PatientCRUDService:
     def delete_patient(self, patient_id: UUID) -> bool:
         """
         Soft delete patient with transaction management.
+        
+        Also cancels all active flows and pending messages to stop background processing.
 
         Args:
             patient_id: UUID of the patient to soft delete
@@ -232,27 +234,70 @@ class PatientCRUDService:
         Transaction Strategy:
             1. Start transaction
             2. Set deleted_at timestamp
-            3. Commit transaction
-            4. Invalidate cache (best-effort, outside transaction)
-            5. Rollback on any DB error
+            3. Cancel active flows (status='cancelled')
+            4. Cancel pending messages (status='cancelled')
+            5. Commit transaction
+            6. Invalidate cache (best-effort, outside transaction)
+            7. Rollback on any DB error
         """
         patient = self.repository.get_by_id(patient_id)
         if not patient:
             return False
 
-        doctor_id = patient.doctor_id  # Save for cache invalidation
-
         try:
             # Use transaction context manager for atomic operations
             with sync_transaction(self.db) as session:
+                # 1. Mark patient as deleted
                 patient.deleted_at = datetime.now(timezone.utc)
                 session.add(patient)
+                
+                # 2. Cancel active flows
+                from app.models.flow import PatientFlowState
+                from app.models.enums import FlowState
+                
+                active_flows = (
+                    session.query(PatientFlowState)
+                    .filter(
+                        PatientFlowState.patient_id == patient_id,
+                        PatientFlowState.completed_at.is_(None)
+                    )
+                    .all()
+                )
+                
+                for flow in active_flows:
+                    flow.status = FlowState.CANCELLED.value
+                    flow.completed_at = datetime.now(timezone.utc)
+                    flow.step_data = {
+                        **(flow.step_data or {}),
+                        "cancellation_reason": "Patient deleted"
+                    }
+                    session.add(flow)
+                    self._logger.info(f"Cancelled active flow {flow.id} for deleted patient {patient_id}")
+
+                # 3. Cancel pending messages
+                from app.models.message import Message, MessageStatus
+                
+                pending_messages = (
+                    session.query(Message)
+                    .filter(
+                        Message.patient_id == patient_id,
+                        Message.status.in_([MessageStatus.PENDING, MessageStatus.SCHEDULED])
+                    )
+                    .all()
+                )
+                
+                for msg in pending_messages:
+                    msg.status = MessageStatus.CANCELLED
+                    msg.failure_reason = "Patient deleted"
+                    session.add(msg)
+                    self._logger.info(f"Cancelled pending message {msg.id} for deleted patient {patient_id}")
+
                 # Transaction auto-commits here if no exception
 
             # Cache invalidation AFTER successful DB commit (best-effort, fire-and-forget)
             self._run_cache_invalidation(entity="patient", identifier=str(patient_id), cascade=True)
 
-            self._logger.info(f"Patient soft deleted: {patient_id}")
+            self._logger.info(f"Patient soft deleted and resources cancelled: {patient_id}")
             return True
 
         except Exception as e:

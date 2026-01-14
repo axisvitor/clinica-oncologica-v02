@@ -33,6 +33,7 @@ from app.models.patient import Patient
 from app.models.user import User
 from app.schemas.websocket import WebSocketEventType
 from app.templates.whatsapp import get_welcome_message
+from app.core.executors import get_notification_executor
 
 if TYPE_CHECKING:
     from app.domain.messaging.core import MessageService

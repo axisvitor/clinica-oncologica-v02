@@ -37,6 +37,7 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
     totalQuestions,
     progress,
     isLastQuestion,
+    hasValidQuestions,
     setCurrentQuestionIndex,
     setSelectedAnswer,
     setAnswers,
@@ -72,6 +73,32 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
             <div className="pt-4 border-t space-y-2">
               <p className="text-sm text-muted-foreground">
                 Suas respostas ajudam nossa equipe a acompanhar seu bem-estar e oferecer o melhor cuidado possível.
+              </p>
+            </div>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state: Quiz has no valid questions
+  if (!hasValidQuestions) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4" data-testid="quiz-error">
+        <div className="w-full max-w-md mx-auto space-y-6">
+          <Card className="p-8 text-center space-y-6">
+            <div className="w-20 h-20 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto">
+              <Circle className="w-12 h-12 text-red-600 dark:text-red-400" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold">Quiz Indisponível</h2>
+              <p className="text-muted-foreground">
+                O questionário não está disponível no momento ou não possui perguntas válidas.
+              </p>
+            </div>
+            <div className="pt-4 border-t space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Por favor, entre em contato com a clínica se você recebeu um link para este questionário.
               </p>
             </div>
           </Card>

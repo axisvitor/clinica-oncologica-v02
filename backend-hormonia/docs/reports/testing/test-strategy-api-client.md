@@ -1009,7 +1009,7 @@ class TestCsrfProtection:
         from app.config.settings import settings
         data = f"{timestamp}.{random_data}"
         expected_sig = hmac.new(
-            settings.SECRET_KEY.encode(),
+            settings.SECURITY_SECRET_KEY.encode(),
             data.encode(),
             hashlib.sha256
         ).hexdigest()
@@ -1760,7 +1760,7 @@ def valid_csrf_token():
     data = f"{timestamp}.{random_data}"
 
     signature = hmac.new(
-        settings.SECRET_KEY.encode(),
+        settings.SECURITY_SECRET_KEY.encode(),
         data.encode(),
         hashlib.sha256
     ).hexdigest()
@@ -1775,7 +1775,7 @@ def expired_csrf_token():
     data = f"{old_timestamp}.{random_data}"
 
     signature = hmac.new(
-        settings.SECRET_KEY.encode(),
+        settings.SECURITY_SECRET_KEY.encode(),
         data.encode(),
         hashlib.sha256
     ).hexdigest()

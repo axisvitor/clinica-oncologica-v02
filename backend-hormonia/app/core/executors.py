@@ -311,7 +311,12 @@ class ExecutorManager:
     # Lifecycle Management
     # =========================================================================
 
-    def shutdown_all(self, wait: bool = True, timeout: Optional[float] = 30.0) -> None:
+    def shutdown_all(
+        self,
+        wait: bool = True,
+        timeout: Optional[float] = 30.0,
+        log: bool = True,
+    ) -> None:
         """
         Shutdown all executors gracefully.
 
@@ -320,31 +325,38 @@ class ExecutorManager:
             timeout: Maximum time to wait for shutdown (per executor)
         """
         if self._shutdown:
-            logger.warning("ExecutorManager already shutdown")
+            if log:
+                logger.warning("ExecutorManager already shutdown")
             return
 
         self._shutdown = True
-        logger.info("Shutting down all executors...")
+        if log:
+            logger.info("Shutting down all executors...")
 
         with self._executor_lock:
             for name, executor in self._executors.items():
                 try:
-                    logger.debug(f"Shutting down executor: {name}")
+                    if log:
+                        logger.debug(f"Shutting down executor: {name}")
                     executor.shutdown(wait=wait)
-                    logger.info(f"Executor shutdown complete: {name}")
+                    if log:
+                        logger.info(f"Executor shutdown complete: {name}")
                 except Exception as e:
-                    logger.error(f"Error shutting down executor {name}: {e}")
+                    if log:
+                        logger.error(f"Error shutting down executor {name}: {e}")
 
             self._executors.clear()
 
-        logger.info("All executors shutdown complete")
+        if log:
+            logger.info("All executors shutdown complete")
 
     def _cleanup(self) -> None:
         """Cleanup handler for atexit."""
         try:
-            self.shutdown_all(wait=True, timeout=10.0)
-        except Exception as e:
-            logger.error(f"Error during executor cleanup: {e}")
+            self.shutdown_all(wait=True, timeout=10.0, log=False)
+        except Exception:
+            # Avoid logging during interpreter shutdown to prevent closed stream errors.
+            pass
 
     # =========================================================================
     # Monitoring & Stats

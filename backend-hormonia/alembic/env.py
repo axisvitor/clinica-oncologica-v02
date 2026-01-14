@@ -52,6 +52,8 @@ from app.models.consent import Consent, ConsentType, ConsentStatus
 from app.models.webhook_event import WebhookEvent
 from app.models.failed_message import FailedMessage, FailureReason, DLQStatus
 from app.models.error_tracking import ErrorLog
+from app.models.lgpd_audit import LGPDAuditLog, DataAccessRequest
+from app.models.webhook import WebhookEndpoint, WebhookDelivery, WebhookLog
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -104,6 +106,7 @@ def run_migrations_offline() -> None:
 
     """
     url = get_url()
+    autocommit = os.getenv("ALEMBIC_AUTOCOMMIT", "").lower() in ("1", "true", "yes")
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -112,6 +115,7 @@ def run_migrations_offline() -> None:
         compare_type=True,
         compare_server_default=True,
         render_as_batch=True,  # Better compatibility with PostgreSQL
+        transactional_ddl=not autocommit,
     )
 
     with context.begin_transaction():
@@ -128,10 +132,15 @@ def run_migrations_online() -> None:
     configuration = config.get_section(config.config_ini_section)
     configuration["sqlalchemy.url"] = get_url()
 
+    autocommit = os.getenv("ALEMBIC_AUTOCOMMIT", "").lower() in ("1", "true", "yes")
+    engine_kwargs = {"poolclass": pool.NullPool}
+    if autocommit:
+        engine_kwargs["isolation_level"] = "AUTOCOMMIT"
+
     connectable = engine_from_config(
         configuration,
         prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
+        **engine_kwargs,
     )
 
     with connectable.connect() as connection:
@@ -141,6 +150,7 @@ def run_migrations_online() -> None:
             compare_type=True,
             compare_server_default=True,
             render_as_batch=True,  # Better compatibility with PostgreSQL
+            transactional_ddl=not autocommit,
         )
 
         with context.begin_transaction():

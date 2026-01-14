@@ -31,7 +31,7 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
     onClose
   } = options
 
-  const { user, token } = useAuth()
+  const { user, token, websocketToken } = useAuth()
   const [isConnected, setIsConnected] = useState(false)
   const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('disconnected')
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null)
@@ -43,7 +43,7 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
 
   const connect = useCallback(() => {
     // Use the token from user or direct token
-    const authToken = user?.token || token
+    const authToken = websocketToken || user?.token || token
     if (!authToken) {
       logger.warn('Cannot connect WebSocket: no authentication token available')
       return
@@ -126,7 +126,7 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
       setConnectionState('error')
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- config is stable and adding it causes infinite reconnection loops
-  }, [url, user?.token, token, reconnectAttempts, reconnectInterval, onMessage, onError, onOpen, onClose])
+  }, [url, user?.token, token, websocketToken, reconnectAttempts, reconnectInterval, onMessage, onError, onOpen, onClose])
 
   const disconnect = useCallback(() => {
     logger.info('Disconnecting WebSocket (intentional)')
@@ -163,7 +163,7 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
   // CRITICAL FIX: Removed connect/disconnect from dependencies to prevent unnecessary reconnections
   // Only reconnect when authentication token actually changes
   useEffect(() => {
-    const authToken = user?.token || token
+    const authToken = websocketToken || user?.token || token
     if (authToken) {
       logger.debug('Authentication token available, connecting WebSocket')
       shouldReconnectRef.current = true  // Enable reconnections
@@ -179,7 +179,7 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
       disconnect()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- connect/disconnect are stable via useCallback; including them causes infinite reconnection loops
-  }, [user?.token, token])
+  }, [user?.token, token, websocketToken])
 
   return {
     isConnected,

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter
 
 from app.schemas.v2.ai import AIHealthResponse
-from .dependencies import get_redis_cache
+from app.api.v2 import ai as ai_module
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ async def ai_health_check() -> AIHealthResponse:
         redis_status = "operational"
         redis_info = {}
         try:
-            redis_client = await get_redis_cache()
+            redis_client = await ai_module.get_redis_cache()
             if redis_client:
                 await redis_client.ping()
                 stats_info = await redis_client.info("stats")

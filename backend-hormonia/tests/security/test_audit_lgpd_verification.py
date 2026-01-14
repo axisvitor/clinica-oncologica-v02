@@ -1,9 +1,13 @@
+import os
 import pytest
 from sqlalchemy.orm import Session
-from fastapi import Request
 from app.models.patient import Patient
 from app.models.user import User
 import uuid
+
+os.environ.setdefault(
+    "HASH_SALT", "test-hash-salt-1234567890abcdef1234567890abcdef"
+)
 
 @pytest.mark.security
 @pytest.mark.lgpd
@@ -70,6 +74,78 @@ class TestLGPDAuditVerification:
         with pytest.raises(ValueError, match="phone encryption incomplete"):
             db_session.commit()
 
+    def test_patient_encryption_on_create(self, db_session: Session):
+        """Verify encryption fields are set when creating a patient with plaintext."""
+        doctor = User(
+            id=uuid.uuid4(),
+            email=f"doctor_{uuid.uuid4().hex[:8]}@example.com",
+            full_name="Test Doctor",
+            is_active=True,
+        )
+        db_session.add(doctor)
+        db_session.commit()
+
+        patient = Patient(
+            name="Test Patient",
+            doctor_id=doctor.id,
+        )
+        patient.email = "patient@example.com"
+        patient.phone = "+5511999999999"
+        patient.cpf = "11144477735"
+
+        db_session.add(patient)
+        db_session.commit()
+
+        assert patient.email_encrypted is not None
+        assert patient.email_hash is not None
+        assert patient.phone_encrypted is not None
+        assert patient.phone_hash is not None
+        assert patient.cpf_encrypted is not None
+        assert patient.cpf_hash is not None
+        assert patient.email_decrypted == "patient@example.com"
+        assert patient.phone_decrypted == "+5511999999999"
+        assert patient.cpf_decrypted == "11144477735"
+
+    def test_patient_encryption_on_update(self, db_session: Session):
+        """Verify encryption fields update when PII is changed."""
+        doctor = User(
+            id=uuid.uuid4(),
+            email=f"doctor_{uuid.uuid4().hex[:8]}@example.com",
+            full_name="Test Doctor",
+            is_active=True,
+        )
+        db_session.add(doctor)
+        db_session.commit()
+
+        patient = Patient(
+            name="Test Patient",
+            doctor_id=doctor.id,
+        )
+        patient.email = "patient@example.com"
+        patient.phone = "+5511999999999"
+        patient.cpf = "11144477735"
+
+        db_session.add(patient)
+        db_session.commit()
+
+        old_email_hash = patient.email_hash
+        old_phone_hash = patient.phone_hash
+        old_cpf_hash = patient.cpf_hash
+
+        patient.email = "updated@example.com"
+        patient.phone = "+5511888888888"
+        patient.cpf = "52998224725"
+
+        db_session.add(patient)
+        db_session.commit()
+
+        assert patient.email_hash != old_email_hash
+        assert patient.phone_hash != old_phone_hash
+        assert patient.cpf_hash != old_cpf_hash
+        assert patient.email_decrypted == "updated@example.com"
+        assert patient.phone_decrypted == "+5511888888888"
+        assert patient.cpf_decrypted == "52998224725"
+
     def test_pii_masking_utility(self):
         """
         Verify that PII masking utility works correctly for all fields.
@@ -85,38 +161,41 @@ class TestLGPDAuditVerification:
         # Test Email masking
         assert mask_email("patient@example.com") == "pa***@example.com"
 
-    def test_lgpd_middleware_logging(self, db_session: Session):
+    @pytest.mark.asyncio
+    async def test_lgpd_middleware_logging(self):
         """
         Verify that LGPDMiddleware logs patient data access with correct user_id.
         """
-        from fastapi.testclient import TestClient
-        from app.main import app
         from unittest.mock import patch
-        
-        client = TestClient(app)
+        from app.middleware.lgpd_middleware import LGPDMiddleware
         
         with patch("app.middleware.lgpd_middleware.logger") as mock_logger:
-            # Use a mock token that will be accepted or mock the dependency
-            from app.dependencies.auth_dependencies import get_current_user_from_session
-            
-            async def mock_get_user(request: Request):
-                print(f"DEBUG: mock_get_user called for {request.url.path}")
-                request.state.user_id = "test-user-id"
-                request.state.user_role = "admin"
-                return {"id": "test-user-id", "role": "admin"}
-            
-            print(f"DEBUG: Setting override for {get_current_user_from_session}")
-            app.dependency_overrides[get_current_user_from_session] = mock_get_user
-            
-            response = client.get("/api/v2/patients/")
-            print(f"DEBUG: Response status: {response.status_code}")
-            
-            # Clean up overrides
-            app.dependency_overrides = {}
-            
-            # Check response to ensure it didn't fail with 401/403
-            assert response.status_code != 401, "Auth failed"
-            assert response.status_code != 403, "Permission denied"
+            async def app_stub(scope, receive, send):
+                scope.setdefault("state", {})
+                scope["state"]["user_id"] = "test-user-id"
+                scope["state"]["user_role"] = "admin"
+                await send(
+                    {"type": "http.response.start", "status": 200, "headers": []}
+                )
+                await send({"type": "http.response.body", "body": b"OK"})
+
+            middleware = LGPDMiddleware(app_stub)
+            scope = {
+                "type": "http",
+                "method": "GET",
+                "path": "/api/v2/patients/",
+                "headers": [],
+                "client": ("127.0.0.1", 1234),
+                "state": {},
+            }
+
+            async def receive():
+                return {"type": "http.request", "body": b"", "more_body": False}
+
+            async def send(message):
+                return None
+
+            await middleware(scope, receive, send)
             
             # Check if logger was called with LGPD info
             found_log = False

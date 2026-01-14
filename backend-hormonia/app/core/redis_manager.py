@@ -121,6 +121,41 @@ class RedisManager:
         self._initialized = True
         logger.info("Redis manager initialized")
 
+    @property
+    def max_connections(self) -> int:
+        """Max Redis connections configured for the pool."""
+        return self.settings.REDIS_POOL_MAX_CONNECTIONS
+
+    @property
+    def retry_on_timeout(self) -> bool:
+        """Whether Redis client retries on timeout."""
+        return self.settings.REDIS_ENABLE_RETRY_ON_TIMEOUT
+
+    @property
+    def max_retry_attempts(self) -> int:
+        """Max retry attempts for Redis operations."""
+        return self.settings.REDIS_MAX_RETRY_ATTEMPTS
+
+    @property
+    def enable_health_check(self) -> bool:
+        """Whether Redis health checks are enabled."""
+        return self.settings.REDIS_ENABLE_HEALTH_CHECK
+
+    @property
+    def health_check_interval(self) -> float:
+        """Health check interval in seconds."""
+        return self.settings.REDIS_HEALTH_CHECK_INTERVAL_SECONDS
+
+    @property
+    def socket_timeout(self) -> float:
+        """Socket timeout in seconds."""
+        return self.settings.REDIS_SOCKET_TIMEOUT_SECONDS
+
+    @property
+    def socket_connect_timeout(self) -> float:
+        """Socket connect timeout in seconds."""
+        return self.settings.REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS
+
     def _get_ssl_context(self) -> Optional[ssl.SSLContext]:
         """
         Create SSL context for secure Redis connections.

@@ -187,7 +187,30 @@ class PatientIntegrityService:
 
         Delegates to PatientSyncService.
         """
-        return self._sync_service.check_duplicate_phone(phone, doctor_id, exclude_patient_id)
+        if not phone:
+            return None
+
+        from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
+
+        try:
+            normalized_phone = normalize_phone(
+                phone, mode=PhoneValidationMode.BR_TO_E164, allow_none=True
+            )
+        except ValueError:
+            self._logger.warning(
+                "Phone normalization failed for duplicate check",
+                extra={"phone_original": phone, "phone_normalized": None},
+            )
+            return None
+
+        self._logger.info(
+            "Phone normalized for duplicate check",
+            extra={"phone_original": phone, "phone_normalized": normalized_phone},
+        )
+
+        return self._sync_service.check_duplicate_phone(
+            normalized_phone, doctor_id, exclude_patient_id
+        )
 
     @with_db_retry(max_retries=3)
     async def merge_patients(

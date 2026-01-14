@@ -46,6 +46,63 @@ async def health_check() -> Dict[str, Any]:
     }
 
 
+@router.get("/detailed", status_code=status.HTTP_200_OK)
+async def detailed_health_check() -> Dict[str, Any]:
+    """
+    Detailed health check with middleware status.
+
+    Returns comprehensive health information including:
+    - Overall application status
+    - Critical middleware loading status
+    - Timestamp and uptime
+
+    This endpoint is used by Railway for health checks to ensure
+    all critical security middlewares are properly loaded.
+
+    Returns:
+        dict: Detailed health status including middleware status
+
+    Raises:
+        HTTPException: 503 if any critical middleware failed to load
+    """
+    from app.core.middleware_setup import get_middleware_status
+
+    middlewares = get_middleware_status()
+    all_healthy = all(middlewares.values())
+
+    response = {
+        "status": "healthy" if all_healthy else "unhealthy",
+        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+        "uptime_seconds": round(time.time() - START_TIME, 2),
+        "middlewares": {
+            "csrf": {
+                "loaded": middlewares.get("csrf", False),
+                "description": "CSRF protection (Double Submit Cookie)"
+            },
+            "security_headers": {
+                "loaded": middlewares.get("security_headers", False),
+                "description": "Security headers (HSTS, CSP, X-Frame-Options)"
+            },
+            "rate_limiting": {
+                "loaded": middlewares.get("rate_limiting", False),
+                "description": "Distributed rate limiting (Redis-backed)"
+            }
+        }
+    }
+
+    if not all_healthy:
+        logger.error(
+            "Detailed health check failed - middlewares not loaded",
+            middlewares=middlewares
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=response
+        )
+
+    return response
+
+
 @router.get("/live", status_code=status.HTTP_200_OK)
 async def liveness_check() -> Dict[str, Any]:
     """

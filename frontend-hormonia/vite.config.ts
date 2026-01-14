@@ -1,5 +1,4 @@
-// Force Railway rebuild - Critical fix for environment variables
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 import tailwindcss from "@tailwindcss/vite";
@@ -13,88 +12,102 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": resolve(__dirname, "./src"),
       "~backend/client": resolve(__dirname, "./client"),
-      "~backend": resolve(__dirname, "../backend-hormonia"), // Fixed: was '../Backend', now matches actual directory name
+      "~backend": resolve(__dirname, "../backend-hormonia"),
     },
   },
-  plugins: [
-    tailwindcss(),
-    react(),
-    // Runtime config via import.meta.env - no plugin needed
-  ],
+
+  plugins: [tailwindcss(), react()],
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Build Configuration
+  // ─────────────────────────────────────────────────────────────────────────────
   build: {
     outDir: "dist",
-    sourcemap: mode === "production" ? false : true,
+    sourcemap: mode !== "production",
     minify: "esbuild",
     target: "es2020",
     cssMinify: "lightningcss",
     cssCodeSplit: true,
     reportCompressedSize: false,
+    chunkSizeWarningLimit: 500,
+    modulePreload: {
+      polyfill: true,
+    },
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Core React vendor libraries
-          vendor: ["react", "react-dom"],
-
-          // Router and state management
-          router: ["react-router-dom", "@tanstack/react-query"],
-
-          // UI component libraries
-          ui: [
-            "@radix-ui/react-dialog",
-            "@radix-ui/react-dropdown-menu",
-            "@radix-ui/react-select",
-            "@radix-ui/react-toast",
-            "lucide-react",
-          ],
+        manualChunks: (id: string) => {
+          if (!id.includes("/node_modules/") && !id.includes("\\node_modules\\")) {
+            return undefined;
+          }
 
           // Charts and data visualization
-          charts: ["recharts"],
+          if (id.includes("recharts")) return "charts-recharts";
+          if (id.includes("d3-")) return "charts-d3";
 
-          // Firebase and backend integration
-          firebase: ["firebase/app", "firebase/auth"],
+          // Router and state management
+          if (id.includes("react-router-dom") || id.includes("@tanstack/react-query")) {
+            return "router";
+          }
 
-          // Monitoring and error tracking (separated for lazy init)
-          sentry: ["@sentry/react"],
+          // UI component libraries
+          if (id.includes("@radix-ui/") || id.includes("lucide-react")) {
+            return "ui";
+          }
+
+          // Firebase
+          if (id.includes("firebase")) return "firebase";
+
+          // Monitoring
+          if (id.includes("@sentry/")) return "sentry";
 
           // Utility libraries
-          utils: ["lodash", "date-fns", "clsx", "tailwind-merge"],
+          if (
+            id.includes("lodash") ||
+            id.includes("date-fns") ||
+            id.includes("clsx") ||
+            id.includes("tailwind-merge")
+          ) {
+            return "utils";
+          }
 
-          // Large form and validation libraries
-          forms: ["react-hook-form", "zod"],
+          // Form libraries
+          if (id.includes("react-hook-form") || id.includes("zod")) {
+            return "forms";
+          }
+
+          // Core React
+          if (id.includes("react-dom") || id.match(/[\\/]node_modules[\\/]react[\\/]/)) {
+            return "vendor";
+          }
+
+          return undefined;
         },
-        chunkFileNames: (chunkInfo) => {
-          const facadeModuleId = chunkInfo.facadeModuleId
-            ? chunkInfo.facadeModuleId.split("/").pop()
-            : "chunk";
-          return `js/[name]-${facadeModuleId}-[hash].js`;
-        },
+        chunkFileNames: "js/[name]-[hash].js",
         entryFileNames: "js/[name]-[hash].js",
         assetFileNames: (assetInfo) => {
           const extType = assetInfo.name?.split(".").pop() || "asset";
           if (/png|jpe?g|svg|gif|tiff|bmp|ico/i.test(extType)) {
-            return `images/[name]-[hash][extname]`;
+            return "images/[name]-[hash][extname]";
           }
-          if (/woff|woff2|eot|ttf|otf/i.test(extType)) {
-            return `fonts/[name]-[hash][extname]`;
+          if (/woff2?|eot|ttf|otf/i.test(extType)) {
+            return "fonts/[name]-[hash][extname]";
           }
           return `${extType}/[name]-[hash][extname]`;
         },
       },
       treeshake: {
-        moduleSideEffects: false,
         preset: "recommended",
-        tryCatchDeoptimization: false,
+        moduleSideEffects: false,
       },
     },
-    chunkSizeWarningLimit: 500, // Warn if chunk > 500KB
-    // Ensure proper module format
-    modulePreload: {
-      polyfill: true,
-    },
   },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Development Server
+  // ─────────────────────────────────────────────────────────────────────────────
   server: {
     port: process.env["PORT"] ? parseInt(process.env["PORT"]) : 5173,
-    host: "0.0.0.0", // Allow external connections for Railway
+    host: "0.0.0.0",
     strictPort: false,
     cors: true,
     hmr: {
@@ -121,30 +134,32 @@ export default defineConfig(({ mode }) => ({
         }
         : undefined,
   },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Preview Server (Production Serving)
+  // ─────────────────────────────────────────────────────────────────────────────
   preview: {
     port: process.env["PORT"] ? parseInt(process.env["PORT"]) : 4173,
     host: "0.0.0.0",
-    strictPort: false, // Allow Railway to assign port dynamically
+    strictPort: false,
     cors: true,
     headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers":
-        "Origin, X-Requested-With, Content-Type, Accept, Authorization",
       "X-Frame-Options": "DENY",
       "X-Content-Type-Options": "nosniff",
       "Referrer-Policy": "strict-origin-when-cross-origin",
       "Permissions-Policy": "geolocation=(self), microphone=(), camera=()",
     },
     allowedHosts: [
-      "frontend-production-c59bc.up.railway.app",
       ".up.railway.app",
       ".railway.app",
       "localhost",
       "127.0.0.1",
-      "0.0.0.0",
     ],
   },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Dependency Optimization
+  // ─────────────────────────────────────────────────────────────────────────────
   optimizeDeps: {
     include: [
       "react",
@@ -159,7 +174,6 @@ export default defineConfig(({ mode }) => ({
       "lucide-react",
       "recharts",
       "lodash",
-      "lodash/*",
     ],
     exclude: ["@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu"],
     esbuildOptions: {
@@ -169,6 +183,10 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ESBuild Options
+  // ─────────────────────────────────────────────────────────────────────────────
   esbuild: {
     drop: mode === "production" ? ["console", "debugger"] : [],
     legalComments: "none",
@@ -176,13 +194,19 @@ export default defineConfig(({ mode }) => ({
     minifySyntax: true,
     minifyWhitespace: true,
   },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Define Constants
+  // ─────────────────────────────────────────────────────────────────────────────
   define: {
-    // Ensure environment variables are properly replaced at build time
     "process.env.NODE_ENV": JSON.stringify(mode),
-    // Runtime config support
     __VITE_MODE__: JSON.stringify(mode),
     __VITE_PROD__: JSON.stringify(mode === "production"),
   },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Test Configuration (Vitest)
+  // ─────────────────────────────────────────────────────────────────────────────
   test: {
     globals: true,
     environment: "jsdom",

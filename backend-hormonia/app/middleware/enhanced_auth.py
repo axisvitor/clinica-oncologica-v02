@@ -33,6 +33,7 @@ from starlette.responses import Response
 
 from app.core.token_blacklist import get_token_blacklist_manager, TokenBlacklistManager
 from app.core.security_config import get_security_config
+from app.config import settings
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -127,25 +128,45 @@ class EnhancedAuthMiddleware(BaseHTTPMiddleware):
         Returns:
             Tuple of (token, source) or None if no token found
             Sources: "bearer", "cookie", "header"
+
+        Priority (default): cookie -> header -> bearer
         """
-        # 1. Check Authorization header (Bearer token)
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header[7:]  # Remove "Bearer " prefix
-            if token:
-                return token, "bearer"
+        cookie_name = settings.SESSION_COOKIE_NAME
 
-        # 2. Check session cookie
-        session_cookie = request.cookies.get("session")
-        if session_cookie:
-            return session_cookie, "cookie"
+        if settings.ENABLE_COOKIE_PRIORITY:
+            # 1. Check session cookie (httpOnly - most secure)
+            session_cookie = request.cookies.get(cookie_name)
+            if session_cookie:
+                return session_cookie, "cookie"
 
-        # 3. Check X-Session-ID header
-        session_header = request.headers.get("X-Session-ID")
-        if session_header:
-            return session_header, "header"
+            # 2. Check X-Session-ID header (WebSocket support)
+            session_header = request.headers.get("X-Session-ID")
+            if session_header:
+                return session_header, "header"
 
-        # 4. Check X-Access-Token header
+            # 3. Check Authorization header (Bearer token - fallback)
+            auth_header = request.headers.get("Authorization")
+            if auth_header and auth_header.startswith("Bearer "):
+                token = auth_header[7:]
+                if token:
+                    return token, "bearer"
+        else:
+            # Legacy priority: Authorization -> Header -> Cookie
+            auth_header = request.headers.get("Authorization")
+            if auth_header and auth_header.startswith("Bearer "):
+                token = auth_header[7:]
+                if token:
+                    return token, "bearer"
+
+            session_header = request.headers.get("X-Session-ID")
+            if session_header:
+                return session_header, "header"
+
+            session_cookie = request.cookies.get(cookie_name)
+            if session_cookie:
+                return session_cookie, "cookie"
+
+        # X-Access-Token header (legacy fallback)
         access_token = request.headers.get("X-Access-Token")
         if access_token:
             return access_token, "header"

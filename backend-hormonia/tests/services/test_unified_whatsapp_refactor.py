@@ -38,9 +38,8 @@ def service(mock_db, mock_queue_service):
 
     with patch("app.services.unified_whatsapp_service.UnifiedWhatsAppService._get_queue_service", return_value=mock_queue_service), \
          patch.object(UnifiedWhatsAppService, "_ensure_patient_loaded", async_mock_ensure):
-
         svc = UnifiedWhatsAppService(mock_db, redis_url="redis://mock")
-        return svc
+        yield svc
 
 @pytest.mark.asyncio
 async def test_send_message_enqueues(service, mock_queue_service):

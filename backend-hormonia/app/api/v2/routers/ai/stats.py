@@ -9,7 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.models.user import User
 from app.schemas.v2.ai import UsageStatsResponse
-from .dependencies import verify_physician_or_admin, get_redis_cache
+from app.api.v2 import ai as ai_module
+from .dependencies import verify_physician_or_admin
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ async def get_usage_statistics(
 ) -> UsageStatsResponse:
     """Get token usage and cost statistics."""
     try:
-        redis_client = await get_redis_cache()
+        redis_client = await ai_module.get_redis_cache()
 
         if not redis_client:
             raise HTTPException(

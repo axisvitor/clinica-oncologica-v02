@@ -67,9 +67,16 @@ export function FlowsTable({ flows, isLoading }: FlowsTableProps) {
 
   const getFlowTypeName = (flowType: string) => {
     const typeMap: Record<string, string> = {
-      'initial_15_days': 'Inicial 1-15 dias',
-      'days_16_45': 'Dias 16-45',
-      'monthly_recurring': 'Mensal Recorrente',
+      onboarding: 'Onboarding',
+      daily_follow_up: 'Acompanhamento Diario',
+      quiz_mensal: 'Quiz Mensal',
+      custom: 'Personalizado',
+      initial_15_days: 'Inicial 1-15 dias',
+      days_16_45: 'Dias 16-45',
+      monthly_recurring: 'Mensal Recorrente',
+      monthly_quiz: 'Quiz Mensal',
+      daily_checkin: 'Check-in Diario',
+      daily_engagement: 'Engajamento Diario',
     }
     return typeMap[flowType] || flowType
   }

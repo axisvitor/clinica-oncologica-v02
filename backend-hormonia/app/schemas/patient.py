@@ -116,31 +116,32 @@ class PatientBase(BaseModel):
     @classmethod
     def validate_phone(cls, v):
         """
-        Validate phone number in E.164 format.
+        Validate phone number and normalize to E.164 format.
 
-        This validator enforces strict E.164 format for v1 API compatibility.
-        Phone must start with + followed by country code and digits.
+        This validator accepts Brazilian formats for compatibility and
+        normalizes to E.164 for storage and duplicate checks.
 
         Examples:
             - Valid: "+5511987654321"
-            - Invalid: "11987654321" (missing country code)
+            - Valid: "11987654321"
+            - Valid: "(11) 98765-4321"
 
         See: app/schemas/validators/phone.py for implementation details
         """
-        from app.schemas.validators.phone import validate_phone_e164
+        from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
 
-        return validate_phone_e164(v, allow_none=False)
+        return normalize_phone(v, mode=PhoneValidationMode.BR_TO_E164, allow_none=False)
 
     @field_validator("emergency_contact_phone")
     @classmethod
     def validate_emergency_phone(cls, v):
-        """Validate emergency contact phone in E.164 format."""
+        """Validate emergency contact phone and normalize to E.164."""
         if not v:
             return v
 
-        from app.schemas.validators.phone import validate_phone_e164
+        from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
 
-        return validate_phone_e164(v, allow_none=True)
+        return normalize_phone(v, mode=PhoneValidationMode.BR_TO_E164, allow_none=True)
 
     @field_validator("birth_date")
     @classmethod
@@ -282,24 +283,24 @@ class PatientUpdate(BaseModel):
     @field_validator("emergency_contact_phone")
     @classmethod
     def validate_emergency_phone(cls, v):
-        """Validate emergency contact phone in E.164 format."""
+        """Validate emergency contact phone and normalize to E.164."""
         if not v:
             return v
 
-        from app.schemas.validators.phone import validate_phone_e164
+        from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
 
-        return validate_phone_e164(v, allow_none=True)
+        return normalize_phone(v, mode=PhoneValidationMode.BR_TO_E164, allow_none=True)
 
     @field_validator("phone")
     @classmethod
     def validate_phone(cls, v):
-        """Validate phone number in E.164 format."""
+        """Validate phone number and normalize to E.164 format."""
         if not v:
             return v
 
-        from app.schemas.validators.phone import validate_phone_e164
+        from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
 
-        return validate_phone_e164(v, allow_none=True)
+        return normalize_phone(v, mode=PhoneValidationMode.BR_TO_E164, allow_none=True)
 
     @field_validator("birth_date")
     @classmethod

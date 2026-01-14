@@ -183,7 +183,7 @@ describe('Type Definitions Validation', () => {
   it('should have Flow event data', () => {
     const eventData: FlowEventData = {
       patient_id: '1',
-      flow_type: 'initial_15_days',
+      flow_type: 'onboarding',
       current_day: 5,
       is_paused: false,
       enrollment_date: '2024-01-01T00:00:00Z'

@@ -1,3 +1,7 @@
+# Saga Orchestrator> [!WARNING]
+> COMPONENT DEPRECATED: The `app/orchestration/saga_orchestrator.py` file analyzed here has been archived.
+> The active implementation is now in the `app/orchestration/saga_orchestrator/` package.
+
 # Saga Orchestrator - Unit of Work Pattern Refactor
 
 ## Summary

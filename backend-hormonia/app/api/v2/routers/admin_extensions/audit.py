@@ -4,6 +4,7 @@ Comprehensive audit log management for compliance (HIPAA, LGPD).
 """
 
 import logging
+import base64
 import csv
 import io
 import json
@@ -14,7 +15,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, desc
+from sqlalchemy import or_, and_, desc
 
 from app.database import get_db
 from app.models.user import User
@@ -44,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.get(
-    "/",
+    "",
     response_model=AuditLogListResponse,
     summary="List Audit Logs",
     description="Retrieve paginated list of audit logs with cursor-based pagination and comprehensive filters.",
@@ -97,9 +98,27 @@ async def list_audit_logs(
         # Build base query
         query = db.query(AuditLog)
 
-        # Apply cursor pagination
+        # Apply cursor pagination (created_at DESC, id DESC)
         if cursor_data:
-            query = query.filter(AuditLog.id > cursor_data.get("id", 0))
+            cursor_id = cursor_data.get("id")
+            cursor_created_at = cursor_data.get("created_at")
+            if isinstance(cursor_created_at, str):
+                try:
+                    cursor_created_at = datetime.fromisoformat(cursor_created_at)
+                except ValueError:
+                    cursor_created_at = None
+            if cursor_created_at:
+                query = query.filter(
+                    or_(
+                        AuditLog.created_at < cursor_created_at,
+                        and_(
+                            AuditLog.created_at == cursor_created_at,
+                            AuditLog.id < cursor_id,
+                        ),
+                    )
+                )
+            elif cursor_id:
+                query = query.filter(AuditLog.id < cursor_id)
 
         # Apply filters
         if event_type:
@@ -133,8 +152,8 @@ async def list_audit_logs(
                 )
             )
 
-        # Order by created_at DESC (most recent first)
-        query = query.order_by(desc(AuditLog.created_at))
+        # Order by created_at DESC (most recent first), stable by id DESC
+        query = query.order_by(desc(AuditLog.created_at), desc(AuditLog.id))
 
         # Fetch limit + 1 to check if there's more
         logs = query.limit(limit + 1).all()
@@ -147,7 +166,14 @@ async def list_audit_logs(
         # Create next cursor
         next_cursor = None
         if has_more and logs:
-            next_cursor = create_cursor(logs[-1].id)
+            last_log = logs[-1]
+            cursor_payload = {
+                "id": str(last_log.id),
+                "created_at": last_log.created_at.isoformat(),
+            }
+            next_cursor = base64.b64encode(
+                json.dumps(cursor_payload).encode("utf-8")
+            ).decode("utf-8")
 
         # Serialize logs
         serialized_logs = [serialize_audit_log(log, field_list) for log in logs]
@@ -176,6 +202,8 @@ async def list_audit_logs(
             "total": None,  # Cursor pagination doesn't include total for performance
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error listing audit logs: {e}")
         raise HTTPException(

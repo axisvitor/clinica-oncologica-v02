@@ -1,3 +1,105 @@
+> [!WARNING]
+> LEGACY ANALYSIS: The original analysis below targets the archived `app/orchestration/saga_orchestrator.py` file.
+> The active implementation is in `app/orchestration/saga_orchestrator/` and is summarized in the 2026 addendum.
+
+
+## 2026 Addendum - Current Saga Package Review
+
+**Date:** 2026-01-10
+**Scope:** `app/orchestration/saga_orchestrator/` (`orchestrator.py`, `steps.py`, `compensation.py`)
+**Key Update:** The onboarding saga runs **3 steps** (Create Patient -> Initialize Flow -> Schedule Welcome Message). Step 2 (Firebase user creation) is deprecated but retained in the enum for DB compatibility.
+
+### Current Flow State Diagram (3-Step)
+
+```mermaid
+stateDiagram-v2
+    [*] --> STARTED: Acquire Lock
+    STARTED --> STEP_1_PATIENT_CREATED: Create Patient
+    STEP_1_PATIENT_CREATED --> STEP_3_FLOW_INITIALIZED: Initialize Flow
+    STEP_3_FLOW_INITIALIZED --> STEP_4_MESSAGE_SENT: Schedule Welcome
+    STEP_4_MESSAGE_SENT --> COMPLETED: Single Commit
+
+    STEP_1_PATIENT_CREATED --> COMPENSATING: Error
+    STEP_3_FLOW_INITIALIZED --> COMPENSATING: Error
+    STEP_4_MESSAGE_SENT --> COMPLETED: Non-Fatal Error
+
+    COMPENSATING --> COMPENSATE_MESSAGE: Step 4
+    COMPENSATE_MESSAGE --> COMPENSATE_FLOW: Step 3
+    COMPENSATE_FLOW --> COMPENSATE_PATIENT: Step 1
+    COMPENSATE_PATIENT --> FAILED: Compensation Complete
+
+    FAILED --> RETRY_SCHEDULED: Can Retry
+    RETRY_SCHEDULED --> STARTED: Resume Saga
+
+    COMPLETED --> [*]
+    FAILED --> [*]
+```
+
+### Sequence Diagrams
+
+#### Happy Path
+
+```mermaid
+sequenceDiagram
+    participant API as API
+    participant Saga as Saga Orchestrator
+    participant DB as Database
+    participant Flow as Flow Service
+    participant Msg as Message Service
+    participant Celery as Celery Worker
+
+    API->>Saga: execute_patient_onboarding_saga()
+    Saga->>DB: create saga + patient (flush)
+    Saga->>Flow: initialize_default_flow + activate_patient
+    Saga->>Msg: schedule_message(PENDING)
+    Saga->>Celery: send_scheduled_message(countdown=5s)
+    Saga->>DB: commit (single transaction)
+    Saga-->>API: patient created
+```
+
+#### Compensation Path
+
+```mermaid
+sequenceDiagram
+    participant Saga as Saga Orchestrator
+    participant DB as Database
+    participant Comp as Saga Compensator
+
+    Saga->>DB: rollback on step failure
+    Saga->>Comp: compensate_saga()
+    Comp->>DB: cancel messages
+    Comp->>DB: delete flow state
+    Comp->>DB: delete patient
+    Comp->>DB: commit compensation
+```
+
+#### Resume Path
+
+```mermaid
+sequenceDiagram
+    participant Scheduler as Retry Task
+    participant Saga as Saga Orchestrator
+    participant DB as Database
+
+    Scheduler->>Saga: resume_saga(saga_id)
+    Saga->>DB: re-fetch saga after lock
+    Saga->>DB: create patient if missing
+    Saga->>DB: ensure flow exists (skip if exists)
+    Saga->>DB: ensure welcome message exists (skip if exists)
+    Saga->>DB: commit
+```
+
+### 2026 Findings Summary
+
+- **P1:** Lock TTL vs transaction duration (lock ttl=60s, timeout=5s). Reference ticket: `ticket:2476b16c-c6a7-4898-b766-97a1afddde2d/a6b3c463-3534-4232-87bb-37758c3569d4`.
+- **P1:** Circuit breaker not enforced at the messaging task boundary (Evolution API resilience gap).
+- **P1:** Idempotency key only used on patient creation, not propagated to flow/message steps.
+- **P2:** Compensation test coverage gaps (no isolated compensation tests).
+- **P2:** Missing saga metrics (duration histogram, failures by step, lock acquisition time).
+- **P2:** Resume-step idempotency edge cases remain when partial state exists.
+- **P3:** Deprecated enum value `STEP_2_FIREBASE_USER_CREATED` still present in DB/type.
+- **P3:** Documentation vs implementation step numbering mismatch (spec assumes 4 steps).
+
 # Saga Orchestrator Deep Analysis Report
 
 **Date:** 2025-12-24
@@ -399,16 +501,16 @@ INSERT INTO patients ... RETURNING id;  -- BLOCKS on unique constraint
 
 ```
 STARTED
-  → STEP_1_PATIENT_CREATED
-  → STEP_3_FLOW_INITIALIZED
-  → STEP_4_MESSAGE_SENT
-  → COMPLETED
+  -> STEP_1_PATIENT_CREATED
+  -> STEP_3_FLOW_INITIALIZED
+  -> STEP_4_MESSAGE_SENT
+  -> COMPLETED
 
-STARTED → FAILED (any step fails)
-FAILED → COMPENSATING (compensation triggered)
-COMPENSATING → FAILED (compensation complete)
-FAILED → RETRY_SCHEDULED (retry eligible)
-RETRY_SCHEDULED → STARTED (resume saga)
+STARTED -> FAILED (any step fails)
+FAILED -> COMPENSATING (compensation triggered)
+COMPENSATING -> FAILED (compensation complete)
+FAILED -> RETRY_SCHEDULED (retry eligible)
+RETRY_SCHEDULED -> STARTED (resume saga)
 ```
 
 **File:** `patient_onboarding_saga.py:33-51`

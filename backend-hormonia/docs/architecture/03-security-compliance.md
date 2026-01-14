@@ -13,7 +13,7 @@ The system is architected to meet **Lei Geral de Proteção de Dados (LGPD)** re
 All sensitive Personal Identifiable Information (PII) is encrypted **at rest**.
 
 -   **Algorithm:** AES-256-GCM.
--   **Key Management:** Environment variable `ENCRYPTION_KEY` (32 bytes).
+-   **Key Management:** Environment variables `PHI_ENCRYPTION_KEY` (base64, 32 bytes) and `HASH_SALT` (hex).
 -   **Searchability:** Deterministic SHA-256/HMAC hashes stored alongside encrypted data to allow exact-match lookups without decryption.
 
 | Field | Storage | Search Index |

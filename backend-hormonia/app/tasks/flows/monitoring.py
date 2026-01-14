@@ -10,11 +10,14 @@ import logging
 from typing import Any
 from datetime import datetime, timezone
 
-from app.celery_app import celery_app
+from app.task_queue import task_queue as celery_app
+from app.task_queue import list_tasks as list_stored_tasks
 from app.database import get_db
+from app.config import settings
 from app.repositories.flow import FlowStateRepository
 from app.models.message import Message, MessageStatus
 from app.integrations.gemini_client import get_gemini_client
+from app.services.flow_alerts import FlowAlertsService
 
 from .base import FlowTaskBase
 
@@ -137,26 +140,34 @@ def monitor_flow_task_health(self) -> dict[str, Any]:
 
             # Check for failed tasks in Redis using synchronous client
             try:
-                import redis
-                from app.config import settings
+                if settings.TASK_QUEUE_PROVIDER.lower() == "cloud_tasks":
+                    stored_tasks = list_stored_tasks()
+                    failed_count = sum(
+                        1
+                        for task in stored_tasks
+                        if str(task.get("status", "")).upper() in ("FAILURE", "FAILED")
+                    )
+                    health_results["failed_tasks_count"] = failed_count
+                else:
+                    import redis
 
-                redis_client = redis.from_url(
-                    settings.REDIS_URL,
-                    decode_responses=True,
-                    socket_connect_timeout=5,
-                    socket_timeout=5,
-                )
+                    redis_client = redis.from_url(
+                        settings.REDIS_URL,
+                        decode_responses=True,
+                        socket_connect_timeout=5,
+                        socket_timeout=5,
+                    )
 
-                failed_tasks = redis_client.keys("task_result:*")
-                failed_count = 0
+                    failed_tasks = redis_client.keys("task_result:*")
+                    failed_count = 0
 
-                for task_key in failed_tasks:
-                    task_data = redis_client.get(task_key)
-                    if task_data and "failure" in str(task_data):
-                        failed_count += 1
+                    for task_key in failed_tasks:
+                        task_data = redis_client.get(task_key)
+                        if task_data and "failure" in str(task_data):
+                            failed_count += 1
 
-                redis_client.close()
-                health_results["failed_tasks_count"] = failed_count
+                    redis_client.close()
+                    health_results["failed_tasks_count"] = failed_count
             except Exception as e:
                 logger.error(f"Failed to check task failures: {e}")
 
@@ -182,3 +193,32 @@ def monitor_flow_task_health(self) -> dict[str, Any]:
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "overall_healthy": False,
         }
+
+
+@celery_app.task(bind=True, base=FlowTaskBase)
+def evaluate_flow_alerts(self) -> dict[str, Any]:
+    """
+    Evaluate flow analytics alerts and dispatch notifications.
+    """
+    db = next(get_db())
+    try:
+        service = FlowAlertsService(db)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            alerts = loop.run_until_complete(service.evaluate_alerts())
+        finally:
+            loop.close()
+
+        return {
+            "alerts_created": len(alerts),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as exc:
+        logger.error(f"Flow alerts evaluation failed: {exc}")
+        return {
+            "error": str(exc),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    finally:
+        db.close()

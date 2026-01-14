@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { FlowState, FlowAnalytics } from '@/lib/api-client/types';
 import { apiClient } from '@/lib/api-client';
 import { createLogger } from '@/utils/logger';
+import { smartMapFlowResponse } from '@/lib/flow-engine/mappers/flowResponseMapper';
 
 const logger = createLogger('useFlows');
 
@@ -75,7 +76,10 @@ export function useFlows(options?: UseFlowsOptions): UseFlowsReturn {
     refetchInterval: 60000, // 1 minute
   });
 
-  const flows = (data?.data ?? data?.items ?? []) as FlowData[];
+  const rawItems = Array.isArray(data)
+    ? data
+    : (data?.data ?? data?.items ?? []);
+  const flows = rawItems.map((flow) => smartMapFlowResponse(flow)) as FlowData[];
 
   return {
     data: flows,
@@ -84,8 +88,8 @@ export function useFlows(options?: UseFlowsOptions): UseFlowsReturn {
     isLoading,
     error: error as Error | null,
     refetch,
-    hasMore: data?.has_more ?? false,
-    total: data?.total ?? null,
+    hasMore: Array.isArray(data) ? false : (data?.has_more ?? false),
+    total: Array.isArray(data) ? data.length : (data?.total ?? null),
   };
 }
 

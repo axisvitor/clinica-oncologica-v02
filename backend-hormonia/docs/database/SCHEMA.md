@@ -7,8 +7,8 @@
 | [ab_experiment_audit](tables/ab_experiment_audit.md) | |
 | [ab_experiment_metrics](tables/ab_experiment_metrics.md) | |
 | [ab_experiment_monitoring](tables/ab_experiment_monitoring.md) | |
-| [ab_experiment_results](tables/ab_experiment_results.md) | |
 | [ab_experiments](tables/ab_experiments.md) | |
+| [ab_experiment_results](tables/ab_experiment_results.md) | |
 | [ab_variant_assignments](tables/ab_variant_assignments.md) | |
 | [admin_audit_log](tables/admin_audit_log.md) | |
 | [admin_ip_blacklist](tables/admin_ip_blacklist.md) | |
@@ -45,6 +45,8 @@
 | [flow_template_shares](tables/flow_template_shares.md) | |
 | [flow_template_stats](tables/flow_template_stats.md) | |
 | [flow_template_versions](tables/flow_template_versions.md) | |
+| [lgpd_audit_logs](tables/lgpd_audit_logs.md) | LGPD compliance audit log for patient data access |
+| [lgpd_data_access_requests](tables/lgpd_data_access_requests.md) | LGPD data subject access requests (DSAR) |
 | [medical_reports](tables/medical_reports.md) | |
 | [medications](tables/medications.md) | |
 | [message_status_events](tables/message_status_events.md) | |
@@ -55,12 +57,8 @@
 | [patient_onboarding_saga](tables/patient_onboarding_saga.md) | |
 | [patient_summaries](tables/patient_summaries.md) | |
 | [patients](tables/patients.md) | |
-| [quiz_questions](tables/quiz_questions.md) | |
-| [quiz_response_migration_log](tables/quiz_response_migration_log.md) | |
 | [quiz_responses](tables/quiz_responses.md) | |
 | [quiz_sessions](tables/quiz_sessions.md) | |
-| [quiz_sessions_v2](tables/quiz_sessions_v2.md) | |
-| [quiz_template_versions_v2](tables/quiz_template_versions_v2.md) | |
 | [quiz_templates](tables/quiz_templates.md) | |
 | [reports](tables/reports.md) | |
 | [security_audit_log](tables/security_audit_log.md) | |
@@ -72,15 +70,16 @@
 | [user_profiles](tables/user_profiles.md) | |
 | [user_sync_log](tables/user_sync_log.md) | |
 | [users](tables/users.md) | |
-| [webhook_deliveries](tables/webhook_deliveries.md) | |
-| [webhook_endpoints](tables/webhook_endpoints.md) | |
+| [webhook_deliveries](tables/webhook_deliveries.md) | UUID default: gen_random_uuid() |
+| [webhook_endpoints](tables/webhook_endpoints.md) | UUID default: gen_random_uuid() |
 | [webhook_events](tables/webhook_events.md) | |
 | [webhook_idempotency](tables/webhook_idempotency.md) | |
-| [webhook_logs](tables/webhook_logs.md) | |
+| [webhook_logs](tables/webhook_logs.md) | UUID default: gen_random_uuid() |
 | [whatsapp_contacts](tables/whatsapp_contacts.md) | |
 | [whatsapp_delivery_failures](tables/whatsapp_delivery_failures.md) | |
 | [whatsapp_instances](tables/whatsapp_instances.md) | |
-| [whatsapp_messages](tables/whatsapp_messages.md) | |
+| [whatsapp_messages](tables/whatsapp_messages.md) |
+ |
 
 ## Entity Relationship Diagram
 
@@ -1429,18 +1428,7 @@ erDiagram
     whatsapp_delivery_failures }o--|| messages : "references"
     whatsapp_delivery_failures }o--|| patients : "references"
     whatsapp_delivery_failures }o--|| users : "references"
-    quiz_sessions_v2 {
-        uuid id PK
-        uuid patient_id 
-        uuid template_version_id 
-        string status 
-        datetime started_at 
-        datetime completed_at 
-        JSONB session_data 
-        datetime created_at 
-    }
-    quiz_sessions_v2 }o--|| patients : "references"
-    quiz_sessions_v2 }o--|| quiz_template_versions_v2 : "references"
+
     quiz_responses {
         uuid id PK
         uuid patient_id 
@@ -1651,36 +1639,7 @@ erDiagram
         datetime created_at 
         datetime updated_at 
     }
-    quiz_template_versions_v2 {
-        uuid id PK
-        uuid template_id 
-        int version_number 
-        JSONB questions 
-        JSONB scoring_rules 
-        boolean is_active 
-        boolean is_draft 
-        datetime published_at 
-        uuid created_by 
-        TEXT change_notes 
-        datetime created_at 
-    }
-    quiz_template_versions_v2 }o--|| users : "references"
-    quiz_template_versions_v2 }o--|| quiz_templates : "references"
-    quiz_questions {
-        uuid quiz_template_id 
-        string question_text 
-        string question_type 
-        int question_order 
-        JSONB options 
-        string correct_answer 
-        int points 
-        boolean is_required 
-        JSONB metadata 
-        uuid id PK
-        datetime created_at 
-        datetime updated_at 
-    }
-    quiz_questions }o--|| quiz_templates : "references"
+
     sessions {
         uuid user_id 
         string session_token 

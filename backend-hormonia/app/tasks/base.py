@@ -32,7 +32,13 @@ def get_db_session() -> Generator[Session, None, None]:
     except Exception as exc:
         if db:
             db.rollback()
-        logger.error(f"Database operation failed: {exc}", exc_info=True)
+        # Only log as DB error if it's actually a database-related exception
+        exc_module = type(exc).__module__.lower()
+        if any(x in exc_module for x in ["sqlalchemy", "psycopg", "asyncpg", "database"]):
+            logger.error(f"Database operation failed: {exc}", exc_info=True)
+        else:
+            # Not a DB error - log without misleading prefix
+            logger.error(f"Task operation failed: {exc}", exc_info=True)
         raise
     finally:
         if db:

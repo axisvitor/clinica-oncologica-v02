@@ -137,7 +137,6 @@ Request Flow (Top to Bottom):
 
 2. **Environment-Based Configuration**
    - Lines 13-37: `is_production()` checks `APP_ENVIRONMENT`
-   - Supports legacy `ENVIRONMENT` variable (deprecated v2.1.0)
 
 3. **Credential Safety**
    - Lines 187-200: Explicit header whitelist (NEVER uses `["*"]` with credentials)
@@ -170,7 +169,7 @@ Request Flow (Top to Bottom):
    - **Severity**: MEDIUM (CVSS 5.3)
 
 3. **🟡 MEDIUM: Deprecated Environment Variables** (Lines 27-33, 130-136)
-   - `ENVIRONMENT` and `CORS_ORIGINS` still supported (deprecated v2.1.0)
+   - Legacy `ENVIRONMENT` and `CORS_ORIGINS` are deprecated; use `APP_ENVIRONMENT` and `CORS_ALLOWED_ORIGINS`
    - **Risk**: Configuration confusion, legacy vulnerabilities
    - **Severity**: LOW (CVSS 3.1)
 
@@ -409,8 +408,8 @@ Request Flow (Top to Bottom):
 - **Description**: Legacy environment variables still supported
 - **Impact**: Configuration confusion, potential for using insecure legacy config
 - **Recommendation**:
-  - Remove support for `ENVIRONMENT` and `CORS_ORIGINS` in v3.0
-  - Add migration guide
+  - Remove legacy references to `ENVIRONMENT` and `CORS_ORIGINS`
+  - Document migration to `APP_ENVIRONMENT` and `CORS_ALLOWED_ORIGINS`
 
 #### 🟡 **MEDIUM-03: Rate Limiting Memory Fallback**
 
@@ -534,7 +533,7 @@ APP_ENVIRONMENT=production
 
 # CORS (REQUIRED - EXPLICIT HTTPS ORIGINS ONLY)
 CORS_ALLOWED_ORIGINS='["https://app.example.com","https://admin.example.com"]'
-# DO NOT use CORS_ORIGINS (deprecated v2.1.0)
+# Legacy CORS_ORIGINS is deprecated; use CORS_ALLOWED_ORIGINS
 
 # Host Validation (NEW - REQUIRED)
 ALLOWED_HOSTS='["app.example.com","admin.example.com","api.example.com"]'
@@ -633,8 +632,8 @@ CORS_ALLOWED_ORIGINS='["https://localhost:5173","https://localhost:3001"]'
    - Priority: P1 (High)
 
 5. **Remove Deprecated Variables** (MEDIUM-02)
-   - Remove `ENVIRONMENT`, `CORS_ORIGINS` in v3.0
-   - Add migration guide
+   - Remove legacy `ENVIRONMENT`, `CORS_ORIGINS` references
+   - Add migration guide for `APP_ENVIRONMENT` and `CORS_ALLOWED_ORIGINS`
    - Priority: P1 (High)
 
 6. **Ensure Redis Availability** (MEDIUM-03)

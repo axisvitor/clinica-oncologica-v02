@@ -136,7 +136,7 @@ class TaskScheduler:
             True if cancelled successfully
         """
         try:
-            from app.celery_app import celery_app
+            from app.task_queue import task_queue as celery_app
 
             celery_app.control.revoke(task_id, terminate=True)
             logger.info(f"Cancelled Celery task {task_id}")

@@ -189,6 +189,7 @@ class NotificationV2Response(BaseModel):
 class NotificationV2List(CursorPaginatedResponse[NotificationV2Response]):
     """Paginated list of notifications with unread count"""
 
+    items: Optional[List[NotificationV2Response]] = None
     unread_count: int = Field(0, description="Total unread notifications")
 
     model_config = ConfigDict(

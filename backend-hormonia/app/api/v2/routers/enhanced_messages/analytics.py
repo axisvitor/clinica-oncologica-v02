@@ -9,6 +9,7 @@ Provides analytics and performance metrics including:
 
 from typing import Optional
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
 import json
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
@@ -132,7 +133,14 @@ async def get_delivery_optimization(
     """
     try:
         # Validate patient
-        patient = db.query(Patient).filter(Patient.id == patient_id).first()
+        try:
+            patient_uuid = UUID(str(patient_id))
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"
+            ) from exc
+
+        patient = db.query(Patient).filter(Patient.id == patient_uuid).first()
         if not patient:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"

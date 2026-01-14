@@ -16,7 +16,7 @@ from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, cast, func, or_, String
 from sqlalchemy.orm import joinedload, selectinload
 
 from app.models.message import Message
@@ -106,6 +106,10 @@ class PatientPaginationMixin:
 
         # Always filter soft-deleted
         criteria.append(Patient.deleted_at.is_(None))
+
+        # Exclude quarantined patients unless explicitly included
+        if not filters.get("include_quarantined"):
+            criteria.append(self._build_quarantine_filter())
 
         # Doctor Filter
         if filters.get("doctor_id"):
@@ -254,6 +258,9 @@ class PatientPaginationMixin:
         count_criteria = []
         count_criteria.append(Patient.deleted_at.is_(None))
 
+        if not filters.get("include_quarantined"):
+            count_criteria.append(self._build_quarantine_filter())
+
         if filters.get("doctor_id"):
             count_criteria.append(Patient.doctor_id == filters["doctor_id"])
 
@@ -306,6 +313,23 @@ class PatientPaginationMixin:
             count_criteria.append(Patient.created_at <= filters["created_before"])
 
         return count_criteria
+
+    def _build_quarantine_filter(self):
+        """Build quarantine filter with SQLite-compatible fallback."""
+        dialect = getattr(getattr(self.db, "bind", None), "dialect", None)
+        dialect_name = dialect.name if dialect else ""
+
+        if dialect_name == "sqlite":
+            payload = cast(Patient.patient_data, String)
+            return or_(
+                Patient.patient_data.is_(None),
+                ~payload.like('%"quarantine": true%'),
+            )
+
+        return or_(
+            Patient.patient_data["quarantine"].astext.is_(None),
+            Patient.patient_data["quarantine"].astext == "false",
+        )
 
     async def list_patients_optimized(
         self,

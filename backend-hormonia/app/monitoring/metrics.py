@@ -110,6 +110,81 @@ quiz_response_total = Counter(
     "quiz_response_total", "Total quiz responses", ["question_type"]
 )
 
+# Response processing metrics
+response_processing_duration_seconds = Histogram(
+    "response_processing_duration_seconds",
+    "Response processing duration in seconds",
+    ["status"],
+    buckets=[0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0],
+)
+
+response_medical_concerns_total = Counter(
+    "response_medical_concerns_total",
+    "Total medical concerns detected in responses",
+    ["concern_level"],
+)
+
+response_escalations_total = Counter(
+    "response_escalations_total",
+    "Total escalation requests from response processing",
+    ["escalation_level"],
+)
+
+response_escalation_failures_total = Counter(
+    "response_escalation_failures_total",
+    "Total escalation failures during follow-up processing",
+    ["reason"],
+)
+
+# Follow-up system metrics
+follow_up_actions_total = Counter(
+    "follow_up_actions_total",
+    "Total follow-up actions executed",
+    ["action_type", "status"],
+)
+
+follow_up_action_duration_seconds = Histogram(
+    "follow_up_action_duration_seconds",
+    "Follow-up action execution duration in seconds",
+    ["action_type", "status"],
+    buckets=[0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0],
+)
+
+follow_up_messages_sent_total = Counter(
+    "follow_up_messages_sent_total",
+    "Total follow-up messages scheduled for delivery",
+    ["message_type"],
+)
+
+follow_up_messages_deduplicated_total = Counter(
+    "follow_up_messages_deduplicated_total",
+    "Total follow-up messages skipped due to deduplication",
+    ["message_type", "source"],
+)
+
+follow_up_dedup_misses_total = Counter(
+    "follow_up_dedup_misses_total",
+    "Total follow-up message deduplication cache misses",
+    ["message_type", "source"],
+)
+
+follow_up_dedup_cache_hits = Gauge(
+    "follow_up_dedup_cache_hits",
+    "Follow-up message deduplication cache hit rate percentage",
+    ["message_type"],
+)
+
+follow_up_dedup_redis_errors = Counter(
+    "follow_up_dedup_redis_errors_total",
+    "Total Redis errors during follow-up message deduplication",
+    ["operation"],
+)
+
+follow_up_pending_actions = Gauge(
+    "follow_up_pending_actions",
+    "Current number of pending follow-up actions",
+)
+
 # ============================================================================
 # MEDIUM-009: WEBHOOK RETRY METRICS
 # ============================================================================

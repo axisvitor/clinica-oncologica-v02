@@ -16,12 +16,15 @@ Lines: 50-372
 # NOTE: Removed 'from __future__ import annotations' to fix Pydantic/FastAPI
 # OpenAPI schema generation issues with Query() and Depends() parameters
 import logging
+import re
+import time
 from datetime import date, datetime
 from typing import List, Optional
 from uuid import UUID
 
 # Third-party imports
-from fastapi import APIRouter, Depends, Header, Query, Request, status
+from fastapi import APIRouter, Depends, Header, Query, Request, Response, status
+from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.orm import Session
 
 # Local application imports
@@ -47,14 +50,21 @@ from app.core.permissions import Permission
 from app.database import get_db
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.models.user import UserRole
+from app.metrics.patient_metrics import (
+    patient_create_duration,
+    patient_create_idempotency_hits,
+    patient_create_idempotency_misses,
+)
 from app.repositories.patient import PatientRepository
 from app.schemas.patient import PatientCreate, PatientUpdate as DomainPatientUpdate
 from app.schemas.v2.patient import (
+    PatientMetadataV2,
     PatientV2Create,
     PatientV2List,
     PatientV2Response,
     PatientV2Update,
 )
+from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
 from app.services.patient import PatientIntegrityService
 from app.services.patient.crud_service import PatientCRUDService
 from app.utils.rate_limiter import limiter
@@ -70,6 +80,91 @@ from .base import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _split_list(value: Optional[str], field: str) -> Optional[list[str]]:
+    """Split comma/semicolon/newline/slash-delimited string into a list."""
+    if value is None:
+        return None
+
+    raw = value.strip()
+    if not raw:
+        return None
+
+    items: list[str] = []
+    for chunk in re.split(r"[,;\n]+", raw):
+        part = chunk.strip()
+        if not part:
+            continue
+
+        if "/" in part and not re.search(r"\d", part):
+            for sub_part in re.split(r"/+", part):
+                sub_item = sub_part.strip()
+                if sub_item:
+                    items.append(sub_item)
+        else:
+            items.append(part)
+
+    if not items:
+        logger.warning(
+            "Split list produced no items",
+            extra={"field": field, "original_value": value, "parsed_value": items},
+        )
+        return None
+
+    return items
+
+
+def _normalize_phone_safe(phone_raw: str) -> Optional[str]:
+    try:
+        return normalize_phone(
+            phone_raw, mode=PhoneValidationMode.BR_TO_E164, allow_none=True
+        )
+    except ValueError:
+        return None
+
+
+def _parse_emergency_contact(
+    value: Optional[str],
+) -> tuple[Optional[str], Optional[str]]:
+    """Parse emergency contact into (name, phone) tuple."""
+    if value is None:
+        return None, None
+
+    raw = value.strip()
+    if not raw:
+        return None, None
+
+    parts = re.split(r"\s+[-–—]\s+|\s*[:|]\s*", raw, maxsplit=1)
+    if len(parts) == 2:
+        name = parts[0].strip() or None
+        phone_raw = parts[1].strip()
+        phone = _normalize_phone_safe(phone_raw)
+        if phone is None:
+            logger.warning(
+                "Emergency contact parsing failed",
+                extra={
+                    "field": "emergency_contact",
+                    "original_value": value,
+                    "parsed_value": {"name": name, "phone": phone},
+                },
+            )
+        return name, phone
+
+    if not any(char.isalpha() for char in raw):
+        phone = _normalize_phone_safe(raw)
+        if phone:
+            return None, phone
+
+    logger.warning(
+        "Emergency contact parsing failed",
+        extra={
+            "field": "emergency_contact",
+            "original_value": value,
+            "parsed_value": {"name": raw or None, "phone": None},
+        },
+    )
+    return raw or None, None
 
 
 @router.get(
@@ -113,6 +208,10 @@ async def list_patients(
     created_before: Optional[datetime] = Query(
         None, description="Filter patients created before this datetime"
     ),
+    include_quarantined: bool = Query(
+        False,
+        description="Include quarantined patients in the list (default: false)",
+    ),
     sort_by: Optional[str] = Query("created_at", description="Sort by field"),
     sort_order: Optional[str] = Query(
         "desc", pattern="^(asc|desc)$", description="Sort order"
@@ -137,6 +236,7 @@ async def list_patients(
         has_active_flow: Filter by active flow state.
         created_after: Filter by creation date (after).
         created_before: Filter by creation date (before).
+        include_quarantined: Include quarantined patients in results.
         sort_by: Field to sort by.
         sort_order: Sort order (asc/desc).
 
@@ -163,6 +263,7 @@ async def list_patients(
             "has_active_flow": has_active_flow,
             "created_after": created_after,
             "created_before": created_before,
+            "include_quarantined": include_quarantined,
         }
 
         # RBAC: Non-admin users can only see their own patients
@@ -284,6 +385,7 @@ async def get_patient(
 @limiter.limit("60/hour")  # Production limit
 async def create_patient(
     request: Request,
+    response: Response,
     patient_data: PatientV2Create,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user_from_session),
@@ -291,6 +393,15 @@ async def create_patient(
 ):
     """
     Create a new patient with full saga orchestration.
+
+    Clinical Fields Format:
+    - allergies: Comma, semicolon, or newline-delimited string
+      Examples: "Penicilina, Dipirona" or "Penicilina; Dipirona"
+    - medications: Same format as allergies
+      Examples: "Levotiroxina 100mcg, Metformina 500mg"
+    - emergency_contact: "Name - Phone" or "Name: Phone" format
+      Examples: "Maria Silva - (11) 99999-9999" or "Maria Silva: 11999999999"
+      Note: Phone will be normalized to E.164 format
 
     Args:
         request: FastAPI request object.
@@ -307,6 +418,8 @@ async def create_patient(
         ForbiddenError: 403 if doctor tries to create patient for another doctor.
         BusinessRuleError: 400 if creation fails.
     """
+    start_time = time.monotonic()
+
     # QW-004: Database-level idempotency key support for duplicate request prevention
     if x_idempotency_key:
         repo = PatientRepository(db)
@@ -314,9 +427,21 @@ async def create_patient(
         if existing:
             # SECURITY: ensure current user can access this patient
             await ensure_patient_access(current_user, existing.doctor_id)
-            logger.info(
-                f"Idempotency key {x_idempotency_key} already processed (DB), returning existing patient"
+            duration_seconds = time.monotonic() - start_time
+            patient_create_idempotency_hits.labels(source="db").inc()
+            patient_create_duration.labels(idempotent="true").observe(
+                duration_seconds
             )
+            logger.info(
+                "Idempotency hit (DB)",
+                extra={
+                    "idempotency_key": x_idempotency_key,
+                    "patient_id": str(existing.id),
+                    "source": "db",
+                    "duration_ms": int(duration_seconds * 1000),
+                },
+            )
+            response.status_code = status.HTTP_200_OK
             return await serialize_patient(existing)
 
         # QW-006: Redis cache fallback for fast idempotency checks (secondary layer)
@@ -330,10 +455,52 @@ async def create_patient(
                 if cached_result:
                     import json
 
-                    logger.info(
-                        f"Idempotency key {x_idempotency_key} found in Redis cache"
+                    cached_payload = json.loads(cached_result)
+                    cached_doctor_id = cached_payload.get("doctor_id")
+                    cached_patient_id = cached_payload.get("id")
+
+                    if not cached_doctor_id:
+                        if not cached_patient_id:
+                            raise ValidationError(
+                                "Cached patient is missing identifier", field="patient_id"
+                            )
+                        cached_patient_uuid = await ensure_uuid(cached_patient_id)
+                        if not cached_patient_uuid:
+                            raise ValidationError(
+                                "Invalid patient ID format", field="patient_id"
+                            )
+                        cached_patient = repo.get_by_id(cached_patient_uuid)
+                        if not cached_patient:
+                            raise NotFoundError("Patient", cached_patient_id)
+                        cached_doctor_id = cached_patient.doctor_id
+
+                    cached_doctor_uuid = (
+                        cached_doctor_id
+                        if isinstance(cached_doctor_id, UUID)
+                        else await ensure_uuid(cached_doctor_id)
                     )
-                    return json.loads(cached_result)
+                    if not cached_doctor_uuid:
+                        raise ValidationError(
+                            "Invalid doctor ID format", field="doctor_id"
+                        )
+                    await ensure_patient_access(current_user, cached_doctor_uuid)
+
+                    duration_seconds = time.monotonic() - start_time
+                    patient_create_idempotency_hits.labels(source="redis").inc()
+                    patient_create_duration.labels(idempotent="true").observe(
+                        duration_seconds
+                    )
+                    logger.info(
+                        "Idempotency hit (Redis)",
+                        extra={
+                            "idempotency_key": x_idempotency_key,
+                            "patient_id": cached_payload.get("id"),
+                            "source": "redis",
+                            "duration_ms": int(duration_seconds * 1000),
+                        },
+                    )
+                    response.status_code = status.HTTP_200_OK
+                    return cached_payload
             except Exception as redis_err:
                 logger.debug(
                     f"Idempotency cache check failed (non-critical): {redis_err}"
@@ -368,10 +535,94 @@ async def create_patient(
     coordinator = get_onboarding_coordinator(db, saga_orchestrator)
 
     try:
+        # FIX: Normalize phone to E.164 format for saga/v1 compatibility
+        # V2 HYBRID mode preserves original format, but saga expects E.164
+
+        original_phone = patient_data.phone
+        normalized_phone = normalize_phone(
+            original_phone,
+            mode=PhoneValidationMode.BR_TO_E164,  # Force E.164 conversion
+            allow_none=False,
+        )
+        logger.info(
+            "Phone normalized for patient creation",
+            extra={
+                "phone_original": original_phone,
+                "phone_normalized": normalized_phone,
+                "validation_mode": "BR_TO_E164",
+                "context": "api_v2",
+            },
+        )
+        
+        # SCHEMA-COMPLIANT MAPPING (fixes HIGH issues)
+        # PatientCreate expects: allergies/current_medications as list[str],
+        # emergency_contact_name/phone as separate str fields
+        
+        # Convert v2 strings to v1 expected types (list[str])
+        allergies_list = _split_list(patient_data.allergies, field="allergies")
+        meds_list = _split_list(patient_data.medications, field="medications")
+        
+        # Parse emergency contact (v2 string -> v1 name + phone)
+        emergency_name, emergency_phone = _parse_emergency_contact(
+            patient_data.emergency_contact
+        )
+
+        # Build metadata with Pydantic validation
+        metadata = {}
+        extras = {}
+        if patient_data.patient_data:
+            try:
+                validated_metadata = PatientMetadataV2(**patient_data.patient_data)
+                metadata = validated_metadata.model_dump(exclude_none=True)
+            except PydanticValidationError as e:
+                for error in e.errors():
+                    if not error.get("loc"):
+                        continue
+                    field_path = ".".join(str(loc) for loc in error["loc"])
+                    field_root = error["loc"][0]
+                    field_value = patient_data.patient_data.get(field_root)
+
+                    if error["type"] == "extra_forbidden":
+                        extras[field_root] = field_value
+                        logger.warning(
+                            "Metadata key moved to custom_fields due to unknown key",
+                            extra={
+                                "field": f"patient_data.{field_path}",
+                                "original_value": field_value,
+                                "parsed_value": "custom_fields",
+                            },
+                        )
+                    else:
+                        extras[field_root] = field_value
+                        logger.warning(
+                            "Metadata key moved to custom_fields due to type mismatch",
+                            extra={
+                                "field": f"patient_data.{field_path}",
+                                "original_value": field_value,
+                                "parsed_value": "custom_fields",
+                                "error": error["msg"],
+                            },
+                        )
+
+                valid_fields = {
+                    k: v
+                    for k, v in patient_data.patient_data.items()
+                    if k not in extras
+                }
+                if valid_fields:
+                    validated_metadata = PatientMetadataV2(**valid_fields)
+                    metadata = validated_metadata.model_dump(exclude_none=True)
+        if extras:
+            # Ensure custom_fields is a dict before update
+            existing_cf = metadata.get("custom_fields")
+            if existing_cf is None or not isinstance(existing_cf, dict):
+                metadata["custom_fields"] = {}
+            metadata["custom_fields"].update(extras)
+        
         # Create using specialized Onboarding Coordinator
         created = await coordinator.create_patient(
             patient_data=PatientCreate(
-                phone=patient_data.phone,
+                phone=normalized_phone,  # Use normalized E.164 phone
                 name=patient_data.name,
                 email=patient_data.email,
                 birth_date=patient_data.birth_date,
@@ -382,6 +633,13 @@ async def create_patient(
                 diagnosis=patient_data.diagnosis,
                 treatment_phase=patient_data.treatment_phase,
                 timezone=patient_data.timezone,
+                # Clinical fields as proper types (not in metadata)
+                allergies=allergies_list,
+                current_medications=meds_list,
+                blood_type=patient_data.blood_type,
+                emergency_contact_name=emergency_name,
+                emergency_contact_phone=emergency_phone,
+                metadata=metadata if metadata else None,
             ),
             doctor_id=doctor_uuid,
             current_user=current_user,
@@ -405,6 +663,18 @@ async def create_patient(
                         f"Idempotency cache store failed (non-critical): {redis_err}"
                     )
 
+        duration_seconds = time.monotonic() - start_time
+        patient_create_idempotency_misses.inc()
+        patient_create_duration.labels(idempotent="false").observe(duration_seconds)
+        logger.info(
+            "New patient created",
+            extra={
+                "idempotency_key": x_idempotency_key,
+                "patient_id": result.get("id") if isinstance(result, dict) else None,
+                "source": "create",
+                "duration_ms": int(duration_seconds * 1000),
+            },
+        )
         return result
 
     except (ForbiddenError, ValidationError, NotFoundError, BusinessRuleError):

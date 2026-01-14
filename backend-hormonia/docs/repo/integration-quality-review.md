@@ -134,7 +134,7 @@ SESSION_COOKIE_HTTPONLY=true     # XSS protection
 SESSION_COOKIE_SAMESITE=lax      # CSRF protection
 
 # Rate Limiting
-RATE_LIMIT_ENABLED=true
+RATE_LIMIT_ENABLE_SERVICE=true
 RATE_LIMIT_REDIS_URL=rediss://...
 ```
 

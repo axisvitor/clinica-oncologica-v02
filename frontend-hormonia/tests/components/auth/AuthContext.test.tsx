@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
+import { safeLocalStorage } from '@/app/providers/AuthContext'
 import {
   mockUser,
   mockSession,
@@ -57,19 +58,21 @@ describe('AuthContext (Firebase)', () => {
     mockApiClient.auth.me.mockResolvedValue({ data: mockUser })
     mockFirebaseAuth.isConfigured.mockReturnValue(true)
     mockFirebaseAuth.getCurrentUser.mockResolvedValue(mockFirebaseUser as any)
-    ;(mockFirebaseUser.getIdToken as unknown as ReturnType<typeof vi.fn>).mockResolvedValue('firebase-token')
+      ; (mockFirebaseUser.getIdToken as unknown as ReturnType<typeof vi.fn>).mockResolvedValue('firebase-token')
     mockFirebaseAuth.onAuthStateChanged.mockImplementation(async (handler: (user: any) => void) => {
       await handler(mockFirebaseUser as any)
-      return () => {}
+      return () => { }
     })
-    mockFirebaseAuth.onIdTokenChanged.mockResolvedValue(() => {})
+    mockFirebaseAuth.onIdTokenChanged.mockResolvedValue(() => { })
     mockFirebaseAuth.signOut.mockResolvedValue({ error: null })
     mockLoginUser.mockResolvedValue({ user: mockUser, session_id: 'session-abc' })
     mockLogoutAllDevices.mockResolvedValue({ sessions_deleted: 1 })
+    vi.spyOn(safeLocalStorage, 'setItem')
+    vi.spyOn(safeLocalStorage, 'removeItem')
   })
 
   it('throws when useAuth is called outside provider', () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { })
     expect(() => renderHook(() => useAuth())).toThrow('useAuth must be used within an AuthProvider')
     consoleSpy.mockRestore()
   })
@@ -96,6 +99,7 @@ describe('AuthContext (Firebase)', () => {
     expect(mockLoginUser).toHaveBeenCalledWith('admin@example.com', 'secret123')
     expect(mockFirebaseAuth.setPersistence).toHaveBeenCalledWith(true)
     expect(mockWsManager.connect).toHaveBeenCalledWith('firebase-token')
+    expect(safeLocalStorage.setItem).toHaveBeenCalledWith('session_id', 'session-abc')
   })
 
   it('signs out and clears session data', async () => {
@@ -112,6 +116,7 @@ describe('AuthContext (Firebase)', () => {
     expect(mockFirebaseAuth.signOut).toHaveBeenCalled()
     expect(mockWsManager.disconnect).toHaveBeenCalled()
     expect(mockApiClient.clearAuthToken).toHaveBeenCalledTimes(2)
+    expect(safeLocalStorage.removeItem).toHaveBeenCalledWith('session_id')
   })
 
   it('invalidates all sessions via logoutAll', async () => {
@@ -127,5 +132,6 @@ describe('AuthContext (Firebase)', () => {
 
     expect(mockLogoutAllDevices).toHaveBeenCalled()
     expect(mockWsManager.disconnect).toHaveBeenCalled()
+    expect(safeLocalStorage.removeItem).toHaveBeenCalledWith('session_id')
   })
 })

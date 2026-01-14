@@ -198,7 +198,8 @@ class SagaCompensator:
                 return
             except Exception as e:
                 last_error = e
-                wait_time = (2**attempt) * 0.5
+                # Backoff: 1s, 2s, 4s (spec: 1/2/4s)
+                wait_time = (2**attempt) * 1.0
                 logger.warning(
                     f"Saga {saga.id}: {step_name} compensation attempt "
                     f"{attempt + 1}/{max_retries} failed: {e}. "
@@ -206,6 +207,7 @@ class SagaCompensator:
                 )
                 if attempt < max_retries - 1:
                     await asyncio.sleep(wait_time)
+
 
         logger.error(
             f"Saga {saga.id}: {step_name} compensation failed after "
@@ -378,6 +380,7 @@ class SagaCompensator:
         Track compensation failures for audit and manual recovery.
 
         QW-002: Proper error tracking for compensation failures.
+        P1-FIX: Creates Alert record and quarantines affected patient.
 
         Args:
             saga_id: UUID of the saga
@@ -385,6 +388,7 @@ class SagaCompensator:
             error: Exception that occurred
         """
         try:
+            # Track in Redis (7 days retention)
             if self.redis:
                 failure_key = f"saga:compensation_failure:{saga_id}"
                 failure_data = {
@@ -395,12 +399,151 @@ class SagaCompensator:
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
                 self.redis.setex(
-                    failure_key, 86400 * 7, json.dumps(failure_data)
+                    failure_key, 86400 * 7, json.dumps(failure_data)  # 7 days
                 )
                 logger.warning(
                     f"Compensation failure tracked in Redis: {failure_key}"
                 )
-        except Exception as redis_error:
+
+            # Fetch saga to get patient_id
+            from app.models.patient_onboarding_saga import PatientOnboardingSaga
+            saga = (
+                self.db.query(PatientOnboardingSaga)
+                .filter(PatientOnboardingSaga.id == saga_id)
+                .first()
+            )
+
+            patient_id = saga.patient_id if saga else None
+
+            # Create Alert record with HIGH severity
+            if patient_id:
+                from app.models.alert import Alert, AlertSeverity
+
+                alert = Alert(
+                    patient_id=patient_id,
+                    alert_type="SAGA_COMPENSATION_FAILURE",
+                    severity=AlertSeverity.HIGH,
+                    description=(
+                        f"Saga compensation failed at step {step}. "
+                        f"Error: {str(error)[:500]}. "
+                        f"Manual intervention required."
+                    ),
+                    data={
+                        "saga_id": str(saga_id),
+                        "failed_step": step,
+                        "error_type": type(error).__name__,
+                        "error_message": str(error)[:1000],
+                    },
+                    acknowledged=False,
+                )
+                self.db.add(alert)
+                logger.info(
+                    f"Created SAGA_COMPENSATION_FAILURE alert for patient {patient_id}"
+                )
+
+                # Notify team without blocking compensation tracking.
+                try:
+                    from app.services.notification_service import (
+                        get_notification_service,
+                    )
+
+                    notification_service = get_notification_service()
+                    logger.info(
+                        "Sending compensation failure alert notification",
+                        extra={
+                            "saga_id": str(saga_id),
+                            "patient_id": str(patient_id),
+                            "failed_step": step,
+                            "error_type": type(error).__name__,
+                        },
+                    )
+                    await notification_service.send_alert(
+                        alert_type="SAGA_COMPENSATION_FAILURE",
+                        title=(
+                            f"Compensacao de Saga Falhou - Patient {patient_id}"
+                        ),
+                        description=(
+                            "Saga compensation failure detected. "
+                            f"Saga ID: {saga_id}. "
+                            f"Patient ID: {patient_id}. "
+                            f"Failed step: {step}. "
+                            f"Error: {str(error)[:500]}"
+                        ),
+                        severity="high",
+                        context={
+                            "saga_id": str(saga_id),
+                            "patient_id": str(patient_id),
+                            "failed_step": step,
+                            "error_type": type(error).__name__,
+                            "error_message": str(error)[:1000],
+                        },
+                    )
+                    logger.info(
+                        "Compensation failure alert notification sent",
+                        extra={
+                            "saga_id": str(saga_id),
+                            "patient_id": str(patient_id),
+                            "alert_type": "SAGA_COMPENSATION_FAILURE",
+                        },
+                    )
+                except Exception as notification_error:
+                    logger.error(
+                        "Failed to send compensation failure alert notification",
+                        extra={
+                            "saga_id": str(saga_id),
+                            "patient_id": str(patient_id),
+                            "error": str(notification_error),
+                        },
+                        exc_info=True,
+                    )
+
+                # Quarantine patient by setting patient_data['quarantine']=true
+                from app.models.patient import Patient
+                from sqlalchemy.orm.attributes import flag_modified
+
+                patient = (
+                    self.db.query(Patient)
+                    .filter(Patient.id == patient_id)
+                    .first()
+                )
+                if patient:
+                    if patient.patient_data is None:
+                        patient.patient_data = {}
+                    patient.patient_data["quarantine"] = True
+                    patient.patient_data["quarantine_reason"] = (
+                        "saga_compensation_failure"
+                    )
+                    patient.patient_data["quarantine_at"] = (
+                        datetime.now(timezone.utc).isoformat()
+                    )
+                    patient.patient_data["saga_id"] = str(saga_id)
+                    flag_modified(patient, "patient_data")
+                    logger.warning(
+                        f"Patient {patient_id} quarantined due to compensation failure"
+                    )
+
+                # Flush changes (will be committed by caller)
+                self.db.flush()
+
+            # Send Sentry notification
+            try:
+                from app.core.monitoring_config import capture_message, capture_exception
+                capture_message(
+                    f"Saga compensation failure: {saga_id}",
+                    level="error",
+                    extra={
+                        "saga_id": str(saga_id),
+                        "patient_id": str(patient_id) if patient_id else None,
+                        "step": step,
+                        "error": str(error),
+                        "error_type": type(error).__name__,
+                    },
+                )
+            except Exception as sentry_error:
+                logger.error(f"Failed to send Sentry notification: {sentry_error}")
+
+        except Exception as tracking_error:
             logger.error(
-                f"Failed to track compensation failure in Redis: {redis_error}"
+                f"Failed to track compensation failure: {tracking_error}",
+                exc_info=True,
             )

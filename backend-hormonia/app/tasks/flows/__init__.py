@@ -21,7 +21,7 @@ from .batch_tasks import (
     _get_fallback_template,
 )
 from .cleanup_tasks import cleanup_old_flow_data
-from .monitoring import monitor_flow_task_health
+from .monitoring import monitor_flow_task_health, evaluate_flow_alerts
 
 # Export all for Celery autodiscovery
 __all__ = [
@@ -44,4 +44,5 @@ __all__ = [
     "cleanup_old_flow_data",
     # Monitoring tasks
     "monitor_flow_task_health",
+    "evaluate_flow_alerts",
 ]

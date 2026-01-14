@@ -61,6 +61,7 @@ class FirebaseRedisCache(SessionCacheMixin):
         self.token_ttl = getattr(settings, "FIREBASE_TOKEN_CACHE_TTL", 3600)  # 1 hour
         self.user_ttl = getattr(settings, "FIREBASE_USER_CACHE_TTL", 7200)  # 2 hours
         self.session_ttl = getattr(settings, "FIREBASE_SESSION_TTL", 86400)  # 24 hours
+        self.max_session_age = getattr(settings, "SESSION_MAX_AGE_SECONDS", 604800)  # 7 days
 
     # === LAYER 1: TOKEN VALIDATION CACHE ===
 
@@ -205,6 +206,58 @@ class FirebaseRedisCache(SessionCacheMixin):
         return stats
 
     # === ASYNC COMPATIBILITY METHODS ===
+    def _is_async_method(self, method) -> bool:
+        """Detect if a Redis client method is async."""
+        return asyncio.iscoroutinefunction(method)
+
+    async def _execute(self, method, *args, **kwargs):
+        """Execute Redis method with sync/async compatibility."""
+        if self._is_async_method(method):
+            return await method(*args, **kwargs)
+        return await asyncio.to_thread(method, *args, **kwargs)
+
+    async def get(self, key: str) -> Optional[Any]:
+        """Generic async get wrapper for cache usage."""
+        return await self._execute(self.redis.get, key)
+
+    async def set(self, key: str, value: Any, ex: Optional[int] = None, **kwargs) -> bool:
+        """Generic async set wrapper for cache usage."""
+        return await self._execute(self.redis.set, key, value, ex=ex, **kwargs)
+
+    async def setex(self, key: str, seconds: int, value: Any) -> bool:
+        """Generic async setex wrapper for cache usage."""
+        return await self._execute(self.redis.setex, key, seconds, value)
+
+    async def sadd(self, key: str, *values: Any) -> int:
+        """Generic async sadd wrapper for cache usage."""
+        return await self._execute(self.redis.sadd, key, *values)
+
+    async def smembers(self, key: str):
+        """Generic async smembers wrapper for cache usage."""
+        return await self._execute(self.redis.smembers, key)
+
+    async def expire(self, key: str, seconds: int) -> bool:
+        """Generic async expire wrapper for cache usage."""
+        return await self._execute(self.redis.expire, key, seconds)
+
+    async def zadd(self, key: str, mapping: dict) -> int:
+        """Generic async zadd wrapper for cache usage."""
+        return await self._execute(self.redis.zadd, key, mapping)
+
+    async def zrange(self, key: str, start: int, end: int, **kwargs):
+        """Generic async zrange wrapper for cache usage."""
+        return await self._execute(self.redis.zrange, key, start, end, **kwargs)
+
+    async def delete(self, *keys: str) -> int:
+        """Generic async delete wrapper for cache usage."""
+        return await self._execute(self.redis.delete, *keys)
+
+    async def delete_pattern(self, pattern: str) -> int:
+        """Delete keys matching a pattern for cache invalidation."""
+        keys = await self._execute(self.redis.keys, pattern)
+        if not keys:
+            return 0
+        return await self._execute(self.redis.delete, *keys)
 
     async def get_user_by_uid(self, firebase_uid: str) -> Optional[Dict[str, Any]]:
         """

@@ -7,6 +7,7 @@ idempotency protection.
 """
 
 import hashlib
+import json
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime, timedelta, timezone
@@ -83,13 +84,14 @@ class WebhookEventStore:
                 RETURNING id
             """)
 
+            payload_json = json.dumps(payload, default=str)
             result = self.db.execute(
                 insert_stmt,
                 {
                     "id": str(event_id),
                     "event_type": event_type,
                     "source": source,
-                    "payload": payload,
+                    "payload": payload_json,
                     "processed": False,
                     "retry_count": 0,
                     "max_retries": 3,
@@ -157,7 +159,7 @@ class WebhookEventStore:
         """
         Atomic event persistence with explicit event ID.
 
-        QW-006: Uses INSERT ON CONFLICT for atomic idempotency using event_id.
+        QW-006: Uses INSERT ON CONFLICT for atomic idempotency using event_hash.
 
         Args:
             event_id: Explicit event identifier
@@ -175,31 +177,34 @@ class WebhookEventStore:
         """
         try:
             db_uuid = uuid4()
+            event_hash = hashlib.sha256(
+                f"{event_type}:{event_id}".encode("utf-8")
+            ).hexdigest()
 
-            # Atomic INSERT ON CONFLICT using event_id
+            # Atomic INSERT ON CONFLICT using event_hash (matches schema)
             insert_stmt = text("""
                 INSERT INTO webhook_events (
-                    id, event_id, event_type, source, payload, processed,
+                    id, event_type, source, payload, processed,
                     retry_count, max_retries, related_message_id, related_patient_id,
-                    is_duplicate, created_at
+                    event_hash, is_duplicate, created_at
                 )
                 VALUES (
-                    :id, :event_id, :event_type, :source, :payload, :processed,
+                    :id, :event_type, :source, :payload, :processed,
                     :retry_count, :max_retries, :related_message_id, :related_patient_id,
-                    :is_duplicate, NOW()
+                    :event_hash, :is_duplicate, NOW()
                 )
-                ON CONFLICT (event_id) DO NOTHING
+                ON CONFLICT (event_hash) DO NOTHING
                 RETURNING id
             """)
 
+            payload_json = json.dumps(payload, default=str)
             result = self.db.execute(
                 insert_stmt,
                 {
                     "id": str(db_uuid),
-                    "event_id": event_id,
                     "event_type": event_type,
                     "source": source,
-                    "payload": payload,
+                    "payload": payload_json,
                     "processed": False,
                     "retry_count": 0,
                     "max_retries": 3,
@@ -209,6 +214,7 @@ class WebhookEventStore:
                     "related_patient_id": str(related_patient_id)
                     if related_patient_id
                     else None,
+                    "event_hash": event_hash,
                     "is_duplicate": False,
                 },
             )
@@ -222,8 +228,8 @@ class WebhookEventStore:
             else:
                 # Duplicate - fetch existing
                 existing = self.db.execute(
-                    text("SELECT id FROM webhook_events WHERE event_id = :eid LIMIT 1"),
-                    {"eid": event_id},
+                    text("SELECT id FROM webhook_events WHERE event_hash = :hash LIMIT 1"),
+                    {"hash": event_hash},
                 ).fetchone()
 
                 existing_uuid = UUID(existing[0]) if existing else None

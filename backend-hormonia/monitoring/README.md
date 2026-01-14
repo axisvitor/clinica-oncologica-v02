@@ -11,7 +11,7 @@ cd monitoring
 
 # Configure environment
 cp .env.example .env
-# Edit .env with your settings (Redis host, Slack webhooks, etc.)
+# Edit .env with your settings (Redis host, PagerDuty keys, SMTP, etc.)
 
 # Start all services
 docker-compose -f docker-compose.monitoring.yml up -d
@@ -41,7 +41,6 @@ docker-compose -f docker-compose.monitoring.yml ps
 1. **Update Alertmanager config:**
    ```bash
    vim alertmanager/alertmanager.yml
-   # Update Slack webhook URL
    # Update PagerDuty service key
    # Update email SMTP settings
    ```
@@ -82,7 +81,6 @@ docker-compose -f docker-compose.monitoring.yml ps
 └─────────────┘                                            ▼
                                                       Alertmanager
                                                            │
-                                                           ├──> Slack
                                                            ├──> PagerDuty
                                                            └──> Email
 
@@ -124,12 +122,12 @@ docker-compose -f docker-compose.monitoring.yml ps
 
 ## Alerting Rules
 
-### Critical Alerts (PagerDuty + Slack)
+### Critical Alerts (PagerDuty)
 - `CriticalQuizAbandonmentRate` - Abandonment > 40%
 - `CriticalQuizSendLatency` - p95 > 5s
 - `RedisMetricsUnavailable` - Metrics collection stopped
 
-### Warning Alerts (Slack)
+### Warning Alerts (Email)
 - `HighQuizAbandonmentRate` - Abandonment > 20%
 - `HighQuizSendLatency` - p95 > 2s
 - `HighClarificationRate` - Clarifications > 15%
@@ -230,14 +228,13 @@ docker logs hormonia-redis-exporter
 ## Production Deployment Checklist
 
 - [ ] Configure production Redis host in `.env`
-- [ ] Update Slack webhook URLs in `alertmanager/alertmanager.yml`
 - [ ] Set PagerDuty service key in `alertmanager/alertmanager.yml`
 - [ ] Configure SMTP for email alerts
 - [ ] Set Grafana admin password (change from default)
 - [ ] Enable HTTPS for Grafana (reverse proxy or TLS config)
 - [ ] Configure remote write for long-term Prometheus storage (optional)
 - [ ] Set up backup for Grafana dashboards (provisioning or API)
-- [ ] Test alert delivery to all channels (Slack, PagerDuty, email)
+- [ ] Test alert delivery to all channels (PagerDuty, email)
 - [ ] Document on-call rotation and escalation procedures
 - [ ] Train team on dashboard interpretation and runbook usage
 - [ ] Set up log aggregation (integrate with ELK/Loki)
@@ -251,7 +248,6 @@ docker logs hormonia-redis-exporter
 - **Runbook**: [docs/RUNBOOK_QUIZ_METRICS.md](../docs/RUNBOOK_QUIZ_METRICS.md)
 - **Code**: [app/services/quiz_metrics.py](../app/services/quiz_metrics.py)
 - **Issues**: https://github.com/your-org/hormonia/issues
-- **Slack**: #quiz-system-alerts
 
 ## License
 

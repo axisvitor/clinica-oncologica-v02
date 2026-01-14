@@ -44,9 +44,13 @@ from app.schemas.websocket import WebSocketEventType
 from app.exceptions import ExternalServiceError
 from app.config import settings
 # Use Redis-backed circuit breaker for cross-worker consistency
-from app.core.redis_circuit_breaker import RedisCircuitBreaker as CircuitBreaker
+from app.core.redis_circuit_breaker import (
+    RedisCircuitBreaker as CircuitBreaker,
+    CircuitOpenError,
+)
 from app.core.tracing import get_tracer
 from app.domain.analytics.quiz import get_quiz_metrics_collector
+from app.integrations.whatsapp.metrics import whatsapp_metrics
 
 
 logger = logging.getLogger(__name__)
@@ -264,24 +268,27 @@ class UnifiedWhatsAppService:
 
         Returns:
             True if message was queued successfully
+            
+        Raises:
+            ExternalServiceError: If sending fails (for Celery retry handling)
         """
+        send_start = datetime.now(timezone.utc)
+        kwargs.get("flow_context")
+
+        # Track metrics
+        self.metrics["messages_sent"] += 1
+
+        # Add unified metadata
+        self._add_unified_metadata(message, **kwargs)
+
         try:
-            send_start = datetime.now(timezone.utc)
-            kwargs.get("flow_context")
-
-            # Track metrics
-            self.metrics["messages_sent"] += 1
-
-            # Add unified metadata
-            self._add_unified_metadata(message, **kwargs)
-
-            # Route to queue pipeline
+            # Route to queue pipeline - may raise ExternalServiceError
             success = await self._send_via_queue(message, **kwargs)
+            
             if success:
                 self.metrics["queue_processed"] += 1
 
-            # Record send latency metric for quiz messages
-            if success:
+                # Record send latency metric for quiz messages
                 try:
                     metadata = message.message_metadata or {}
                     template_type = metadata.get("template_type", "unknown")
@@ -298,20 +305,23 @@ class UnifiedWhatsAppService:
                 except Exception as e:
                     logger.debug(f"Failed to record send latency metric: {e}")
 
-            # Execute unified callbacks
-            if success:
+                # Execute success callbacks
                 await self._execute_success_callbacks(message, **kwargs)
-            else:
-                await self._execute_failure_callbacks(message, **kwargs)
-                self.metrics["messages_failed"] += 1
 
             return success
 
+        except ExternalServiceError:
+            # Propagate ExternalServiceError for Celery retry handling
+            # Do NOT mark as failed here - let the task handle it after max retries
+            self.metrics["messages_failed"] += 1
+            await self._execute_failure_callbacks(message, **kwargs)
+            raise
         except Exception as e:
             logger.error(f"Unified message send failed for {message.id}: {e}")
             self.metrics["messages_failed"] += 1
             await self._execute_failure_callbacks(message, str(e), **kwargs)
-            return False
+            # Wrap in ExternalServiceError for consistent retry handling
+            raise ExternalServiceError(f"Message send failed: {e}") from e
 
     def _add_unified_metadata(self, message: Message, **kwargs):
         """Add unified metadata to message."""
@@ -352,25 +362,10 @@ class UnifiedWhatsAppService:
         Send message via queue pipeline with circuit breaker protection.
 
         WA-004: Circuit breaker protects against Evolution API failures
+        
+        Note: This method does NOT mark messages as FAILED on transient failures.
+        The Celery task is responsible for marking FAILED only after exhausting retries.
         """
-        # WA-004 FIX: Check circuit breaker before processing
-        if not self._evolution_breaker.can_execute():
-            logger.warning(
-                "Evolution API circuit breaker OPEN - skipping message send",
-                extra={
-                    "message_id": message.id,
-                    "breaker_state": self._evolution_breaker.get_state().value,
-                },
-            )
-            await self._mark_message_failed(
-                message,
-                {
-                    "error": "Circuit breaker open",
-                    "message": "Evolution API temporarily unavailable",
-                },
-            )
-            return False
-
         try:
             # Convert legacy message to queue format
             queue_request = await self._convert_to_queue_request(message)
@@ -378,34 +373,43 @@ class UnifiedWhatsAppService:
             # Get queue service
             queue_service = await self._get_queue_service()
 
-            # Send via queue
-            response = await queue_service.send_message(queue_request)
+            async def _send_request():
+                return await queue_service.send_message(queue_request)
 
-            # WA-004: Record success in circuit breaker
-            self._evolution_breaker.record_success()
+            # Send via queue with Redis-backed circuit breaker
+            response = await self._evolution_breaker.call(_send_request)
 
             if response.status == WhatsAppMessageStatus.PENDING:
                 logger.info(f"Message {message.id} queued successfully")
                 return True
             else:
-                logger.error(
-                    f"Queue send failed for message {message.id}: {response.message}"
+                # Do NOT mark as failed - let Celery retry handle it
+                logger.warning(
+                    f"Queue send returned non-pending status for message {message.id}: {response.message}"
                 )
-                await self._mark_message_failed(
-                    message, {"error": f"Queue send failed: {response.message}"}
+                raise ExternalServiceError(
+                    f"Queue send failed: {response.message}"
                 )
-                return False
 
+        except CircuitOpenError as exc:
+            breaker_state = await self._evolution_breaker.get_state_async()
+            logger.warning(
+                "Evolution API circuit breaker OPEN - skipping message send",
+                extra={
+                    "message_id": str(message.id),
+                    "breaker_state": breaker_state.value,
+                },
+            )
+            raise ExternalServiceError(
+                f"Circuit breaker open for Evolution API (state: {breaker_state.value})"
+            ) from exc
+        except ExternalServiceError as exc:
+            logger.error(f"Queue send failed for message {message.id}: {exc}")
+            raise
         except Exception as e:
             logger.error(f"Queue send failed for message {message.id}: {e}")
-
-            # WA-004: Record failure in circuit breaker
-            self._evolution_breaker.record_failure()
-
-            await self._mark_message_failed(
-                message, {"error": "Queue send failed", "message": str(e)}
-            )
-            return False
+            # Do NOT mark as failed - propagate error for Celery retry
+            raise ExternalServiceError(f"Queue send failed: {e}") from e
 
     async def _convert_to_queue_request(self, message: Message) -> MessageRequest:
         """
@@ -678,28 +682,68 @@ class UnifiedWhatsAppService:
         Returns:
             Health status information
         """
-        health = {
+        health: Dict[str, Any] = {
             "service": "unified_whatsapp",
             "status": "healthy",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "components": {},
         }
 
+        def _set_component_status(name: str, status: str, details: Any = None) -> None:
+            payload = {"status": status}
+            if details is not None:
+                payload["details"] = details
+            health["components"][name] = payload
+
+            if status == "unhealthy":
+                health["status"] = "unhealthy"
+            elif status == "degraded" and health["status"] != "unhealthy":
+                health["status"] = "degraded"
+
         # Check queue client
         try:
             await self._get_queue_client()
-            health["components"]["queue_client"] = "healthy"
+            _set_component_status("queue_client", "healthy")
         except Exception as e:
-            health["components"]["queue_client"] = f"unhealthy: {str(e)}"
-            health["status"] = "degraded"
+            _set_component_status("queue_client", "unhealthy", str(e))
 
         # Check queue connection
         try:
             await self.message_queue.connect()
-            health["components"]["message_queue"] = "healthy"
+            _set_component_status("message_queue", "healthy")
         except Exception as e:
-            health["components"]["message_queue"] = f"unhealthy: {str(e)}"
-            health["status"] = "degraded"
+            _set_component_status("message_queue", "unhealthy", str(e))
+
+        # Check Evolution API instance health
+        try:
+            evolution_client = await self._get_queue_client()
+            instance_health = await evolution_client.health_check(
+                self.default_instance_name
+            )
+            instance_status = (
+                "healthy" if instance_health.get("is_connected") else "degraded"
+            )
+            _set_component_status("evolution_instance", instance_status, instance_health)
+        except Exception as e:
+            _set_component_status("evolution_instance", "unhealthy", str(e))
+
+        # Circuit breaker stats
+        try:
+            breaker_stats = await self._evolution_breaker.get_stats_async()
+            breaker_state = breaker_stats.get("state", "unknown")
+            breaker_status = (
+                "healthy"
+                if breaker_state == "closed"
+                else "degraded"
+                if breaker_state in ("open", "half_open")
+                else "unhealthy"
+            )
+            _set_component_status("circuit_breaker", breaker_status, breaker_stats)
+            whatsapp_metrics.set_circuit_breaker_state(
+                self.default_instance_name, "evolution_api", breaker_state
+            )
+        except Exception as e:
+            _set_component_status("circuit_breaker", "unhealthy", str(e))
 
         return health
 
@@ -729,12 +773,13 @@ def create_unified_whatsapp_service(
 
     Args:
         db: Database session
-        messaging_mode: Messaging mode configuration
+        messaging_mode: Messaging mode configuration (kept for backward compatibility, not used)
         redis_url: Redis URL for queue management
 
     Returns:
         Configured UnifiedWhatsAppService instance
     """
+    # Note: messaging_mode is ignored - service always uses queue mode internally
     return UnifiedWhatsAppService(
-        db=db, messaging_mode=messaging_mode, redis_url=redis_url
+        db=db, redis_url=redis_url
     )

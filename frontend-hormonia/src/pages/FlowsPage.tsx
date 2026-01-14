@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { RefreshCw, AlertCircle } from 'lucide-react'
 import { useFlows, useFlowStats } from '@/hooks/useFlows'
 import { FlowsStats } from '@/features/flows/FlowsStats'
+import { FlowAnalyticsDashboard } from '@/features/flows/FlowAnalyticsDashboard'
 import { FlowsTable } from '@/features/flows/FlowsTable'
 import { FlowsFilters } from '@/features/flows/FlowsFilters'
 import { Button } from '@/components/ui/button'
@@ -51,6 +52,7 @@ export function FlowsPage() {
       )}
 
       <FlowsStats stats={statsData || undefined} isLoading={statsLoading} />
+      <FlowAnalyticsDashboard stats={statsData} isLoading={statsLoading} />
 
       <div className="space-y-4">
         <div className="flex items-center justify-between">

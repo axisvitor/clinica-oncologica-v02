@@ -107,10 +107,20 @@ class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class UserListResponse(CursorPaginatedResponse[UserResponse]):
-    """Cursor-paginated user list response."""
+class UserListResponse(BaseModel):
+    """User list response with legacy and cursor pagination support."""
 
-    pass
+    data: List[UserResponse]
+    items: Optional[List[UserResponse]] = None
+    users: Optional[List[UserResponse]] = None
+    next_cursor: Optional[str] = Field(None, description="Cursor for next page")
+    has_more: bool = Field(False, description="Whether more items exist")
+    total: Optional[int] = Field(None, description="Total count (optional)")
+    page: Optional[int] = Field(None, description="Current page for offset pagination")
+    size: Optional[int] = Field(None, description="Page size for offset pagination")
+    total_pages: Optional[int] = Field(None, description="Total pages for offset pagination")
+    has_next: Optional[bool] = Field(None, description="Whether next page exists")
+    has_previous: Optional[bool] = Field(None, description="Whether previous page exists")
 
 
 class UserActionResponse(BaseModel):
@@ -239,7 +249,7 @@ class PermissionAssignRequest(BaseModel):
     """Schema for assigning permissions to a user."""
 
     permissions: List[str] = Field(
-        ..., min_length=1, description="List of permission names to assign"
+        ..., description="List of permission names to assign (empty to clear)"
     )
 
     model_config = ConfigDict(

@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, Any
 
-from celery import current_app as celery_app
+from app.task_queue import task_queue as celery_app
 from celery.schedules import crontab
 
 from app.tasks.base import MonitoringTask, get_db_session

@@ -12,6 +12,9 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 
+from app.core.monthly_quiz_config import get_monthly_quiz_config
+from app.domain.quizzes.session import TokenManager
+
 from ._shared import (
     UUID,
     defaultdict,
@@ -221,20 +224,22 @@ async def create_quiz_link(
         db.commit()
         db.refresh(session)
     
-    # Generate Token (Base64 JSON as per public.py)
-    import json
-    import base64
-    
-    token_data = {
-        "quiz_id": str(link_data.quiz_template_id),
-        "exp": int(session.expiration_date.timestamp()) if session.expiration_date else None,
-        "type": "quiz_access"
-    }
-    token = base64.b64encode(json.dumps(token_data).encode()).decode()
-    
-    # Construct Link (Mock frontend URL)
-    # In production, use env var for frontend URL
-    link = f"http://localhost:3000/quiz-mensal/{token}" 
+    # Generate JWT token for access (patient/session scoped)
+    token_manager = TokenManager()
+    expires_at = session.expiration_date or (
+        datetime.now(timezone.utc) + timedelta(hours=48)
+    )
+    token = token_manager.generate_token(
+        patient_id=session.patient_id,
+        quiz_template_id=session.quiz_template_id,
+        expires_at=expires_at,
+        session_id=session.id,
+        token_type="quiz_access",
+    )
+
+    # Construct Link using configured base URL
+    config = get_monthly_quiz_config()
+    link = f"{config.MONTHLY_QUIZ_BASE_URL}?token={token}"
 
     return QuizLinkResponse(
         id=session.id, # Session ID as Link ID for now

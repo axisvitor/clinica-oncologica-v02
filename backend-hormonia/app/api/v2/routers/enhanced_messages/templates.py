@@ -175,7 +175,7 @@ async def list_templates(
         # Simulate getting templates from cache/db
         if category:
             category_key = f"templates:v2:category:{category.value}"
-            template_ids = await redis_cache.smembers(category_key) or []
+            template_ids = list(await redis_cache.smembers(category_key) or [])
 
             for template_id in template_ids[: limit + 1]:
                 template_key = f"template:v2:{template_id}"

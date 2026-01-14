@@ -272,11 +272,10 @@ export class ApiClient extends ApiClientCore {
       // Flow State Operations (V2: /api/v2/flows/{patient_id}/state)
       getState: (patientId: string) => this.get(`/api/v2/flows/${patientId}/state`),
 
-      // start() removed in V2 - flows are assigned through patient customization
       start: (patientId: string, flowType: string) =>
-        this.post(`/api/v2/flows/${patientId}/customize`, {
-          template_id: flowType,
-          schedule_options: { start_immediately: true }
+        this.post(`/api/v2/flows/start`, {
+          patient_id: patientId,
+          flow_type: flowType
         }),
 
       // Flow state control (V2: enhanced with request bodies)
@@ -643,7 +642,7 @@ export class ApiClient extends ApiClientCore {
         }),
 
       getPatientResponses: async (patientId: string, options?: Record<string, unknown>): Promise<PatientQuizResponses> => {
-        const res = await this.get<PaginatedResponse<QuizSession>>(`/api/v2/quiz/patients/${patientId}/responses`, options as Record<string, string | number | boolean>);
+        const res = await this.get<PaginatedResponse<QuizSession>>(`/api/v2/quiz-extensions/responses`, { patient_id: patientId, ...options as Record<string, string | number | boolean> });
         const items = Array.isArray(res?.data) ? res.data : (res?.items ?? []);
         return {
           patient_id: patientId,

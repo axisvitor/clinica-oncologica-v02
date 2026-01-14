@@ -6,7 +6,10 @@ SECURITY: Idempotency protection added to prevent duplicate message processing
 QW-006: Atomic idempotency using Redis SET NX EX to prevent race conditions
 """
 
+import json
 import logging
+import os
+import time
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Request, HTTPException, Depends, BackgroundTasks
@@ -23,9 +26,15 @@ from ..models.message import (
 )
 from app.models.message_events import MessageStatusEvent
 from app.database import get_db
-from app.utils.rate_limiter import limiter
+from app.utils.rate_limiter import limiter, check_rate_limit_redis
 from app.config import settings
 from app.services.webhook.idempotency import AtomicWebhookIdempotency
+from app.integrations.whatsapp.security.hmac_validator import WebhookHMACValidator
+from app.integrations.whatsapp.metrics import whatsapp_metrics
+from app.monitoring.metrics import (
+    webhook_signature_failures_total,
+    webhook_processed_total,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +43,12 @@ router = APIRouter(prefix="/webhooks/whatsapp", tags=["WhatsApp Webhooks"])
 # Redis client for idempotency tracking
 _redis_client: Optional[redis.Redis] = None
 _idempotency_service: Optional[AtomicWebhookIdempotency] = None
+
+HMAC_FAILURE_RATE_LIMIT = 10
+HMAC_FAILURE_RATE_WINDOW = 60
+HMAC_FAILURE_BLOCK_THRESHOLD = 5
+HMAC_FAILURE_BLOCK_SECONDS = 900
+HMAC_FAILURE_TTL_SECONDS = 900
 
 
 async def get_redis() -> redis.Redis:
@@ -53,7 +68,114 @@ async def get_idempotency_service() -> AtomicWebhookIdempotency:
     return _idempotency_service
 
 
-async def is_event_processed(event_id: str, event_type: str = "webhook") -> bool:
+def _get_client_ip(request: Request) -> str:
+    """Resolve client IP, honoring proxy headers when present."""
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+
+    return request.client.host if request.client else "unknown"
+
+
+def _get_hmac_identity(request: Request, instance_name: str) -> str:
+    """Build identity key for HMAC failure tracking."""
+    client_ip = _get_client_ip(request)
+    return f"{client_ip}:{instance_name}"
+
+
+def _get_hmac_failure_keys(identity: str) -> Dict[str, str]:
+    """Get Redis keys for HMAC failure tracking and blocking."""
+    return {
+        "failure": f"whatsapp:webhook:hmac_failures:{identity}",
+        "block": f"whatsapp:webhook:hmac_block:{identity}",
+        "rate_limit": f"rate_limit:whatsapp:hmac_failure:{identity}",
+    }
+
+
+async def _is_hmac_blocked(redis_client: redis.Redis, identity: str) -> bool:
+    """Check if identity is temporarily blocked for HMAC failures."""
+    try:
+        keys = _get_hmac_failure_keys(identity)
+        blocked = await redis_client.get(keys["block"])
+        return blocked is not None
+    except Exception as e:
+        logger.warning(f"Failed to check HMAC block status: {e}")
+        return False
+
+
+async def _register_hmac_failure(
+    redis_client: redis.Redis, identity: str, instance_name: str
+) -> None:
+    """Record HMAC failure with rate limiting and temporary block."""
+    try:
+        keys = _get_hmac_failure_keys(identity)
+        allowed, retry_after = await check_rate_limit_redis(
+            keys["rate_limit"],
+            HMAC_FAILURE_RATE_LIMIT,
+            HMAC_FAILURE_RATE_WINDOW,
+            redis_client,
+        )
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail="Too many invalid webhook signatures",
+                headers={"Retry-After": str(retry_after)},
+            )
+
+        failure_count = await redis_client.incr(keys["failure"])
+        if failure_count == 1:
+            await redis_client.expire(keys["failure"], HMAC_FAILURE_TTL_SECONDS)
+
+        if failure_count >= HMAC_FAILURE_BLOCK_THRESHOLD:
+            await redis_client.setex(keys["block"], HMAC_FAILURE_BLOCK_SECONDS, "1")
+            logger.warning(
+                "Webhook HMAC blocked due to consecutive failures",
+                extra={
+                    "instance_name": instance_name,
+                    "identity": identity,
+                    "failure_count": failure_count,
+                },
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Failed to register HMAC failure: {e}")
+
+
+async def _reset_hmac_failures(redis_client: redis.Redis, identity: str) -> None:
+    """Reset HMAC failure counters on successful validation."""
+    try:
+        keys = _get_hmac_failure_keys(identity)
+        await redis_client.delete(keys["failure"])
+        await redis_client.delete(keys["block"])
+    except Exception as e:
+        logger.debug(f"Failed to reset HMAC failure counters: {e}")
+
+
+def _validate_webhook_timestamp(timestamp_header: str, max_age_seconds: int) -> bool:
+    """Validate webhook timestamp to prevent replay attacks."""
+    try:
+        timestamp_value = float(timestamp_header)
+    except (TypeError, ValueError):
+        return False
+
+    current_time = time.time()
+    age_seconds = current_time - timestamp_value
+
+    # Allow small clock skew (60s) but reject future timestamps beyond that.
+    if age_seconds < -60:
+        return False
+
+    return age_seconds <= max_age_seconds
+
+
+async def is_event_processed(
+    event_id: str, event_type: str = "webhook", instance_name: Optional[str] = None
+) -> bool:
     """
     Check if webhook event was already processed (atomic idempotency protection).
 
@@ -69,21 +191,38 @@ async def is_event_processed(event_id: str, event_type: str = "webhook") -> bool
     """
     try:
         idempotency = await get_idempotency_service()
+        worker_id = os.getenv("HOSTNAME", "unknown")
 
         # Atomic check-and-set using SET NX EX
         acquired, reason = await idempotency.try_acquire(
-            event_type=event_type, event_id=event_id
+            event_type=event_type, event_id=event_id, worker_id=worker_id
         )
+
+        if not acquired and reason == "infrastructure_failure":
+            logger.warning(
+                "Idempotency infrastructure unavailable, falling back to legacy check",
+                extra={
+                    "event_id": event_id,
+                    "event_type": event_type,
+                    "instance_name": instance_name,
+                },
+            )
+            return await _legacy_is_event_processed(event_id, event_type)
 
         if not acquired:
             logger.info(
-                f"Duplicate webhook event detected and ignored: {event_id}",
+                "Duplicate webhook event detected and ignored",
                 extra={
                     "event_id": event_id,
+                    "event_type": event_type,
+                    "worker_id": worker_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "idempotency": "protected",
                     "reason": reason,
                 },
             )
+            if instance_name:
+                whatsapp_metrics.record_webhook_duplicate(instance_name)
             return True
 
         # We acquired the lock - this is a new event
@@ -92,10 +231,12 @@ async def is_event_processed(event_id: str, event_type: str = "webhook") -> bool
     except Exception as e:
         logger.error(f"Idempotency check failed: {e}", exc_info=True)
         # QW-006: Fallback to legacy method if atomic fails
-        return await _legacy_is_event_processed(event_id)
+        return await _legacy_is_event_processed(event_id, event_type)
 
 
-async def _legacy_is_event_processed(event_id: str) -> bool:
+async def _legacy_is_event_processed(
+    event_id: str, event_type: str = "webhook"
+) -> bool:
     """
     Legacy idempotency check (fallback if atomic fails).
 
@@ -106,7 +247,10 @@ async def _legacy_is_event_processed(event_id: str) -> bool:
         key = f"webhook:processed:{event_id}"
 
         # Try atomic SET NX directly
-        result = await redis_client.set(key, "1", nx=True, ex=86400)
+        ttl_seconds = (
+            7200 if "status" in event_type.lower() else 86400
+        )
+        result = await redis_client.set(key, "1", nx=True, ex=ttl_seconds)
         if result:
             return False  # New event, we set it
         else:
@@ -119,8 +263,8 @@ async def _legacy_is_event_processed(event_id: str) -> bool:
 def _webhook_rate_limit_key(request: Request) -> str:
     """Extract rate limit key from request (IP + instance_name)."""
     instance_name = request.path_params.get("instance_name", "unknown")
-    client_host = request.client.host if request.client else "unknown"
-    return f"{client_host}:{instance_name}"
+    client_ip = _get_client_ip(request)
+    return f"{client_ip}:{instance_name}"
 
 
 @router.post("/evolution/{instance_name}")
@@ -139,8 +283,85 @@ async def evolution_webhook(
     WA-007: Rate limit applied per IP AND instance_name combination
     """
     try:
-        # Get raw payload
-        payload = await request.json()
+        raw_payload = await request.body()
+        client_ip = _get_client_ip(request)
+        ip_whitelist = getattr(settings, "WHATSAPP_WEBHOOK_IP_WHITELIST", [])
+        if ip_whitelist:
+            if client_ip == "unknown" or client_ip not in ip_whitelist:
+                logger.warning(
+                    "Webhook IP rejected by whitelist",
+                    extra={
+                        "instance_name": instance_name,
+                        "client_ip": client_ip,
+                    },
+                )
+                raise HTTPException(
+                    status_code=403, detail="Webhook IP not allowed"
+                )
+
+        hmac_enabled = getattr(settings, "WHATSAPP_WEBHOOK_HMAC_ENABLED", True)
+        if hmac_enabled:
+            secret = (
+                settings.WHATSAPP_WEBHOOK_SECRET
+                or settings.WHATSAPP_EVOLUTION_WEBHOOK_SECRET
+            )
+            if not secret:
+                logger.error("Webhook HMAC enabled but secret is not configured")
+                raise HTTPException(
+                    status_code=500, detail="Webhook signature secret not configured"
+                )
+
+            redis_client = await get_redis()
+            identity = _get_hmac_identity(request, instance_name)
+            if await _is_hmac_blocked(redis_client, identity):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Webhook signature temporarily blocked",
+                )
+
+            timestamp_header = request.headers.get(
+                "X-Webhook-Timestamp"
+            ) or request.headers.get("X-Evolution-Timestamp")
+            timestamp_required = getattr(
+                settings, "WHATSAPP_WEBHOOK_TIMESTAMP_REQUIRED", False
+            )
+            max_timestamp_age = getattr(
+                settings, "WHATSAPP_WEBHOOK_MAX_TIMESTAMP_AGE_SECONDS", 300
+            )
+            if timestamp_required and not timestamp_header:
+                webhook_signature_failures_total.labels(source="evolution").inc()
+                await _register_hmac_failure(redis_client, identity, instance_name)
+                raise HTTPException(
+                    status_code=401, detail="Missing webhook timestamp"
+                )
+            if timestamp_header and not _validate_webhook_timestamp(
+                timestamp_header, max_timestamp_age
+            ):
+                webhook_signature_failures_total.labels(source="evolution").inc()
+                await _register_hmac_failure(redis_client, identity, instance_name)
+                raise HTTPException(
+                    status_code=401, detail="Invalid webhook timestamp"
+                )
+
+            signature = request.headers.get("X-Webhook-Signature") or request.headers.get(
+                "X-Evolution-Signature"
+            )
+            if not signature:
+                webhook_signature_failures_total.labels(source="evolution").inc()
+                await _register_hmac_failure(redis_client, identity, instance_name)
+                raise HTTPException(status_code=401, detail="Missing webhook signature")
+
+            if not WebhookHMACValidator.validate_signature(
+                raw_payload, signature, secret
+            ):
+                webhook_signature_failures_total.labels(source="evolution").inc()
+                await _register_hmac_failure(redis_client, identity, instance_name)
+                raise HTTPException(status_code=401, detail="Invalid webhook signature")
+
+            await _reset_hmac_failures(redis_client, identity)
+
+        # Parse payload after HMAC validation
+        payload = json.loads(raw_payload or b"{}")
 
         # Log incoming webhook with structured data
         logger.info(
@@ -164,6 +385,10 @@ async def evolution_webhook(
 
         return {"status": "received", "timestamp": datetime.now(timezone.utc)}
 
+    except HTTPException:
+        # Re-raise HTTPException to preserve 401/403/429 status codes
+        raise
+
     except Exception as e:
         logger.error(
             f"Error processing webhook for instance {instance_name}",
@@ -179,14 +404,20 @@ async def evolution_webhook(
         )
 
 
+
 async def process_webhook_event(
     webhook_data: WebhookPayload, background_tasks: BackgroundTasks, db
 ):
     """Process webhook event."""
+    start_time = time.monotonic()
     # Normalize event name (Evolution sends UPPERCASE, we use lowercase)
     event = webhook_data.event.lower().replace("_", ".")
     data = webhook_data.data
     instance_name = webhook_data.instance
+
+    whatsapp_metrics.record_webhook_event(instance_name, event)
+
+    processing_status = "success"
 
     try:
         # Route to appropriate handler based on event type
@@ -208,6 +439,7 @@ async def process_webhook_event(
             logger.info(f"Unhandled webhook event: {event}")
 
     except Exception as e:
+        processing_status = "failed"
         logger.error(
             "Error in webhook event processing",
             exc_info=True,
@@ -217,6 +449,14 @@ async def process_webhook_event(
                 "error_type": type(e).__name__,
             },
         )
+    finally:
+        duration = time.monotonic() - start_time
+        whatsapp_metrics.observe_webhook_processing_duration(
+            instance_name, event, duration
+        )
+        webhook_processed_total.labels(
+            source="evolution", event_type=event, status=processing_status
+        ).inc()
 
 
 async def handle_message_upsert(
@@ -243,7 +483,9 @@ async def handle_message_upsert(
             sender_id = key.get("participant") or key.get("remoteJid", "")
 
             # IDEMPOTENCY: Check if this message was already processed (QW-006: Atomic)
-            if await is_event_processed(message_id, event_type="message"):
+            if await is_event_processed(
+                message_id, event_type="message", instance_name=instance_name
+            ):
                 logger.debug(f"Skipping duplicate message: {message_id}")
                 continue
 
@@ -323,14 +565,38 @@ async def handle_message_upsert(
                         )
 
                         # Find patient by phone (LGPD: use phone_hash lookup)
+                        # Try multiple phone formats to handle storage differences
                         from app.models.patient import Patient
                         from app.services.encryption import get_lgpd_encryption_service
 
                         lgpd_service = get_lgpd_encryption_service()
-                        phone_hash = lgpd_service.hash_phone(phone_number)
-                        stmt = select(Patient).where(Patient.phone_hash == phone_hash)
-                        result = db.execute(stmt)
-                        patient = result.scalar_one_or_none()
+                        patient = None
+                        
+                        # Try different phone formats (with/without + prefix)
+                        phone_digits = "".join(c for c in phone_number if c.isdigit())
+                        phone_variants = {phone_digits, f"+{phone_digits}"}
+                        if phone_number.startswith("+"):
+                            phone_variants.add(phone_number)
+
+                        # Handle BR mobile 9-digit vs legacy 8-digit (missing 9 after DDD)
+                        if phone_digits.startswith("55") and len(phone_digits) >= 12:
+                            ddd = phone_digits[2:4]
+                            local = phone_digits[4:]
+                            if len(local) == 8:
+                                mobile = f"55{ddd}9{local}"
+                                phone_variants.update({mobile, f"+{mobile}"})
+                            elif len(local) == 9 and local.startswith("9"):
+                                landline = f"55{ddd}{local[1:]}"
+                                phone_variants.update({landline, f"+{landline}"})
+
+                        for phone_variant in phone_variants:
+                            phone_hash = lgpd_service.hash_phone(phone_variant)
+                            stmt = select(Patient).where(Patient.phone_hash == phone_hash)
+                            result = db.execute(stmt)
+                            patient = result.scalar_one_or_none()
+                            if patient:
+                                logger.debug(f"Patient found with phone format: {phone_variant[:5]}...")
+                                break
 
                         if patient:
                             logger.info(
@@ -356,6 +622,14 @@ async def handle_message_upsert(
 
                     if flow_scheduled:
                         logger.debug(f"Transaction committed with flow task scheduled for message {message_id}")
+
+                    try:
+                        idempotency = await get_idempotency_service()
+                        await idempotency.mark_completed("message", message_id)
+                    except Exception as mark_error:
+                        logger.debug(
+                            f"Failed to mark idempotency completed for message {message_id}: {mark_error}"
+                        )
 
             except Exception as db_error:
                 # Rollback transaction on error
@@ -440,7 +714,9 @@ async def handle_message_update(
 
             # IDEMPOTENCY: Check if this status update was already processed (QW-006: Atomic)
             event_id = f"{message_id}:{status_update}"
-            if await is_event_processed(event_id, event_type="status"):
+            if await is_event_processed(
+                event_id, event_type="status", instance_name=instance_name
+            ):
                 logger.debug(f"Skipping duplicate status update: {event_id}")
                 continue
 
@@ -487,6 +763,13 @@ async def handle_message_update(
 
                     db.commit()
                     logger.info(f"Updated message {message_id} status to {new_status}")
+                    try:
+                        idempotency = await get_idempotency_service()
+                        await idempotency.mark_completed("status", event_id)
+                    except Exception as mark_error:
+                        logger.debug(
+                            f"Failed to mark idempotency completed for status {event_id}: {mark_error}"
+                        )
 
             except Exception as db_error:
                 # Rollback transaction on error

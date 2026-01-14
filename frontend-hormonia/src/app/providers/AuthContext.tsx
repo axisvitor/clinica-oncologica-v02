@@ -13,10 +13,96 @@ import { isErrorWithMessage } from '@/lib/type-guards';
 import { useQueryClient } from '@tanstack/react-query'
 
 const logger = createLogger('AuthContext')
+export const AUTH_LOCK_TIMEOUT_MS = 5000
+
+export const safeLocalStorage = {
+  setItem: (key: string, value: string): boolean => {
+    try {
+      localStorage.setItem(key, value)
+      logger.log(`localStorage.setItem('${key}') succeeded`)
+      return true
+    } catch (error) {
+      logger.warn(
+        `localStorage.setItem('${key}') failed (likely private mode):`,
+        error
+      )
+      return false
+    }
+  },
+
+  getItem: (key: string): string | null => {
+    try {
+      return localStorage.getItem(key)
+    } catch (error) {
+      logger.warn(`localStorage.getItem('${key}') failed:`, error)
+      return null
+    }
+  },
+
+  removeItem: (key: string): boolean => {
+    try {
+      localStorage.removeItem(key)
+      logger.log(`localStorage.removeItem('${key}') succeeded`)
+      return true
+    } catch (error) {
+      logger.warn(`localStorage.removeItem('${key}') failed:`, error)
+      return false
+    }
+  },
+}
+
+export type AuthLockState = {
+  locked: boolean
+  timestamp: number
+  operation: 'login' | 'restore' | null
+}
+
+type AuthSession = {
+  access_token: string
+  session_id?: string
+  websocketToken?: string
+}
+
+export const createAuthLock = (
+  authLockRef: React.MutableRefObject<AuthLockState>,
+  lockLogger = logger
+) => {
+  const acquireAuthLock = (operation: 'login' | 'restore') => {
+    const now = Date.now()
+    const currentLock = authLockRef.current
+
+    if (currentLock.locked && (now - currentLock.timestamp) < AUTH_LOCK_TIMEOUT_MS) {
+      lockLogger.warn(
+        `Auth lock active (operation=${currentLock.operation ?? 'unknown'}), rejecting ${operation}`
+      )
+      return false
+    }
+
+    authLockRef.current = {
+      locked: true,
+      timestamp: now,
+      operation
+    }
+    lockLogger.log(`Auth lock acquired for ${operation}`)
+    return true
+  }
+
+  const releaseAuthLock = () => {
+    const previousOperation = authLockRef.current.operation
+    authLockRef.current = {
+      locked: false,
+      timestamp: 0,
+      operation: null
+    }
+    lockLogger.log(`Auth lock released${previousOperation ? ` (${previousOperation})` : ''}`)
+  }
+
+  return { acquireAuthLock, releaseAuthLock }
+}
 
 interface AuthContextType {
   user: User | null
-  session: { access_token: string; session_id?: string } | null
+  session: AuthSession | null
   isAuthenticated: boolean
   isInitializing: boolean // Bootstrap/Firebase initialization
   isAuthenticating: boolean // Active login/logout operation
@@ -48,10 +134,19 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null)
-  const [session, setSession] = useState<{ access_token: string; session_id?: string } | null>(null)
+  const [session, setSession] = useState<AuthSession | null>(null)
   const [isInitializing, setIsInitializing] = useState(true) // Bootstrap phase
   const [isAuthenticating, setIsAuthenticating] = useState(false) // Active login/logout
-  const isAuthenticatingRef = React.useRef(false) // Ref to track auth state in callbacks
+  const authLockRef = React.useRef<AuthLockState>({
+    locked: false,
+    timestamp: 0,
+    operation: null
+  })
+  const isAuthenticatingRef = React.useRef(false) // Legacy ref for compatibility
+  const { acquireAuthLock, releaseAuthLock } = React.useMemo(
+    () => createAuthLock(authLockRef, logger),
+    []
+  )
 
   // OPTIMIZATION: Access query client for dashboard prefetching
   // This prefetches dashboard data immediately after login for instant loading
@@ -206,7 +301,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
         logger.log('CSRF token initialized successfully')
       } catch (error) {
         // CSRF token fetch failure should NOT block authentication
-        logger.warn('Failed to initialize CSRF token (non-critical):', error)
+        logger.error('CRITICAL: Failed to initialize CSRF token:', error)
+
+        // Show toast warning to user (non-blocking)
+        toast({
+          title: 'Aviso de Segurança',
+          description:
+            'Algumas funcionalidades podem não funcionar corretamente. ' +
+            'Tente recarregar a página.',
+          variant: 'warning',
+          duration: 10000, // 10 seconds
+        })
+
         // Authentication will still work; token fetched lazily if needed
       }
 
@@ -219,7 +325,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
           if (mockUser && mockSession) {
             logger.log('Mock session found:', mockUser.email)
             setUser({ ...mockUser, name: mockUser.email })
-            setSession({ access_token: mockSession.access_token })
+            setSession({
+              access_token: mockSession.access_token,
+              websocketToken: mockSession.access_token
+            })
             apiClient.setAuthToken(mockSession.access_token)
           } else {
             logger.log('No active mock session')
@@ -269,7 +378,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             if (sessionId) {
               logger.log('Session ID restored from cookie validation (Header-Based Auth)')
               apiClient.setAuthToken(sessionId)
-              setSession({ access_token: sessionId })
+              setSession({ access_token: sessionId, session_id: sessionId })
             } else {
               setSession({ access_token: '' }) // Token will be updated when Firebase loads
             }
@@ -297,15 +406,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         // Set up Firebase auth state listener (lazy loaded)
         unsubscribeAuth = await firebaseAuthLazy.onAuthStateChanged(async (firebaseUser) => {
-          // RACE CONDITION FIX: If we are in the middle of a manual login (which handles session creation),
-          // ignore the immediate Firebase event. The login function will handle the state update.
-          if (isAuthenticatingRef.current) {
-            logger.log('Ignoring onAuthStateChanged event due to active login process')
+          const now = Date.now()
+          const currentLock = authLockRef.current
+          if (currentLock.locked && (now - currentLock.timestamp) < AUTH_LOCK_TIMEOUT_MS) {
+            logger.log(
+              `Ignoring onAuthStateChanged event due to active auth lock (${currentLock.operation ?? 'unknown'})`
+            )
             return
           }
 
           if (firebaseUser) {
             logger.log('Firebase user signed in (lazy loaded):', firebaseUser.email)
+            if (!acquireAuthLock('restore')) {
+              logger.warn('Auth lock already active, skipping session restore')
+              return
+            }
+
             try {
               const firebaseToken = await firebaseUser.getIdToken()
               const appUser = await transformFirebaseUser(firebaseUser)
@@ -318,7 +434,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 // session_id (UUID) should be set by login flow or restored from checkAuth()
                 // If we don't have a session_id, keep current session or use empty token
                 // The httpOnly cookie handles actual API authentication
-                setSession(prev => prev || { access_token: '' })
+                setSession(prev => ({
+                  access_token: prev?.access_token ?? '',
+                  session_id: prev?.session_id,
+                  websocketToken: firebaseToken
+                }))
 
                 // Connect WebSocket with Firebase token (non-blocking)
                 // Note: WebSocket uses Firebase JWT, but API calls use session_id/cookie
@@ -341,6 +461,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
               setSession(null)
               apiClient.clearAuthToken()
               wsManager.disconnect()
+            } finally {
+              releaseAuthLock()
             }
           } else {
             // CRITICAL FIX: Only clear session if we didn't validate from cookie
@@ -374,7 +496,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
               wsManager.updateToken(newToken)
 
               // SECURITY: keep API client cookie-only; token stored only for WebSocket usage
-              setSession({ access_token: newToken })
+              setSession(prev => (prev ? { ...prev, websocketToken: newToken } : prev))
             } catch (error) {
               logger.error('Error refreshing token:', error)
             }
@@ -395,6 +517,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [transformFirebaseUser])
 
   const login = useCallback(async (email: string, password: string, rememberMe: boolean = false) => {
+    if (!acquireAuthLock('login')) {
+      logger.warn('Auth lock already active, rejecting login attempt')
+      throw new Error('Operação de autenticação já em andamento')
+    }
     setIsAuthenticating(true)
     isAuthenticatingRef.current = true
     try {
@@ -412,7 +538,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         logger.log('Mock login successful:', result.user.email)
         setUser({ ...result.user, name: result.user.email })
-        setSession({ access_token: result.session.access_token })
+        setSession({
+          access_token: result.session.access_token,
+          websocketToken: result.session.access_token
+        })
         apiClient.setAuthToken(result.session.access_token)
 
         // Connect WebSocket for mock auth (non-blocking)
@@ -444,15 +573,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const firebaseToken = currentFirebaseUser ? await currentFirebaseUser.getIdToken() : ''
 
         setUser(loginResponse.user)
-        const sessionData: { access_token: string; session_id?: string } = {
-          access_token: firebaseToken
-        }
-        if (loginResponse.session_id) {
-          sessionData.session_id = loginResponse.session_id
-          // CRITICAL: Store session_id in localStorage for WebSocket authentication
-          // httpOnly cookies are not accessible via JavaScript, so WebSocket needs this
-          localStorage.setItem('session_id', loginResponse.session_id)
-          logger.log('Session ID stored in localStorage for WebSocket auth')
+        const sessionId = loginResponse.session_id ?? ''
+        const sessionData: AuthSession = {
+          access_token: sessionId,
+          session_id: loginResponse.session_id,
+          websocketToken: firebaseToken
         }
         setSession(sessionData)
 
@@ -462,6 +587,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
             logger.warn('WebSocket connection failed during login, continuing without real-time features:', error)
             // Don't throw - WebSocket failure shouldn't block login
           })
+        }
+
+        // Store session_id for WebSocket authentication (with try-catch)
+        if (sessionId) {
+          const stored = safeLocalStorage.setItem('session_id', sessionId)
+          if (!stored) {
+            logger.warn(
+              'Failed to store session_id in localStorage. ' +
+              'WebSocket notifications may not work in private browsing mode.'
+            )
+            // Don't show toast - this is expected behavior in private mode
+            // WebSocket will gracefully degrade without localStorage
+          }
         }
 
         // OPTIMIZATION: Prefetch dashboard data immediately after login
@@ -510,6 +648,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       throw error
     } finally {
+      releaseAuthLock()
       setIsAuthenticating(false)
       isAuthenticatingRef.current = false
     }
@@ -527,7 +666,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       apiClient.clearAuthToken()
-      localStorage.removeItem('session_id')  // Clear session_id from localStorage
+      safeLocalStorage.removeItem('session_id')  // Clear session_id from localStorage
       setUser(null)
       setSession(null)
 
@@ -539,7 +678,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // Force cleanup even on error (cookie cleared by backend)
       apiClient.clearAuthToken()
-      localStorage.removeItem('session_id')  // Clear session_id from localStorage
+      safeLocalStorage.removeItem('session_id')  // Clear session_id from localStorage
       setUser(null)
       setSession(null)
 
@@ -560,6 +699,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       apiClient.clearAuthToken()
+      safeLocalStorage.removeItem('session_id')
       setUser(null)
       setSession(null)
 
@@ -577,6 +717,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // Force cleanup even on error (cookie cleared by backend)
       apiClient.clearAuthToken()
+      safeLocalStorage.removeItem('session_id')
       setUser(null)
       setSession(null)
       // Firebase Auth SDK automatically clears in-memory token

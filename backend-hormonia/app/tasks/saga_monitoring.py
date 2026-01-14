@@ -11,11 +11,11 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any
 
-from celery import shared_task
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.task_queue import task_queue as celery_app
 from app.models.patient_onboarding_saga import PatientOnboardingSaga
 from app.models.enums import SagaStatus
 from app.core.monitoring_config import capture_message, capture_exception
@@ -23,7 +23,7 @@ from app.core.monitoring_config import capture_message, capture_exception
 logger = logging.getLogger(__name__)
 
 
-@shared_task(name="app.tasks.saga_monitoring.check_orphaned_sagas")
+@celery_app.task(name="app.tasks.saga_monitoring.check_orphaned_sagas")
 def check_orphaned_sagas() -> dict:
     """
     Check for orphaned sagas that are stuck in non-terminal states.
@@ -114,7 +114,7 @@ def check_orphaned_sagas() -> dict:
         db.close()
 
 
-@shared_task(name="app.tasks.saga_monitoring.check_long_running_sagas")
+@celery_app.task(name="app.tasks.saga_monitoring.check_long_running_sagas")
 def check_long_running_sagas() -> dict:
     """
     Check for sagas that are taking unusually long to complete.
@@ -184,7 +184,7 @@ def check_long_running_sagas() -> dict:
         db.close()
 
 
-@shared_task(name="app.tasks.saga_monitoring.generate_saga_metrics")
+@celery_app.task(name="app.tasks.saga_monitoring.generate_saga_metrics")
 def generate_saga_metrics() -> dict:
     """
     Generate saga execution metrics for monitoring dashboards.

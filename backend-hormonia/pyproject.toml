@@ -44,6 +44,8 @@ markers = [
     "crud: CRUD tests",
     "quiz: Quiz tests",
     "patient: Patient tests",
+    "patients: Patients tests",
+    "routes: Route validation tests",
     "security: Security tests",
     "critical: Critical tests",
     "p0: P0 priority tests",

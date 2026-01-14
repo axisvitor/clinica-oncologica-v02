@@ -68,11 +68,13 @@ export function ProtectedRoute({
   requiredPermission,
   redirectTo: _redirectTo = "/unauthorized",
 }: ProtectedRouteProps) {
-  const { isAuthenticated, isInitializing, user } = useAuth();
+  const auth = useAuth();
+  const { isAuthenticated, isInitializing, user } = auth;
   const location = useLocation();
+  const isLoading = isInitializing || (auth as { isLoading?: boolean }).isLoading || false;
 
   // Show loading spinner while checking authentication
-  if (isInitializing) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size="lg" />

@@ -19,6 +19,7 @@ Features:
 """
 
 import os
+import sys
 import time
 from typing import Callable
 from functools import wraps
@@ -41,6 +42,13 @@ from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+def _is_test_environment() -> bool:
+    return bool(
+        "pytest" in sys.modules
+        or os.getenv("PYTEST_CURRENT_TEST")
+        or os.getenv("TESTING") == "1"
+        or os.getenv("APP_ENVIRONMENT", "").lower() in ("test", "testing")
+    )
 
 def get_redis_url() -> str:
     """
@@ -74,16 +82,38 @@ def get_redis_url() -> str:
     return redis_url
 
 
+def get_rate_limit_storage_uri() -> str:
+    """
+    Get storage URI for rate limiting with test-friendly fallback.
+
+    Priority:
+    1) RATE_LIMIT_REDIS_URL / RATE_LIMIT_STORAGE_URI (explicit override)
+    2) In-memory for test env unless USE_TEST_REDIS is set
+    3) Standard Redis URL
+    """
+    override_url = os.getenv("RATE_LIMIT_REDIS_URL") or os.getenv("RATE_LIMIT_STORAGE_URI")
+    if override_url:
+        return override_url
+
+    app_env = os.getenv("APP_ENVIRONMENT", "").lower()
+    use_test_redis = os.getenv("USE_TEST_REDIS", "").lower() in ("1", "true", "yes")
+    if app_env in ("test", "testing") and not use_test_redis:
+        return "memory://"
+
+    return get_redis_url()
+
+
 # Create the real rate limiter instance with Redis backend
 # SECURITY: This replaces the disabled NoOpLimiter
 # NOTE: headers_enabled=False because slowapi tries to inject headers via
 # kwargs.get("response") which is None when endpoint returns Pydantic model.
 # This causes "parameter `response` must be an instance of Response" error.
+_rate_limit_enabled = not _is_test_environment()
 limiter = Limiter(
     key_func=get_remote_address,
-    storage_uri=get_redis_url(),
+    storage_uri=get_rate_limit_storage_uri(),
     default_limits=["60/minute"],  # Global default: 60 requests per minute
-    enabled=True,  # CRITICAL: Rate limiting is now ENABLED
+    enabled=_rate_limit_enabled,
     headers_enabled=False,  # Disabled: endpoints return Pydantic models, not Response
     swallow_errors=False,  # Raise errors on rate limit exceeded
 )
@@ -91,18 +121,24 @@ limiter = Limiter(
 # Specialized limiter for authentication endpoints (stricter limits)
 auth_limiter = Limiter(
     key_func=get_remote_address,
-    storage_uri=get_redis_url(),
+    storage_uri=get_rate_limit_storage_uri(),
     default_limits=["10/minute"],  # Auth endpoints: 10 requests per minute
-    enabled=True,
+    enabled=_rate_limit_enabled,
     headers_enabled=False,  # Disabled: endpoints return Pydantic models, not Response
     swallow_errors=False,
 )
 
-logger.info("✅ Rate limiting ENABLED with Redis backend")
-logger.info("   Global limit: 60 requests/minute")
-logger.info("   Auth limit: 10 requests/minute")
 logger.info(
-    f"   Redis backend: {get_redis_url().split('@')[-1] if '@' in get_redis_url() else get_redis_url()}"
+    "✅ Rate limiting ENABLED with Redis backend"
+    if _rate_limit_enabled
+    else "ℹ️  Rate limiting DISABLED in test environment"
+)
+if _rate_limit_enabled:
+    logger.info("   Global limit: 60 requests/minute")
+    logger.info("   Auth limit: 10 requests/minute")
+_storage_uri = get_rate_limit_storage_uri()
+logger.info(
+    f"   Rate limit storage: {_storage_uri.split('@')[-1] if '@' in _storage_uri else _storage_uri}"
 )
 
 
@@ -185,7 +221,9 @@ async def get_redis_client():
     try:
         import redis.asyncio as redis
 
-        redis_url = get_redis_url()
+        redis_url = get_rate_limit_storage_uri()
+        if redis_url.startswith("memory://"):
+            return None
         client = redis.from_url(redis_url, decode_responses=True)
         return client
     except Exception as e:

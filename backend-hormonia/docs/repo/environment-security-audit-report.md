@@ -40,23 +40,18 @@ SECURITY_SECRET_KEY=REPLACE_WITH_64_CHARACTER_SECRET_KEY
 
 # security.py defines:
 SECURITY_SECRET_KEY: str = Field(default="dev-insecure-secret-key...")
-AUTH_JWT_SECRET_KEY: Optional[str] = Field(default=None)  # Falls back to SECURITY_SECRET_KEY
 ```
 
 **Problem:**
-- `AUTH_JWT_SECRET_KEY` is optional and falls back to `SECURITY_SECRET_KEY`
+- Placeholder formats differ across templates
 - This creates confusion about which key to set
-- Documentation doesn't clarify the fallback behavior
+- Documentation doesn't clarify the single source of truth
 
 **Recommendation:**
 ```bash
-# Option 1: Use single unified key (RECOMMENDED)
+# Use single unified key (RECOMMENDED)
 SECURITY_SECRET_KEY=<generate-with-secrets.token_urlsafe(64)>
-# Remove AUTH_JWT_SECRET_KEY entirely
-
-# Option 2: Make both required with different values
-SECURITY_SECRET_KEY=<main-app-secret>
-AUTH_JWT_SECRET_KEY=<jwt-specific-secret>
+# Remove legacy AUTH_JWT_SECRET_KEY references if present
 ```
 
 **Impact:** ⚠️ Using the same key for multiple purposes violates security best practices. If one system is compromised, all systems using that key are compromised.
@@ -65,35 +60,39 @@ AUTH_JWT_SECRET_KEY=<jwt-specific-secret>
 
 ### 2. Encryption Key Format Inconsistency
 
-**Issue:** `SECURITY_ENCRYPTION_KEY` vs `ENCRYPTION_KEY_CURRENT` - two different variable names for the same purpose.
+**Issue:** Legacy `SECURITY_ENCRYPTION_KEY` vs current `ENCRYPTION_KEY_CURRENT`, plus `PHI_ENCRYPTION_KEY` for AES-GCM.
 
 **Evidence:**
 ```bash
 # .env.example uses:
+ENCRYPTION_KEY_CURRENT=CHANGE_THIS_TO_A_SECURE_RANDOM_VALUE
+PHI_ENCRYPTION_KEY=CHANGE_THIS_TO_A_SECURE_RANDOM_VALUE
+# Legacy fallback (if still used):
 SECURITY_ENCRYPTION_KEY=CHANGE_THIS_TO_A_SECURE_RANDOM_VALUE
 
 # .env.railway.template uses:
 ENCRYPTION_KEY_CURRENT=REPLACE_WITH_ENCRYPTION_KEY
+PHI_ENCRYPTION_KEY=REPLACE_WITH_PHI_ENCRYPTION_KEY
 
 # security.py validation checks for:
-encryption_key = os.getenv("ENCRYPTION_KEY_CURRENT")  # Line 236
+encryption_key = os.getenv("ENCRYPTION_KEY_CURRENT") or os.getenv("SECURITY_ENCRYPTION_KEY")  # Line 236
 ```
 
 **Problem:**
-- Code expects `ENCRYPTION_KEY_CURRENT` (line 236 of security.py)
-- Templates show `SECURITY_ENCRYPTION_KEY`
-- This will cause production validation to fail
+- Canonical key is `ENCRYPTION_KEY_CURRENT` (Fernet) and `PHI_ENCRYPTION_KEY` (AES-GCM)
+- Legacy `SECURITY_ENCRYPTION_KEY` still appears in some templates
+- This can lead to missing key validation if only the legacy name is set
 
 **Recommendation:**
 ```bash
-# Standardize on ENCRYPTION_KEY_CURRENT (matches validation code)
+# Standardize on ENCRYPTION_KEY_CURRENT + PHI_ENCRYPTION_KEY
 ENCRYPTION_KEY_CURRENT=<generate-with-Fernet.generate_key()>
+PHI_ENCRYPTION_KEY=<base64-encoded-32-byte-key>
 
-# Update .env.example to match:
-ENCRYPTION_KEY_CURRENT=  # (remove SECURITY_ENCRYPTION_KEY)
+# Keep SECURITY_ENCRYPTION_KEY only as legacy fallback if needed
 ```
 
-**Impact:** 🔥 **PRODUCTION BLOCKER** - Startup validation will fail with `ENCRYPTION_KEY_CURRENT` missing even if `SECURITY_ENCRYPTION_KEY` is set.
+**Impact:** 🔥 **PRODUCTION BLOCKER** - Startup validation can fail with `ENCRYPTION_KEY_CURRENT` missing if only the legacy key is set.
 
 ---
 
@@ -492,14 +491,14 @@ def get_celery_broker_url(redis_url: str, broker_db: int) -> str:
 ```bash
 # .env.production.example still has placeholders:
 REDIS_PASSWORD=CHANGE_THIS_TO_SECURE_REDIS_PASSWORD  # line 48
-AUTH_JWT_SECRET_KEY=CHANGE_THIS_TO_A_SECURE_RANDOM_VALUE_32_BYTES_OR_MORE  # line 97
+ENCRYPTION_KEY_CURRENT=CHANGE_THIS_TO_FERNET_ENCRYPTION_KEY  # line 124
 ```
 
 **Current validation (security.py lines 368-377):**
 ```python
 if is_production:
     placeholder_patterns = ["CHANGE_THIS", "YOUR_", "INSECURE", "DEV-", "MUST-BE-CHANGED"]
-    for field in ["SECURITY_SECRET_KEY", "AUTH_JWT_SECRET_KEY", "SECURITY_ENCRYPTION_KEY"]:
+    for field in ["SECURITY_SECRET_KEY", "SECURITY_ENCRYPTION_KEY"]:
         if field in data:
             v = data[field]
             if v and any(pattern in v.upper() for pattern in placeholder_patterns):
@@ -517,10 +516,11 @@ PRODUCTION_REQUIRED_SECRETS = [
     "SECURITY_SECRET_KEY",
     "SECURITY_CSRF_SECRET_KEY",
     "ENCRYPTION_KEY_CURRENT",
+    "PHI_ENCRYPTION_KEY",
     "HASH_SALT",
     "REDIS_PASSWORD",
     "QUIZ_TOKEN_SECRET",
-    "EVOLUTION_WEBHOOK_SECRET",
+    "WHATSAPP_EVOLUTION_WEBHOOK_SECRET",
     "AI_GEMINI_API_KEY",
 ]
 
@@ -544,27 +544,22 @@ REDIS_POOL_MAX_CONNECTIONS: int = Field(default=20, ...)  # Code default: 20
 REDIS_POOL_MAX_CONNECTIONS=50  # Template default: 50
 
 # .env.railway.template (line 96):
-REDIS_MAX_CONNECTIONS=10  # Variable name is different!
+REDIS_POOL_MAX_CONNECTIONS=10
 
 # .env.production.example (line 57):
-REDIS_MAX_CONNECTIONS=50  # Also uses wrong variable name
+REDIS_POOL_MAX_CONNECTIONS=50
 ```
 
 **Problem:**
 - Code expects `REDIS_POOL_MAX_CONNECTIONS`
-- Railway template uses `REDIS_MAX_CONNECTIONS` (missing `_POOL_`)
-- Will use default value of 20 instead of configured value
+- Legacy `REDIS_MAX_CONNECTIONS` is ignored if present
+- Defaults may be used unexpectedly if legacy name is configured
 
 **Recommendation:**
 ```bash
 # Standardize on REDIS_POOL_MAX_CONNECTIONS everywhere:
-# Update .env.railway.template line 96:
-- REDIS_MAX_CONNECTIONS=10
-+ REDIS_POOL_MAX_CONNECTIONS=10
-
-# Update .env.production.example line 57:
-- REDIS_MAX_CONNECTIONS=50
-+ REDIS_POOL_MAX_CONNECTIONS=50
+# Remove any REDIS_MAX_CONNECTIONS usage and keep:
+REDIS_POOL_MAX_CONNECTIONS=<value>
 ```
 
 ---
@@ -581,28 +576,22 @@ SESSION_ENABLE_COOKIE_HTTPONLY: bool
 SESSION_COOKIE_SAMESITE: str
 SESSION_COOKIE_MAX_AGE_SECONDS: int
 
-# But .env.railway.template uses AUTH_* (lines 179-181):
-AUTH_SESSION_COOKIE_SECURE=true
-AUTH_SESSION_COOKIE_HTTPONLY=true
-AUTH_SESSION_COOKIE_SAMESITE=Strict
+# .env.railway.template uses SESSION_* (lines 196-200):
+SESSION_ENABLE_COOKIE_SECURE=true
+SESSION_ENABLE_COOKIE_HTTPONLY=true
+SESSION_COOKIE_SAMESITE=lax
 ```
 
 **Problem:**
 - Code expects `SESSION_*` prefix
-- Railway template uses `AUTH_SESSION_*` prefix
-- Variables won't be read correctly
+- Legacy `AUTH_SESSION_*` variables are ignored
 
 **Recommendation:**
 ```bash
-# Update .env.railway.template to match code:
-- AUTH_SESSION_COOKIE_SECURE=true
-+ SESSION_ENABLE_COOKIE_SECURE=true
-
-- AUTH_SESSION_COOKIE_HTTPONLY=true
-+ SESSION_ENABLE_COOKIE_HTTPONLY=true
-
-- AUTH_SESSION_COOKIE_SAMESITE=Strict
-+ SESSION_COOKIE_SAMESITE=strict  # Also use lowercase for consistency
+# Remove legacy AUTH_SESSION_* variables and keep:
+SESSION_ENABLE_COOKIE_SECURE=true
+SESSION_ENABLE_COOKIE_HTTPONLY=true
+SESSION_COOKIE_SAMESITE=lax
 ```
 
 ---
@@ -617,7 +606,7 @@ AUTH_SESSION_COOKIE_SAMESITE=Strict
 SECURITY_ALGORITHM=HS256
 
 # .env.railway.template (line 31):
-AUTH_JWT_ALGORITHM=HS256
+SECURITY_ALGORITHM=HS256
 
 # security.py (line 31-33):
 SECURITY_ALGORITHM: str = Field(default="HS256", ...)
@@ -1049,7 +1038,7 @@ COMPLIANCE_HASH_SALT=5af51c11708d8d56dd5a9f8e5ca0071a3a662746ef415c1cecf3c04ef1c
 ```
 
 **Problem:**
-- `COMPLIANCE_PHI_ENCRYPTION_KEY` is different from `ENCRYPTION_KEY_CURRENT`
+- `COMPLIANCE_PHI_ENCRYPTION_KEY` is different from `PHI_ENCRYPTION_KEY`
 - Are these the same key or different?
 - No code references found for `COMPLIANCE_PHI_ENCRYPTION_KEY`
 - `COMPLIANCE_HASH_SALT` has actual hex value in example (should be placeholder)
@@ -1058,7 +1047,7 @@ COMPLIANCE_HASH_SALT=5af51c11708d8d56dd5a9f8e5ca0071a3a662746ef415c1cecf3c04ef1c
 ```bash
 # Clarify relationship with main encryption key:
 # Option 1: Same as main encryption key
-COMPLIANCE_PHI_ENCRYPTION_KEY=${ENCRYPTION_KEY_CURRENT}  # Reuse
+COMPLIANCE_PHI_ENCRYPTION_KEY=${PHI_ENCRYPTION_KEY}  # Reuse
 
 # Option 2: Separate key for compliance features
 COMPLIANCE_PHI_ENCRYPTION_KEY=  # Generate separate key if needed
@@ -1120,7 +1109,7 @@ Due to space constraints, I'll summarize the remaining issues:
 
 ### Immediate Actions (Before Production)
 
-1. **Fix encryption key naming:** Standardize on `ENCRYPTION_KEY_CURRENT`
+1. **Fix encryption key naming:** Standardize on `ENCRYPTION_KEY_CURRENT` + `PHI_ENCRYPTION_KEY`
 2. **Fix Redis DB variable names:** Use `_DB_NUMBER` suffix consistently
 3. **Fix session variables:** Use `SESSION_*` prefix (not `AUTH_SESSION_*`)
 4. **Fix Redis pool variable:** Use `REDIS_POOL_MAX_CONNECTIONS`
@@ -1150,7 +1139,9 @@ Before deploying to production, ensure:
 
 - [ ] All `REPLACE_WITH_*` placeholders replaced with actual values
 - [ ] All `CHANGE_THIS_*` placeholders replaced with generated secrets
-- [ ] `ENCRYPTION_KEY_CURRENT` set (not `SECURITY_ENCRYPTION_KEY`)
+- [ ] `ENCRYPTION_KEY_CURRENT` set (legacy `SECURITY_ENCRYPTION_KEY` removed)
+- [ ] `PHI_ENCRYPTION_KEY` set for AES-GCM encryption
+- [ ] `HASH_SALT` set for searchable hashes
 - [ ] Redis variables use correct names (`_DB_NUMBER`, `_POOL_MAX_CONNECTIONS`)
 - [ ] Session variables use `SESSION_*` prefix
 - [ ] Boolean values use lowercase (`true`/`false`)

@@ -201,6 +201,42 @@ class MessageRepository(BaseRepository[Message]):
             .all()
         )
 
+    def get_recent_follow_up_message_time(
+        self, patient_id: UUID, since: datetime, limit: int = 20
+    ) -> Optional[datetime]:
+        """
+        Get the most recent follow-up message time for a patient since a timestamp.
+
+        Args:
+            patient_id: Patient UUID
+            since: Lower bound for message creation time
+            limit: Max messages to scan (ordered by newest first)
+
+        Returns:
+            Datetime for the latest follow-up message or None
+        """
+        query = (
+            self.db.query(Message)
+            .filter(Message.patient_id == patient_id)
+            .filter(Message.direction == MessageDirection.OUTBOUND)
+            .filter(Message.created_at >= since)
+            .order_by(Message.created_at.desc())
+            .limit(limit)
+        )
+
+        def _normalize_datetime(value: Optional[datetime]) -> Optional[datetime]:
+            if value and value.tzinfo is None:
+                return value.replace(tzinfo=timezone.utc)
+            return value
+
+        for message in query.all():
+            metadata = message.message_metadata or {}
+            if metadata.get("follow_up_type"):
+                candidate = message.sent_at or message.scheduled_for or message.created_at
+                return _normalize_datetime(candidate)
+
+        return None
+
     def get_conversation_history(
         self, patient_id: UUID, skip: int = 0, limit: int = 50, eager_load: bool = True
     ) -> List[Message]:

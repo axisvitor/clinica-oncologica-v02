@@ -12,6 +12,9 @@ from fastapi import APIRouter, Request, Depends, status, Header
 
 from app.database import get_db
 from app.utils.rate_limiter import limiter, multi_layer_rate_limit
+from app.config import settings
+from app.services.webhook.idempotency import AtomicWebhookIdempotency
+import redis.asyncio as redis
 from app.schemas.v2.webhooks import (
     WebhookCreate,
     WebhookUpdate,
@@ -195,6 +198,46 @@ async def get_webhook_stats(
     current_user=Depends(get_current_active_admin),
 ):
     return await service.get_webhook_stats()
+
+
+@router.get("/whatsapp/idempotency/stats")
+@limiter.limit("60/minute")
+async def get_whatsapp_idempotency_stats(request: Request):
+    """Get WhatsApp webhook idempotency metrics and cleanup stats."""
+    redis_client = redis.from_url(settings.REDIS_URL)
+    try:
+        idempotency = AtomicWebhookIdempotency(redis_client)
+        metrics = await idempotency.get_metrics()
+        processing_stats = await idempotency.get_processing_stats()
+        cleanup_stats = await idempotency.cleanup_expired_keys()
+
+        duplicate_rate = metrics.get("cache_hit_rate", 0.0)
+        alert_triggered = duplicate_rate > 0.05
+        if alert_triggered:
+            logger.warning(
+                "Webhook duplicate rate exceeded threshold",
+                extra={
+                    "duplicate_rate": duplicate_rate,
+                    "threshold": 0.05,
+                },
+            )
+
+        return {
+            "metrics": metrics,
+            "processing": processing_stats,
+            "cleanup": cleanup_stats,
+            "alerts": [
+                {
+                    "type": "duplicate_rate_high",
+                    "threshold": 0.05,
+                    "current": duplicate_rate,
+                }
+            ]
+            if alert_triggered
+            else [],
+        }
+    finally:
+        await redis_client.aclose()
 
 
 @router.get("/{webhook_id}/health", response_model=WebhookHealth)

@@ -40,9 +40,7 @@ These tables exist in the database but do not have a corresponding SQLAlchemy mo
 - `flow_template_categories`
 - `flow_template_shares`
 - `flow_template_stats`
-- `quiz_response_migration_log`
-- `quiz_sessions_v2`
-- `quiz_template_versions_v2`
+
 - `security_audit_log`
 - `user_profiles`
 - `whatsapp_contacts`

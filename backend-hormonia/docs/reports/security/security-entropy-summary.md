@@ -60,9 +60,10 @@ Integração da validação no `validate_production_config()`:
 
 **Keys Validated:**
 - `SECURITY_SECRET_KEY` (JWT signing)
-- `AUTH_JWT_SECRET_KEY` (JWT fallback)
-- `SECURITY_ENCRYPTION_KEY` (Field encryption)
 - `SECURITY_CSRF_SECRET_KEY` (CSRF protection)
+- `ENCRYPTION_KEY_CURRENT` (Fernet field encryption)
+- `PHI_ENCRYPTION_KEY` (AES-GCM encryption)
+- `HASH_SALT` (searchable hashes)
 
 ### Testing
 
@@ -280,8 +281,8 @@ $ python scripts/validate_security_keys.py --generate-keys
 SECURITY_SECRET_KEY=YSeNsnGDMp8uTa1gMrHQt5c5gOOEUYT-qmcsKrZYFeE
   # Entropy: 208.6 bits, Strength: very_strong
 
-AUTH_JWT_SECRET_KEY=htg_tbjrPZpYHZzo_NWku-wkYC5Rmoe1USWsRM7bZLk
-  # Entropy: 209.8 bits, Strength: very_strong
+ENCRYPTION_KEY_CURRENT=QWJjZEVmZ0hpSktMbW5PcFFyc1R1VndY
+  # Entropy: 200.1 bits, Strength: very_strong
 ```
 
 ## Backward Compatibility
@@ -320,9 +321,10 @@ python scripts/validate_security_keys.py --generate-keys
 
 # Copy to .env file
 SECURITY_SECRET_KEY=<generated_key>
-AUTH_JWT_SECRET_KEY=<generated_key>
-SECURITY_ENCRYPTION_KEY=<generated_key>
 SECURITY_CSRF_SECRET_KEY=<generated_key>
+ENCRYPTION_KEY_CURRENT=<generated_key>
+PHI_ENCRYPTION_KEY=<generated_key>
+HASH_SALT=<generated_key>
 ```
 
 #### 3. Test Application Startup

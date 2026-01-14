@@ -20,7 +20,7 @@ class FlowTemplateV2Base(BaseModel):
         ..., min_length=1, max_length=255, description="Template name"
     )
     description: Optional[str] = Field(None, description="Template description")
-    steps: Dict[str, Any] = Field(
+    steps: Dict[str, Any] | List[Dict[str, Any]] = Field(
         ..., description="Template steps/messages configuration"
     )
     metadata: Optional[Dict[str, Any]] = Field(None, description="Template metadata")
@@ -73,7 +73,7 @@ class FlowTemplateV2Update(BaseModel):
 
     template_name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
-    steps: Optional[Dict[str, Any]] = None
+    steps: Optional[Dict[str, Any] | List[Dict[str, Any]]] = None
     metadata: Optional[Dict[str, Any]] = None
     is_active: Optional[bool] = None
     is_draft: Optional[bool] = None

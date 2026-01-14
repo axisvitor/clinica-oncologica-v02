@@ -1,7 +1,7 @@
 erDiagram
-    %% Auto-generated: 2025-11-25 11:47:10
+    %% Auto-generated: 2026-01-09 21:25:00
     %% Database Schema ER Diagram
-    %% Total Tables: 55
+    %% Total Tables: 57 (added lgpd_audit_logs, lgpd_data_access_requests)
 
     %% ==================== CORE DOMAIN ====================
     
@@ -226,6 +226,37 @@ erDiagram
         %% ... and 48 more columns
     }
 
+    %% ==================== LGPD COMPLIANCE ====================
+
+    lgpd_audit_logs {
+        uuid id PK
+        uuid user_id FK
+        uuid patient_id FK
+        varchar action
+        varchar data_category
+        varchar resource_type
+        varchar resource_id
+        jsonb fields_accessed
+        inet ip_address
+        varchar session_id
+        boolean success
+        timestamptz retention_until
+        timestamptz created_at
+    }
+
+    lgpd_data_access_requests {
+        uuid id PK
+        uuid patient_id FK
+        uuid assigned_to_id FK
+        varchar request_type
+        varchar status
+        text description
+        timestamptz received_at
+        timestamptz deadline_at
+        timestamptz completed_at
+        text response
+        varchar evidence_url
+    }
 
     %% ==================== RELATIONSHIPS ====================
     
@@ -256,3 +287,10 @@ erDiagram
     
     %% Medical
     patients ||--o{ medical_reports : "has"
+
+    %% LGPD Compliance
+    users ||--o{ lgpd_audit_logs : "performs"
+    patients ||--o{ lgpd_audit_logs : "subject_of"
+    patients ||--o{ lgpd_data_access_requests : "requests"
+    users ||--o{ lgpd_data_access_requests : "handles"
+

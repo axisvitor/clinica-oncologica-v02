@@ -32,7 +32,7 @@ def mock_db():
 def mock_integrity_service():
     """Mock IntegrityService."""
     service = MagicMock()
-    service.validate_patient_data = AsyncMock(return_value=None)
+    service.validate_patient_data = MagicMock(return_value=None)
     service.generate_patient_hash = MagicMock(return_value="test_hash_123")
     return service
 

@@ -29,6 +29,7 @@ from app.config import settings
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+SESSION_COOKIE_NAME = settings.SESSION_COOKIE_NAME
 
 
 def _serialize_session(
@@ -227,7 +228,7 @@ async def verify_firebase_token(
 
         # Set HttpOnly Cookie
         response.set_cookie(
-            key="session_id",
+            key=SESSION_COOKIE_NAME,
             value=str(session.id),
             httponly=True,
             secure=settings.SESSION_ENABLE_COOKIE_SECURE,
@@ -235,7 +236,7 @@ async def verify_firebase_token(
             path="/",  # Important: ensure cookie is sent on all routes
             max_age=432000,  # 5 days
         )
-        logger.info(f"Cookie set: session_id={session.id}, path=/")
+        logger.info("Cookie set: %s=%s, path=/", SESSION_COOKIE_NAME, session.id)
 
         # Set X-Session-ID header for compatibility
         if (
@@ -327,7 +328,7 @@ async def verify_session(
             current_user["last_login"] = db_user.firebase_last_sign_in
 
     # Get session_id from cookie or header for is_current check
-    session_id_from_request = request.cookies.get("session_id") or request.headers.get(
+    session_id_from_request = request.cookies.get(SESSION_COOKIE_NAME) or request.headers.get(
         "X-Session-ID"
     )
 
@@ -340,12 +341,13 @@ async def verify_session(
 @limiter.limit("20/minute")
 async def logout(
     request: Request,
+    response: Response,
     current_user=Depends(get_current_user_from_session),
     redis_cache=Depends(get_redis_cache),
     db=Depends(get_db),
 ):
     """Logout current session."""
-    session_id = request.cookies.get("session_id") or request.headers.get(
+    session_id = request.cookies.get(SESSION_COOKIE_NAME) or request.headers.get(
         "X-Session-ID"
     )
     if session_id:
@@ -374,6 +376,15 @@ async def logout(
             db.rollback()
             raise BusinessRuleError("Failed to revoke session")
 
+    # Clear session cookie
+    response.delete_cookie(
+        key=SESSION_COOKIE_NAME,
+        path="/",
+        httponly=True,
+        secure=settings.SESSION_ENABLE_COOKIE_SECURE,
+        samesite=settings.SESSION_COOKIE_SAMESITE,
+    )
+
     return {"message": "Logged out successfully", "success": True}
 
 
@@ -381,6 +392,7 @@ async def logout(
 @limiter.limit("5/minute")
 async def logout_all(
     request: Request,
+    response: Response,
     current_user=Depends(get_current_user_from_session),
     redis_cache=Depends(get_redis_cache),
     db=Depends(get_db),
@@ -412,6 +424,15 @@ async def logout_all(
         logger.error(f"Error revoking all DB sessions: {e}")
         db.rollback()
         raise BusinessRuleError("Failed to revoke all sessions")
+
+    # Clear session cookie
+    response.delete_cookie(
+        key=SESSION_COOKIE_NAME,
+        path="/",
+        httponly=True,
+        secure=settings.SESSION_ENABLE_COOKIE_SECURE,
+        samesite=settings.SESSION_COOKIE_SAMESITE,
+    )
 
     return {
         "message": "Logged out from all devices",
@@ -707,4 +728,3 @@ async def upload_avatar(
     logger.info(f"Avatar uploaded for user: {user_id}")
     
     return {"avatar_url": avatar_url, "success": True}
-

@@ -29,6 +29,7 @@ celery_app = Celery(
         "app.tasks.saga_retry",
         "app.tasks.saga_monitoring",
         "app.tasks.follow_up",
+        "app.tasks.webhook_dlq",
     ],
 )
 
@@ -54,23 +55,9 @@ celery_app.conf.update(
         "retry_on_timeout": True,
         "retry_policy": {"timeout": 5.0},
     },
-    # Task routing for flow tasks
-    task_routes={
-        "app.tasks.flows.process_daily_flows": {"queue": "flows"},
-        "app.tasks.flows.send_flow_message": {"queue": "flows"},
-        "app.tasks.flows.cleanup_old_flow_data": {"queue": "maintenance"},
-        "app.tasks.flows.monitor_flow_task_health": {"queue": "monitoring"},
-        "app.tasks.quiz_link_tasks.check_expired_links": {"queue": "quiz"},
-        "app.tasks.quiz_link_tasks.rotate_expired_token": {"queue": "quiz"},
-        "app.tasks.quiz_link_tasks.send_quiz_reminder": {"queue": "quiz"},
-        "app.tasks.quiz_link_tasks.fallback_to_whatsapp": {"queue": "quiz"},
-        "app.tasks.quiz_link_tasks.process_dead_letter_queue": {"queue": "maintenance"},
-        "app.tasks.quiz_link_tasks.monitor_resilience_metrics": {"queue": "monitoring"},
-        # Follow-up system task routes
-        "app.tasks.follow_up.execute_pending_follow_ups": {"queue": "follow_up"},
-        "app.tasks.follow_up.process_escalation_alerts": {"queue": "follow_up"},
-        "app.tasks.follow_up.cleanup_old_contexts": {"queue": "follow_up"},
-    },
+    # Simplified task routing - all tasks use default 'celery' queue
+    # Note: Railway workers don't use -Q flags, so custom queues would never be consumed
+    # task_routes removed for simplicity - tasks go to default queue
     # Task execution settings
     task_acks_late=True,
     task_reject_on_worker_lost=True,
@@ -111,18 +98,22 @@ celery_app.conf.beat_schedule = {
         "kwargs": {"days_back": 7},
     },
     "process-daily-flows": {
-        "task": "app.tasks.flows.process_daily_flows",
+        "task": "app.tasks.flows.flow_tasks.process_daily_flows",
         "schedule": 3600.0,  # Every hour for production (was 60s for dev)
         "kwargs": {"limit": 100},
     },
     "cleanup-old-flow-data": {
-        "task": "app.tasks.flows.cleanup_old_flow_data",
+        "task": "app.tasks.flows.cleanup_tasks.cleanup_old_flow_data",
         "schedule": 86400.0,  # Daily
         "kwargs": {"days_old": 90},
     },
     "monitor-flow-task-health": {
-        "task": "app.tasks.flows.monitor_flow_task_health",
+        "task": "app.tasks.flows.monitoring.monitor_flow_task_health",
         "schedule": 300.0,  # Every 5 minutes
+    },
+    "evaluate-flow-alerts": {
+        "task": "app.tasks.flows.monitoring.evaluate_flow_alerts",
+        "schedule": 900.0,  # Every 15 minutes
     },
     "generate-scheduled-reports": {
         "task": "app.tasks.reports.generate_scheduled_reports",
@@ -149,17 +140,17 @@ celery_app.conf.beat_schedule = {
     },
     # Monthly quiz processor: checks eligible patients and triggers monthly quizzes
     "process-monthly-quizzes": {
-        "task": "app.tasks.flows.process_monthly_quizzes",
+        "task": "app.tasks.flows.monthly_tasks.process_monthly_quizzes",
         "schedule": 3600.0,  # Every hour
         "kwargs": {"limit": 100},
     },
-    # Saga retry tasks
+    # Saga retry tasks (use short names as defined in decorators)
     "scan-and-retry-failed-sagas": {
-        "task": "app.tasks.saga_retry.scan_and_retry_failed_sagas",
+        "task": "scan_and_retry_failed_sagas",
         "schedule": 300.0,  # Every 5 minutes
     },
     "cleanup-old-completed-sagas": {
-        "task": "app.tasks.saga_retry.cleanup_old_completed_sagas",
+        "task": "cleanup_old_completed_sagas",
         "schedule": 86400.0,  # Daily
     },
     # Saga monitoring tasks
@@ -175,7 +166,7 @@ celery_app.conf.beat_schedule = {
     },
     # Quiz session expiration cleanup (HIGH-004)
     "cleanup-expired-quiz-sessions": {
-        "task": "app.tasks.quiz_flow.cleanup_expired_quiz_sessions_task",
+        "task": "app.tasks.quiz_flow.cleanup_tasks.cleanup_expired_quiz_sessions_task",
         "schedule": 7200.0,  # Every 2 hours
         "kwargs": {"max_age_hours": 48},
     },
@@ -183,44 +174,36 @@ celery_app.conf.beat_schedule = {
     "check-pending-flows": {
         "task": "flow_automation.check_and_start_pending_flows",
         "schedule": 900.0,  # Every 15 minutes
-        "options": {"queue": "flows"},
     },
     "send-daily-reminders": {
         "task": "flow_automation.send_daily_reminders",
         "schedule": crontab(hour=11, minute=30),  # Daily at 11:30 AM UTC = 08:30 AM Brazil
-        "options": {"queue": "flows"},
-    },
-    # Daily flow questions based on treatment phase (P1 FIX)
-    "send-daily-flow-questions": {
-        "task": "flow_automation.send_daily_flow_questions",
-        "schedule": crontab(hour=11, minute=0),  # Daily at 11:00 AM UTC = 08:00 AM Brazil
-        "options": {"queue": "flows"},
     },
     "resume-paused-flows": {
         "task": "flow_automation.resume_paused_flows",
         "schedule": 21600.0,  # Every 6 hours
-        "options": {"queue": "flows"},
     },
     "cleanup-expired-quiz-links": {
         "task": "flow_automation.cleanup_expired_quiz_links",
         "schedule": 86400.0,  # Daily
-        "options": {"queue": "maintenance"},
     },
     # Follow-up system tasks - Patient daily engagement
     "execute-pending-follow-ups": {
         "task": "app.tasks.follow_up.execute_pending_follow_ups",
         "schedule": 300.0,  # Every 5 minutes
-        "options": {"queue": "follow_up"},
     },
     "process-escalation-alerts": {
         "task": "app.tasks.follow_up.process_escalation_alerts",
         "schedule": 600.0,  # Every 10 minutes
-        "options": {"queue": "follow_up"},
     },
     "cleanup-old-contexts": {
         "task": "app.tasks.follow_up.cleanup_old_contexts",
         "schedule": crontab(hour=3, minute=0),  # Daily at 3 AM
-        "options": {"queue": "follow_up"},
+    },
+    # Webhook DLQ processing (MEDIUM-005)
+    "process-webhook-dlq": {
+        "task": "webhooks.process_dlq",
+        "schedule": 60.0,  # Every minute
     },
 }
 

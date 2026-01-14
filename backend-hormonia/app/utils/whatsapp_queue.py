@@ -586,6 +586,8 @@ class OrderedMessageQueue:
             created_at=datetime.fromisoformat(data["created_at"]),
         )
 
+
+
     async def requeue(self, message: OrderedMessage, delay_seconds: int = 0) -> None:
         """
         Re-add failed message to queue for retry.
@@ -731,3 +733,71 @@ class OrderedMessageQueue:
         """
         result = await self.redis.eval(script, 1, lock_key, lock_id, str(ttl))
         return result == 1
+
+
+class InstanceQueue:
+    """Redis-backed queue with processing list for at-least-once delivery."""
+
+    def __init__(self, redis_client: Redis, instance_name: str):
+        self.redis = redis_client
+        self.instance_name = instance_name
+
+    def _queue_key(self) -> str:
+        return f"whatsapp:queue:{self.instance_name}"
+
+    def _processing_key(self) -> str:
+        return f"whatsapp:processing:{self.instance_name}"
+
+    def _failed_key(self) -> str:
+        return f"whatsapp:failed:{self.instance_name}"
+
+    async def enqueue(self, payload: Dict[str, Any]) -> None:
+        await self.redis.lpush(self._queue_key(), json.dumps(payload, default=str))
+
+    async def dequeue_to_processing(self) -> Optional[Dict[str, Any]]:
+        raw = await self.redis.rpoplpush(self._queue_key(), self._processing_key())
+        if not raw:
+            return None
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8")
+        payload = json.loads(raw)
+        payload["processing_started_at"] = datetime.now(timezone.utc).isoformat()
+        updated_raw = json.dumps(payload, default=str)
+        await self.redis.lrem(self._processing_key(), 1, raw)
+        await self.redis.lpush(self._processing_key(), updated_raw)
+        return {"raw": updated_raw, "payload": payload}
+
+    async def ack(self, raw: str) -> None:
+        await self.redis.lrem(self._processing_key(), 0, raw)
+
+    async def move_to_failed(self, raw: str) -> None:
+        await self.redis.lrem(self._processing_key(), 0, raw)
+        await self.redis.lpush(self._failed_key(), raw)
+
+    async def requeue_stale(self, stale_seconds: int = 300) -> int:
+        now = datetime.now(timezone.utc)
+        requeued = 0
+        entries = await self.redis.lrange(self._processing_key(), 0, -1)
+        for entry in entries:
+            if isinstance(entry, bytes):
+                entry = entry.decode("utf-8")
+            payload = json.loads(entry)
+            started_at = payload.get("processing_started_at")
+            if not started_at:
+                continue
+            started_dt = datetime.fromisoformat(started_at)
+            if (now - started_dt).total_seconds() > stale_seconds:
+                await self.redis.lrem(self._processing_key(), 1, entry)
+                payload["processing_started_at"] = None
+                await self.redis.lpush(
+                    self._queue_key(), json.dumps(payload, default=str)
+                )
+                requeued += 1
+        return requeued
+
+    async def stats(self) -> Dict[str, int]:
+        return {
+            "pending": await self.redis.llen(self._queue_key()),
+            "processing": await self.redis.llen(self._processing_key()),
+            "failed": await self.redis.llen(self._failed_key()),
+        }

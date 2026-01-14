@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 from celery.exceptions import MaxRetriesExceededError
 
-from app.celery_app import celery_app
+from app.task_queue import task_queue as celery_app
 from app.database import get_db
 
 from .base import FlowTaskBase

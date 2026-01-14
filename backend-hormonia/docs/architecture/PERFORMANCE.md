@@ -239,7 +239,7 @@ Look for:
 ```python
 # Production (AWS RDS t3.micro)
 DATABASE_POOL_SIZE=20        # Base persistent connections
-DATABASE_MAX_OVERFLOW=40     # Burst capacity
+DATABASE_POOL_MAX_OVERFLOW=40     # Burst capacity
 DATABASE_POOL_TIMEOUT=30     # Max wait time (seconds)
 DATABASE_POOL_RECYCLE=3600   # Recycle after 1 hour
 

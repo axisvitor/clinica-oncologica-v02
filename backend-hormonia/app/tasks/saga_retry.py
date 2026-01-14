@@ -1,5 +1,5 @@
 """
-Celery tasks for automatic retry of failed patient onboarding sagas.
+Background tasks for automatic retry of failed patient onboarding sagas.
 
 This module implements the retry mechanism for sagas that failed during
 patient onboarding, ensuring eventual consistency and high success rates.
@@ -17,11 +17,11 @@ from datetime import datetime, timedelta, timezone
 from typing import List
 from uuid import UUID
 
-from celery import shared_task
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.task_queue import task_queue as celery_app
 from app.utils.async_helpers import run_async
 from app.models.patient_onboarding_saga import PatientOnboardingSaga
 from app.models.enums import SagaStatus
@@ -33,7 +33,7 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
-@shared_task(
+@celery_app.task(
     name="retry_patient_onboarding_saga",
     bind=True,
     max_retries=3,
@@ -79,7 +79,7 @@ def retry_patient_onboarding_saga(self, saga_id: str) -> dict:
             }
 
         # Check retry count
-        if saga.retry_count >= settings.get("SAGA_MAX_RETRIES", 3):
+        if saga.retry_count >= getattr(settings, "SAGA_MAX_RETRIES", 3):
             logger.warning(
                 f"Saga {saga_id} has exceeded max retries ({saga.retry_count})"
             )
@@ -110,7 +110,7 @@ def retry_patient_onboarding_saga(self, saga_id: str) -> dict:
         db.commit()
 
         logger.info(
-            f"Retrying saga {saga_id} (attempt {saga.retry_count}/{settings.get('SAGA_MAX_RETRIES', 3)})"
+            f"Retrying saga {saga_id} (attempt {saga.retry_count}/{getattr(settings, 'SAGA_MAX_RETRIES', 3)})"
         )
 
         # Initialize saga orchestrator
@@ -155,7 +155,7 @@ def retry_patient_onboarding_saga(self, saga_id: str) -> dict:
         db.close()
 
 
-@shared_task(
+@celery_app.task(
     name="scan_and_retry_failed_sagas",
     bind=True,
 )
@@ -194,7 +194,7 @@ def scan_and_retry_failed_sagas(self) -> dict:
         for saga in failed_sagas:
             try:
                 # Check if already at max retries
-                if saga.retry_count >= settings.get("SAGA_MAX_RETRIES", 3):
+                if saga.retry_count >= getattr(settings, "SAGA_MAX_RETRIES", 3):
                     logger.warning(f"Saga {saga.id} has exceeded max retries, skipping")
                     max_retries_count += 1
                     continue
@@ -236,7 +236,7 @@ def scan_and_retry_failed_sagas(self) -> dict:
         db.close()
 
 
-@shared_task(name="cleanup_old_completed_sagas")
+@celery_app.task(name="cleanup_old_completed_sagas")
 def cleanup_old_completed_sagas() -> dict:
     """
     Clean up completed sagas older than retention period.
@@ -250,7 +250,7 @@ def cleanup_old_completed_sagas() -> dict:
     db = next(get_db())
 
     try:
-        retention_days = settings.get("SAGA_RETENTION_DAYS", 30)
+        retention_days = getattr(settings, "SAGA_RETENTION_DAYS", 30)
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
 
         logger.info(
@@ -330,7 +330,7 @@ def _find_failed_sagas_for_retry(db: Session) -> List[PatientOnboardingSaga]:
     Returns:
         List of PatientOnboardingSaga objects eligible for retry
     """
-    max_retries = settings.get("SAGA_MAX_RETRIES", 3)
+    max_retries = getattr(settings, "SAGA_MAX_RETRIES", 3)
 
     # Query for failed sagas
     query = db.query(PatientOnboardingSaga).filter(
@@ -382,8 +382,8 @@ def _calculate_exponential_backoff(retry_count: int) -> int:
     #   Retry 1 -> 60s (1 min)
     #   Retry 2 -> 120s (2 min)
     #   Retry 3 -> 240s (4 min)
-    base_delay = settings.get("SAGA_RETRY_BASE_DELAY_SECONDS", 60)
-    max_delay = settings.get("SAGA_RETRY_MAX_DELAY_SECONDS", 600)  # 10 min
+    base_delay = getattr(settings, "SAGA_RETRY_BASE_DELAY_SECONDS", 60)
+    max_delay = getattr(settings, "SAGA_RETRY_MAX_DELAY_SECONDS", 600)  # 10 min
 
     delay = base_delay * (2**retry_count)
 
@@ -451,7 +451,7 @@ async def _alert_admin_max_retries_exceeded(
         logger.info(f"Alert created for saga {saga.id} max retries exceeded")
 
         # Send email if configured
-        if settings.get("ENABLE_ADMIN_EMAIL_ALERTS", False):
+        if getattr(settings, "ENABLE_ADMIN_EMAIL_ALERTS", False):
             await _send_admin_email_alert(saga)
 
     except Exception as e:
@@ -497,7 +497,7 @@ async def _send_admin_email_alert(saga: PatientOnboardingSaga) -> None:
         <p><strong>View Saga:</strong> <a href="{settings.APP_ADMIN_DASHBOARD_URL}/sagas/{saga.id}">Click here</a></p>
         '''
 
-        admin_email = settings.get("ADMIN_EMAIL", "admin@example.com")
+        admin_email = getattr(settings, "ADMIN_EMAIL", "admin@example.com")
 
         await send_email(
             to_email=admin_email,

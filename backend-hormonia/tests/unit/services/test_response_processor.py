@@ -20,28 +20,41 @@ def mock_config():
 def response_processor(mock_db, mock_config):
     # Patch services that require external connections
     with patch("app.services.response_processor.processor.get_platform_sync_service") as mock_sync, \
-         patch("app.services.response_processor.processor.FlowBroadcaster") as mock_broadcaster:
-        mock_sync.return_value = AsyncMock()
-        mock_broadcaster.return_value = AsyncMock()
+         patch("app.services.response_processor.processor.flow_event_broadcaster") as mock_broadcaster, \
+         patch("app.services.response_processor.processor.get_conversational_quiz_service") as mock_quiz:
+        mock_sync_service = AsyncMock()
+        mock_sync_service.sync_patient_record_update = AsyncMock()
+        mock_sync.return_value = mock_sync_service
+        mock_broadcaster.broadcast_patient_interaction = AsyncMock()
+        mock_quiz.return_value = AsyncMock()
 
         processor = ResponseProcessor(mock_db, mock_config)
         # Mock repositories
         processor.message_repo = MagicMock()
         processor.flow_state_repo = MagicMock()
         processor.patient_repo = MagicMock()
-        processor.flow_broadcaster = AsyncMock()
-        processor.platform_sync = AsyncMock()
-        processor.quiz_service = AsyncMock()
+        processor.flow_broadcaster = mock_broadcaster
+        processor.platform_sync = mock_sync_service
+        processor.quiz_service = mock_quiz.return_value
 
         # Mock internal methods to avoid complex logic in unit tests
         processor._store_inbound_message = AsyncMock()
         processor._is_quiz_response = AsyncMock(return_value=False)
-        processor._validate_response = AsyncMock()
-        processor._extract_structured_data = AsyncMock()
-        processor._determine_flow_actions = AsyncMock(return_value=[])
-        processor._generate_follow_up_message = AsyncMock(return_value=None)
-        processor._prepare_state_updates = AsyncMock(return_value=None)
+        processor._determine_response_type = MagicMock(return_value=ResponseType.TEXT)
         processor._apply_state_updates = AsyncMock()
+        processor._trigger_sequential_continuation = AsyncMock()
+
+        processor.validator = MagicMock()
+        processor.validator.validate_response = AsyncMock()
+        processor.extractor = MagicMock()
+        processor.extractor.extract_structured_data = AsyncMock()
+        processor.flow_helpers = MagicMock()
+        processor.flow_helpers.determine_flow_actions = AsyncMock(return_value=[])
+        processor.flow_helpers.generate_follow_up_message = AsyncMock(return_value=None)
+        processor.flow_helpers.prepare_state_updates = AsyncMock(return_value=None)
+        processor.flow_helpers.check_escalation_required = MagicMock(return_value=False)
+        processor.handlers = MagicMock()
+        processor.handlers.handle_invalid_response = AsyncMock()
 
         return processor
 
@@ -67,14 +80,15 @@ async def test_process_inbound_message_success(response_processor):
     response_processor.flow_state_repo.get_active_flow.return_value = None
     
     validation_result = MagicMock(is_valid=True, response_type=ResponseType.TEXT)
-    response_processor._validate_response.return_value = validation_result
+    response_processor.validator.validate_response.return_value = validation_result
     
     structured_response = MagicMock(
         extracted_data={},
         sentiment_analysis={"confidence": 0.9},
-        requires_attention=False
+        requires_attention=False,
+        medical_concerns=[]
     )
-    response_processor._extract_structured_data.return_value = structured_response
+    response_processor.extractor.extract_structured_data.return_value = structured_response
     
     # Execute
     result = await response_processor.process_inbound_message(inbound)
@@ -126,7 +140,7 @@ async def test_process_inbound_message_invalid_response(response_processor):
         response_type=ResponseType.TEXT,
         validation_errors=["Empty content"]
     )
-    response_processor._validate_response.return_value = validation_result
+    response_processor.validator.validate_response.return_value = validation_result
     
     # Mock handle_invalid_response to return a result
     expected_result = ResponseProcessingResult(
@@ -135,11 +149,11 @@ async def test_process_inbound_message_invalid_response(response_processor):
         flow_actions=[],
         follow_up_message="Error"
     )
-    response_processor._handle_invalid_response = AsyncMock(return_value=expected_result)
+    response_processor.handlers.handle_invalid_response = AsyncMock(return_value=expected_result)
     
     # Execute
     result = await response_processor.process_inbound_message(inbound)
     
     # Verify
     assert result == expected_result
-    response_processor._handle_invalid_response.assert_called_once()
+    response_processor.handlers.handle_invalid_response.assert_called_once()

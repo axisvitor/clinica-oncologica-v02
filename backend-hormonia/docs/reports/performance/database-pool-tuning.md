@@ -88,7 +88,7 @@ Override defaults with environment variables:
 ```bash
 # .env
 DATABASE_POOL_SIZE=20
-DATABASE_MAX_OVERFLOW=40
+DATABASE_POOL_MAX_OVERFLOW=40
 DATABASE_POOL_TIMEOUT=30
 DATABASE_POOL_RECYCLE=3600
 ```
@@ -112,7 +112,7 @@ pip install locust gevent
 ```bash
 # Test with specific pool settings
 export DATABASE_POOL_SIZE=20
-export DATABASE_MAX_OVERFLOW=40
+export DATABASE_POOL_MAX_OVERFLOW=40
 
 # Restart backend
 docker-compose restart backend
@@ -194,7 +194,7 @@ Based on load testing with 100 concurrent users:
 ```python
 # Recommended configuration
 DATABASE_POOL_SIZE=20
-DATABASE_MAX_OVERFLOW=40
+DATABASE_POOL_MAX_OVERFLOW=40
 DATABASE_POOL_TIMEOUT=30
 DATABASE_POOL_RECYCLE=3600
 
@@ -343,7 +343,7 @@ psql -c "SELECT count(*) FROM pg_stat_activity WHERE datname='hormonia';"
 1. **Increase pool size** (if database has capacity):
    ```bash
    export DATABASE_POOL_SIZE=30
-   export DATABASE_MAX_OVERFLOW=60
+   export DATABASE_POOL_MAX_OVERFLOW=60
    ```
 
 2. **Increase timeout** (temporary fix):
@@ -415,7 +415,7 @@ psql -c "SELECT pid, now() - xact_start AS duration, state, query
 
 1. **Increase max_overflow** for burst capacity:
    ```bash
-   export DATABASE_MAX_OVERFLOW=80
+   export DATABASE_POOL_MAX_OVERFLOW=80
    ```
 
 2. **Set statement timeout** to kill long queries:
@@ -471,7 +471,7 @@ DATABASE_URL=postgresql://pgbouncer:6432/hormonia
 
 # Reduce application pool (PgBouncer handles pooling)
 DATABASE_POOL_SIZE=5
-DATABASE_MAX_OVERFLOW=10
+DATABASE_POOL_MAX_OVERFLOW=10
 ```
 
 ### Cloud Database Scaling

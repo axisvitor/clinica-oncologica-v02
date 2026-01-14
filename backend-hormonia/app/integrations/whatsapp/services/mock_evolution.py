@@ -144,6 +144,7 @@ class MockEvolutionAPIClient:
                 instance["is_connected"] = True
                 instance["phone_number"] = f"55119{random.randint(10000000, 99999999)}"
                 instance["profile_name"] = f"Mock User {instance_name}"
+                instance["last_activity"] = datetime.now(timezone.utc)
 
                 # Add some mock contacts
                 self._generate_mock_contacts(instance_name)
@@ -155,6 +156,7 @@ class MockEvolutionAPIClient:
             phone_number=instance["phone_number"],
             profile_name=instance["profile_name"],
             qr_code=instance.get("qr_code") if not instance["is_connected"] else None,
+            last_activity=instance.get("last_activity"),
         )
 
     async def get_qr_code(self, instance_name: str) -> Optional[str]:
@@ -169,6 +171,16 @@ class MockEvolutionAPIClient:
             return None
 
         return instance.get("qr_code")
+
+    async def health_check(self, instance_name: str) -> Dict[str, Any]:
+        """Mock health check for Evolution API instance."""
+        status = await self.get_instance_status(instance_name)
+        return {
+            "is_connected": status.is_connected,
+            "state": status.status,
+            "phone_number": status.phone_number,
+            "last_activity": status.last_activity,
+        }
 
     async def send_text_message(
         self,

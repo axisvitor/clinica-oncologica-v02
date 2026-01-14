@@ -10,7 +10,7 @@ import logging
 from typing import Any
 from uuid import UUID
 from datetime import datetime, timezone
-from celery import current_app as celery_app
+from app.task_queue import task_queue as celery_app
 from sqlalchemy.orm import Session
 
 from app.database import get_db

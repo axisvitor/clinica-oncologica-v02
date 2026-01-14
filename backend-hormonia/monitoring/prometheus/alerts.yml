@@ -86,7 +86,7 @@ groups:
           summary: "Redis instance is down"
           description: "Redis {{ $labels.instance }} is unreachable"
 
-  # Warning Alerts - Action Required Soon (Slack)
+  # Warning Alerts - Action Required Soon (Email)
   - name: warning_alerts
     interval: 1m
     rules:
@@ -95,7 +95,7 @@ groups:
         for: 10m
         labels:
           severity: warning
-          channel: slack
+          channel: email
         annotations:
           summary: "High CPU usage detected"
           description: "CPU usage is {{ $value | humanize }}% on {{ $labels.instance }}"
@@ -105,7 +105,7 @@ groups:
         for: 10m
         labels:
           severity: warning
-          channel: slack
+          channel: email
         annotations:
           summary: "High memory usage detected"
           description: "Memory usage is {{ $value | humanize }}% on {{ $labels.instance }}"
@@ -115,7 +115,7 @@ groups:
         for: 5m
         labels:
           severity: warning
-          channel: slack
+          channel: email
         annotations:
           summary: "Disk usage above 90%"
           description: "Disk {{ $labels.mountpoint }} is {{ $value | humanize }}% full"
@@ -125,7 +125,7 @@ groups:
         for: 15m
         labels:
           severity: warning
-          channel: slack
+          channel: email
         annotations:
           summary: "Redis cache hit rate below 70%"
           description: "Cache hit rate is {{ $value | humanizePercentage }}"
@@ -135,7 +135,7 @@ groups:
         for: 1h
         labels:
           severity: warning
-          channel: slack
+          channel: email
         annotations:
           summary: "Quiz completion rate below 60%"
           description: "Only {{ $value | humanizePercentage }} of quizzes are being completed"
@@ -145,7 +145,7 @@ groups:
         for: 5m
         labels:
           severity: warning
-          channel: slack
+          channel: email
         annotations:
           summary: "High rate of security scan failures"
           description: "{{ $value }} security scans failing per second"
@@ -155,7 +155,7 @@ groups:
         for: 10m
         labels:
           severity: warning
-          channel: slack
+          channel: email
         annotations:
           summary: "Slow database queries detected"
           description: "95th percentile query time is {{ $value }}s for {{ $labels.query }}"
@@ -165,7 +165,7 @@ groups:
         for: 5m
         labels:
           severity: warning
-          channel: slack
+          channel: email
         annotations:
           summary: "High rate of MIME validation failures"
           description: "{{ $value }} MIME validation failures per second"
@@ -223,7 +223,7 @@ groups:
         for: 15m
         labels:
           severity: warning
-          channel: slack
+          channel: email
         annotations:
           summary: "SLA compliance below 95%"
           description: "Current SLA compliance is {{ $value | humanizePercentage }}"
@@ -233,7 +233,7 @@ groups:
         for: 5m
         labels:
           severity: warning
-          channel: slack
+          channel: email
         annotations:
           summary: "24h uptime below 99%"
           description: "Application uptime is {{ $value | humanizePercentage }}"

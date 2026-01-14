@@ -58,7 +58,8 @@ async def test_patient_registration(db_session, doctor_id: UUID):
     print("="*60)
     
     # Create test patient data
-    test_phone = f"+5511999{uuid4().hex[:6]}"
+    test_phone_suffix = str(uuid4().int % 1000000).zfill(6)
+    test_phone = f"+5511999{test_phone_suffix}"
     patient_data = PatientCreate(
         name=f"Debug Test Patient {uuid4().hex[:8]}",
         phone=test_phone,

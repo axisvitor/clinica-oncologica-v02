@@ -78,7 +78,7 @@ Custom script that:
 
 ### Emergency Response
 -   **Migration Lock:** If a migration hangs, check `pg_stat_activity` for locks. Kill blocking PID if safe.
--   **Connection Exhaustion:** Temporary fix -> Increase `DB_MAX_OVERFLOW`. Long term -> Fix connection leaks / Add Read Replicas.
+-   **Connection Exhaustion:** Temporary fix -> Increase `DATABASE_POOL_MAX_OVERFLOW`. Long term -> Fix connection leaks / Add Read Replicas.
 
 ---
 
@@ -91,12 +91,16 @@ DATABASE_URL=postgresql+psycopg://user:pass@host:5432/db
 
 # Pool Configuration (environment-aware defaults in database_config.py)
 # Only override if necessary:
-# DB_POOL_SIZE=10        # Default: 10 (dev), 10 (prod)
-# DB_MAX_OVERFLOW=15     # Default: 15 (dev), 10 (prod)
+# DATABASE_POOL_SIZE=10        # Default: 10 (dev), 10 (prod)
+# DATABASE_POOL_MAX_OVERFLOW=15     # Default: 15 (dev), 10 (prod)
 # WEB_CONCURRENCY=1      # Default: 1 (dev), 4 (prod) - workers
 
 # Security
-ENCRYPTION_KEY=...
+SECURITY_SECRET_KEY=...
+SECURITY_CSRF_SECRET_KEY=...
+PHI_ENCRYPTION_KEY=...
+ENCRYPTION_KEY_CURRENT=...
+HASH_SALT=...
 ```
 
 > **Warning:** Do NOT set high pool values in development. The system automatically adjusts based on environment detection. Default dev config (1 worker × 25 connections = 25) is safe for RDS t3.micro (~80 max connections).

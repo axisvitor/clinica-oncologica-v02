@@ -20,6 +20,7 @@ rule_files:
   - '/etc/prometheus/alerts.yml'
   - '/etc/prometheus/recording-rules.yml'
   - '/etc/prometheus/rules/quiz_alerts.yml'
+  - '/etc/prometheus/rules/firebase_admin_sdk_alerts.yml'
   - '/etc/prometheus/p0_alerts.yml'
 
 # Scrape configurations

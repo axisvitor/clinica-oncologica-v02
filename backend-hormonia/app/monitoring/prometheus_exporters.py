@@ -219,6 +219,27 @@ fallback_activation_frequency = Gauge(
     registry=registry,
 )
 
+# Firebase Admin SDK metrics
+firebase_admin_sdk_duration_seconds = Histogram(
+    "firebase_admin_sdk_duration_seconds",
+    "Duration of Firebase Admin SDK calls",
+    registry=registry,
+    buckets=[0.5, 1.0, 2.0, 5.0, 10.0, 15.0],
+)
+
+firebase_admin_sdk_timeout_total = Counter(
+    "firebase_admin_sdk_timeout_total",
+    "Total Firebase Admin SDK timeouts",
+    registry=registry,
+)
+
+firebase_admin_sdk_error_total = Counter(
+    "firebase_admin_sdk_error_total",
+    "Total Firebase Admin SDK errors",
+    ["error_type"],
+    registry=registry,
+)
+
 
 class MetricsExporter:
     """Prometheus metrics exporter"""
@@ -472,6 +493,30 @@ class MetricsExporter:
             )
         except Exception as e:
             logger.error(f"Error updating fallback activation frequency: {e}")
+
+    @staticmethod
+    def record_firebase_admin_sdk_call(duration: float):
+        """Record Firebase Admin SDK call duration."""
+        try:
+            firebase_admin_sdk_duration_seconds.observe(duration)
+        except Exception as e:
+            logger.error(f"Error recording Firebase Admin SDK duration: {e}")
+
+    @staticmethod
+    def record_firebase_admin_sdk_timeout():
+        """Record Firebase Admin SDK timeout."""
+        try:
+            firebase_admin_sdk_timeout_total.inc()
+        except Exception as e:
+            logger.error(f"Error recording Firebase Admin SDK timeout: {e}")
+
+    @staticmethod
+    def record_firebase_admin_sdk_error(error_type: str):
+        """Record Firebase Admin SDK error."""
+        try:
+            firebase_admin_sdk_error_total.labels(error_type=error_type).inc()
+        except Exception as e:
+            logger.error(f"Error recording Firebase Admin SDK error: {e}")
 
 
 # FastAPI router for metrics endpoint

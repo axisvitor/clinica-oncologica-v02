@@ -117,15 +117,15 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_patients_active
 ON patients(id, created_at DESC)
 WHERE deleted_at IS NULL;
 
--- Index for patient search by phone
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_patients_phone
-ON patients(phone)
-WHERE deleted_at IS NULL;
+-- Index for patient search by phone (LGPD: hash-based)
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_patients_phone_hash
+ON patients(phone_hash)
+WHERE deleted_at IS NULL AND phone_hash IS NOT NULL;
 
--- Index for patient search by email
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_patients_email
-ON patients(email)
-WHERE deleted_at IS NULL;
+-- Index for patient search by email (LGPD: hash-based)
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_patients_email_hash
+ON patients(email_hash)
+WHERE deleted_at IS NULL AND email_hash IS NOT NULL;
 
 -- Full-text search index for patient name
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_patients_name_trgm

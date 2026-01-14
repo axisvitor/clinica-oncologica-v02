@@ -9,11 +9,25 @@
  * - Risk assessments
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { apiClient, ApiError } from '@/lib/api-client'
 
 const mockFetch = vi.fn()
 global.fetch = mockFetch
+
+const setCsrfToken = (token: string | null) => {
+  const apiClientAny = apiClient as any
+  apiClientAny.csrfToken = token
+  apiClientAny.csrfTokenPromise = null
+}
+
+beforeEach(() => {
+  setCsrfToken('csrf-token')
+})
+
+afterEach(() => {
+  setCsrfToken(null)
+})
 
 describe('API Connection Tests - Admin Operations', () => {
   beforeEach(() => {
@@ -427,11 +441,12 @@ describe('API Connection Tests - Analytics', () => {
       mockFetch.mockImplementation(() => {
         callCount++
         const responses = [mockOverview, mockStatus, mockTrend, mockEngagement]
+        const response = responses[callCount - 1]
         return Promise.resolve({
           ok: true,
           status: 200,
           headers: new Map([['content-type', 'application/json']]),
-          json: async () => responses[callCount - 1]
+          json: async () => response
         })
       })
 
@@ -557,6 +572,10 @@ describe('API Connection Tests - Analytics', () => {
 
   describe('Analytics Error Handling', () => {
     it('should handle analytics endpoint errors', async () => {
+      const apiClientAny = apiClient as any
+      const originalShouldRetry = apiClientAny.shouldRetry
+      apiClientAny.shouldRetry = () => false
+
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 500,
@@ -572,6 +591,8 @@ describe('API Connection Tests - Analytics', () => {
       } catch (error) {
         expect(error).toBeInstanceOf(ApiError)
         expect((error as ApiError).status).toBe(500)
+      } finally {
+        apiClientAny.shouldRetry = originalShouldRetry
       }
     })
 
@@ -706,10 +727,10 @@ describe('API Connection Tests - Messages & Flows', () => {
         json: async () => mockTemplates
       })
 
-      const result = await apiClient.flows.list()
+      const result = await apiClient.flows.getTemplates()
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/v2/flows/templates',
+        'http://localhost:8000/api/v2/templates/flows',
         expect.any(Object)
       )
       expect(result.items).toHaveLength(1)

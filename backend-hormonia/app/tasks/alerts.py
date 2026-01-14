@@ -14,7 +14,7 @@ from uuid import UUID
 from datetime import datetime, timedelta, timezone
 
 
-from app.celery_app import celery_app
+from app.task_queue import task_queue as celery_app
 from app.tasks.base import BaseTask, get_db_session
 
 

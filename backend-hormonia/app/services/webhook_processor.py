@@ -30,7 +30,7 @@ from app.domain.messaging.core import MessageService
 from app.repositories.patient import PatientRepository
 from app.services.flow import FlowEngine
 from app.services.enhanced_flow_engine import EnhancedFlowEngine
-from app.services.websocket_events import websocket_events
+import app.services.websocket_events as websocket_events_module
 from app.schemas.websocket import WebSocketEventType
 from app.schemas.message import MessageCreate
 from app.integrations.openai_client import get_langchain_orchestrator
@@ -103,7 +103,9 @@ class WebhookProcessor:
 
     @with_db_retry(max_retries=3)
     async def process_message_webhook(
-        self, event_data: dict[str, Any]
+        self,
+        event_data: dict[str, Any],
+        webhook_id: Optional[str] = None,
     ) -> Optional[str]:
         """
         Process incoming message webhook from Evolution API.
@@ -120,13 +122,16 @@ class WebhookProcessor:
 
         Args:
             event_data: Webhook event data from Evolution API
+            webhook_id: Optional webhook event ID header (for persistence)
 
         Returns:
             Message ID if processed successfully, None otherwise
         """
         try:
             return await self.message_handler.process_message(
-                event_data=event_data, webhook_store=self.webhook_store
+                event_data=event_data,
+                webhook_store=self.webhook_store,
+                webhook_id=webhook_id,
             )
         except Exception as e:
             logger.error(f"Error processing message webhook: {e}", exc_info=True)
@@ -518,6 +523,10 @@ class WebhookProcessor:
             message: Message to publish
             patient_id: Patient ID
         """
+        websocket_events = websocket_events_module.websocket_events
+        if not websocket_events:
+            logger.debug("WebSocket events service unavailable; skipping message event")
+            return
         await websocket_events.publish_message_event(
             event_type=WebSocketEventType.NEW_MESSAGE,
             message_id=message.id,
@@ -573,7 +582,9 @@ class WebhookProcessor:
     # - _mark_webhook_processed -> app.services.webhook.persistence.WebhookEventStore
 
     @with_db_retry(max_retries=3)
-    async def process_connection_webhook(self, event_data: dict[str, Any]) -> bool:
+    async def process_connection_webhook(
+        self, event_data: dict[str, Any], webhook_id: Optional[str] = None
+    ) -> bool:
         """
         P0 FIX #3: Process connection status webhook (connection.update events).
 
@@ -586,13 +597,16 @@ class WebhookProcessor:
 
         Args:
             event_data: Webhook event data
+            webhook_id: Optional webhook event ID header (for persistence)
 
         Returns:
             True if processed successfully
         """
         try:
             return await self.connection_handler.process_connection(
-                event_data=event_data, webhook_store=self.webhook_store
+                event_data=event_data,
+                webhook_store=self.webhook_store,
+                webhook_id=webhook_id,
             )
         except Exception as e:
             logger.error(f"Error processing connection webhook: {e}", exc_info=True)

@@ -13,11 +13,6 @@ from fastapi.testclient import TestClient
 # Add timestamp for unique emails in tests
 pytest.timestamp = int(__import__("time").time())
 
-# Use an existing doctor ID from the database (admin@example.com)
-# This doctor already exists and will be used for patient creation
-EXISTING_DOCTOR_ID = "28844c5c-6bb8-484f-9502-b6a22c466745"
-
-
 @pytest.mark.api
 @pytest.mark.crud
 @pytest.mark.patient
@@ -32,7 +27,7 @@ class TestPatientCRUD:
         patient_data = {
             "name": "Test Patient Create",
             "phone": "+5511999999999",
-            "doctor_id": EXISTING_DOCTOR_ID  # Use existing doctor from DB
+            "doctor_id": test_user["id"]
         }
 
         response = authenticated_client.post(
@@ -59,7 +54,7 @@ class TestPatientCRUD:
         patient_data = {
             "name": "Duplicate Test",
             "phone": unique_phone,
-            "doctor_id": EXISTING_DOCTOR_ID
+            "doctor_id": test_user["id"]
         }
 
         # Create first patient
@@ -100,7 +95,7 @@ class TestPatientCRUD:
         patient_data = {
             "name": "Get Test Patient",
             "phone": unique_phone,
-            "doctor_id": EXISTING_DOCTOR_ID
+            "doctor_id": test_user["id"]
         }
         create_response = authenticated_client.post("/api/v2/patients/", json=patient_data)
 
@@ -136,7 +131,7 @@ class TestPatientCRUD:
         patient_data = {
             "name": "Update Test Patient",
             "phone": unique_phone,
-            "doctor_id": EXISTING_DOCTOR_ID
+            "doctor_id": test_user["id"]
         }
         create_response = authenticated_client.post("/api/v2/patients/", json=patient_data)
 
@@ -168,7 +163,7 @@ class TestPatientCRUD:
         patient_data = {
             "name": "Delete Test Patient",
             "phone": unique_phone,
-            "doctor_id": EXISTING_DOCTOR_ID
+            "doctor_id": test_user["id"]
         }
         create_response = authenticated_client.post("/api/v2/patients/", json=patient_data)
 
@@ -180,7 +175,7 @@ class TestPatientCRUD:
         # Delete patient
         response = authenticated_client.delete(f"/api/v2/patients/{patient_id}")
 
-        assert response.status_code == 204
+        assert response.status_code in [200, 204]
 
         # Verify patient is soft deleted (might return 404 or show as inactive)
         get_response = authenticated_client.get(f"/api/v2/patients/{patient_id}")

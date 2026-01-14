@@ -79,7 +79,7 @@ async def check_redis_health() -> RedisHealth:
 async def check_worker_health(db: Any) -> WorkerHealth:
     """Check background worker health."""
     try:
-        from app.celery_app import celery_app
+        from app.task_queue import task_queue as celery_app
 
         inspect = celery_app.control.inspect(timeout=2.0)
         active_workers_dict = inspect.active()

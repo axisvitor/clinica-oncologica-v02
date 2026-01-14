@@ -10,6 +10,7 @@ import pytest
 import requests
 from typing import Generator
 from uuid import uuid4
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
@@ -18,8 +19,11 @@ os.environ["APP_ENVIRONMENT"] = "testing"
 os.environ["ENVIRONMENT"] = "testing"
 os.environ.setdefault("ENCRYPTION_KEY", "32byte-secret-key-for-testing-123")
 os.environ.setdefault("ENCRYPTION_SALT", "test-salt-16bytes")
+os.environ.setdefault("SKIP_FIREBASE_TOKEN", "true")
 
-from sqlalchemy import create_engine, TypeDecorator, Text, text
+USE_REAL_AUTH = os.getenv("USE_REAL_AUTH", "").lower() in ("1", "true", "yes")
+
+from sqlalchemy import create_engine, TypeDecorator, Text, text, Index, ARRAY
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool, NullPool
 from sqlalchemy.dialects.postgresql import JSONB, INET, BYTEA
@@ -71,6 +75,8 @@ class INETCompat(TypeDecorator):
 
 def get_firebase_id_token(email: str, password: str) -> str | None:
     """Get Firebase ID token via REST API (signInWithPassword)."""
+    if os.getenv("SKIP_FIREBASE_TOKEN", "").lower() in ("1", "true", "yes"):
+        return None
     url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={FIREBASE_API_KEY}"
     try:
         response = requests.post(url, json={
@@ -115,6 +121,7 @@ def app_instance():
 @pytest.fixture(scope="session")
 def app_modules():
     """Load app modules lazily."""
+    import app.models  # Ensure all models are registered for Base.metadata
     from app.db.base import Base
     from app.models.user import User, UserRole
     from app.models.patient import Patient
@@ -134,8 +141,11 @@ def app_modules():
 @pytest.fixture(scope="session")
 def test_engine(app_modules):
     """Create test database engine - uses real PostgreSQL."""
-    db_url = os.getenv("DATABASE_URL")
-    if db_url and "postgresql" in db_url:
+    db_url = os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL")
+    allow_postgres = os.getenv("USE_TEST_POSTGRES", "").lower() in ("1", "true", "yes")
+    db_host = urlparse(db_url).hostname if db_url else None
+    is_local_host = db_host in {"localhost", "127.0.0.1", "::1"}
+    if db_url and "postgresql" in db_url and (allow_postgres or is_local_host):
         engine = create_engine(db_url, pool_pre_ping=True, poolclass=NullPool)
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
@@ -158,12 +168,33 @@ def test_engine(app_modules):
                         column.type = JSONBCompat()
                     elif isinstance(column.type, INET):
                         column.type = INETCompat()
+                    elif isinstance(column.type, ARRAY):
+                        column.type = JSONBCompat()
                     elif str(column.type) == 'BYTEA' or isinstance(column.type, BYTEA):
                         column.type = BLOB()
                     if column.server_default is not None and hasattr(column.server_default, 'arg'):
                         arg_str = str(column.server_default.arg).lower()
                         if 'gen_random_uuid()' in arg_str:
                             column.server_default = None
+                # Strip PG-specific indexes (dedupe by name)
+                index_by_name = {}
+                for idx in list(table.indexes):
+                    if idx.unique and any(
+                        hasattr(idx, k) and getattr(idx, k) is not None for k in ["postgresql_where"]
+                    ):
+                        new_idx = Index(
+                            idx.name,
+                            *[c for c in idx.columns],
+                            unique=True,
+                        )
+                        index_by_name.setdefault(new_idx.name, new_idx)
+                    elif not any(
+                        hasattr(idx, k) and getattr(idx, k) is not None
+                        for k in ["postgresql_where", "postgresql_concurrently"]
+                    ):
+                        index_by_name.setdefault(idx.name, idx)
+
+                table.indexes = set(index_by_name.values())
         try:
             Base.metadata.create_all(bind=engine)
         except Exception as e:
@@ -209,6 +240,18 @@ def client(db_session: Session, app_instance, app_modules) -> TestClient:
     app_instance.dependency_overrides.clear()
 
 
+@pytest.fixture(scope="session")
+def real_client(app_instance) -> TestClient:
+    """Create real client without DB overrides (for real auth/session testing)."""
+    if not USE_REAL_AUTH:
+        pytest.skip("USE_REAL_AUTH not enabled")
+    with TestClient(app_instance, raise_server_exceptions=False) as test_client:
+        csrf_token = _get_csrf_token(test_client)
+        if csrf_token:
+            test_client.headers["X-CSRF-Token"] = csrf_token
+        yield test_client
+
+
 @pytest.fixture
 def test_user(db_session: Session, app_modules) -> dict:
     """Create and return a test user dict."""
@@ -240,6 +283,8 @@ def test_user(db_session: Session, app_modules) -> dict:
 @pytest.fixture
 def authenticated_client(client: TestClient, test_user: dict, firebase_token: str | None, app_instance, app_modules) -> TestClient:
     """Create authenticated test client with CSRF and auth."""
+    if USE_REAL_AUTH:
+        pytest.skip("Use real_authenticated_client for real auth tests")
     user_obj = test_user["user"]
     get_current_user = app_modules['get_current_user']
     get_current_user_from_session = app_modules['get_current_user_from_session']
@@ -266,6 +311,30 @@ def authenticated_client(client: TestClient, test_user: dict, firebase_token: st
         client.headers["Authorization"] = f"Bearer test_token_{user_obj.id}"
 
     return client
+
+
+@pytest.fixture(scope="session")
+def real_session_id(real_client: TestClient, firebase_token: str | None) -> str:
+    """Create a real Redis-backed session using Firebase token."""
+    if not firebase_token:
+        pytest.skip("Firebase token unavailable; set SKIP_FIREBASE_TOKEN=false")
+    response = real_client.post(
+        "/api/v2/auth/firebase/verify",
+        json={"id_token": firebase_token},
+    )
+    if response.status_code != 200:
+        pytest.fail(f"Firebase verify failed: {response.status_code} {response.text}")
+    session_id = response.json().get("session_id")
+    if not session_id:
+        pytest.fail(f"No session_id returned: {response.text}")
+    return session_id
+
+
+@pytest.fixture(scope="session")
+def real_authenticated_client(real_client: TestClient, real_session_id: str) -> TestClient:
+    """Authenticated client using real Redis session ID."""
+    real_client.headers["Authorization"] = f"Bearer {real_session_id}"
+    return real_client
 
 
 @pytest.fixture
@@ -300,6 +369,18 @@ def mock_saga_patient(db_session: Session, app_modules, app_instance):
             patient.name = patient_data.name
         if hasattr(patient_data, 'phone') and patient_data.phone:
             patient.set_phone(patient_data.phone)
+            # Emulate duplicate phone detection (same doctor, not deleted)
+            existing = (
+                db_session.query(Patient)
+                .filter(
+                    Patient.phone_hash == patient.phone_hash,
+                    Patient.doctor_id == doctor_id,
+                    Patient.deleted_at.is_(None),
+                )
+                .first()
+            )
+            if existing:
+                raise ValueError("Duplicate phone")
         if hasattr(patient_data, 'email') and patient_data.email:
             patient.set_email(patient_data.email)
         if hasattr(patient_data, 'cpf') and patient_data.cpf:

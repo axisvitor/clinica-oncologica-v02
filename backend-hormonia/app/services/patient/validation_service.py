@@ -164,6 +164,13 @@ class PatientValidationService:
 
             errors = []
             if self._duplicate_checker:
+                self._logger.info(
+                    "Normalized phone for duplicate check",
+                    extra={
+                        "phone_original": phone,
+                        "phone_normalized": formatted_phone,
+                    },
+                )
                 existing = self._duplicate_checker.check_duplicate_phone(formatted_phone, doctor_id, exclude_patient_id)
                 if existing:
                     errors.append(f"Patient with phone already exists: {existing.name}")

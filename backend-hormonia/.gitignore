@@ -93,3 +93,7 @@ temp/
 # yarn.lock
 *.db
 .venv
+
+# Celery beat schedule persistence (can cause stale task name issues)
+celerybeat-schedule*
+celerybeat.pid

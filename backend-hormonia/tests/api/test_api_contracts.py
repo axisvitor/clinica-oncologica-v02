@@ -17,21 +17,12 @@ Related Files:
 - backend-hormonia/app/api/v2/admin/system_stats.py
 """
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from uuid import uuid4
-
-from app.main import app
 from app.models.user import User, UserRole
 from app.models.audit import AuditLog
 from app.utils.security import get_password_hash
-
-
-@pytest.fixture
-def client():
-    """Create test client."""
-    return TestClient(app)
 
 
 @pytest.fixture
@@ -100,13 +91,9 @@ def user_activity(db_session: Session, regular_users):
 
 
 @pytest.fixture
-def auth_headers(client, admin_user):
+def auth_headers(admin_token: str):
     """Get authentication headers for admin user."""
-    # Note: In real implementation, use proper Firebase token
-    # This is a simplified version for testing
-    return {
-        "Authorization": f"Bearer test_token_for_{admin_user.id}"
-    }
+    return {"Authorization": f"Bearer {admin_token}"}
 
 
 class TestUserListAPIContract:

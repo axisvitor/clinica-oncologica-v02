@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import and_, desc
 from enum import Enum
+from fastapi import Depends
 
 from app.services.analytics import (
     FlowAnalyticsService,
@@ -16,6 +17,7 @@ from app.services.analytics import (
     PatientRisk,
 )
 from app.models.flow_analytics import FlowAnalytics
+from app.database import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -914,7 +916,7 @@ class FlowDashboardService:
 _flow_dashboard_service: Optional[FlowDashboardService] = None
 
 
-def get_flow_dashboard_service(db: Any) -> FlowDashboardService:
+def get_flow_dashboard_service(db: Any = Depends(get_db)) -> FlowDashboardService:
     """
     Get flow dashboard service instance.
 

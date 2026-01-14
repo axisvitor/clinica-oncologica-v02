@@ -233,7 +233,7 @@ class TestRedisCircuitBreakerRedisPersistence:
         breaker = RedisCircuitBreaker(name="redis_test")
 
         with patch(
-            "app.core.redis_circuit_breaker.get_async_redis_client",
+            "app.core.redis_manager.get_async_redis_client",
             return_value=mock_redis,
         ):
             async def success_func():
@@ -266,7 +266,7 @@ class TestRedisCircuitBreakerRedisPersistence:
         breaker = RedisCircuitBreaker(name="redis_test")
 
         with patch(
-            "app.core.redis_circuit_breaker.get_async_redis_client",
+            "app.core.redis_manager.get_async_redis_client",
             return_value=mock_redis,
         ):
             state = await breaker.get_state_async()
@@ -281,7 +281,7 @@ class TestRedisCircuitBreakerRedisPersistence:
         breaker = RedisCircuitBreaker(name="fallback_test")
 
         with patch(
-            "app.core.redis_circuit_breaker.get_async_redis_client",
+            "app.core.redis_manager.get_async_redis_client",
             return_value=mock_redis,
         ):
             # Should not raise, should use fallback

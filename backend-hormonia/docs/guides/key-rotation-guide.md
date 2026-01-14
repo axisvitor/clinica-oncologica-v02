@@ -11,9 +11,10 @@ Este documento descreve o procedimento para rotação das chaves de criptografia
 
 | Variável | Descrição | Tamanho | Uso |
 |----------|-----------|---------|-----|
-| `ENCRYPTION_KEY` | Chave atual de criptografia AES-256 | 32 bytes | Criptografia de dados |
-| `ENCRYPTION_KEY_PREVIOUS` | Chave anterior (para re-criptografia) | 32 bytes | Migração de dados |
-| `ENCRYPTION_SALT` | Salt para HMAC hashes | 16 bytes | Geração de hashes de busca |
+| `PHI_ENCRYPTION_KEY` | Chave principal AES-256-GCM (base64) | 32 bytes | Criptografia de dados (novo fluxo) |
+| `ENCRYPTION_KEY_CURRENT` | Chave atual (Fernet, legado) | 32 bytes | Criptografia de dados legados |
+| `ENCRYPTION_KEY_PREVIOUS` | Chave anterior (para re-criptografia) | 32 bytes | Migração de dados legados |
+| `HASH_SALT` | Salt para hashes de busca (hex) | 32 bytes | Geração de hashes de busca |
 
 ## Quando Rotacionar Chaves
 
@@ -50,22 +51,30 @@ aws s3 cp backup_pre_rotation_*.sql.gz s3://hormonia-backups/encryption-rotation
 #### 1.2 Gerar Nova Chave
 ```python
 # generate_encryption_key.py
+import os
+import base64
 import secrets
+from cryptography.fernet import Fernet
 
-# Gerar chave de 32 bytes (256 bits) para AES-256
-new_key = secrets.token_hex(16)  # 16 bytes = 32 caracteres hex
-print(f"Nova chave (32 bytes): {new_key}")
+# Gerar chave base64 de 32 bytes (novo fluxo AES-256-GCM)
+phi_key = base64.b64encode(os.urandom(32)).decode("ascii")
+print(f"PHI_ENCRYPTION_KEY (base64, 32 bytes): {phi_key}")
 
-# Gerar novo salt de 16 bytes
-new_salt = secrets.token_hex(8)  # 8 bytes = 16 caracteres hex
-print(f"Novo salt (16 bytes): {new_salt}")
+# Gerar chave Fernet (legado)
+legacy_key = Fernet.generate_key().decode("ascii")
+print(f"ENCRYPTION_KEY_CURRENT (Fernet): {legacy_key}")
+
+# Gerar salt para hashes de busca
+hash_salt = secrets.token_hex(32)  # 32 bytes = 64 caracteres hex
+print(f"HASH_SALT (hex, 32 bytes): {hash_salt}")
 ```
 
 #### 1.3 Documentar Chaves Antigas
 ```bash
 # Salvar chaves atuais em cofre seguro (AWS Secrets Manager, 1Password, etc.)
-export OLD_ENCRYPTION_KEY=$ENCRYPTION_KEY
-export OLD_ENCRYPTION_SALT=$ENCRYPTION_SALT
+export OLD_PHI_ENCRYPTION_KEY=$PHI_ENCRYPTION_KEY
+export OLD_ENCRYPTION_KEY_CURRENT=$ENCRYPTION_KEY_CURRENT
+export OLD_HASH_SALT=$HASH_SALT
 
 # Documentar timestamp
 echo "Chave antiga salva em: $(date -Iseconds)" >> key_rotation_log.txt
@@ -86,20 +95,20 @@ systemctl stop hormonia-api hormonia-worker
 
 #### 2.2 Atualizar Variáveis de Ambiente
 ```bash
-# Mover chave atual para previous
-export ENCRYPTION_KEY_PREVIOUS=$ENCRYPTION_KEY
-export ENCRYPTION_SALT_PREVIOUS=$ENCRYPTION_SALT
+# Mover chave atual para previous (legado)
+export ENCRYPTION_KEY_PREVIOUS=$ENCRYPTION_KEY_CURRENT
 
 # Definir novas chaves
-export ENCRYPTION_KEY="nova_chave_gerada_32_bytes"
-export ENCRYPTION_SALT="novo_salt_16_bytes"
+export PHI_ENCRYPTION_KEY="nova_chave_base64_32_bytes"
+export ENCRYPTION_KEY_CURRENT="nova_chave_fernet_base64"
+export HASH_SALT="novo_salt_hex_64_chars"
 
 # Atualizar arquivo .env
 cat >> .env <<EOF
-ENCRYPTION_KEY=$ENCRYPTION_KEY
+PHI_ENCRYPTION_KEY=$PHI_ENCRYPTION_KEY
+ENCRYPTION_KEY_CURRENT=$ENCRYPTION_KEY_CURRENT
 ENCRYPTION_KEY_PREVIOUS=$ENCRYPTION_KEY_PREVIOUS
-ENCRYPTION_SALT=$ENCRYPTION_SALT
-ENCRYPTION_SALT_PREVIOUS=$ENCRYPTION_SALT_PREVIOUS
+HASH_SALT=$HASH_SALT
 EOF
 ```
 
@@ -268,7 +277,6 @@ tail -f /var/log/hormonia/api.log | grep -i "encryption\|decrypt"
 ```bash
 # Remover chave anterior
 sed -i '/ENCRYPTION_KEY_PREVIOUS/d' .env
-sed -i '/ENCRYPTION_SALT_PREVIOUS/d' .env
 
 # Documentar rotação concluída
 echo "Rotação de chave concluída em: $(date -Iseconds)" >> key_rotation_log.txt
@@ -388,8 +396,8 @@ Atenciosamente,
 
 ### Antes da Rotação
 - [ ] Backup completo do banco de dados
-- [ ] Nova chave gerada (32 bytes)
-- [ ] Novo salt gerado (16 bytes)
+- [ ] Novas chaves geradas (base64, 32 bytes)
+- [ ] Novo HASH_SALT gerado (32 bytes / 64 hex)
 - [ ] Chaves antigas documentadas e salvas
 - [ ] Janela de manutenção agendada
 - [ ] Equipe técnica notificada

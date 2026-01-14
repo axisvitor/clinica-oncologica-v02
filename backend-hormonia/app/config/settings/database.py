@@ -60,6 +60,19 @@ class DatabaseSettings(BaseAppSettings):
         le=10.0,
         description="Database slow query threshold in seconds",
     )
+    # Query Timeout Settings (for async operations)
+    DB_QUERY_TIMEOUT_READ: int = Field(
+        default=5,
+        ge=1,
+        le=30,
+        description="Read query timeout in seconds (async operations)",
+    )
+    DB_QUERY_TIMEOUT_WRITE: int = Field(
+        default=10,
+        ge=5,
+        le=60,
+        description="Write query timeout in seconds (async operations)",
+    )
 
     # ============================================================================
     # Redis Configuration
@@ -135,6 +148,13 @@ class DatabaseSettings(BaseAppSettings):
     )
     REDIS_ENABLE_DECODE_RESPONSES: bool = Field(
         default=True, description="Redis decode responses to strings"
+    )
+    # Redis Operation Timeout
+    REDIS_OPERATION_TIMEOUT: int = Field(
+        default=5,
+        ge=1,
+        le=30,
+        description="Redis operation timeout in seconds",
     )
 
     # SSL/TLS Optimization - Direct ENV names

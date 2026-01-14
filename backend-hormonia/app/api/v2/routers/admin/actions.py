@@ -76,7 +76,7 @@ async def activate_user(
             )
 
         # Activate user
-        user_repo.update(user_id, {"is_active": True})
+        user_repo.update(user, {"is_active": True})
         db.commit()
 
         # Invalidate cache
@@ -160,7 +160,7 @@ async def deactivate_user(
             )
 
         # Deactivate user
-        user_repo.update(user_id, {"is_active": False})
+        user_repo.update(user, {"is_active": False})
         db.commit()
 
         # Invalidate cache
@@ -190,6 +190,70 @@ async def deactivate_user(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error deactivating user",
+        )
+
+
+# ============================================================================
+# ENDPOINT 2.5: RESTORE USER
+# ============================================================================
+
+
+@router.post(
+    "/users/{user_id}/restore",
+    response_model=UserActionResponse,
+    summary="Restore User",
+    description="Restore (reactivate) a previously deactivated user account.",
+)
+@limiter.limit("20/hour")
+async def restore_user(
+    request: Request,
+    user_id: UUID,
+    db=Depends(get_db),
+    admin_user: User = Depends(get_admin_user),
+    context: RequestContext = Depends(get_request_context),
+):
+    """Restore a deactivated user account."""
+    try:
+        user_repo = UserRepository(db)
+
+        user = user_repo.get(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+            )
+
+        if user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is already active",
+            )
+
+        user_repo.update(user, {"is_active": True})
+        db.commit()
+
+        invalidate_user_cache(str(user_id))
+
+        await _log_admin_action(
+            db,
+            "restore_user",
+            admin_user,
+            context,
+            target_user_id=user_id,
+            additional_data={"user_email": user.email},
+        )
+
+        return UserActionResponse(
+            success=True, message="User restored successfully", user_id=user_id
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error restoring user {user_id}: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error restoring user",
         )
 
 
@@ -245,7 +309,7 @@ async def reset_password(
         if password_data.force_change:
             update_data["force_change_password"] = True
 
-        user_repo.update(user_id, update_data)
+        user_repo.update(user, update_data)
         db.commit()
 
         # Invalidate cache
@@ -338,7 +402,7 @@ async def update_role(
         old_role = user.role
 
         # Update role
-        user_repo.update(user_id, {"role": new_role})
+        user_repo.update(user, {"role": new_role})
         db.commit()
 
         # Invalidate cache

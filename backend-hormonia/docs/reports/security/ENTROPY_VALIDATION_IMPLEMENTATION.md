@@ -111,9 +111,10 @@ def validate_production_config(self):
         # Collect all security keys
         secrets_to_validate = {
             "SECURITY_SECRET_KEY": self.SECURITY_SECRET_KEY,
-            "AUTH_JWT_SECRET_KEY": self.AUTH_JWT_SECRET_KEY,
-            "SECURITY_ENCRYPTION_KEY": self.SECURITY_ENCRYPTION_KEY,
             "SECURITY_CSRF_SECRET_KEY": self.SECURITY_CSRF_SECRET_KEY,
+            "ENCRYPTION_KEY_CURRENT": os.getenv("ENCRYPTION_KEY_CURRENT"),
+            "PHI_ENCRYPTION_KEY": os.getenv("PHI_ENCRYPTION_KEY"),
+            "HASH_SALT": os.getenv("HASH_SALT"),
         }
 
         # Validate entropy (128 bits minimum)
@@ -244,8 +245,11 @@ def validate_production_config(self):
         from app.utils.security_validation import validate_all_secrets
 
         secrets_to_validate = {
-            "JWT_SECRET": self.SECURITY_SECRET_KEY,
-            "ENCRYPTION_KEY": self.SECURITY_ENCRYPTION_KEY,
+            "SECURITY_SECRET_KEY": self.SECURITY_SECRET_KEY,
+            "SECURITY_CSRF_SECRET_KEY": self.SECURITY_CSRF_SECRET_KEY,
+            "ENCRYPTION_KEY_CURRENT": os.getenv("ENCRYPTION_KEY_CURRENT"),
+            "PHI_ENCRYPTION_KEY": os.getenv("PHI_ENCRYPTION_KEY"),
+            "HASH_SALT": os.getenv("HASH_SALT"),
         }
 
         results = validate_all_secrets(secrets_to_validate, "production")
@@ -338,9 +342,10 @@ SecuritySettings.validate_production_config()
         ↓
 Collect all security keys:
   - SECURITY_SECRET_KEY
-  - AUTH_JWT_SECRET_KEY
-  - SECURITY_ENCRYPTION_KEY
   - SECURITY_CSRF_SECRET_KEY
+  - ENCRYPTION_KEY_CURRENT
+  - PHI_ENCRYPTION_KEY
+  - HASH_SALT
         ↓
 validate_all_secrets(keys, environment="production")
         ↓

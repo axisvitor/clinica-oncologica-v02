@@ -15,6 +15,7 @@ import json
 import csv
 import io
 import hashlib
+import inspect
 from datetime import datetime, timedelta, date, timezone
 from typing import Optional, List, Dict, Any
 from uuid import UUID, uuid4
@@ -28,13 +29,15 @@ from fastapi import (
     BackgroundTasks,
     Response,
     Request,
+    Cookie,
+    Header,
 )
 from sqlalchemy import func
 
 from app.database import get_db
 from app.models.user import UserRole
 from app.models.patient import Patient
-from app.dependencies.auth_dependencies import get_current_user_from_session
+from app.dependencies.auth_dependencies import get_current_user_from_session, get_redis_cache
 from app.utils.rate_limiter import limiter
 from app.utils.logging import get_logger
 
@@ -50,6 +53,49 @@ SCHEDULE_CACHE_TTL = 300  # 5 minutes for schedule endpoints
 RATE_LIMIT_LIST = "30/minute"
 RATE_LIMIT_GENERATE = "10/minute"
 RATE_LIMIT_SCHEDULE = "5/minute"
+
+
+def _get_db_dep():
+    db_value = get_db()
+    if inspect.isgenerator(db_value) or inspect.isasyncgen(db_value):
+        yield from db_value
+    else:
+        yield db_value
+
+
+async def _get_current_user_from_session_dep(
+    request: Request,
+    session_cookie_id: str = Cookie(None, alias="session_id"),
+    x_session_id: str = Header(None, alias="X-Session-ID"),
+    authorization: Optional[str] = Header(None),
+    redis_cache=Depends(get_redis_cache),
+):
+    override_result = None
+    try:
+        from app.main import app as fastapi_app
+    except Exception:
+        fastapi_app = None
+    if fastapi_app is not None:
+        override = fastapi_app.dependency_overrides.get(get_current_user_from_session)
+        if override:
+            try:
+                override_result = override(request)
+            except TypeError:
+                override_result = override()
+    if override_result is not None:
+        if hasattr(override_result, "__await__"):
+            return await override_result
+        return override_result
+    result = get_current_user_from_session(
+        request=request,
+        session_cookie_id=session_cookie_id,
+        x_session_id=x_session_id,
+        authorization=authorization,
+        redis_cache=redis_cache,
+    )
+    if hasattr(result, "__await__"):
+        return await result
+    return result
 
 
 # ============================================================================
@@ -365,8 +411,8 @@ async def list_reports(
     status_filter: Optional[str] = Query(
         None, description="Filter by status (pending, generating, completed, failed)"
     ),
-    current_user=Depends(get_current_user_from_session),
-    db=Depends(get_db),
+    current_user=Depends(_get_current_user_from_session_dep),
+    db=Depends(_get_db_dep),
 ):
     """
     List reports with cursor pagination.
@@ -477,8 +523,8 @@ async def generate_report(
     date_from: Optional[date] = Query(None, description="Filter from date"),
     date_to: Optional[date] = Query(None, description="Filter to date"),
     background_tasks: BackgroundTasks = BackgroundTasks(),
-    current_user=Depends(get_current_user_from_session),
-    db=Depends(get_db),
+    current_user=Depends(_get_current_user_from_session_dep),
+    db=Depends(_get_db_dep),
 ):
     """
     Generate a custom report asynchronously.
@@ -569,7 +615,7 @@ async def download_report(
     format_override: Optional[str] = Query(
         None, description="Override output format (json, csv, excel, pdf)"
     ),
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
 ):
     """
     Download generated report in specified format.
@@ -677,8 +723,8 @@ async def schedule_report(
         None, description="Comma-separated recipient emails"
     ),
     is_active: bool = Query(True, description="Enable schedule immediately"),
-    current_user=Depends(get_current_user_from_session),
-    db=Depends(get_db),
+    current_user=Depends(_get_current_user_from_session_dep),
+    db=Depends(_get_db_dep),
 ):
     """
     Create a scheduled report that generates automatically.

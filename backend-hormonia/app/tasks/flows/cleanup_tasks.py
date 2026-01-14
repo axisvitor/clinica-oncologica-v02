@@ -10,7 +10,7 @@ import logging
 from typing import Any
 from datetime import datetime, timedelta, timezone
 
-from app.celery_app import celery_app
+from app.task_queue import task_queue as celery_app
 from app.database import get_db
 from app.repositories.flow import FlowStateRepository
 from app.models.flow import PatientFlowState
