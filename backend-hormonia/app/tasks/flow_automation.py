@@ -373,6 +373,14 @@ def send_daily_flow_questions() -> dict:
                                 # Continue to next patient instead of falling back
                                 continue
                             
+                            # FIX: Handle skip status separately - don't count as sent
+                            if result.get("status") == "skip":
+                                logger.debug(
+                                    f"Skipped patient {patient.id} - {result.get('message')}"
+                                )
+                                skipped += 1
+                                continue
+                            
                         except Exception as send_error:
                             logger.error(
                                 f"Failed to send via SequentialMessageHandler for patient {patient.id}: {send_error}"

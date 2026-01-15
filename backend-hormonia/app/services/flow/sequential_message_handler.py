@@ -192,8 +192,10 @@ class SequentialMessageHandler:
                 return await self._send_remaining_after_response(patient, messages, next_index, flow_state, current_day, flow_kind)
             
             elif send_mode == "wait_each":
-                # Send next message and wait again
-                return await self._send_message_and_wait(patient, messages, next_index, flow_state, current_day, flow_kind)
+                # FIX: Use auto-advance for wait_each continuation after response
+                return await self._send_wait_each_with_auto_advance(
+                    patient, messages, next_index, flow_state, current_day, flow_kind
+                )
             
             return {"status": "ok"}
         
