@@ -40,4 +40,4 @@
     - [x] Ensure `docs/README.md` (if exists) is updated or removed.
 - [x] Task: Verify links.
     - [x] Check key links in the new documentation to ensure they work.
-- [~] Task: Conductor - User Manual Verification 'General Cleanup and Unification' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'General Cleanup and Unification' (Protocol in workflow.md) [checkpoint: c3d4e5a]
