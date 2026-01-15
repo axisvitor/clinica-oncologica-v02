@@ -15,7 +15,7 @@
     - [x] Organize specific architectural reports into `docs/backend/architecture/reports/`.
 - [x] Task: Cleanup Backend Directory. 5539ab2
     - [x] Remove redundant .md files from `backend-hormonia/` (keeping a minimal `README.md` that links to `docs/backend/`).
-- [~] Task: Conductor - User Manual Verification 'Backend Documentation Refactoring' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Backend Documentation Refactoring' (Protocol in workflow.md) [checkpoint: 526f837]
 
 ## Phase 2: Frontend Documentation Refactoring
 - [ ] Task: Audit and inventory all frontend documentation files.
