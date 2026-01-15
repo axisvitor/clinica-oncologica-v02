@@ -431,7 +431,8 @@ class SequentialMessageHandler:
                 msg.get("content", ""), patient, day_number, flow_kind
             )
             
-            expects_response = msg.get("expects_response", False)
+            # NOTE: Default True for wait_each - assumes response expected unless explicitly False
+            expects_response = msg.get("expects_response", True)
             
             success = await self._send_flow_message(
                 patient,
