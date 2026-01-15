@@ -1,0 +1,10 @@
+# Ignore virtual environments
+venv/
+venv_linux/
+.venv/
+__pycache__/
+*.pyc
+.git/
+.pytest_cache/
+tests/
+*.md

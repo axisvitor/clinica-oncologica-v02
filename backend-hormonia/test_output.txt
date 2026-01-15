@@ -1,0 +1,537 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.8, pytest-8.4.2, pluggy-1.6.0 -- C:\Meu Projetos\clinica-oncologica-v02-1\backend-hormonia\venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Meu Projetos\clinica-oncologica-v02-1\backend-hormonia\tests
+configfile: pytest.ini
+plugins: anyio-4.11.0, Faker-24.14.1, langsmith-0.4.45, asyncio-0.23.8, base-url-2.1.0, cov-5.0.0, mock-3.15.1, playwright-0.7.1, timeout-2.4.0, xdist-3.8.0
+asyncio: mode=Mode.AUTO
+collecting ... collected 13 items
+
+tests\auth\test_session_validation.py::TestSessionValidation::test_session_validation_with_valid_token PASSED [  7%]
+tests\auth\test_session_validation.py::TestSessionValidation::test_session_validation_with_expired_token FAILED [ 15%]
+tests\auth\test_session_validation.py::TestSessionValidation::test_session_validation_with_invalid_signature FAILED [ 23%]
+tests\auth\test_session_validation.py::TestSessionValidation::test_session_validation_with_missing_session FAILED [ 30%]
+tests\auth\test_session_validation.py::TestSessionValidation::test_session_validation_with_revoked_token FAILED [ 38%]
+tests\auth\test_session_validation.py::TestSessionValidation::test_session_refresh_updates_redis_cache PASSED [ 46%]
+tests\auth\test_session_validation.py::TestSessionValidation::test_concurrent_session_handling PASSED [ 53%]
+tests\auth\test_session_validation.py::TestSessionValidation::test_session_cleanup_on_logout FAILED [ 61%]
+tests\auth\test_session_validation.py::TestAdvancedSessionSecurity::test_session_priority_cookie_over_header PASSED [ 69%]
+tests\auth\test_session_validation.py::TestAdvancedSessionSecurity::test_session_inactive_user FAILED [ 76%]
+tests\auth\test_session_validation.py::TestAdvancedSessionSecurity::test_session_missing_firebase_uid FAILED [ 84%]
+tests\auth\test_session_validation.py::TestAdvancedSessionSecurity::test_session_with_none_session_id FAILED [ 92%]
+tests\auth\test_session_validation.py::TestAdvancedSessionSecurity::test_session_edge_cases FAILED [100%]
+
+================================== FAILURES ===================================
+______ TestSessionValidation.test_session_validation_with_expired_token _______
+
+self = <tests.auth.test_session_validation.TestSessionValidation object at 0x000002C42F3FD100>
+client = <starlette.testclient.TestClient object at 0x000002C43074AF90>
+valid_session_id = 'xnIuQmDlOAcAWMxFYPKUanZ_SAFMyJbeMldseSjC-5A'
+mock_firebase_cache = <AsyncMock id='3041650262768'>
+
+    def test_session_validation_with_expired_token(
+        self,
+        client: TestClient,
+        valid_session_id: str,
+        mock_firebase_cache
+    ):
+        """
+        Test session validation with expired/missing session.
+    
+        Validates:
+        - Expired session returns valid=False (not 401)
+        - No exception raised
+        - Clean error handling
+        """
+        # Setup: Redis returns None (session expired or not found)
+        mock_firebase_cache.get_session.return_value = None
+    
+        with patch('app.core.redis_manager.get_redis_manager') as mock_manager:
+            mock_manager.return_value.get_compatible_client.return_value = MagicMock()
+    
+            with patch('app.core.redis_manager.FirebaseRedisCache', return_value=mock_firebase_cache):
+                response = client.get(
+                    "/session/validate",
+                    headers={"X-Session-ID": valid_session_id}
+                )
+    
+        # Assertions
+        assert response.status_code == 200  # Not 401, returns validation response
+        data = response.json()
+>       assert data["valid"] is False
+E       assert True is False
+
+tests\auth\test_session_validation.py:178: AssertionError
+---------------------------- Captured stderr setup ----------------------------
+Structured logging configured\nStarting Hormonia Backend System (parallel initialization)\nTest environment detected - skipping external service initialization\nEnum validation events registered for database operations\nEnum validation middleware initialized\n\u2713 Enum validation middleware initialized (0.00s)\nInitializing thread-safe session manager...\nRedis client for session manager: not available\nSession manager initialized with thread-safe context support\n\u2713 Thread-safe session manager initialized with proper lifecycle management (0.00s)\nSession manager instance: SessionManager (id: 0x2c4307bc4d0)\nSession manager health status: {'has_active_session': False, 'has_active_provider': False, 'session_id': None, 'provider_id': None}\nSession manager capabilities: Context-scoped sessions, ServiceProvider factory
+---------------------------- Captured stderr call -----------------------------
+Redis sync: Using non-SSL connection
+Sync Redis client connected successfully
+------------------------------ Captured log call ------------------------------
+INFO     app.core.redis_manager.manager:manager.py:291 Redis sync: Using non-SSL connection
+INFO     app.core.redis_manager.manager:manager.py:303 Sync Redis client connected successfully
+-------------------------- Captured stderr teardown ---------------------------
+Initiating Hormonia Backend System shutdown...\nCleaning up session manager...\nCleaning up session manager instance: 0x2c4307bc4d0\n\u2713 Session manager request context cleaned up\n\u2713 Session manager removed from app state\nAll Redis connections cleaned up\n\u2713 All Redis connections closed via manager\nHormonia Backend System shutdown completed
+---------------------------- Captured log teardown ----------------------------
+INFO     app.core.lifespan:lifespan.py:171 Initiating Hormonia Backend System shutdown...\nINFO     app.core.lifespan:lifespan.py:632 Cleaning up session manager...\nINFO     app.core.lifespan:lifespan.py:639 Cleaning up session manager instance: 0x2c4307bc4d0\nINFO     app.core.lifespan:lifespan.py:653 \u2713 Session manager request context cleaned up\nINFO     app.core.lifespan:lifespan.py:661 \u2713 Session manager removed from app state\nINFO     app.core.redis_manager.async_client:async_client.py:55 All Redis connections cleaned up\nINFO     app.core.lifespan:lifespan.py:734 \u2713 All Redis connections closed via manager\nINFO     app.core.lifespan:lifespan.py:195 Hormonia Backend System shutdown completed
+____ TestSessionValidation.test_session_validation_with_invalid_signature _____
+
+self = <tests.auth.test_session_validation.TestSessionValidation object at 0x000002C430557AD0>
+client = <starlette.testclient.TestClient object at 0x000002C4307BC170>
+mock_firebase_cache = <AsyncMock id='3041650263536'>
+
+    def test_session_validation_with_invalid_signature(
+        self,
+        client: TestClient,
+        mock_firebase_cache
+    ):
+        """
+        Test session validation with malformed/invalid session ID.
+    
+        SECURITY: Prevents TypeError on session_id[:8] when session_id is None.
+    
+        Validates:
+        - Invalid session ID returns valid=False
+        - No 500 Internal Server Error
+        - No TypeError exception
+        """
+        # Test with various invalid session IDs
+        invalid_ids = [
+            "invalid-short",
+            "",
+            "x" * 1000,  # Too long
+            "../../etc/passwd",  # Path traversal attempt
+            "<script>alert('xss')</script>",  # XSS attempt
+        ]
+    
+        for invalid_id in invalid_ids:
+            mock_firebase_cache.get_session.return_value = None
+    
+            with patch('app.core.redis_manager.get_redis_manager') as mock_manager:
+                mock_manager.return_value.get_compatible_client.return_value = MagicMock()
+    
+                with patch('app.core.redis_manager.FirebaseRedisCache', return_value=mock_firebase_cache):
+                    response = client.get(
+                        "/session/validate",
+                        headers={"X-Session-ID": invalid_id}
+                    )
+    
+            # Should return 200 with valid=False, not 500 error
+            assert response.status_code == 200, f"Failed for invalid_id: {invalid_id}"
+            data = response.json()
+>           assert data["valid"] is False
+E           assert True is False
+
+tests\auth\test_session_validation.py:220: AssertionError
+---------------------------- Captured stderr setup ----------------------------
+Structured logging configured\nStarting Hormonia Backend System (parallel initialization)\nTest environment detected - skipping external service initialization\nEnum validation events registered for database operations\nEnum validation middleware initialized\n\u2713 Enum validation middleware initialized (0.00s)\nInitializing thread-safe session manager...\nRedis client for session manager: not available\nSession manager initialized with thread-safe context support\n\u2713 Thread-safe session manager initialized with proper lifecycle management (0.00s)\nSession manager instance: SessionManager (id: 0x2c430792bd0)\nSession manager health status: {'has_active_session': False, 'has_active_provider': False, 'session_id': None, 'provider_id': None}\nSession manager capabilities: Context-scoped sessions, ServiceProvider factory
+---------------------------- Captured stderr call -----------------------------
+Redis sync: Using non-SSL connection
+Sync Redis client connected successfully
+------------------------------ Captured log call ------------------------------
+INFO     app.core.redis_manager.manager:manager.py:291 Redis sync: Using non-SSL connection
+INFO     app.core.redis_manager.manager:manager.py:303 Sync Redis client connected successfully
+-------------------------- Captured stderr teardown ---------------------------
+Initiating Hormonia Backend System shutdown...\nCleaning up session manager...\nCleaning up session manager instance: 0x2c430792bd0\n\u2713 Session manager request context cleaned up\n\u2713 Session manager removed from app state\nAll Redis connections cleaned up\n\u2713 All Redis connections closed via manager\nHormonia Backend System shutdown completed
+---------------------------- Captured log teardown ----------------------------
+INFO     app.core.lifespan:lifespan.py:171 Initiating Hormonia Backend System shutdown...\nINFO     app.core.lifespan:lifespan.py:632 Cleaning up session manager...\nINFO     app.core.lifespan:lifespan.py:639 Cleaning up session manager instance: 0x2c430792bd0\nINFO     app.core.lifespan:lifespan.py:653 \u2713 Session manager request context cleaned up\nINFO     app.core.lifespan:lifespan.py:661 \u2713 Session manager removed from app state\nINFO     app.core.redis_manager.async_client:async_client.py:55 All Redis connections cleaned up\nINFO     app.core.lifespan:lifespan.py:734 \u2713 All Redis connections closed via manager\nINFO     app.core.lifespan:lifespan.py:195 Hormonia Backend System shutdown completed
+_____ TestSessionValidation.test_session_validation_with_missing_session ______
+
+self = <tests.auth.test_session_validation.TestSessionValidation object at 0x000002C430590050>
+client = <starlette.testclient.TestClient object at 0x000002C430813C80>
+
+    def test_session_validation_with_missing_session(
+        self,
+        client: TestClient
+    ):
+        """
+        Test behavior when session_id is missing from BOTH cookie and header.
+    
+        SECURITY: Prevents TypeError on None session_id.
+    
+        Validates:
+        - Missing session returns valid=False
+        - No exception raised
+        - Clean error message
+        """
+        response = client.get("/session/validate")
+    
+        assert response.status_code == 200
+        data = response.json()
+>       assert data["valid"] is False
+E       assert True is False
+
+tests\auth\test_session_validation.py:240: AssertionError
+---------------------------- Captured stderr setup ----------------------------
+Structured logging configured\nStarting Hormonia Backend System (parallel initialization)\nTest environment detected - skipping external service initialization\nEnum validation events registered for database operations\nEnum validation middleware initialized\n\u2713 Enum validation middleware initialized (0.00s)\nInitializing thread-safe session manager...\nRedis client for session manager: not available\nSession manager initialized with thread-safe context support\n\u2713 Thread-safe session manager initialized with proper lifecycle management (0.00s)\nSession manager instance: SessionManager (id: 0x2c430803440)\nSession manager health status: {'has_active_session': False, 'has_active_provider': False, 'session_id': None, 'provider_id': None}\nSession manager capabilities: Context-scoped sessions, ServiceProvider factory
+---------------------------- Captured stderr call -----------------------------
+Redis sync: Using non-SSL connection
+Sync Redis client connected successfully
+------------------------------ Captured log call ------------------------------
+INFO     app.core.redis_manager.manager:manager.py:291 Redis sync: Using non-SSL connection
+INFO     app.core.redis_manager.manager:manager.py:303 Sync Redis client connected successfully
+-------------------------- Captured stderr teardown ---------------------------
+Initiating Hormonia Backend System shutdown...\nCleaning up session manager...\nCleaning up session manager instance: 0x2c430803440\n\u2713 Session manager request context cleaned up\n\u2713 Session manager removed from app state\nAll Redis connections cleaned up\n\u2713 All Redis connections closed via manager\nHormonia Backend System shutdown completed
+---------------------------- Captured log teardown ----------------------------
+INFO     app.core.lifespan:lifespan.py:171 Initiating Hormonia Backend System shutdown...\nINFO     app.core.lifespan:lifespan.py:632 Cleaning up session manager...\nINFO     app.core.lifespan:lifespan.py:639 Cleaning up session manager instance: 0x2c430803440\nINFO     app.core.lifespan:lifespan.py:653 \u2713 Session manager request context cleaned up\nINFO     app.core.lifespan:lifespan.py:661 \u2713 Session manager removed from app state\nINFO     app.core.redis_manager.async_client:async_client.py:55 All Redis connections cleaned up\nINFO     app.core.lifespan:lifespan.py:734 \u2713 All Redis connections closed via manager\nINFO     app.core.lifespan:lifespan.py:195 Hormonia Backend System shutdown completed
+______ TestSessionValidation.test_session_validation_with_revoked_token _______
+
+self = <tests.auth.test_session_validation.TestSessionValidation object at 0x000002C430590140>
+client = <starlette.testclient.TestClient object at 0x000002C430813590>
+valid_session_id = '2UT7dxp51s_ypMU085QEaevTQynSjeLhGTgEkWddONA'
+mock_firebase_cache = <AsyncMock id='3041650554592'>
+db_session = <sqlalchemy.orm.session.Session object at 0x000002C430813530>
+
+    def test_session_validation_with_revoked_token(
+        self,
+        client: TestClient,
+        valid_session_id: str,
+        mock_firebase_cache,
+        db_session
+    ):
+        """
+        Test session validation after session has been revoked/deleted.
+    
+        Simulates logout scenario where session should no longer be valid.
+    
+        Validates:
+        - Revoked session returns valid=False
+        - No cached user data returned
+        """
+        # Setup: Session exists but then gets revoked
+        mock_firebase_cache.get_session.return_value = None  # Revoked
+    
+        with patch('app.core.redis_manager.get_redis_manager') as mock_manager:
+            mock_manager.return_value.get_compatible_client.return_value = MagicMock()
+    
+            with patch('app.core.redis_manager.FirebaseRedisCache', return_value=mock_firebase_cache):
+                response = client.get(
+                    "/session/validate",
+                    headers={"X-Session-ID": valid_session_id}
+                )
+    
+        assert response.status_code == 200
+        data = response.json()
+>       assert data["valid"] is False
+E       assert True is False
+
+tests\auth\test_session_validation.py:273: AssertionError
+---------------------------- Captured stderr setup ----------------------------
+Structured logging configured\nStarting Hormonia Backend System (parallel initialization)\nTest environment detected - skipping external service initialization\nEnum validation events registered for database operations\nEnum validation middleware initialized\n\u2713 Enum validation middleware initialized (0.00s)\nInitializing thread-safe session manager...\nRedis client for session manager: not available\nSession manager initialized with thread-safe context support\n\u2713 Thread-safe session manager initialized with proper lifecycle management (0.00s)\nSession manager instance: SessionManager (id: 0x2c430803d70)\nSession manager health status: {'has_active_session': False, 'has_active_provider': False, 'session_id': None, 'provider_id': None}\nSession manager capabilities: Context-scoped sessions, ServiceProvider factory
+---------------------------- Captured stderr call -----------------------------
+Redis sync: Using non-SSL connection
+Sync Redis client connected successfully
+------------------------------ Captured log call ------------------------------
+INFO     app.core.redis_manager.manager:manager.py:291 Redis sync: Using non-SSL connection
+INFO     app.core.redis_manager.manager:manager.py:303 Sync Redis client connected successfully
+-------------------------- Captured stderr teardown ---------------------------
+Initiating Hormonia Backend System shutdown...\nCleaning up session manager...\nCleaning up session manager instance: 0x2c430803d70\n\u2713 Session manager request context cleaned up\n\u2713 Session manager removed from app state\nAll Redis connections cleaned up\n\u2713 All Redis connections closed via manager\nHormonia Backend System shutdown completed
+---------------------------- Captured log teardown ----------------------------
+INFO     app.core.lifespan:lifespan.py:171 Initiating Hormonia Backend System shutdown...\nINFO     app.core.lifespan:lifespan.py:632 Cleaning up session manager...\nINFO     app.core.lifespan:lifespan.py:639 Cleaning up session manager instance: 0x2c430803d70\nINFO     app.core.lifespan:lifespan.py:653 \u2713 Session manager request context cleaned up\nINFO     app.core.lifespan:lifespan.py:661 \u2713 Session manager removed from app state\nINFO     app.core.redis_manager.async_client:async_client.py:55 All Redis connections cleaned up\nINFO     app.core.lifespan:lifespan.py:734 \u2713 All Redis connections closed via manager\nINFO     app.core.lifespan:lifespan.py:195 Hormonia Backend System shutdown completed
+____________ TestSessionValidation.test_session_cleanup_on_logout _____________
+
+self = <tests.auth.test_session_validation.TestSessionValidation object at 0x000002C430590B60>
+client = <starlette.testclient.TestClient object at 0x000002C430800AD0>
+valid_session_id = '3RkWXW9bmliXs1dlab_oZUA3Yj7M3TDN_0FKyoGXp3c'
+mock_firebase_cache = <AsyncMock id='3041650337904'>
+db_session = <sqlalchemy.orm.session.Session object at 0x000002C430803E60>
+
+    def test_session_cleanup_on_logout(
+        self,
+        client: TestClient,
+        valid_session_id: str,
+        mock_firebase_cache,
+        db_session
+    ):
+        """
+        Test session cleanup on logout.
+    
+        SECURITY: Ensures complete session invalidation.
+    
+        Validates:
+        - Session deleted from Redis
+        - Cookie cleared (httpOnly)
+        - Audit log created
+        """
+        # Setup: Valid session
+        mock_firebase_cache.get_session.return_value = {
+            "user_id": "user-uuid-123",
+            "firebase_uid": "firebase-uid-123"
+        }
+    
+        mock_firebase_cache.invalidate_session.return_value = True
+    
+        # Create user for audit log
+        from app.models.user import User
+        user = User(
+            id=uuid4(),
+            firebase_uid="firebase-uid-123",
+            email="test@example.com",
+            full_name="Test User",
+            role=UserRole.DOCTOR,
+            is_active=True
+        )
+        db_session.add(user)
+        db_session.commit()
+    
+        with patch('app.core.redis_manager.get_redis_manager') as mock_manager:
+            mock_manager.return_value.get_compatible_client.return_value = MagicMock()
+    
+            with patch('app.core.redis_manager.FirebaseRedisCache', return_value=mock_firebase_cache):
+                with patch('app.routers.auth_session.AuditLogService'):
+                    response = client.delete(
+                        "/session/logout",
+                        headers={"X-Session-ID": valid_session_id}
+                    )
+    
+        # Assertions
+>       assert response.status_code == 200
+E       assert 403 == 200
+E        +  where 403 = <Response [403 Forbidden]>.status_code
+
+tests\auth\test_session_validation.py:430: AssertionError
+---------------------------- Captured stderr setup ----------------------------
+Structured logging configured\nStarting Hormonia Backend System (parallel initialization)\nTest environment detected - skipping external service initialization\nEnum validation events registered for database operations\nEnum validation middleware initialized\n\u2713 Enum validation middleware initialized (0.00s)\nInitializing thread-safe session manager...\nRedis client for session manager: not available\nSession manager initialized with thread-safe context support\n\u2713 Thread-safe session manager initialized with proper lifecycle management (0.00s)\nSession manager instance: SessionManager (id: 0x2c430d54500)\nSession manager health status: {'has_active_session': False, 'has_active_provider': False, 'session_id': None, 'provider_id': None}\nSession manager capabilities: Context-scoped sessions, ServiceProvider factory
+---------------------------- Captured stderr call -----------------------------
+CSRF token missing in header: DELETE /session/logout from testclient (testclient)
+------------------------------ Captured log call ------------------------------
+WARNING  app.middleware.csrf:csrf.py:430 CSRF token missing in header: DELETE /session/logout from testclient (testclient)
+-------------------------- Captured stderr teardown ---------------------------
+Initiating Hormonia Backend System shutdown...\nCleaning up session manager...\nCleaning up session manager instance: 0x2c430d54500\n\u2713 Session manager request context cleaned up\n\u2713 Session manager removed from app state\nAll Redis connections cleaned up\n\u2713 All Redis connections closed via manager\nHormonia Backend System shutdown completed
+---------------------------- Captured log teardown ----------------------------
+INFO     app.core.lifespan:lifespan.py:171 Initiating Hormonia Backend System shutdown...\nINFO     app.core.lifespan:lifespan.py:632 Cleaning up session manager...\nINFO     app.core.lifespan:lifespan.py:639 Cleaning up session manager instance: 0x2c430d54500\nINFO     app.core.lifespan:lifespan.py:653 \u2713 Session manager request context cleaned up\nINFO     app.core.lifespan:lifespan.py:661 \u2713 Session manager removed from app state\nINFO     app.core.redis_manager.async_client:async_client.py:55 All Redis connections cleaned up\nINFO     app.core.lifespan:lifespan.py:734 \u2713 All Redis connections closed via manager\nINFO     app.core.lifespan:lifespan.py:195 Hormonia Backend System shutdown completed
+___________ TestAdvancedSessionSecurity.test_session_inactive_user ____________
+
+self = <tests.auth.test_session_validation.TestAdvancedSessionSecurity object at 0x000002C4305912B0>
+client = <starlette.testclient.TestClient object at 0x000002C4307CC830>
+valid_session_id = 'QAVqwxlarzAZuX918QFLAzLIOWcyDzUi963HZb-6vKY'
+mock_firebase_cache = <AsyncMock id='3041657365008'>
+db_session = <sqlalchemy.orm.session.Session object at 0x000002C4307CC950>
+
+    def test_session_inactive_user(
+        self,
+        client: TestClient,
+        valid_session_id: str,
+        mock_firebase_cache,
+        db_session
+    ):
+        """
+        Test that inactive users cannot validate sessions.
+    
+        SECURITY: Prevents disabled accounts from accessing system.
+        """
+        mock_firebase_cache.get_session.return_value = {
+            "firebase_uid": "uid-123",
+            "user_id": "user-123"
+        }
+    
+        # Create inactive user
+        from app.models.user import User
+        user = User(
+            id=uuid4(),
+            firebase_uid="uid-123",
+            email="inactive@example.com",
+            full_name="Inactive User",
+            role=UserRole.DOCTOR,
+            is_active=False  # Inactive!
+        )
+        db_session.add(user)
+        db_session.commit()
+    
+        mock_firebase_cache.get_cached_user.return_value = None  # Force DB lookup
+    
+        with patch('app.core.redis_manager.get_redis_manager') as mock_manager:
+            mock_manager.return_value.get_compatible_client.return_value = MagicMock()
+    
+            with patch('app.core.redis_manager.FirebaseRedisCache', return_value=mock_firebase_cache):
+                response = client.get(
+                    "/session/validate",
+                    headers={"X-Session-ID": valid_session_id}
+                )
+    
+        # Should still return valid session data (endpoint doesn't check is_active)
+        # is_active check happens in auth dependencies, not in /session/validate
+        assert response.status_code == 200
+        data = response.json()
+        assert data["valid"] is True
+>       assert data["user"]["is_active"] is False
+E       assert True is False
+
+tests\auth\test_session_validation.py:538: AssertionError
+---------------------------- Captured stderr setup ----------------------------
+Structured logging configured\nStarting Hormonia Backend System (parallel initialization)\nTest environment detected - skipping external service initialization\nEnum validation events registered for database operations\nEnum validation middleware initialized\n\u2713 Enum validation middleware initialized (0.00s)\nInitializing thread-safe session manager...\nRedis client for session manager: not available\nSession manager initialized with thread-safe context support\n\u2713 Thread-safe session manager initialized with proper lifecycle management (0.00s)\nSession manager instance: SessionManager (id: 0x2c430dfa6f0)\nSession manager health status: {'has_active_session': False, 'has_active_provider': False, 'session_id': None, 'provider_id': None}\nSession manager capabilities: Context-scoped sessions, ServiceProvider factory
+---------------------------- Captured stderr call -----------------------------
+Redis sync: Using non-SSL connection
+Sync Redis client connected successfully
+------------------------------ Captured log call ------------------------------
+INFO     app.core.redis_manager.manager:manager.py:291 Redis sync: Using non-SSL connection
+INFO     app.core.redis_manager.manager:manager.py:303 Sync Redis client connected successfully
+-------------------------- Captured stderr teardown ---------------------------
+Initiating Hormonia Backend System shutdown...\nCleaning up session manager...\nCleaning up session manager instance: 0x2c430dfa6f0\n\u2713 Session manager request context cleaned up\n\u2713 Session manager removed from app state\nAll Redis connections cleaned up\n\u2713 All Redis connections closed via manager\nHormonia Backend System shutdown completed
+---------------------------- Captured log teardown ----------------------------
+INFO     app.core.lifespan:lifespan.py:171 Initiating Hormonia Backend System shutdown...\nINFO     app.core.lifespan:lifespan.py:632 Cleaning up session manager...\nINFO     app.core.lifespan:lifespan.py:639 Cleaning up session manager instance: 0x2c430dfa6f0\nINFO     app.core.lifespan:lifespan.py:653 \u2713 Session manager request context cleaned up\nINFO     app.core.lifespan:lifespan.py:661 \u2713 Session manager removed from app state\nINFO     app.core.redis_manager.async_client:async_client.py:55 All Redis connections cleaned up\nINFO     app.core.lifespan:lifespan.py:734 \u2713 All Redis connections closed via manager\nINFO     app.core.lifespan:lifespan.py:195 Hormonia Backend System shutdown completed
+________ TestAdvancedSessionSecurity.test_session_missing_firebase_uid ________
+
+self = <tests.auth.test_session_validation.TestAdvancedSessionSecurity object at 0x000002C430590EC0>
+client = <starlette.testclient.TestClient object at 0x000002C430803A10>
+valid_session_id = 'wKi2otG9SgzJ6FlAalC5izEr31M4Hadtnwh0u8fEyFM'
+mock_firebase_cache = <AsyncMock id='3041657366016'>
+
+    def test_session_missing_firebase_uid(
+        self,
+        client: TestClient,
+        valid_session_id: str,
+        mock_firebase_cache
+    ):
+        """
+        Test error handling when session data is corrupted (missing firebase_uid).
+    
+        SECURITY: Prevents session hijacking via corrupted session data.
+        """
+        # Mock corrupted session data (missing firebase_uid)
+        mock_firebase_cache.get_session.return_value = {
+            "user_id": "user-123"
+            # Missing firebase_uid!
+        }
+    
+        with patch('app.core.redis_manager.get_redis_manager') as mock_manager:
+            mock_manager.return_value.get_compatible_client.return_value = MagicMock()
+    
+            with patch('app.core.redis_manager.FirebaseRedisCache', return_value=mock_firebase_cache):
+                response = client.get(
+                    "/session/validate",
+                    headers={"X-Session-ID": valid_session_id}
+                )
+    
+        # Should return invalid session (firebase_uid is None)
+        assert response.status_code == 200
+        data = response.json()
+>       assert data["valid"] is False
+E       assert True is False
+
+tests\auth\test_session_validation.py:569: AssertionError
+---------------------------- Captured stderr setup ----------------------------
+Structured logging configured\nStarting Hormonia Backend System (parallel initialization)\nTest environment detected - skipping external service initialization\nEnum validation events registered for database operations\nEnum validation middleware initialized\n\u2713 Enum validation middleware initialized (0.00s)\nInitializing thread-safe session manager...\nRedis client for session manager: not available\nSession manager initialized with thread-safe context support\n\u2713 Thread-safe session manager initialized with proper lifecycle management (0.00s)\nSession manager instance: SessionManager (id: 0x2c430e82780)\nSession manager health status: {'has_active_session': False, 'has_active_provider': False, 'session_id': None, 'provider_id': None}\nSession manager capabilities: Context-scoped sessions, ServiceProvider factory
+---------------------------- Captured stderr call -----------------------------
+Redis sync: Using non-SSL connection
+Sync Redis client connected successfully
+------------------------------ Captured log call ------------------------------
+INFO     app.core.redis_manager.manager:manager.py:291 Redis sync: Using non-SSL connection
+INFO     app.core.redis_manager.manager:manager.py:303 Sync Redis client connected successfully
+-------------------------- Captured stderr teardown ---------------------------
+Initiating Hormonia Backend System shutdown...\nCleaning up session manager...\nCleaning up session manager instance: 0x2c430e82780\n\u2713 Session manager request context cleaned up\n\u2713 Session manager removed from app state\nAll Redis connections cleaned up\n\u2713 All Redis connections closed via manager\nHormonia Backend System shutdown completed
+---------------------------- Captured log teardown ----------------------------
+INFO     app.core.lifespan:lifespan.py:171 Initiating Hormonia Backend System shutdown...\nINFO     app.core.lifespan:lifespan.py:632 Cleaning up session manager...\nINFO     app.core.lifespan:lifespan.py:639 Cleaning up session manager instance: 0x2c430e82780\nINFO     app.core.lifespan:lifespan.py:653 \u2713 Session manager request context cleaned up\nINFO     app.core.lifespan:lifespan.py:661 \u2713 Session manager removed from app state\nINFO     app.core.redis_manager.async_client:async_client.py:55 All Redis connections cleaned up\nINFO     app.core.lifespan:lifespan.py:734 \u2713 All Redis connections closed via manager\nINFO     app.core.lifespan:lifespan.py:195 Hormonia Backend System shutdown completed
+________ TestAdvancedSessionSecurity.test_session_with_none_session_id ________
+
+self = <tests.auth.test_session_validation.TestAdvancedSessionSecurity object at 0x000002C430590440>
+client = <starlette.testclient.TestClient object at 0x000002C430D55370>
+
+    def test_session_with_none_session_id(
+        self,
+        client: TestClient
+    ):
+        """
+        Test TypeError prevention when session_id is None.
+    
+        CRITICAL: This test specifically validates the fix for:
+        TypeError: 'NoneType' object is not subscriptable (session_id[:8])
+    
+        Before fix: session_id[:8] would crash with TypeError
+        After fix: final_session_id = session_id or x_session_id handles None safely
+        """
+        response = client.get("/session/validate")
+    
+        # Should return 200 with valid=False, NOT 500 Internal Server Error
+        assert response.status_code == 200
+        data = response.json()
+>       assert data["valid"] is False
+E       assert True is False
+
+tests\auth\test_session_validation.py:589: AssertionError
+---------------------------- Captured stderr setup ----------------------------
+Structured logging configured\nStarting Hormonia Backend System (parallel initialization)\nTest environment detected - skipping external service initialization\nEnum validation events registered for database operations\nEnum validation middleware initialized\n\u2713 Enum validation middleware initialized (0.00s)\nInitializing thread-safe session manager...\nRedis client for session manager: not available\nSession manager initialized with thread-safe context support\n\u2713 Thread-safe session manager initialized with proper lifecycle management (0.00s)\nSession manager instance: SessionManager (id: 0x2c430e37e90)\nSession manager health status: {'has_active_session': False, 'has_active_provider': False, 'session_id': None, 'provider_id': None}\nSession manager capabilities: Context-scoped sessions, ServiceProvider factory
+---------------------------- Captured stderr call -----------------------------
+Redis sync: Using non-SSL connection
+Sync Redis client connected successfully
+------------------------------ Captured log call ------------------------------
+INFO     app.core.redis_manager.manager:manager.py:291 Redis sync: Using non-SSL connection
+INFO     app.core.redis_manager.manager:manager.py:303 Sync Redis client connected successfully
+-------------------------- Captured stderr teardown ---------------------------
+Initiating Hormonia Backend System shutdown...\nCleaning up session manager...\nCleaning up session manager instance: 0x2c430e37e90\n\u2713 Session manager request context cleaned up\n\u2713 Session manager removed from app state\nAll Redis connections cleaned up\n\u2713 All Redis connections closed via manager\nHormonia Backend System shutdown completed
+---------------------------- Captured log teardown ----------------------------
+INFO     app.core.lifespan:lifespan.py:171 Initiating Hormonia Backend System shutdown...\nINFO     app.core.lifespan:lifespan.py:632 Cleaning up session manager...\nINFO     app.core.lifespan:lifespan.py:639 Cleaning up session manager instance: 0x2c430e37e90\nINFO     app.core.lifespan:lifespan.py:653 \u2713 Session manager request context cleaned up\nINFO     app.core.lifespan:lifespan.py:661 \u2713 Session manager removed from app state\nINFO     app.core.redis_manager.async_client:async_client.py:55 All Redis connections cleaned up\nINFO     app.core.lifespan:lifespan.py:734 \u2713 All Redis connections closed via manager\nINFO     app.core.lifespan:lifespan.py:195 Hormonia Backend System shutdown completed
+_____________ TestAdvancedSessionSecurity.test_session_edge_cases _____________
+
+self = <tests.auth.test_session_validation.TestAdvancedSessionSecurity object at 0x000002C430591AF0>
+client = <starlette.testclient.TestClient object at 0x000002C430E71220>
+mock_firebase_cache = <AsyncMock id='3041657296016'>
+
+    def test_session_edge_cases(
+        self,
+        client: TestClient,
+        mock_firebase_cache
+    ):
+        """
+        Test various session edge cases.
+    
+        Validates:
+        - Empty string session ID
+        - Whitespace-only session ID
+        - Special characters in session ID
+        """
+        edge_cases = [
+            "",  # Empty string
+            "   ",  # Whitespace only
+            "\n\t\r",  # Control characters
+            None,  # None value (handled by FastAPI)
+        ]
+    
+        for edge_case in edge_cases:
+            if edge_case is None:
+                # Skip None as FastAPI converts it
+                continue
+    
+            mock_firebase_cache.get_session.return_value = None
+    
+            with patch('app.core.redis_manager.get_redis_manager') as mock_manager:
+                mock_manager.return_value.get_compatible_client.return_value = MagicMock()
+    
+                with patch('app.core.redis_manager.FirebaseRedisCache', return_value=mock_firebase_cache):
+                    response = client.get(
+                        "/session/validate",
+                        headers={"X-Session-ID": edge_case}
+                    )
+    
+            # All edge cases should return valid=False, not error
+            assert response.status_code == 200
+            data = response.json()
+>           assert data["valid"] is False or data["valid"] == False  # Handle string "false"
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           assert (True is False or True == False)
+
+tests\auth\test_session_validation.py:632: AssertionError
+---------------------------- Captured stderr setup ----------------------------
+Structured logging configured\nStarting Hormonia Backend System (parallel initialization)\nTest environment detected - skipping external service initialization\nEnum validation events registered for database operations\nEnum validation middleware initialized\n\u2713 Enum validation middleware initialized (0.00s)\nInitializing thread-safe session manager...\nRedis client for session manager: not available\nSession manager initialized with thread-safe context support\n\u2713 Thread-safe session manager initialized with proper lifecycle management (0.00s)\nSession manager instance: SessionManager (id: 0x2c430e70140)\nSession manager health status: {'has_active_session': False, 'has_active_provider': False, 'session_id': None, 'provider_id': None}\nSession manager capabilities: Context-scoped sessions, ServiceProvider factory
+---------------------------- Captured stderr call -----------------------------
+Redis sync: Using non-SSL connection
+Sync Redis client connected successfully
+------------------------------ Captured log call ------------------------------
+INFO     app.core.redis_manager.manager:manager.py:291 Redis sync: Using non-SSL connection
+INFO     app.core.redis_manager.manager:manager.py:303 Sync Redis client connected successfully
+-------------------------- Captured stderr teardown ---------------------------
+Initiating Hormonia Backend System shutdown...\nCleaning up session manager...\nCleaning up session manager instance: 0x2c430e70140\n\u2713 Session manager request context cleaned up\n\u2713 Session manager removed from app state\nAll Redis connections cleaned up\n\u2713 All Redis connections closed via manager\nHormonia Backend System shutdown completed
+---------------------------- Captured log teardown ----------------------------
+INFO     app.core.lifespan:lifespan.py:171 Initiating Hormonia Backend System shutdown...\nINFO     app.core.lifespan:lifespan.py:632 Cleaning up session manager...\nINFO     app.core.lifespan:lifespan.py:639 Cleaning up session manager instance: 0x2c430e70140\nINFO     app.core.lifespan:lifespan.py:653 \u2713 Session manager request context cleaned up\nINFO     app.core.lifespan:lifespan.py:661 \u2713 Session manager removed from app state\nINFO     app.core.redis_manager.async_client:async_client.py:55 All Redis connections cleaned up\nINFO     app.core.lifespan:lifespan.py:734 \u2713 All Redis connections closed via manager\nINFO     app.core.lifespan:lifespan.py:195 Hormonia Backend System shutdown completed
+=========================== short test summary info ===========================
+FAILED tests\auth\test_session_validation.py::TestSessionValidation::test_session_validation_with_expired_token - assert True is False
+FAILED tests\auth\test_session_validation.py::TestSessionValidation::test_session_validation_with_invalid_signature - assert True is False
+FAILED tests\auth\test_session_validation.py::TestSessionValidation::test_session_validation_with_missing_session - assert True is False
+FAILED tests\auth\test_session_validation.py::TestSessionValidation::test_session_validation_with_revoked_token - assert True is False
+FAILED tests\auth\test_session_validation.py::TestSessionValidation::test_session_cleanup_on_logout - assert 403 == 200
+ +  where 403 = <Response [403 Forbidden]>.status_code
+FAILED tests\auth\test_session_validation.py::TestAdvancedSessionSecurity::test_session_inactive_user - assert True is False
+FAILED tests\auth\test_session_validation.py::TestAdvancedSessionSecurity::test_session_missing_firebase_uid - assert True is False
+FAILED tests\auth\test_session_validation.py::TestAdvancedSessionSecurity::test_session_with_none_session_id - assert True is False
+FAILED tests\auth\test_session_validation.py::TestAdvancedSessionSecurity::test_session_edge_cases - assert (True is False or True == False)
+======================== 9 failed, 4 passed in 20.26s =========================
