@@ -38,9 +38,7 @@ export function CreatePatientDialog({ open, onOpenChange }: CreatePatientDialogP
   const isAdminUser = normalizedRole === 'admin' || normalizedRole === 'super_admin'
   const userId = user?.id ?? ''
 
-  const [selectedDoctorId, setSelectedDoctorId] = useState<string>(
-    isAdminUser ? '' : userId
-  )
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>(userId)
 
   // Fetch doctor list for admins (filter locally to avoid backend role filter issues)
   const { data: doctorList = [], isLoading: isLoadingDoctors } = useQuery<DoctorUser[]>({
@@ -66,44 +64,55 @@ export function CreatePatientDialog({ open, onOpenChange }: CreatePatientDialogP
     enabled: isAdminUser
   })
 
-  const doctorOptions = useMemo(
-    () =>
-      doctorList.map((doctor) => ({
-        id: doctor.id,
-        label: doctor.full_name || doctor.name || doctor.email || 'Médico'
-      })),
-    [doctorList]
-  )
+  const doctorOptions = useMemo(() => {
+    const options = doctorList.map((doctor) => ({
+      id: doctor.id,
+      label: doctor.full_name || doctor.name || doctor.email || 'Médico'
+    }))
+
+    if (isAdminUser && userId) {
+      const adminLabel = user?.full_name || user?.email || 'Administrador atual'
+      if (!options.some((doctor) => doctor.id === userId)) {
+        options.unshift({ id: userId, label: `${adminLabel} (você)` })
+      }
+    }
+
+    return options
+  }, [doctorList, isAdminUser, userId, user?.full_name, user?.email])
 
   const hasDoctorOptions = doctorOptions.length > 0
-  const requiresDoctorSelection = isAdminUser && hasDoctorOptions
+  const requiresDoctorSelection = isAdminUser
 
   // Reset doctor selection when dialog opens
   useEffect(() => {
-    if (isAdminUser && hasDoctorOptions) {
-      setSelectedDoctorId('')
+    if (isAdminUser) {
+      setSelectedDoctorId((current) => current || userId)
     } else {
       setSelectedDoctorId(userId)
     }
-  }, [isAdminUser, hasDoctorOptions, userId])
+  }, [isAdminUser, userId])
 
   const handleClose = () => {
-    setSelectedDoctorId(isAdminUser && hasDoctorOptions ? '' : userId)
+    setSelectedDoctorId(userId)
+    form.resetIdempotencyKey()
     onOpenChange(false)
   }
 
   const handleSuccess = () => {
     if (isAdminUser) {
-      setSelectedDoctorId('')
+      setSelectedDoctorId(userId)
     }
   }
 
   // Validation before submit
   const handleSubmitWrapper = (data: Record<string, unknown>) => {
     if (isAdminUser && requiresDoctorSelection && !selectedDoctorId) {
+      const description = hasDoctorOptions
+        ? 'É necessário definir o médico responsável pelo paciente.'
+        : 'Nenhum médico disponível. Cadastre um médico antes de continuar.'
       toast({
         title: 'Selecione o médico responsável',
-        description: 'É necessário definir o médico responsável pelo paciente.',
+        description,
         variant: 'destructive'
       })
       return

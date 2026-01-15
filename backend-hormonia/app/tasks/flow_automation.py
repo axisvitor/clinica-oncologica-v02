@@ -273,7 +273,6 @@ def send_daily_flow_questions() -> dict:
                     .filter(
                         Patient.flow_state == FlowState.ACTIVE,  # Use enum for type safety
                         Patient.deleted_at.is_(None),
-                        Patient.treatment_start_date.isnot(None),
                         Patient.phone_encrypted.isnot(None),  # Has phone
                     )
                     .order_by(Patient.id)  # Consistent ordering for pagination
@@ -306,9 +305,16 @@ def send_daily_flow_questions() -> dict:
                         # Get current_day from patient record (updated by flow engine)
                         current_day = patient.current_day or 0
 
-                        # If current_day is 0, calculate from treatment_start_date
-                        if current_day == 0 and patient.treatment_start_date:
-                            current_day = (today - patient.treatment_start_date).days + 1
+                        # If current_day is 0, calculate from treatment_start_date or fallback to created_at
+                        if current_day == 0:
+                            start_date = patient.treatment_start_date
+                            if start_date is None:
+                                start_date = (
+                                    patient.created_at.date()
+                                    if patient.created_at
+                                    else today
+                                )
+                            current_day = (today - start_date).days + 1
 
                         # Determine flow phase and if we should send today
                         should_send = False

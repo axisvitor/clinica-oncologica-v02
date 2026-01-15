@@ -24,6 +24,7 @@ from app.services.patient.flow_service import PatientFlowService
 from app.services.unified_whatsapp_service import UnifiedWhatsAppService
 from app.domain.messaging.core import MessageService
 from app.config.messages import DEFAULT_WELCOME_MESSAGE
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -178,6 +179,34 @@ class SagaStepExecutor:
             flow_state = await self.flow_service.initialize_default_flow(
                 patient, current_user_id, auto_commit=False
             )
+            if not flow_state:
+                step_status = (
+                    "skipped_auto_enrollment_disabled"
+                    if not settings.FLOW_ENABLE_AUTO_ENROLLMENT
+                    else "skipped_no_flow"
+                )
+                skip_reason = (
+                    "auto_enrollment_disabled"
+                    if not settings.FLOW_ENABLE_AUTO_ENROLLMENT
+                    else "flow_not_initialized"
+                )
+                saga.current_step = 3
+                saga.add_log_entry(
+                    3, "initialize_flow", step_status, skip_reason
+                )
+                if not isinstance(saga.step_data, dict):
+                    saga.step_data = {}
+                saga.step_data["flow_initialized"] = False
+                saga.step_data["flow_skip_reason"] = skip_reason
+                try:
+                    self.db.flush()
+                except Exception as flush_error:
+                    logger.warning(
+                        f"Saga {saga.id}: Flush failed in initialize_flow step: {flush_error}",
+                        exc_info=True,
+                    )
+                return
+
             await self.flow_service.activate_patient(patient.id, auto_commit=False)
 
             if idempotency_key and flow_state:

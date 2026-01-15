@@ -32,6 +32,7 @@ interface UsePatientFormReturn {
   onSubmit: (data: CreatePatientFormData | UpdatePatientFormData) => void
   isPending: boolean
   reset: () => void
+  resetIdempotencyKey: () => void
 }
 
 /**
@@ -51,6 +52,9 @@ export function usePatientForm({
   // Idempotency key for preventing duplicate patient creation
   // QW-004: Reset after successful creation for next patient
   const idempotencyKeyRef = useRef<string>(uuidv4())
+  const resetIdempotencyKey = () => {
+    idempotencyKeyRef.current = uuidv4()
+  }
 
   // Configuração do form baseada no modo
   const form = useForm<CreatePatientFormData | UpdatePatientFormData>({
@@ -109,7 +113,7 @@ export function usePatientForm({
     },
     onSuccess: () => {
       // QW-004: Reset idempotency key for next patient creation
-      idempotencyKeyRef.current = uuidv4()
+      resetIdempotencyKey()
 
       queryClient.invalidateQueries({ queryKey: ['patients'] })
       toast({
@@ -199,7 +203,8 @@ export function usePatientForm({
     form,
     onSubmit,
     isPending: mutation.isPending,
-    reset: form.reset
+    reset: form.reset,
+    resetIdempotencyKey
   }
 }
 

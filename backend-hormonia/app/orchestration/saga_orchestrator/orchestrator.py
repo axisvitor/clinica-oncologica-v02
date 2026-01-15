@@ -277,8 +277,23 @@ class SagaOrchestrator:
                         step_name="schedule_message"
                     ).observe(time.time() - step_start)
 
+                warning_statuses = {
+                    "failed_nonfatal",
+                    "skipped_auto_enrollment_disabled",
+                    "skipped_no_flow",
+                }
+                has_warnings = any(
+                    isinstance(entry, dict)
+                    and entry.get("status") in warning_statuses
+                    for entry in (saga.execution_log or [])
+                )
+
                 # --- Complete Saga ---
-                saga.status = SagaStatus.COMPLETED
+                saga.status = (
+                    SagaStatus.COMPLETED_WITH_WARNINGS
+                    if has_warnings
+                    else SagaStatus.COMPLETED
+                )
                 saga.completed_at = datetime.now(timezone.utc)
 
                 tx_duration = time.time() - tx_start
@@ -292,10 +307,17 @@ class SagaOrchestrator:
 
                 # Record metrics on success
                 if METRICS_AVAILABLE:
+                    status_label = (
+                        "completed_with_warnings"
+                        if has_warnings
+                        else "completed"
+                    )
                     SAGA_COMPLETIONS_TOTAL.labels(
                         doctor_id=str(doctor_id) if doctor_id else "none"
                     ).inc()
-                    SAGA_DURATION_SECONDS.labels(status="completed").observe(tx_duration)
+                    SAGA_DURATION_SECONDS.labels(status=status_label).observe(
+                        tx_duration
+                    )
                     SAGA_TRANSACTION_DURATION_SECONDS.labels(step="complete").observe(
                         tx_duration
                     )
