@@ -169,6 +169,14 @@ jobs:
       name: "flow_automation.send_daily_reminders"
       args: []
       kwargs: {}
+  - name: send-daily-flow-questions
+    schedule: "0 11 * * *"
+    timeZone: "UTC"
+    description: "CRITICAL: Sends daily check-in questions to patients (8 AM BRT = 11 UTC)"
+    task:
+      name: "flow_automation.send_daily_flow_questions"
+      args: []
+      kwargs: {}
   - name: resume-paused-flows
     schedule: "0 */6 * * *"
     timeZone: "UTC"
