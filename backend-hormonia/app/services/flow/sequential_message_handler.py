@@ -81,7 +81,9 @@ class SequentialMessageHandler:
             # Get flow template
             day_config = await self._get_day_config(flow_kind, day_number)
             if not day_config:
-                return {"status": "error", "message": f"No config for day {day_number} in {flow_kind}"}
+                # FIX: Return skip instead of error for days without config
+                logger.info(f"No config for day {day_number} in {flow_kind} - skipping")
+                return {"status": "skip", "message": f"No messages configured for day {day_number}"}
             
             messages = day_config.get("messages", [])
             send_mode = day_config.get("send_mode", "single")
@@ -91,6 +93,15 @@ class SequentialMessageHandler:
             
             # Get current state data
             step_data = flow_state.step_data or {}
+            
+            # FIX 2: Reset message index when day changes to avoid skipping first message
+            previous_day = step_data.get("current_flow_day")
+            if previous_day is not None and previous_day != day_number:
+                logger.debug(f"Day changed from {previous_day} to {day_number} - resetting message index")
+                step_data["current_day_message_index"] = 0
+                step_data["day_complete"] = False
+                step_data["awaiting_response"] = False
+            
             current_index = step_data.get("current_day_message_index", 0)
             
             # Store flow context in step_data for use by internal methods
@@ -111,8 +122,10 @@ class SequentialMessageHandler:
                     return await self._send_remaining_after_response(patient, messages, current_index, flow_state, day_number, flow_kind)
             
             elif send_mode == "wait_each":
-                # Send one message at a time
-                return await self._send_message_and_wait(patient, messages, current_index, flow_state, day_number, flow_kind)
+                # FIX 3: Auto-advance through messages that don't expect response
+                return await self._send_wait_each_with_auto_advance(
+                    patient, messages, current_index, flow_state, day_number, flow_kind
+                )
             
             else:  # single
                 # Just send the single message
@@ -383,6 +396,93 @@ class SequentialMessageHandler:
         self.db.commit()
         
         return {"status": "ok", "sent_count": sent_count, "mode": "sequential_auto"}
+    
+    async def _send_wait_each_with_auto_advance(
+        self,
+        patient: Patient,
+        messages: List[Dict],
+        start_index: int,
+        flow_state: PatientFlowState,
+        day_number: int,
+        flow_kind: str
+    ) -> Dict[str, Any]:
+        """
+        FIX 3: Send messages in wait_each mode with auto-advance for non-response messages.
+        
+        This fixes the Day 15 issue where the intro message (expects_response=False)
+        would cause the flow to get stuck, never advancing to the Q&A messages.
+        
+        Logic:
+        1. Send message at current index
+        2. If message expects_response=False, advance and send next immediately
+        3. Repeat until we hit a message that expects_response=True or end of day
+        """
+        if start_index >= len(messages):
+            return {"status": "complete", "message": "All messages sent"}
+        
+        current_index = start_index
+        sent_count = 0
+        
+        while current_index < len(messages):
+            msg = messages[current_index]
+            content = await self._personalize_message_ai(
+                msg.get("content", ""), patient, day_number, flow_kind
+            )
+            
+            expects_response = msg.get("expects_response", False)
+            
+            success = await self._send_flow_message(
+                patient,
+                content,
+                day_number,
+                flow_kind,
+                current_index,
+                expects_response,
+            )
+            if not success:
+                return {"status": "error", "message": f"Failed to send message {current_index}"}
+            
+            sent_count += 1
+            
+            # Update flow state
+            step_data = flow_state.step_data or {}
+            step_data["current_day_message_index"] = current_index
+            step_data["last_message_sent_at"] = datetime.now(timezone.utc).isoformat()
+            
+            if expects_response:
+                # Stop here and wait for patient response
+                step_data["awaiting_response"] = True
+                flow_state.step_data = step_data
+                flow_state.last_interaction_at = datetime.now(timezone.utc)
+                self.db.commit()
+                
+                return {
+                    "status": "waiting",
+                    "message_index": current_index,
+                    "awaiting_response": True,
+                    "sent_count": sent_count
+                }
+            
+            # Message doesn't expect response - auto-advance to next
+            current_index += 1
+            step_data["awaiting_response"] = False
+            flow_state.step_data = step_data
+            self.db.commit()
+            
+            # Small delay between auto-advanced messages
+            if current_index < len(messages):
+                await asyncio.sleep(2.0)
+        
+        # All messages sent without waiting for response
+        step_data = flow_state.step_data or {}
+        step_data["day_complete"] = True
+        step_data["awaiting_response"] = False
+        step_data["current_day_message_index"] = len(messages) - 1
+        flow_state.step_data = step_data
+        flow_state.last_interaction_at = datetime.now(timezone.utc)
+        self.db.commit()
+        
+        return {"status": "complete", "sent_count": sent_count, "day": day_number}
     
     async def _send_message_and_wait(
         self, 
