@@ -699,7 +699,7 @@ config/settings/
 # Linha 200-202: JWT agora verifica signature (era verify_signature=False)
 decoded_token = jwt.decode(
     jwt_token,
-    settings.SUPABASE_SERVICE_ROLE_KEY,
+    settings.SECURITY_SECRET_KEY,
     algorithms=["HS256"],
     options={"verify_signature": True}  # Antes era False!
 )

@@ -221,7 +221,7 @@ class SystemInitializer:
         self.logger.info("\n[3/6] Initializing Database...")
 
         try:
-            from app.core.database import AsyncSessionLocal
+            from app.database import AsyncSessionLocal
             from sqlalchemy import text
 
             # Test connection

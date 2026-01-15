@@ -290,7 +290,6 @@ this.tasks = createTasksApi(this)
 3. app/utils/security.py (line 195) - Security masking list
 4. app/jobs/audit_cleanup.py (lines 26,38) - COMMENTS only
 
-# NO ACTIVE SUPABASE CONNECTIONS FOUND
 ```
 
 #### Verification:

@@ -223,7 +223,7 @@ class TestPatientUniqueConstraints:
                     return False
 
         # Simulate concurrent creation attempts
-        from app.core.database import AsyncSessionLocal
+        from app.database import AsyncSessionLocal
 
         results = await asyncio.gather(
             create_patient(AsyncSessionLocal, patient_data),

@@ -115,7 +115,6 @@ def test_public_config_no_sensitive_data():
     sensitive_keys = [
         "database_url",
         "secret_key",
-        "supabase_service_role_key",
         "firebase_admin_private_key",
         "api_key",
         "password",

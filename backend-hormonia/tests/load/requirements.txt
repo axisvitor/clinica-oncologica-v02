@@ -12,8 +12,8 @@ Faker==22.0.0
 python-dateutil==2.8.2
 
 # Statistics and analysis
-numpy==1.26.3
-pandas==2.1.4
+numpy>=2.1.0,<3.0.0  # Python 3.13 requires NumPy 2.x
+pandas>=2.2.0,<3.0.0  # NumPy 2.x compatible
 
 # Reporting and visualization
 matplotlib==3.8.2
@@ -33,7 +33,7 @@ py-cpuinfo==9.0.0  # CPU info
 
 # Optional: Database inspection during tests
 psycopg2-binary==2.9.9  # PostgreSQL
-redis==5.0.1  # Redis
+redis>=6.4.0,<7.0.0  # Match main, required for ssl_context
 
 # Optional: Export results
 openpyxl==3.1.2  # Excel export

@@ -13,7 +13,7 @@ from uuid import UUID
 from celery.exceptions import MaxRetriesExceededError
 
 from app.task_queue import task_queue as celery_app
-from app.database import get_db
+from app.database import get_db, get_scoped_session
 from app.services.enhanced_flow_engine import get_enhanced_flow_engine
 from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
@@ -55,10 +55,8 @@ async def process_daily_flows_async(limit: int = 100) -> dict[str, Any]:
 
     logger.info(f"Starting async daily flow processing for up to {limit} patients")
 
-    # Use async context manager for database
-    db = next(get_db())
-
-    try:
+    # Use context manager for database
+    with get_scoped_session() as db:
         # Initialize services
         flow_engine = get_enhanced_flow_engine(db)
         flow_repo = FlowStateRepository(db)
@@ -191,9 +189,6 @@ async def process_daily_flows_async(limit: int = 100) -> dict[str, Any]:
         )
 
         return results
-
-    finally:
-        db.close()
 
 
 @celery_app.task(
@@ -332,7 +327,7 @@ def send_flow_message(
             f"Sending flow message to patient {patient_id}, message_id: {message_id}"
         )
 
-        from app.core.database import get_async_session_factory
+        from app.database import get_async_session_factory
         from app.services.unified_whatsapp_service import (
             create_unified_whatsapp_service,
         )
@@ -447,8 +442,7 @@ def send_flow_message(
         # Try to mark message as failed if message_id was provided
         if message_id:
             try:
-                db = next(get_db())
-                try:
+                with get_scoped_session() as db:
                     message_repo = MessageRepository(db)
                     message = message_repo.get(UUID(message_id))
                     if message:
@@ -462,8 +456,6 @@ def send_flow_message(
                         logger.info(
                             f"Marked message {message_id} as FAILED after exception"
                         )
-                finally:
-                    db.close()
             except Exception as update_error:
                 logger.error(
                     f"Failed to update message status after exception: {update_error}"

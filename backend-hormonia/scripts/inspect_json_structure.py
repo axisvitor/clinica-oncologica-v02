@@ -1,7 +1,7 @@
 import sys
 import os
 sys.path.append(os.getcwd())
-from app.core.database import SessionLocal
+from app.database import SessionLocal
 from sqlalchemy import text
 import json
 

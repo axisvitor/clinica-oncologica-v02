@@ -56,6 +56,7 @@ CSRF_EXEMPT_PATHS: Set[str] = {
     "/api/v2/quiz-extensions/monthly/public",
     "/api/v2/monthly-quiz-public/monthly/public",
     "/api/v2/monthly-quiz/monthly/public",
+    "/api/v2/internal/tasks/",
 }
 
 

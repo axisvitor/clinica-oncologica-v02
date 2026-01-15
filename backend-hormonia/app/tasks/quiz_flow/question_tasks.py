@@ -12,7 +12,7 @@ from typing import Any
 from uuid import UUID
 from app.task_queue import task_queue as celery_app
 
-from app.database import get_db
+from app.database import get_db, get_scoped_session
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ def send_quiz_question_task(
     from asgiref.sync import async_to_sync
 
     try:
-        with next(get_db()) as db:
+        with get_scoped_session() as db:
             from app.domain.quizzes.integration.flow_integration import (
                 ConversationalQuizService,
             )
@@ -119,7 +119,7 @@ def send_quiz_progress_update_task(
         Exception: If progress update fails after all retries
     """
     try:
-        from app.core.database import get_async_session_factory
+        from app.database import get_async_session_factory
         from app.models.message import (
             Message,
             MessageDirection,

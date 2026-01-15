@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Backgroun
 from sqlalchemy.orm import joinedload
 
 from app.database import get_db
-from app.core.database import get_async_session_factory
+from app.database import get_async_session_factory
 from app.models.message import Message, MessageStatus, MessageType, MessageDirection
 # from app.domain.messaging.delivery import MessageSender
 from app.schemas.v2.messages import (

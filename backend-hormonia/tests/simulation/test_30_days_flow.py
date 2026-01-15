@@ -45,7 +45,7 @@ async def run_simulation():
     print("🧪 SIMULAÇÃO DE 30 DIAS DE ENVIOS")
     print("=" * 70)
 
-    from app.core.database import SessionLocal
+    from app.database import SessionLocal
     from app.schemas.patient import PatientCreate
     from app.orchestration.saga_orchestrator import SagaOrchestrator
     from app.models.patient import Patient

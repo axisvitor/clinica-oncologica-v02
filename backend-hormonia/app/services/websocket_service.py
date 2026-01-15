@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from fastapi import WebSocket
 from redis import Redis
-from jose import jwt, JWTError
+import jwt  # PyJWT - replaces python-jose to fix CVE-2024-23342
 
 from app.config import settings
 from app.schemas.websocket import (
@@ -200,7 +200,7 @@ class WebSocketConnectionManager:
             logger.info(f"Connection {connection_id} authenticated as {user_id}")
             return True
 
-        except JWTError as e:
+        except jwt.exceptions.PyJWTError as e:
             logger.error(f"JWT authentication error: {e}")
             return False
 

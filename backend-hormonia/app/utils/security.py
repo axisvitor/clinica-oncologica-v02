@@ -12,7 +12,7 @@ import bcrypt as bcrypt_lib
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 import re
 from datetime import datetime, timedelta, timezone
-from jose import JWTError, jwt
+import jwt  # PyJWT - replaces python-jose to fix CVE-2024-23342
 
 logger = logging.getLogger(__name__)
 
@@ -271,8 +271,6 @@ def mask_dict_secrets(data: dict, keys_to_mask: Optional[list] = None) -> dict:
             "JWT_SECRET",
             "SECRET_KEY",
             "AWS_SECRET_ACCESS_KEY",
-            "SUPABASE_KEY",
-            "SUPABASE_ANON_KEY",
         ]
     masked_data = {}
     for key, value in data.items():
@@ -360,7 +358,7 @@ def verify_token(token: str, token_type: str = "access") -> Optional[Any]:
         if not email:
             return None
         return TokenData(email=email)
-    except JWTError:
+    except jwt.exceptions.PyJWTError:
         return None
 
 

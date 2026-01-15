@@ -1,4 +1,4 @@
-from app.core.database import SessionLocal
+from app.database import SessionLocal
 from app.models.user import User
 
 def list_users():

@@ -63,6 +63,9 @@ EXEMPT_PATHS = frozenset({
     "/api/v2/messages",  # Exempt: Protected by session auth (get_current_user_from_session)
     "/api/v2/enhanced-messages",  # Exempt: Protected by session auth (enhanced messaging API)
     "/api/v2/flows",  # Exempt: Protected by session auth (flow management)
+    "/api/v2/internal/",  # Internal task endpoints (Cloud Scheduler/Tasks)
+    "/api/v2/internal/tasks/",  # Internal task execution (Cloud Scheduler/Tasks)
+    "/api/v2/internal/tasks/execute",  # Explicit task execute endpoint
 })
 
 # Safe HTTP methods (no state changes)

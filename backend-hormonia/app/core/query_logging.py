@@ -370,14 +370,14 @@ def analyze_repository_queries(repo_class, method_name: str, *args, **kwargs):
         >>> from app.repositories.patient import PatientRepository
         >>> analyze_repository_queries(PatientRepository, 'get_all_active', limit=100)
     """
-    from app.core.database import get_db
+    from app.database import get_scoped_session
 
-    db = next(get_db())
-    repo = repo_class(db)
+    with get_scoped_session() as db:
+        repo = repo_class(db)
 
-    with query_logging_context() as logger:
-        method = getattr(repo, method_name)
-        result = method(*args, **kwargs)
+        with query_logging_context() as logger:
+            method = getattr(repo, method_name)
+            result = method(*args, **kwargs)
 
         import logging
 

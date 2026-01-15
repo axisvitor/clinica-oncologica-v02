@@ -8,7 +8,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 import json
-from jose import jwt, JWTError
+import jwt
 from app.config import get_settings
 from app.core.redis_manager import get_redis_manager
 
@@ -163,7 +163,7 @@ class TokenRotationService:
                 "token_type": "bearer",
             }
 
-        except JWTError as e:
+        except jwt.exceptions.PyJWTError as e:
             logger.error(f"Token rotation failed: {e}")
             return None
 
@@ -193,7 +193,7 @@ class TokenRotationService:
 
             return payload
 
-        except JWTError as e:
+        except jwt.exceptions.PyJWTError as e:
             logger.error(f"Token verification failed: {e}")
             return None
 
@@ -219,7 +219,7 @@ class TokenRotationService:
 
             return False
 
-        except JWTError:
+        except jwt.exceptions.PyJWTError:
             return False
 
     def revoke_all_user_tokens(self, user_id: str) -> int:

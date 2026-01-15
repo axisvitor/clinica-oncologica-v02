@@ -11,7 +11,7 @@ from typing import Any, Optional
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_db, get_scoped_session
 from app.services.enhanced_flow_engine import FlowType, MessageTemplate
 from app.models.flow import PatientFlowState
 
@@ -75,34 +75,32 @@ async def _process_single_patient_flow_by_id(patient_id) -> dict[str, Any]:
     from app.services.enhanced_flow_engine import get_enhanced_flow_engine
     from app.repositories.flow import FlowStateRepository
     
-    db = None
     try:
-        db = next(get_db())
-        
-        # Create isolated engine for this coroutine
-        flow_engine = get_enhanced_flow_engine(db)
-        flow_repo = FlowStateRepository(db)
-        
-        # Re-fetch flow_state in this session
-        flow_state = flow_repo.get_active_flow(patient_id)
-        if not flow_state:
-            return {
-                "status": "skipped",
-                "patient_id": str(patient_id),
-                "reason": "No active flow found",
-            }
-        
-        # Check if paused
-        if flow_state.step_data and flow_state.step_data.get("paused"):
-            return {
-                "status": "skipped",
-                "patient_id": str(patient_id),
-                "reason": "Flow is paused",
-            }
-        
-        # Process using the isolated session
-        result = await _process_single_patient_flow(flow_engine, flow_state, db)
-        return result
+        with get_scoped_session() as db:
+            # Create isolated engine for this coroutine
+            flow_engine = get_enhanced_flow_engine(db)
+            flow_repo = FlowStateRepository(db)
+            
+            # Re-fetch flow_state in this session
+            flow_state = flow_repo.get_active_flow(patient_id)
+            if not flow_state:
+                return {
+                    "status": "skipped",
+                    "patient_id": str(patient_id),
+                    "reason": "No active flow found",
+                }
+            
+            # Check if paused
+            if flow_state.step_data and flow_state.step_data.get("paused"):
+                return {
+                    "status": "skipped",
+                    "patient_id": str(patient_id),
+                    "reason": "Flow is paused",
+                }
+            
+            # Process using the isolated session
+            result = await _process_single_patient_flow(flow_engine, flow_state, db)
+            return result
         
     except asyncio.TimeoutError:
         logger.error(f"Flow processing timeout for patient {patient_id}")
@@ -121,9 +119,6 @@ async def _process_single_patient_flow_by_id(patient_id) -> dict[str, Any]:
             "patient_id": str(patient_id),
             "error": str(e),
         }
-    finally:
-        if db:
-            db.close()
 
 
 async def _process_single_patient_flow(
@@ -152,8 +147,8 @@ async def _process_single_patient_flow(
     # Use provided session when available to keep state consistent with flow_engine.
     own_session = False
     if db is None:
-        db = next(get_db())
-        own_session = True
+        with get_scoped_session() as db:
+            own_session = True
 
     try:
         patient_id = flow_state.patient_id

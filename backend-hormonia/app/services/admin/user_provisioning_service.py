@@ -203,13 +203,6 @@ class UserProvisioningService:
             logger.error(f"Failed to update user from identity provider: {e}")
             return user
 
-    # Backward compatibility alias
-    async def update_user_from_supabase(
-        self, user: User, supabase_user: Dict[str, Any]
-    ) -> User:
-        return await self.update_user_from_identity(user, supabase_user)
-
-
 # Global service instance (initialized with repository)
 _user_provisioning_service: Optional[UserProvisioningService] = None
 

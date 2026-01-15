@@ -13,7 +13,7 @@ from uuid import UUID
 from celery.exceptions import MaxRetriesExceededError
 
 from app.task_queue import task_queue as celery_app
-from app.database import get_db
+from app.database import get_db, get_scoped_session
 
 from .base import FlowTaskBase
 
@@ -50,10 +50,7 @@ def process_monthly_quizzes(self, limit: int = 50) -> dict[str, Any]:
     try:
         logger.info(f"Starting monthly quiz processing for up to {limit} patients")
 
-        # Get database session
-        db = next(get_db())
-
-        try:
+        with get_scoped_session() as db:
             # Initialize quiz trigger service
             from app.domain.quizzes.integration.flow_integration import (
                 get_quiz_trigger_service,
@@ -91,9 +88,6 @@ def process_monthly_quizzes(self, limit: int = 50) -> dict[str, Any]:
 
             logger.info(f"Monthly quiz processing completed: {results}")
             return results
-
-        finally:
-            db.close()
 
     except Exception as e:
         logger.error(f"Monthly quiz processing failed: {e}")
@@ -151,10 +145,7 @@ def generate_quiz_report(self, session_id: str) -> dict[str, Any]:
     try:
         logger.info(f"Generating quiz report for session {session_id}")
 
-        # Get database session
-        db = next(get_db())
-
-        try:
+        with get_scoped_session() as db:
             # Initialize quiz report generator
             from app.services.reporting.quiz_report_generator import (
                 get_quiz_report_generator,
@@ -195,9 +186,6 @@ def generate_quiz_report(self, session_id: str) -> dict[str, Any]:
 
             logger.info(f"Quiz report generated successfully: {result}")
             return result
-
-        finally:
-            db.close()
 
     except Exception as e:
         logger.error(f"Quiz report generation failed: {e}")

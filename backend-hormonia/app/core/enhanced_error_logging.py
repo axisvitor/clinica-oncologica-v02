@@ -21,7 +21,7 @@ import threading
 
 from app.core.logging_config import RateLimitedLogger
 from app.models.error_tracking import ErrorLog
-from app.core.database import get_scoped_session
+from app.database import get_scoped_session
 
 
 logger = logging.getLogger(__name__)

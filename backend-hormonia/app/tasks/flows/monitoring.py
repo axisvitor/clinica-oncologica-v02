@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 from app.task_queue import task_queue as celery_app
 from app.task_queue import list_tasks as list_stored_tasks
-from app.database import get_db
+from app.database import get_db, get_scoped_session
 from app.config import settings
 from app.repositories.flow import FlowStateRepository
 from app.models.message import Message, MessageStatus
@@ -46,10 +46,7 @@ def monitor_flow_task_health(self) -> dict[str, Any]:
     try:
         logger.info("Starting flow task health monitoring")
 
-        # Get database session
-        db = next(get_db())
-
-        try:
+        with get_scoped_session() as db:
             health_results = {
                 "database_connection": False,
                 "redis_connection": False,
@@ -183,9 +180,6 @@ def monitor_flow_task_health(self) -> dict[str, Any]:
             logger.info(f"Flow task health monitoring completed: {health_results}")
             return health_results
 
-        finally:
-            db.close()
-
     except Exception as e:
         logger.error(f"Flow task health monitoring failed: {e}")
         return {
@@ -200,25 +194,23 @@ def evaluate_flow_alerts(self) -> dict[str, Any]:
     """
     Evaluate flow analytics alerts and dispatch notifications.
     """
-    db = next(get_db())
-    try:
-        service = FlowAlertsService(db)
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+    with get_scoped_session() as db:
         try:
-            alerts = loop.run_until_complete(service.evaluate_alerts())
-        finally:
-            loop.close()
+            service = FlowAlertsService(db)
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                alerts = loop.run_until_complete(service.evaluate_alerts())
+            finally:
+                loop.close()
 
-        return {
-            "alerts_created": len(alerts),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-    except Exception as exc:
-        logger.error(f"Flow alerts evaluation failed: {exc}")
-        return {
-            "error": str(exc),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-    finally:
-        db.close()
+            return {
+                "alerts_created": len(alerts),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        except Exception as exc:
+            logger.error(f"Flow alerts evaluation failed: {exc}")
+            return {
+                "error": str(exc),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }

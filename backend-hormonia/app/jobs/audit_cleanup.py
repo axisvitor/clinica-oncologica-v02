@@ -12,7 +12,7 @@ import logging
 from datetime import datetime
 from typing import Dict, Any
 
-from app.core.database_direct import execute_sql
+from app.database_direct import execute_sql
 
 logger = logging.getLogger(__name__)
 

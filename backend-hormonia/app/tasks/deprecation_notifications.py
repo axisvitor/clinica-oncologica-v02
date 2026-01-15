@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 import logging
 from sqlalchemy.orm import Session
 
-from app.db import get_db
+from app.database import get_db, get_scoped_session
 from app.task_queue import task_queue as celery_app
 from app.monitoring.deprecation_tracking import get_deprecation_tracker
 
@@ -288,102 +288,99 @@ def send_deprecation_notifications():
     tracker = get_deprecation_tracker()
     report = tracker.get_deprecation_report()
 
-    db = next(get_db())
+    with get_scoped_session() as db:
+        try:
+            emails_sent = 0
+            emails_failed = 0
 
-    try:
-        emails_sent = 0
-        emails_failed = 0
+            # Get all clients at risk
+            clients_at_risk = report["clients_at_risk"]
 
-        # Get all clients at risk
-        clients_at_risk = report["clients_at_risk"]
+            logger.info(f"Found {len(clients_at_risk)} clients using deprecated APIs")
 
-        logger.info(f"Found {len(clients_at_risk)} clients using deprecated APIs")
+            for client_info in clients_at_risk:
+                client_id = client_info["client_id"]
 
-        for client_info in clients_at_risk:
-            client_id = client_info["client_id"]
+                # Get client details from database
+                client = get_client_by_id(db, client_id)
 
-            # Get client details from database
-            client = get_client_by_id(db, client_id)
+                if not client or not client.email:
+                    logger.warning(f"No email found for client {client_id}")
+                    continue
 
-            if not client or not client.email:
-                logger.warning(f"No email found for client {client_id}")
-                continue
+                # Prepare endpoint rows for email
+                endpoint_rows = ""
+                total_calls = 0
 
-            # Prepare endpoint rows for email
-            endpoint_rows = ""
-            total_calls = 0
+                for endpoint in client_info["endpoints"]:
+                    endpoint_rows += f"""
+                    <tr>
+                        <td>{endpoint["version"]}{endpoint["endpoint"]}</td>
+                        <td>{endpoint["call_count"]}</td>
+                        <td>Current (v2)</td>
+                    </tr>
+                    """
+                    total_calls += endpoint["call_count"]
 
-            for endpoint in client_info["endpoints"]:
-                endpoint_rows += f"""
-                <tr>
-                    <td>{endpoint["version"]}{endpoint["endpoint"]}</td>
-                    <td>{endpoint["call_count"]}</td>
-                    <td>Current (v2)</td>
-                </tr>
-                """
-                total_calls += endpoint["call_count"]
+                # Calculate days remaining
+                # Assuming sunset date is 2025-07-01
+                sunset_date = datetime(2025, 7, 1, tzinfo=timezone.utc)
+                days_remaining = max(0, (sunset_date - datetime.now(timezone.utc)).days)
 
-            # Calculate days remaining
-            # Assuming sunset date is 2025-07-01
-            sunset_date = datetime(2025, 7, 1, tzinfo=timezone.utc)
-            days_remaining = max(0, (sunset_date - datetime.now(timezone.utc)).days)
+                # Choose template based on urgency
+                if days_remaining < 30:
+                    # Urgent email (less than 30 days)
+                    subject = f"🚨 URGENT: API v2 Sunset in {days_remaining} Days"
+                    html_content = URGENT_DEPRECATION_EMAIL_TEMPLATE.format(
+                        client_name=client.name,
+                        days_remaining=days_remaining,
+                        sunset_date=sunset_date.strftime("%Y-%m-%d"),
+                        call_count=total_calls,
+                        client_id=client_id,
+                        migration_guide_url="https://api.clinica.com/docs/v2",
+                    )
+                else:
+                    # Regular deprecation notice
+                    subject = f"Action Required: API v2 Deprecation ({days_remaining} days remaining)"
+                    html_content = DEPRECATION_EMAIL_TEMPLATE.format(
+                        client_name=client.name,
+                        days_remaining=days_remaining,
+                        sunset_date=sunset_date.strftime("%Y-%m-%d"),
+                        endpoint_rows=endpoint_rows,
+                        client_id=client_id,
+                        migration_guide_url="https://api.clinica.com/docs/v2",
+                        dashboard_url=f"https://grafana.clinica.com/d/api-versioning?var-client_id={client_id}",
+                        docs_url="https://api.clinica.com/docs/v2",
+                        status_url="https://status.clinica.com",
+                    )
 
-            # Choose template based on urgency
-            if days_remaining < 30:
-                # Urgent email (less than 30 days)
-                subject = f"🚨 URGENT: API v2 Sunset in {days_remaining} Days"
-                html_content = URGENT_DEPRECATION_EMAIL_TEMPLATE.format(
-                    client_name=client.name,
-                    days_remaining=days_remaining,
-                    sunset_date=sunset_date.strftime("%Y-%m-%d"),
-                    call_count=total_calls,
-                    client_id=client_id,
-                    migration_guide_url="https://api.clinica.com/docs/v2",
+                # Send email
+                success = send_email(
+                    to=client.email, subject=subject, html_content=html_content
                 )
-            else:
-                # Regular deprecation notice
-                subject = f"Action Required: API v2 Deprecation ({days_remaining} days remaining)"
-                html_content = DEPRECATION_EMAIL_TEMPLATE.format(
-                    client_name=client.name,
-                    days_remaining=days_remaining,
-                    sunset_date=sunset_date.strftime("%Y-%m-%d"),
-                    endpoint_rows=endpoint_rows,
-                    client_id=client_id,
-                    migration_guide_url="https://api.clinica.com/docs/v2",
-                    dashboard_url=f"https://grafana.clinica.com/d/api-versioning?var-client_id={client_id}",
-                    docs_url="https://api.clinica.com/docs/v2",
-                    status_url="https://status.clinica.com",
-                )
 
-            # Send email
-            success = send_email(
-                to=client.email, subject=subject, html_content=html_content
+                if success:
+                    emails_sent += 1
+                    logger.info(f"Sent deprecation email to {client.email}")
+                else:
+                    emails_failed += 1
+                    logger.error(f"Failed to send email to {client.email}")
+
+            logger.info(
+                f"Deprecation notification task completed: "
+                f"{emails_sent} sent, {emails_failed} failed"
             )
 
-            if success:
-                emails_sent += 1
-                logger.info(f"Sent deprecation email to {client.email}")
-            else:
-                emails_failed += 1
-                logger.error(f"Failed to send email to {client.email}")
+            return {
+                "success": True,
+                "emails_sent": emails_sent,
+                "emails_failed": emails_failed,
+                "clients_at_risk": len(clients_at_risk),
+            }
 
-        logger.info(
-            f"Deprecation notification task completed: "
-            f"{emails_sent} sent, {emails_failed} failed"
-        )
-
-        return {
-            "success": True,
-            "emails_sent": emails_sent,
-            "emails_failed": emails_failed,
-            "clients_at_risk": len(clients_at_risk),
-        }
-
-    except Exception as e:
-        logger.error(f"Error in deprecation notification task: {e}", exc_info=True)
-        return {"success": False, "error": str(e)}
-    finally:
-        db.close()
+        except Exception as e:
+            logger.error(f"Error in deprecation notification task: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
 
 
 @celery_app.task(name="update_sunset_metrics")

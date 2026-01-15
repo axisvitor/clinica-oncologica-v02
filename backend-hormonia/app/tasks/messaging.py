@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from celery.exceptions import Retry
 
 from app.task_queue import task_queue as celery_app
-from app.database import get_db
+from app.database import get_db, get_scoped_session
 from app.domain.messaging.core import MessageService
 from app.models.message import MessageStatus, MessageType
 from app.schemas.message import MessageUpdate
@@ -51,7 +51,7 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
 
     async def _send_message_async():
         """Inner async function to send message with AsyncSession."""
-        from app.core.database import get_async_session_factory
+        from app.database import get_async_session_factory
         from app.models.message import Message
         from app.models.patient import Patient
         from sqlalchemy import select
@@ -380,66 +380,66 @@ def send_bulk_messages(message_data_list: List[dict[str, Any]]) -> dict[str, Any
             - errors (List[str]): List of error messages (if any failures)
     """
     try:
-        db = next(get_db())
-        message_service = MessageService(db)
+        with get_scoped_session() as db:
+            message_service = MessageService(db)
 
-        created_messages = []
-        failed_creations = []
+            created_messages = []
+            failed_creations = []
 
-        # Create all messages first
-        for message_data in message_data_list:
-            try:
-                # Schedule each message for immediate or delayed delivery
-                scheduled_for = message_data.get("scheduled_for")
-                if scheduled_for:
-                    scheduled_for = datetime.fromisoformat(scheduled_for)
-                else:
-                    scheduled_for = datetime.now(timezone.utc)
+            # Create all messages first
+            for message_data in message_data_list:
+                try:
+                    # Schedule each message for immediate or delayed delivery
+                    scheduled_for = message_data.get("scheduled_for")
+                    if scheduled_for:
+                        scheduled_for = datetime.fromisoformat(scheduled_for)
+                    else:
+                        scheduled_for = datetime.now(timezone.utc)
 
-                message = message_service.schedule_message(
-                    patient_id=UUID(message_data["patient_id"]),
-                    content=message_data["content"],
-                    scheduled_for=scheduled_for,
-                    message_type=MessageType(message_data.get("type", "text")),
-                    message_metadata=message_data.get("metadata", {}),
+                    message = message_service.schedule_message(
+                        patient_id=UUID(message_data["patient_id"]),
+                        content=message_data["content"],
+                        scheduled_for=scheduled_for,
+                        message_type=MessageType(message_data.get("type", "text")),
+                        message_metadata=message_data.get("metadata", {}),
+                    )
+
+                    created_messages.append(message)
+
+                except Exception as exc:
+                    logger.error(f"Failed to create bulk message: {exc}")
+                    failed_creations.append(
+                        {"patient_id": message_data.get("patient_id"), "error": str(exc)}
+                    )
+
+            # Schedule individual send tasks for each message
+            scheduled_tasks = []
+            for message in created_messages:
+                # Schedule the send task
+                eta = message.scheduled_for if message.scheduled_for else datetime.now(timezone.utc)
+                task = send_scheduled_message.apply_async(args=[str(message.id)], eta=eta)
+                scheduled_tasks.append(
+                    {
+                        "message_id": str(message.id),
+                        "task_id": task.id,
+                        "scheduled_for": eta.isoformat(),
+                    }
                 )
 
-                created_messages.append(message)
+            result = {
+                "success": True,
+                "total_requested": len(message_data_list),
+                "messages_created": len(created_messages),
+                "creation_failures": len(failed_creations),
+                "scheduled_tasks": scheduled_tasks,
+                "failed_creations": failed_creations,
+                "processed_at": datetime.now(timezone.utc).isoformat(),
+            }
 
-            except Exception as exc:
-                logger.error(f"Failed to create bulk message: {exc}")
-                failed_creations.append(
-                    {"patient_id": message_data.get("patient_id"), "error": str(exc)}
-                )
-
-        # Schedule individual send tasks for each message
-        scheduled_tasks = []
-        for message in created_messages:
-            # Schedule the send task
-            eta = message.scheduled_for if message.scheduled_for else datetime.now(timezone.utc)
-            task = send_scheduled_message.apply_async(args=[str(message.id)], eta=eta)
-            scheduled_tasks.append(
-                {
-                    "message_id": str(message.id),
-                    "task_id": task.id,
-                    "scheduled_for": eta.isoformat(),
-                }
+            logger.info(
+                f"Bulk message operation: {len(created_messages)}/{len(message_data_list)} messages created and scheduled"
             )
-
-        result = {
-            "success": True,
-            "total_requested": len(message_data_list),
-            "messages_created": len(created_messages),
-            "creation_failures": len(failed_creations),
-            "scheduled_tasks": scheduled_tasks,
-            "failed_creations": failed_creations,
-            "processed_at": datetime.now(timezone.utc).isoformat(),
-        }
-
-        logger.info(
-            f"Bulk message operation: {len(created_messages)}/{len(message_data_list)} messages created and scheduled"
-        )
-        return result
+            return result
 
     except Exception as exc:
         logger.error(f"Error in bulk message sending: {exc}", exc_info=True)
@@ -463,46 +463,45 @@ def cleanup_old_messages(days_old: int = 90) -> dict[str, Any]:
         Dictionary with cleanup results
     """
     try:
-        db = next(get_db())
+        with get_scoped_session() as db:
+            # Calculate cutoff date
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
 
-        # Calculate cutoff date
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
+            # Query old messages (keep failed messages for longer analysis)
+            from app.models.message import Message
 
-        # Query old messages (keep failed messages for longer analysis)
-        from app.models.message import Message
+            old_messages = (
+                db.query(Message)
+                .filter(Message.created_at < cutoff_date)
+                .filter(Message.status.in_([MessageStatus.DELIVERED, MessageStatus.READ]))
+                .all()
+            )
 
-        old_messages = (
-            db.query(Message)
-            .filter(Message.created_at < cutoff_date)
-            .filter(Message.status.in_([MessageStatus.DELIVERED, MessageStatus.READ]))
-            .all()
-        )
+            # Archive or delete old messages
+            archived_count = 0
+            for message in old_messages:
+                # For now, we'll just mark them as archived in metadata
+                # In production, you might want to move them to an archive table
+                metadata = message.message_metadata or {}
+                metadata["archived"] = True
+                metadata["archived_at"] = datetime.now(timezone.utc).isoformat()
 
-        # Archive or delete old messages
-        archived_count = 0
-        for message in old_messages:
-            # For now, we'll just mark them as archived in metadata
-            # In production, you might want to move them to an archive table
-            metadata = message.message_metadata or {}
-            metadata["archived"] = True
-            metadata["archived_at"] = datetime.now(timezone.utc).isoformat()
+                message.message_metadata = metadata
+                archived_count += 1
 
-            message.message_metadata = metadata
-            archived_count += 1
+            db.commit()
 
-        db.commit()
+            result = {
+                "success": True,
+                "archived_count": archived_count,
+                "cutoff_date": cutoff_date.isoformat(),
+                "cleaned_at": datetime.now(timezone.utc).isoformat(),
+            }
 
-        result = {
-            "success": True,
-            "archived_count": archived_count,
-            "cutoff_date": cutoff_date.isoformat(),
-            "cleaned_at": datetime.now(timezone.utc).isoformat(),
-        }
-
-        logger.info(
-            f"Archived {archived_count} old messages older than {days_old} days"
-        )
-        return result
+            logger.info(
+                f"Archived {archived_count} old messages older than {days_old} days"
+            )
+            return result
 
     except Exception as exc:
         logger.error(f"Error cleaning up old messages: {exc}", exc_info=True)
@@ -524,88 +523,88 @@ def generate_message_analytics(
         Dictionary with analytics data
     """
     try:
-        db = next(get_db())
-        message_service = MessageService(db)
+        with get_scoped_session() as db:
+            message_service = MessageService(db)
 
-        # Calculate date range
-        end_date = datetime.now(timezone.utc)
-        start_date = end_date - timedelta(days=days_back)
+            # Calculate date range
+            end_date = datetime.now(timezone.utc)
+            start_date = end_date - timedelta(days=days_back)
 
-        # Get message statistics
-        patient_uuid = UUID(patient_id) if patient_id else None
-        statistics = message_service.get_message_statistics(
-            patient_id=patient_uuid, start_date=start_date, end_date=end_date
-        )
-
-        # Calculate delivery rates
-        total_sent = (
-            statistics.get("sent", 0)
-            + statistics.get("delivered", 0)
-            + statistics.get("read", 0)
-        )
-        total_delivered = statistics.get("delivered", 0) + statistics.get("read", 0)
-        total_read = statistics.get("read", 0)
-
-        delivery_rate = (total_delivered / total_sent * 100) if total_sent > 0 else 0
-        read_rate = (total_read / total_delivered * 100) if total_delivered > 0 else 0
-
-        # Get additional metrics from database
-        from app.models.message import Message
-        from sqlalchemy import func, and_
-
-        query = db.query(Message).filter(
-            and_(Message.created_at >= start_date, Message.created_at <= end_date)
-        )
-
-        if patient_uuid:
-            query = query.filter(Message.patient_id == patient_uuid)
-
-        # Average delivery time
-        delivery_times = (
-            query.filter(
-                and_(Message.sent_at.isnot(None), Message.delivered_at.isnot(None))
+            # Get message statistics
+            patient_uuid = UUID(patient_id) if patient_id else None
+            statistics = message_service.get_message_statistics(
+                patient_id=patient_uuid, start_date=start_date, end_date=end_date
             )
-            .with_entities(
-                func.extract("epoch", Message.delivered_at - Message.sent_at).label(
-                    "delivery_seconds"
+
+            # Calculate delivery rates
+            total_sent = (
+                statistics.get("sent", 0)
+                + statistics.get("delivered", 0)
+                + statistics.get("read", 0)
+            )
+            total_delivered = statistics.get("delivered", 0) + statistics.get("read", 0)
+            total_read = statistics.get("read", 0)
+
+            delivery_rate = (total_delivered / total_sent * 100) if total_sent > 0 else 0
+            read_rate = (total_read / total_delivered * 100) if total_delivered > 0 else 0
+
+            # Get additional metrics from database
+            from app.models.message import Message
+            from sqlalchemy import func, and_
+
+            query = db.query(Message).filter(
+                and_(Message.created_at >= start_date, Message.created_at <= end_date)
+            )
+
+            if patient_uuid:
+                query = query.filter(Message.patient_id == patient_uuid)
+
+            # Average delivery time
+            delivery_times = (
+                query.filter(
+                    and_(Message.sent_at.isnot(None), Message.delivered_at.isnot(None))
                 )
+                .with_entities(
+                    func.extract("epoch", Message.delivered_at - Message.sent_at).label(
+                        "delivery_seconds"
+                    )
+                )
+                .all()
             )
-            .all()
-        )
 
-        avg_delivery_time = (
-            sum(dt.delivery_seconds for dt in delivery_times) / len(delivery_times)
-            if delivery_times
-            else 0
-        )
+            avg_delivery_time = (
+                sum(dt.delivery_seconds for dt in delivery_times) / len(delivery_times)
+                if delivery_times
+                else 0
+            )
 
-        result = {
-            "success": True,
-            "analytics": {
-                "period": {
-                    "start_date": start_date.isoformat(),
-                    "end_date": end_date.isoformat(),
-                    "days": days_back,
+            result = {
+                "success": True,
+                "analytics": {
+                    "period": {
+                        "start_date": start_date.isoformat(),
+                        "end_date": end_date.isoformat(),
+                        "days": days_back,
+                    },
+                    "patient_id": patient_id,
+                    "message_counts": statistics,
+                    "rates": {
+                        "delivery_rate_percent": round(delivery_rate, 2),
+                        "read_rate_percent": round(read_rate, 2),
+                    },
+                    "performance": {
+                        "avg_delivery_time_seconds": round(avg_delivery_time, 2),
+                        "total_messages": sum(statistics.values()),
+                    },
                 },
-                "patient_id": patient_id,
-                "message_counts": statistics,
-                "rates": {
-                    "delivery_rate_percent": round(delivery_rate, 2),
-                    "read_rate_percent": round(read_rate, 2),
-                },
-                "performance": {
-                    "avg_delivery_time_seconds": round(avg_delivery_time, 2),
-                    "total_messages": sum(statistics.values()),
-                },
-            },
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-        }
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }
 
-        logger.info(
-            f"Generated message analytics for {days_back} days"
-            + (f" for patient {patient_id}" if patient_id else "")
-        )
-        return result
+            logger.info(
+                f"Generated message analytics for {days_back} days"
+                + (f" for patient {patient_id}" if patient_id else "")
+            )
+            return result
 
     except Exception as exc:
         logger.error(f"Error generating message analytics: {exc}", exc_info=True)
@@ -627,74 +626,73 @@ def process_whatsapp_dlq(limit: int = 50) -> dict[str, Any]:
         Dictionary with processing results
     """
     try:
-        db = next(get_db())
+        with get_scoped_session() as db:
+            from app.integrations.whatsapp.queue.dlq import DLQHandler
 
-        from app.integrations.whatsapp.queue.dlq import DLQHandler
+            dlq_handler = DLQHandler(db)
 
-        dlq_handler = DLQHandler(db)
+            # Get pending DLQ messages (using run_async for event loop reuse)
+            pending_messages = run_async(dlq_handler.get_pending_review(limit=limit))
 
-        # Get pending DLQ messages (using run_async for event loop reuse)
-        pending_messages = run_async(dlq_handler.get_pending_review(limit=limit))
+            if not pending_messages:
+                logger.info("No pending DLQ messages to process")
+                return {
+                    "success": True,
+                    "message": "No pending DLQ messages",
+                    "processed": 0,
+                }
 
-        if not pending_messages:
-            logger.info("No pending DLQ messages to process")
-            return {
+            logger.info(f"Processing {len(pending_messages)} DLQ messages")
+
+            # Process each message (basic automatic retry for certain categories)
+            processed_count = 0
+            requeued_count = 0
+
+            for failed_msg in pending_messages:
+                try:
+                    # Auto-approve retry for transient failures (rate limit, timeout)
+                    from app.models.failed_message import FailureReason
+
+                    auto_retry_reasons = [
+                        FailureReason.RATE_LIMIT.value,
+                        FailureReason.TIMEOUT.value,
+                        FailureReason.NETWORK_ERROR.value,
+                    ]
+
+                    # Check error_code field (stores failure reason value)
+                    if (
+                        failed_msg.error_code in auto_retry_reasons
+                        and failed_msg.retry_count < 3
+                    ):
+                        # Auto-approve and requeue (using run_async for event loop reuse)
+                        result = run_async(
+                            dlq_handler.requeue_for_retry(
+                                dlq_id=failed_msg.id, immediate=False
+                            )
+                        )
+
+                        requeued_count += 1
+                        logger.info(f"Auto-requeued DLQ message {failed_msg.id}")
+                    else:
+                        # Leave for manual review
+                        logger.info(f"DLQ message {failed_msg.id} requires manual review")
+
+                    processed_count += 1
+
+                except Exception as e:
+                    logger.error(f"Failed to process DLQ message {failed_msg.id}: {e}")
+                    continue
+
+            result = {
                 "success": True,
-                "message": "No pending DLQ messages",
-                "processed": 0,
+                "message": f"Processed {processed_count} DLQ messages",
+                "processed": processed_count,
+                "requeued": requeued_count,
+                "manual_review": processed_count - requeued_count,
             }
 
-        logger.info(f"Processing {len(pending_messages)} DLQ messages")
-
-        # Process each message (basic automatic retry for certain categories)
-        processed_count = 0
-        requeued_count = 0
-
-        for failed_msg in pending_messages:
-            try:
-                # Auto-approve retry for transient failures (rate limit, timeout)
-                from app.models.failed_message import FailureReason
-
-                auto_retry_reasons = [
-                    FailureReason.RATE_LIMIT.value,
-                    FailureReason.TIMEOUT.value,
-                    FailureReason.NETWORK_ERROR.value,
-                ]
-
-                # Check error_code field (stores failure reason value)
-                if (
-                    failed_msg.error_code in auto_retry_reasons
-                    and failed_msg.retry_count < 3
-                ):
-                    # Auto-approve and requeue (using run_async for event loop reuse)
-                    result = run_async(
-                        dlq_handler.requeue_for_retry(
-                            dlq_id=failed_msg.id, immediate=False
-                        )
-                    )
-
-                    requeued_count += 1
-                    logger.info(f"Auto-requeued DLQ message {failed_msg.id}")
-                else:
-                    # Leave for manual review
-                    logger.info(f"DLQ message {failed_msg.id} requires manual review")
-
-                processed_count += 1
-
-            except Exception as e:
-                logger.error(f"Failed to process DLQ message {failed_msg.id}: {e}")
-                continue
-
-        result = {
-            "success": True,
-            "message": f"Processed {processed_count} DLQ messages",
-            "processed": processed_count,
-            "requeued": requeued_count,
-            "manual_review": processed_count - requeued_count,
-        }
-
-        logger.info(f"DLQ processing complete: {result}")
-        return result
+            logger.info(f"DLQ processing complete: {result}")
+            return result
 
     except Exception as exc:
         logger.error(f"Error processing WhatsApp DLQ: {exc}", exc_info=True)

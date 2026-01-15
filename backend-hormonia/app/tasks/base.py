@@ -7,42 +7,15 @@ from datetime import datetime, timezone
 from celery import Task
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_db, get_scoped_session
 from app.exceptions import ExternalServiceError
 
 
 logger = logging.getLogger(__name__)
 
 
-@contextmanager
-def get_db_session() -> Generator[Session, None, None]:
-    """
-    Context manager for database sessions with automatic cleanup.
-
-    Yields:
-        Session: Database session instance
-
-    Raises:
-        Exception: If database operation fails
-    """
-    db = None
-    try:
-        db = next(get_db())
-        yield db
-    except Exception as exc:
-        if db:
-            db.rollback()
-        # Only log as DB error if it's actually a database-related exception
-        exc_module = type(exc).__module__.lower()
-        if any(x in exc_module for x in ["sqlalchemy", "psycopg", "asyncpg", "database"]):
-            logger.error(f"Database operation failed: {exc}", exc_info=True)
-        else:
-            # Not a DB error - log without misleading prefix
-            logger.error(f"Task operation failed: {exc}", exc_info=True)
-        raise
-    finally:
-        if db:
-            db.close()
+# Use get_scoped_session from app.database as the standard context manager
+get_db_session = get_scoped_session
 
 
 class BaseTask(Task):

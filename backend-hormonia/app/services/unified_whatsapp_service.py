@@ -526,7 +526,7 @@ class UnifiedWhatsAppService:
         else:
             # Direct database update when message_service not available and using sync db
             try:
-                from app.core.database import get_scoped_session
+                from app.database import get_scoped_session
                 from app.models.message import Message as MessageModel, MessageStatus
 
                 with get_scoped_session() as session:

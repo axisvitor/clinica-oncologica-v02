@@ -15,7 +15,7 @@ from typing import Any, Dict
 
 from datetime import datetime, timedelta, timezone
 
-from app.database import get_db
+from app.database import get_db, get_scoped_session
 from app.task_queue import task_queue as celery_app
 from app.utils.async_helpers import run_async
 from app.services.webhook_dlq import get_webhook_dlq
@@ -55,10 +55,7 @@ def process_webhook_dlq(self, batch_size: int = QUIZ_DLQ_BATCH_SIZE) -> Dict[str
     try:
         logger.info(f"Starting DLQ processing (batch_size={batch_size})")
 
-        # Get database session
-        db = next(get_db())
-
-        try:
+        with get_scoped_session() as db:
             # Get DLQ service
             dlq_service = get_webhook_dlq(db)
 
@@ -80,9 +77,6 @@ def process_webhook_dlq(self, batch_size: int = QUIZ_DLQ_BATCH_SIZE) -> Dict[str
             )
 
             return result
-
-        finally:
-            db.close()
 
     except Exception as e:
         execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
@@ -125,10 +119,7 @@ def cleanup_old_dlq_events(self, days_old: int = 7) -> Dict[str, Any]:
     try:
         logger.info(f"Starting DLQ cleanup (days_old={days_old})")
 
-        # Get database session
-        db = next(get_db())
-
-        try:
+        with get_scoped_session() as db:
             # Get DLQ service
             dlq_service = get_webhook_dlq(db)
 
@@ -189,9 +180,6 @@ def cleanup_old_dlq_events(self, days_old: int = 7) -> Dict[str, Any]:
 
             return result
 
-        finally:
-            db.close()
-
     except Exception as e:
         execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
@@ -230,10 +218,7 @@ def monitor_dlq_health(self) -> Dict[str, Any]:
     try:
         logger.info("Starting DLQ health monitoring")
 
-        # Get database session
-        db = next(get_db())
-
-        try:
+        with get_scoped_session() as db:
             # Get DLQ service
             dlq_service = get_webhook_dlq(db)
 
@@ -295,9 +280,6 @@ def monitor_dlq_health(self) -> Dict[str, Any]:
             logger.info(f"DLQ health monitoring complete: {len(alerts)} alerts")
 
             return result
-
-        finally:
-            db.close()
 
     except Exception as e:
         execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000

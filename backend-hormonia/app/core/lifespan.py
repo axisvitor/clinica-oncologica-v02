@@ -761,9 +761,10 @@ async def _cleanup_websocket_events_redis(logger) -> None:
 async def _cleanup_other_resources(app: FastAPI, logger) -> None:
     """Cleanup other application resources."""
     try:
-        # Add cleanup for other resources as needed
-        # This is where you'd add cleanup for additional services
-        pass
+        from app.services.hive_mind_integration import cleanup_hive_mind_integration
+
+        cleanup_hive_mind_integration()
+        logger.info("✓ Hive-Mind integration cleaned up")
 
     except Exception as e:
         logger.error(f"Error cleaning up other resources: {e}")

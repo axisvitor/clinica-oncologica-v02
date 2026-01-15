@@ -15,7 +15,7 @@ from typing import Any
 from uuid import UUID
 from app.task_queue import task_queue as celery_app
 
-from app.database import get_db
+from app.database import get_db, get_scoped_session
 from app.repositories.patient import PatientRepository
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ def check_quiz_triggers_task(self, limit: int = 100) -> dict[str, Any]:
     """
 
     try:
-        with next(get_db()) as db:
+        with get_scoped_session() as db:
             from app.domain.quizzes.integration.flow_integration import (
                 ConversationalQuizService,
                 QuizTriggerService,
@@ -179,7 +179,7 @@ def send_quiz_link_reminder_task(
         Exception: If reminder sending fails after all retries
     """
     try:
-        with next(get_db()) as db:
+        with get_scoped_session() as db:
             from app.services.monthly_quiz_message_integration import (
                 MonthlyQuizMessageIntegration,
             )
@@ -236,7 +236,7 @@ def monitor_quiz_links_task(self) -> dict[str, Any]:
         Exception: If monitoring fails after all retries
     """
     try:
-        with next(get_db()) as db:
+        with get_scoped_session() as db:
             from app.services.quiz.quiz_service import MonthlyQuizService
             from app.services.monthly_quiz_message_integration import (
                 MonthlyQuizMessageIntegration,

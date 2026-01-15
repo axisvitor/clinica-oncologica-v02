@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 from app.models.user import User, UserRole
 from app.services import ServiceProvider
 from app.config import settings
-from app.core.database import SessionLocal
+from app.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
@@ -738,7 +738,7 @@ async def get_current_user_from_session(
 
         if use_fallback:
             try:
-                from app.core.database import get_async_session_factory
+                from app.database import get_async_session_factory
 
                 async_session_factory = get_async_session_factory()
                 async with async_session_factory() as async_session:
@@ -945,7 +945,7 @@ async def get_current_user_from_session(
 
             try:
                 # Get async session
-                from app.core.database import get_async_session_factory
+                from app.database import get_async_session_factory
 
                 async_session_factory = get_async_session_factory()
                 async with async_session_factory() as async_session:
@@ -1235,7 +1235,7 @@ async def get_current_user(
                 user = _get_user_from_db_sync(firebase_uid, services.db)
             else:
                 # Get async session
-                from app.core.database import get_async_session_factory
+                from app.database import get_async_session_factory
 
                 async_session_factory = get_async_session_factory()
                 async with async_session_factory() as async_session:

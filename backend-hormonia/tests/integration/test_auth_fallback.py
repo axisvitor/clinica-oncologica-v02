@@ -36,7 +36,7 @@ class _DummySessionFactory:
 def _patch_async_session_factory(monkeypatch: pytest.MonkeyPatch) -> None:
     dummy_factory = _DummySessionFactory()
     monkeypatch.setattr(
-        "app.core.database.get_async_session_factory",
+        "app.database.get_async_session_factory",
         lambda: dummy_factory,
     )
 

@@ -642,21 +642,21 @@ def get_enhanced_flow_engine(db: Any) -> EnhancedFlowEngine:
 async def test_enhanced_flow_engine() -> bool:
     """Test enhanced flow engine functionality."""
     try:
-        from app.database import get_db
+        from app.database import get_scoped_session
 
-        db = next(get_db())
-        engine = get_enhanced_flow_engine(db)
+        with get_scoped_session() as db:
+            engine = get_enhanced_flow_engine(db)
 
-        # Perform health check
-        health_status = await engine.health_check()
-        logger.info(f"Enhanced flow engine health check: {health_status}")
+            # Perform health check
+            health_status = await engine.health_check()
+            logger.info(f"Enhanced flow engine health check: {health_status}")
 
-        if not health_status["overall_healthy"]:
-            logger.warning("Some components are not healthy")
-            return False
+            if not health_status["overall_healthy"]:
+                logger.warning("Some components are not healthy")
+                return False
 
-        logger.info("Enhanced flow engine test completed successfully")
-        return True
+            logger.info("Enhanced flow engine test completed successfully")
+            return True
 
     except Exception as e:
         logger.error(f"Enhanced flow engine test failed: {e}")

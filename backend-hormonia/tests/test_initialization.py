@@ -72,7 +72,7 @@ class TestDatabaseInitializer:
     @pytest.mark.asyncio
     async def test_validate_connection(self):
         """Test database connection validation"""
-        with patch('app.core.database.AsyncSessionLocal') as mock_session:
+        with patch('app.database.AsyncSessionLocal') as mock_session:
             mock_session.return_value.__aenter__.return_value.execute = AsyncMock()
 
             from scripts.init_database import DatabaseInitializer
@@ -86,7 +86,7 @@ class TestDatabaseInitializer:
     @pytest.mark.asyncio
     async def test_validate_schema(self):
         """Test schema validation"""
-        with patch('app.core.database.AsyncSessionLocal') as mock_session:
+        with patch('app.database.AsyncSessionLocal') as mock_session:
             # Mock database queries
             mock_result = Mock()
             mock_result.fetchall.return_value = [
@@ -178,7 +178,7 @@ class TestHealthChecker:
     @pytest.mark.asyncio
     async def test_database_health_check(self):
         """Test database health check"""
-        with patch('app.core.database.AsyncSessionLocal') as mock_session:
+        with patch('app.database.AsyncSessionLocal') as mock_session:
             mock_result = Mock()
             mock_result.scalar.side_effect = [5, 1048576]  # active connections, db size
             mock_session.return_value.__aenter__.return_value.execute = AsyncMock(

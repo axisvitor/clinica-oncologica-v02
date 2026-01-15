@@ -107,9 +107,8 @@ class SwarmManager:
     - Integration with Claude-Flow hooks
     """
 
-    def __init__(self, db_session: Session):
+    def __init__(self):
         """Initialize SwarmManager."""
-        self.db_session = db_session
         self.logger = get_logger("swarm_manager")
 
         # Swarm state
@@ -862,21 +861,18 @@ async def get_swarm_manager() -> SwarmManager:
     global _swarm_manager
 
     if _swarm_manager is None:
-        from app.database import get_db
-
-        db = next(get_db())
-        _swarm_manager = SwarmManager(db)
+        _swarm_manager = SwarmManager()
         await _swarm_manager.start()
 
     return _swarm_manager
 
 
-async def initialize_swarm_manager(db_session: Session) -> SwarmManager:
-    """Initialize swarm manager with specific database session."""
+async def initialize_swarm_manager(db_session: Session | None = None) -> SwarmManager:
+    """Initialize swarm manager with optional database session (unused)."""
     global _swarm_manager
 
     if _swarm_manager is None:
-        _swarm_manager = SwarmManager(db_session)
+        _swarm_manager = SwarmManager()
         await _swarm_manager.start()
 
     return _swarm_manager

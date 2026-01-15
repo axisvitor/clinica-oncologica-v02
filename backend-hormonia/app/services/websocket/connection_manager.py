@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import WebSocket
-from jose import jwt, JWTError
+import jwt  # PyJWT - replaces python-jose to fix CVE-2024-23342
 
 from app.config import settings
 from app.models.user import User
@@ -329,7 +329,7 @@ class UnifiedWebSocketConnectionManager:
 
             return user
 
-        except JWTError as e:
+        except jwt.exceptions.PyJWTError as e:
             logger.error(f"JWT decode error: {str(e)}")
             raise HTTPException(
                 status_code=http_status.HTTP_401_UNAUTHORIZED,

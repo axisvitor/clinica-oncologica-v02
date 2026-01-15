@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from app.database import get_db
 from app.utils.database_optimization import get_db_optimizer
-from app.core.database import connection_manager
+from app.database import get_pool_status
 
 router = APIRouter(prefix="/monitoring/database", tags=["monitoring"])
 
@@ -34,7 +34,7 @@ async def get_pool_status(db: Session = Depends(get_db)):
     Returns:
         Current pool status and utilization metrics.
     """
-    pool_status = connection_manager.pool_monitor.get_pool_status()
+    pool_status = get_pool_status()
 
     # Calcular métricas adicionais
     utilization = pool_status['utilization_percent']

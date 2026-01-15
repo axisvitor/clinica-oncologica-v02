@@ -11,7 +11,7 @@ from typing import Any
 from uuid import UUID
 from app.task_queue import task_queue as celery_app
 
-from app.database import get_db
+from app.database import get_db, get_scoped_session
 from app.exceptions import NotFoundError
 from app.tasks.quiz_flow.helpers import _notify_providers_of_quiz_completion
 
@@ -43,7 +43,7 @@ def process_quiz_response_task(
         Exception: If response processing fails after all retries
     """
     try:
-        with next(get_db()) as db:
+        with get_scoped_session() as db:
             from asgiref.sync import async_to_sync
             from app.domain.quizzes.integration.flow_integration import (
                 ConversationalQuizService,
@@ -120,7 +120,7 @@ def generate_quiz_report_task(
         Exception: If report generation fails after all retries
     """
     try:
-        with next(get_db()) as db:
+        with get_scoped_session() as db:
             from app.services.quiz import QuizSessionService, QuizResponseService
             from app.services.reporting import ReportService
 

@@ -636,11 +636,11 @@ async def track_slow_queries(request, call_next):
 ### 2. Connection Pool Monitor
 ```python
 # Endpoint de health check
-from app.core.database import connection_manager
+from app.database import get_pool_status
 
 @app.get("/health/database")
 async def database_health():
-    pool_status = connection_manager.pool_monitor.get_pool_status()
+    pool_status = get_pool_status()
 
     return {
         "status": "healthy" if pool_status['utilization_percent'] < 80 else "warning",

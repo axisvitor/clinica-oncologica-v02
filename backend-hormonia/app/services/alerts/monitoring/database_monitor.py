@@ -77,17 +77,17 @@ class DatabaseMonitor:
         Check for connection pool exhaustion.
 
         Args:
-            use_service_role: Whether to check service role pool or RLS pool
+            use_service_role: Backward-compatible flag (single pool in use)
 
         Returns:
             Alert if threshold exceeded, None otherwise
         """
         try:
             # Import here to avoid circular dependencies
-            from app.core.database import get_pool_status
+            from app.database import get_pool_status
 
-            pool_name = "service_role" if use_service_role else "rls"
-            pool_status = get_pool_status(use_service_role=use_service_role)
+            pool_name = "primary"
+            pool_status = get_pool_status()
 
             # Calculate utilization
             total_capacity = pool_status.get("pool_size", 0) + pool_status.get(
@@ -160,17 +160,17 @@ class DatabaseMonitor:
         Check database connection health.
 
         Args:
-            use_service_role: Whether to check service role pool or RLS pool
+            use_service_role: Backward-compatible flag (single pool in use)
 
         Returns:
             Alert if connection unhealthy, None otherwise
         """
         try:
             # Import here to avoid circular dependencies
-            from app.core.database import test_connection
+            from app.database import test_connection
 
-            pool_name = "service_role" if use_service_role else "rls"
-            health_result = test_connection(use_service_role=use_service_role)
+            pool_name = "primary"
+            health_result = test_connection()
 
             if health_result.get("status") != "healthy":
                 # Check debouncing

@@ -15,7 +15,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from faker import Faker
 
 from app.main import app
-from app.core.database import Base, get_db
+from app.database import Base, get_db
 from app.models.user import User, UserRole
 from app.models.patient import Patient
 from app.models.quiz import QuizTemplate

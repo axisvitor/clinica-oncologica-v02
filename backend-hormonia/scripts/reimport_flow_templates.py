@@ -11,7 +11,7 @@ from typing import List, Dict, Any
 
 sys.path.append(os.getcwd())
 
-from app.core.database import SessionLocal
+from app.database import SessionLocal
 from sqlalchemy import text
 
 

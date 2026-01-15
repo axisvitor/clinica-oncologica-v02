@@ -34,7 +34,6 @@ from .service_dependencies import (
     get_flow_management_service,
     get_redis,
     get_database,
-    # get_supabase_client - REMOVED (migrated to AWS RDS PostgreSQL)
     get_message_service,
     get_analytics_service,
     get_report_service,
@@ -184,7 +183,6 @@ __all__ = [
     "get_flow_management_service",
     "get_redis",
     "get_database",
-    # "get_supabase_client", - REMOVED (migrated to AWS RDS PostgreSQL)
     "get_thread_safe_db",
     "get_thread_safe_service_provider",
     "get_message_service",

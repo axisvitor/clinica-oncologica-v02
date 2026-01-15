@@ -22,7 +22,7 @@ from app.task_queue import task_queue as celery_app
 
 # Application imports
 from app.config import settings
-from app.database import get_db, SessionLocal
+from app.database import get_db, get_scoped_session, SessionLocal
 from app.exceptions import ExternalServiceError
 
 # Models - commonly used across tasks

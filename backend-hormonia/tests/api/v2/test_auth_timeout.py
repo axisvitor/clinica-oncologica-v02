@@ -61,7 +61,7 @@ async def test_get_current_user_from_session_db_timeout_returns_504(
         return factory
 
     monkeypatch.setattr(
-        "app.core.database.get_async_session_factory",
+        "app.database.get_async_session_factory",
         fake_get_async_session_factory,
     )
 
@@ -120,7 +120,7 @@ async def test_get_current_user_from_session_db_timeout_logs_error(
         return factory
 
     monkeypatch.setattr(
-        "app.core.database.get_async_session_factory",
+        "app.database.get_async_session_factory",
         fake_get_async_session_factory,
     )
 

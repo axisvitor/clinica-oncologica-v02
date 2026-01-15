@@ -48,7 +48,7 @@ decoded_token = jwt.decode(
 # AFTER (SECURE):
 decoded_token = jwt.decode(
     jwt_token,
-    settings.SUPABASE_SERVICE_ROLE_KEY,  # ✅ Secret key provided
+    settings.SECURITY_SECRET_KEY,        # ✅ Secret key provided
     algorithms=["HS256"],                 # ✅ Algorithm specified
     options={"verify_signature": True}    # ✅ Signature verification enabled
 )

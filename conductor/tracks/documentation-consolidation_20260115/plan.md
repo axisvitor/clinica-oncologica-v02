@@ -1,19 +1,21 @@
 # Implementation Plan - Documentation Consolidation
 
 ## Phase 1: Backend Documentation Refactoring
-- [ ] Task: Audit and inventory all backend documentation files.
-    - [ ] List all .md files in `backend-hormonia/` and subdirectories.
-    - [ ] List all backend-related files in root `docs/`.
-- [ ] Task: Create new directory structure.
-    - [ ] Create `docs/backend/` and necessary subfolders (e.g., `guides`, `architecture`, `api`).
-- [ ] Task: Consolidate Setup and Installation Guides.
-    - [ ] Merge `backend-hormonia/README.md` setup instructions with any other setup docs.
-    - [ ] Place unified guide in `docs/backend/setup.md`.
-- [ ] Task: Consolidate Architecture and Design Docs.
-    - [ ] Move and merge architecture docs from `backend-hormonia/docs/` and root `docs/` to `docs/backend/architecture/`.
-- [ ] Task: Cleanup Backend Directory.
-    - [ ] Remove redundant .md files from `backend-hormonia/` (keeping a minimal `README.md` that links to `docs/backend/`).
-- [ ] Task: Conductor - User Manual Verification 'Backend Documentation Refactoring' (Protocol in workflow.md)
+- [x] Task: Audit and inventory all backend documentation files. 5539ab2
+    - [x] List all .md files in `backend-hormonia/` and subdirectories.
+    - [x] List all backend-related files in root `docs/`.
+- [x] Task: Create new directory structure. 5539ab2
+    - [x] Create `docs/backend/` and necessary subfolders (e.g., `guides`, `architecture`, `api`).
+- [x] Task: Consolidate Setup and Installation Guides. 5539ab2
+    - [x] Merge `backend-hormonia/README.md` setup instructions with any other setup docs.
+    - [x] Place unified guide in `docs/backend/setup.md`.
+- [x] Task: Consolidate Architecture and Design Docs. 5539ab2
+    - [x] Create unified `docs/backend/architecture/overview.md`.
+    - [x] Consolidate ADRs into `docs/backend/architecture/decisions/`.
+    - [x] Organize specific architectural reports into `docs/backend/architecture/reports/`.
+- [x] Task: Cleanup Backend Directory. 5539ab2
+    - [x] Remove redundant .md files from `backend-hormonia/` (keeping a minimal `README.md` that links to `docs/backend/`).
+- [~] Task: Conductor - User Manual Verification 'Backend Documentation Refactoring' (Protocol in workflow.md)
 
 ## Phase 2: Frontend Documentation Refactoring
 - [ ] Task: Audit and inventory all frontend documentation files.
