@@ -11,7 +11,6 @@ import { ReportGenerator } from '@/features/reports/ReportGenerator'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuth } from '@/hooks/useAuth'
 import { createLogger } from '@/lib/logger'
-import type { Report } from '@/lib/api-client/types'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 const logger = createLogger('ReportsPage')

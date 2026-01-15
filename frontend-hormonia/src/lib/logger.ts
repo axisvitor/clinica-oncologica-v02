@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+/* eslint-disable no-console */
 
 /**
  * Development logger utility

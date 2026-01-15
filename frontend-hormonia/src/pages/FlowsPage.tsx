@@ -46,7 +46,8 @@ export function FlowsPage() {
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Erro ao carregar fluxos</AlertTitle>
           <AlertDescription>
-            {(flowsError as any)?.data?.message || 'Não foi possível carregar os dados dos fluxos. Tente novamente.'}
+            {(flowsError as { data?: { message?: string } })?.data?.message ||
+              'Não foi possível carregar os dados dos fluxos. Tente novamente.'}
           </AlertDescription>
         </Alert>
       )}

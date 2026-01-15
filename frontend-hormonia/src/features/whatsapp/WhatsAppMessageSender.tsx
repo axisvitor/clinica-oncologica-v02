@@ -300,7 +300,7 @@ export const WhatsAppMessageSender: React.FC<WhatsAppMessageSenderProps> = ({
               id="textMessage"
               value={textMessage}
               onChange={(e) => setTextMessage(e.target.value)}
-              placeholder="Type your message here..."
+              placeholder="Ex.: Mensagem para o paciente…"
               rows={4}
               maxLength={4096}
             />
@@ -361,6 +361,7 @@ export const WhatsAppMessageSender: React.FC<WhatsAppMessageSenderProps> = ({
                       variant="outline"
                       size="sm"
                       onClick={clearMediaFile}
+                      aria-label="Remover arquivo"
                     >
                       <X className="w-4 h-4" />
                     </Button>
@@ -368,8 +369,8 @@ export const WhatsAppMessageSender: React.FC<WhatsAppMessageSenderProps> = ({
 
                   {uploadProgress > 0 && uploadProgress < 100 && (
                     <div className="space-y-1">
-                      <div className="flex justify-between text-sm">
-                        <span>Uploading...</span>
+                    <div className="flex justify-between text-sm">
+                        <span>Uploading…</span>
                         <span>{uploadProgress}%</span>
                       </div>
                       <Progress value={uploadProgress} />
@@ -381,6 +382,8 @@ export const WhatsAppMessageSender: React.FC<WhatsAppMessageSenderProps> = ({
                       <img
                         src={URL.createObjectURL(mediaFile)}
                         alt="Preview"
+                        width={128}
+                        height={128}
                         className="max-w-full h-32 object-contain rounded"
                       />
                     </div>
@@ -396,7 +399,7 @@ export const WhatsAppMessageSender: React.FC<WhatsAppMessageSenderProps> = ({
                 id="mediaCaption"
                 value={mediaCaption}
                 onChange={(e) => setMediaCaption(e.target.value)}
-                placeholder="Add a caption to your file..."
+                placeholder="Ex.: Pedido de exames…"
                 rows={2}
                 maxLength={1024}
               />
@@ -423,7 +426,7 @@ export const WhatsAppMessageSender: React.FC<WhatsAppMessageSenderProps> = ({
             {sending ? (
               <div className="flex items-center gap-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Sending...
+                Sending…
               </div>
             ) : (
               <div className="flex items-center gap-2">

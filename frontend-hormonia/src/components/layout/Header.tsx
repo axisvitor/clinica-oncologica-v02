@@ -146,9 +146,10 @@ export function Header({ onMenuClick }: HeaderProps) {
                 id="global-search-mobile"
                 name="q"
                 type="search"
-                placeholder="Buscar pacientes, mensagens..."
+                placeholder="Ex.: Maria Silva…"
                 className="pl-10 bg-gray-50 border-gray-200 h-11"
-                autoFocus
+                autoComplete="off"
+                aria-label="Buscar"
               />
             </div>
             <Button
@@ -162,7 +163,7 @@ export function Header({ onMenuClick }: HeaderProps) {
             </Button>
           </div>
           <div className="p-4">
-            <p className="text-sm text-gray-500">Digite para buscar pacientes, mensagens ou relatórios...</p>
+            <p className="text-sm text-gray-500">Digite para buscar pacientes, mensagens ou relatórios…</p>
           </div>
         </div>
       )}

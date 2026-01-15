@@ -25,23 +25,14 @@ import type { QuizTemplate } from '@/types/api'
 
 const logger = createLogger('QuestionariosPage')
 
-/**
- * Question option interface
- */
-interface QuestionOption {
-  id: string
-  text: string
-  value: string | number
-  is_correct?: boolean
+type QuizTemplatePayload = Parameters<typeof apiClient.quizzes.createTemplate>[0] & {
+  version?: string
+  is_active?: boolean
 }
 
-/**
- * Validation rule interface
- */
-interface ValidationRule {
-  type: string
-  value: unknown
-  message: string
+type QuizTemplateUpdatePayload = Parameters<typeof apiClient.quizzes.updateTemplate>[1] & {
+  version?: string
+  is_active?: boolean
 }
 
 /**
@@ -135,7 +126,6 @@ export function QuestionariosPage() {
   })
 
   const {
-    handleSubmit,
     reset,
     watch,
     setValue,
@@ -143,20 +133,22 @@ export function QuestionariosPage() {
   } = form
 
   const questions = watch('questions')
+  const templatesPayload = templatesData as { items: QuizTemplate[]; total: number; page: number } | undefined
 
   // Mutations
   const createMutation = useMutation({
     mutationFn: (data: CreateQuizFormData) => {
       logger.info('Creating quiz template', { name: data.name, version: data.version })
-      return apiClient.quizzes.createTemplate({
+      const payload: QuizTemplatePayload = {
         ...data,
         questions: data.questions.map(q => ({
           question_text: q.text,
           question_type: q.type,
           options: q.options?.map(o => o.text),
           required: q.required
-        })) as any
-      })
+        }))
+      }
+      return apiClient.quizzes.createTemplate(payload)
     },
     onSuccess: () => {
       logger.info('Quiz template created successfully')
@@ -204,15 +196,16 @@ export function QuestionariosPage() {
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: CreateQuizFormData }) => {
       logger.info('Updating quiz template', { templateId: id, name: data.name })
-      return apiClient.quizzes.updateTemplate(id, {
+      const payload: QuizTemplateUpdatePayload = {
         ...data,
         questions: data.questions.map(q => ({
           question_text: q.text,
           question_type: q.type,
           options: q.options?.map(o => o.text),
           required: q.required
-        })) as any
-      })
+        }))
+      }
+      return apiClient.quizzes.updateTemplate(id, payload)
     },
     onSuccess: () => {
       logger.info('Quiz template updated successfully')
@@ -376,7 +369,7 @@ export function QuestionariosPage() {
 
       {/* Templates Grid */}
       <QuestionariosGrid
-        templatesData={templatesData as any}
+        templatesData={templatesPayload}
         isLoading={isLoadingTemplates}
         error={templatesError}
         filters={filters}

@@ -18,7 +18,6 @@
  * ```
  */
 
-import React from 'react';
 import DOMPurify from 'dompurify'
 import { logger } from '@/lib/logger';
 import type { Config } from 'dompurify';
@@ -94,7 +93,7 @@ export function sanitizeHtml(
   if (!dirty) return '';
 
   try {
-    const clean = DOMPurify.sanitize(dirty, config as any) as unknown as string;
+    const clean = DOMPurify.sanitize(dirty, config) as string;
 
     // Add security attributes to links
     if (config !== STRICT_CONFIG) {
@@ -128,7 +127,7 @@ export function sanitizeText(dirty: string | null | undefined): string {
   if (!dirty) return '';
 
   try {
-    return DOMPurify.sanitize(dirty, STRICT_CONFIG as any) as unknown as string;
+    return DOMPurify.sanitize(dirty, STRICT_CONFIG) as string;
   } catch (error) {
     logger.error('Error sanitizing text', error);
     return '';

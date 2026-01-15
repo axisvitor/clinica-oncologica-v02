@@ -52,12 +52,22 @@ export const MobilePatientCard = memo<MobilePatientCardProps>(({
   if (!patient) return null
 
   const statusConfig = getStatusBadgeConfig(patient.status)
+  const handleCardKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      onNavigate(patient.id)
+    }
+  }
 
   return (
     <div style={style} className="px-4 pb-3">
       <Card
         className="p-4 hover:shadow-md transition-shadow cursor-pointer h-full"
         onClick={() => onNavigate(patient.id)}
+        onKeyDown={handleCardKeyDown}
+        role="button"
+        tabIndex={0}
+        aria-label={`Ver detalhes do paciente ${patient.name}`}
       >
         {/* Header with Avatar and Status */}
         <div className="flex items-center justify-between mb-3">

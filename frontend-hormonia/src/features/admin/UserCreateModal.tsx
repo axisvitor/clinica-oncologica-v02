@@ -331,7 +331,7 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
                       passwordStrength.score === 3 ? 'bg-yellow-200' : 'bg-green-200'
                     }`}>
                       <div
-                        className={`h-2 rounded-full transition-all ${
+                        className={`h-2 rounded-full transition-[width] ${
                           passwordStrength.score <= 2 ? 'bg-red-500' :
                           passwordStrength.score === 3 ? 'bg-yellow-500' : 'bg-green-500'
                         }`}

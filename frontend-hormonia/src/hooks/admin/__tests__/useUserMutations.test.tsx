@@ -249,7 +249,7 @@ describe('useUserMutations - Delete User', () => {
     await act(async () => {
       try {
         await result.current.deleteUser.mutateAsync('1');
-      } catch (e) {
+      } catch {
         // Deletion cancelled
       }
     });
@@ -317,7 +317,7 @@ describe('useUserMutations - Role Assignment', () => {
           userId: '1',
           role: 'invalid-role' as any,
         });
-      } catch (e) {
+      } catch {
         // Invalid role
       }
     });
@@ -340,7 +340,7 @@ describe('useUserMutations - Role Assignment', () => {
           userId: currentUserId,
           role: 'user',
         });
-      } catch (e) {
+      } catch {
         // Cannot self-demote
       }
     });

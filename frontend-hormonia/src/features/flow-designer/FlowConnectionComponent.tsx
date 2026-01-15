@@ -73,14 +73,24 @@ export function FlowConnectionComponent({
         stroke={strokeColor}
         strokeWidth={strokeWidth}
         strokeDasharray={connection.animated ? '5,5' : 'none'}
+        role="button"
+        tabIndex={0}
+        aria-label="Selecionar conexao"
         className={`
-          cursor-pointer transition-all duration-200
+          cursor-pointer transition-colors duration-200
           ${connection.animated ? 'animate-pulse' : ''}
           hover:stroke-blue-500
         `}
         onClick={(e) => {
           e.stopPropagation()
           onSelect()
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            e.stopPropagation()
+            onSelect()
+          }
         }}
       />
 

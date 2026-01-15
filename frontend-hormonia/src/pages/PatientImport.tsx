@@ -18,7 +18,6 @@ import {
   Download,
   FileSpreadsheet,
   History,
-  AlertCircle,
   CheckCircle,
   XCircle,
   FileText,
@@ -195,7 +194,7 @@ export function PatientImport() {
           title: 'Modelo baixado',
           description: `Modelo de importação baixado no formato ${format.toUpperCase()}.`,
         });
-      } catch (err) {
+      } catch {
         toast({
           title: 'Erro ao baixar modelo',
           description: 'Não foi possível baixar o modelo. Tente novamente.',

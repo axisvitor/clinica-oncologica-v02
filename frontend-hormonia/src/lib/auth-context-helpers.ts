@@ -15,8 +15,25 @@
 import { createContext, useContext } from 'react'
 
 // Removed Supabase imports - using generic types
-type User = any
-type Session = any
+type UserMetadata = {
+  full_name?: string
+  name?: string
+  role?: string
+  [key: string]: unknown
+}
+
+type User = {
+  id: string
+  email?: string | null
+  user_metadata?: UserMetadata
+  created_at: string
+  last_sign_in_at?: string | null
+}
+
+type Session = {
+  access_token?: string
+  [key: string]: unknown
+}
 
 // Extended user interface with application-specific fields
 export interface AppUser {

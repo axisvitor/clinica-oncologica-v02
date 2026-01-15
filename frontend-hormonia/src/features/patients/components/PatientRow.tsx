@@ -56,6 +56,12 @@ export const PatientRow = memo<PatientRowProps>(({
   if (!patient) return null
 
   const statusConfig = getStatusBadgeConfig(patient.status)
+  const handleRowKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      onNavigate(patient.id)
+    }
+  }
 
   return (
     <div
@@ -65,6 +71,10 @@ export const PatientRow = memo<PatientRowProps>(({
         GRID_COLS
       )}
       onClick={() => onNavigate(patient.id)}
+      onKeyDown={handleRowKeyDown}
+      role="button"
+      tabIndex={0}
+      aria-label={`Ver detalhes do paciente ${patient.name}`}
     >
       {/* Patient Info */}
       <div className="flex items-center space-x-3 min-w-0">

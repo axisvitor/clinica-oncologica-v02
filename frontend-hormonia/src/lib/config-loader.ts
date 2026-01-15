@@ -56,8 +56,8 @@ export async function initializeConfig(): Promise<void> {
  */
 export function getConfigValue<T>(key: string, fallback: T): T {
   const config = getRuntimeConfigSync();
-  if (config && key in config) {
-    return (config as any)[key] as T;
+  if (config && Object.prototype.hasOwnProperty.call(config, key)) {
+    return (config as Record<string, unknown>)[key] as T;
   }
   return fallback;
 }

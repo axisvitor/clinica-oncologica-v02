@@ -20,6 +20,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useIsMobile } from '@/components/ui/use-mobile'
 import { Loader2, Shield, AlertCircle } from 'lucide-react'
 import { logger } from '@/lib/logger'
 
@@ -65,6 +66,7 @@ export function ReAuthenticationModal({
   error = null,
 }: ReAuthenticationModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const isMobile = useIsMobile()
 
   const form = useForm<ReAuthFormData>({
     resolver: zodResolver(reAuthSchema),
@@ -128,9 +130,9 @@ export function ReAuthenticationModal({
                   <FormControl>
                     <Input
                       type="password"
-                      placeholder="Digite sua senha atual"
+                      placeholder="Ex.: Senha@123…"
                       autoComplete="current-password"
-                      autoFocus
+                      autoFocus={!isMobile}
                       disabled={isSubmitting}
                       {...field}
                     />
@@ -152,10 +154,10 @@ export function ReAuthenticationModal({
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Verificando...
-                  </>
-                ) : (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Verificando…
+                </>
+              ) : (
                   <>
                     <Shield className="mr-2 h-4 w-4" />
                     Confirmar

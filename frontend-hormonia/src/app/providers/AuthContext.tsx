@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useMemo } from 'react'
 import { apiClient } from '@/lib/api-client'
 import { User } from '@/types/api'
@@ -9,8 +10,7 @@ import { wsManager } from '@/lib/websocket'
 import { createLogger } from '@/lib/logger'
 import { toast } from '@/hooks/use-toast'
 import * as firebaseAuthService from '@/services/firebase-auth'
-import { isErrorWithMessage } from '@/lib/type-guards';
-import { useQueryClient } from '@tanstack/react-query'
+import { isErrorWithMessage } from '@/lib/type-guards'
 
 const logger = createLogger('AuthContext')
 export const AUTH_LOCK_TIMEOUT_MS = 5000
@@ -116,10 +116,8 @@ interface AuthContextType {
   refreshToken: () => Promise<void>
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const context = useContext(AuthContext)
   if (context === undefined) {
@@ -150,15 +148,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // OPTIMIZATION: Access query client for dashboard prefetching
   // This prefetches dashboard data immediately after login for instant loading
-  const queryClient = React.useMemo(() => {
-    try {
-      // Try to access query client if available (will throw if not in provider)
-      return (window as any).__REACT_QUERY_DEVTOOLS_GLOBAL_CLIENT__
-    } catch {
-      return null
-    }
-  }, [])
-
   const isAuthenticated = !!user
 
   // Permission and role checking functions
@@ -237,7 +226,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [user])
 
   // Helper to transform Firebase user to app User
-  const transformFirebaseUser = useCallback(async (firebaseUser: FirebaseUser): Promise<User | null> => {
+  const transformFirebaseUser = useCallback(async (_firebaseUser: FirebaseUser): Promise<User | null> => {
     try {
       // IMPORTANT: Do NOT use Firebase JWT as auth token for API calls
       // The backend expects session_id (UUID from Redis), not Firebase JWT
@@ -514,7 +503,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (unsubscribeToken) unsubscribeToken()
       wsManager.disconnect()
     }
-  }, [transformFirebaseUser])
+  }, [transformFirebaseUser, acquireAuthLock, releaseAuthLock])
 
   const login = useCallback(async (email: string, password: string, rememberMe: boolean = false) => {
     if (!acquireAuthLock('login')) {
@@ -652,7 +641,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setIsAuthenticating(false)
       isAuthenticatingRef.current = false
     }
-  }, [])
+  }, [acquireAuthLock, releaseAuthLock])
 
   const logout = useCallback(async () => {
     try {

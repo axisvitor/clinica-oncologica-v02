@@ -1,18 +1,15 @@
-import React, { useState, useMemo, Suspense } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Calendar, TrendingUp, Users, MessageSquare, Activity, Download, RefreshCw, ChartBar as BarChart3, ListFilter as Filter, ArrowUp, ArrowDown } from 'lucide-react'
+import { TrendingUp, Users, MessageSquare, Activity, Download, RefreshCw, ChartBar as BarChart3, ArrowUp } from 'lucide-react'
 import {
   LineChart,
   Line,
   AreaChart,
   Area,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
   Legend,
   PieChart,
   Pie,
@@ -20,7 +17,6 @@ import {
 } from '@/components/ui/charts/LazyRechartsComponents'
 import type { TooltipProps } from 'recharts'
 import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent'
-import { ChartSkeleton } from '@/components/ui/chart-skeleton'
 import { SafeChartContainer } from '@/components/ui/charts/SafeChartContainer'
 import { apiClient } from '@/lib/api-client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -41,7 +37,6 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 export function AnalyticsPage() {
   const [dateRange, setDateRange] = useState('7d')
   const [compareMode, setCompareMode] = useState(false)
-  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(['all'])
   const [treatmentPeriod, setTreatmentPeriod] = useState<Period>('30d')
 
   const { data: dashboardData, isLoading } = useQuery({
@@ -49,12 +44,12 @@ export function AnalyticsPage() {
     queryFn: () => apiClient.analytics.dashboard()
   })
 
-  const { data: engagementData } = useQuery({
+  const { data: _engagementData } = useQuery({
     queryKey: ['analytics-engagement', dateRange],
     queryFn: () => apiClient.analytics.engagement()
   })
 
-  const { data: patientsAnalytics } = useQuery({
+  const { data: _patientsAnalytics } = useQuery({
     queryKey: ['analytics-patients', dateRange],
     queryFn: () => apiClient.analytics.patients()
   })
@@ -75,20 +70,6 @@ export function AnalyticsPage() {
     queryKey: ['analytics-alerts-summary'],
     queryFn: () => apiClient.analytics.alertsSummary()
   })
-
-  function getStartDate(range: string): string {
-    const now = new Date()
-    switch (range) {
-      case '7d':
-        return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
-      case '30d':
-        return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
-      case '90d':
-        return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString()
-      default:
-        return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
-    }
-  }
 
   // Define the engagement chart item type
   interface EngagementChartItem {

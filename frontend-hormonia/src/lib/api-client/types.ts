@@ -738,20 +738,22 @@ export interface AIInsights {
   risk_level?: 'low' | 'medium' | 'high' | 'critical';
   risk_factors?: string[];
   sentiment_score?: number;
-  filter?: (predicate: (insight: any) => boolean) => any[]; // For array-like behavior
+  filter?: (predicate: (insight: AIInsight) => boolean) => AIInsight[]; // For array-like behavior
+}
+
+export interface AIRecommendation {
+  type: string;
+  priority: 'low' | 'medium' | 'high';
+  description: string;
+  rationale: string;
 }
 
 export interface AIRecommendations {
   patient_id: string;
-  recommendations: Array<{
-    type: string;
-    priority: 'low' | 'medium' | 'high';
-    description: string;
-    rationale: string;
-  }>;
+  recommendations: AIRecommendation[];
   // Array-like properties for direct array access
   length?: number;
-  slice?: (start?: number, end?: number) => any[];
+  slice?: (start?: number, end?: number) => AIRecommendation[];
 }
 
 // ============================================================================
@@ -938,7 +940,7 @@ export interface Task {
     message?: string;
     eta_seconds?: number;
   };
-  result?: any;
+  result?: unknown;
   error?: string;
   traceback?: string;
   retry_count: number;

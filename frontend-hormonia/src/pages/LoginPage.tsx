@@ -15,6 +15,7 @@ import { useAuth } from '@/app/providers/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useIsMobile } from '@/components/ui/use-mobile';
 import {
   Card,
   CardContent,
@@ -43,6 +44,7 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const errorAlertRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
 
   const {
     isSubmitting: isSubmittingAuth,
@@ -102,6 +104,8 @@ export function LoginPage() {
           <img
             src="/images/logo_system.svg"
             alt="Neoplasias Litoral - Sistema de Gestão"
+            width={2430}
+            height={1150}
             className="mx-auto h-24 md:h-32 w-auto mb-4"
           />
         </div>
@@ -147,7 +151,7 @@ export function LoginPage() {
               className="space-y-3 md:space-y-4"
             >
               <div aria-live="polite" aria-atomic="true" className="sr-only">
-                {isSubmittingAuth && 'Enviando dados de login...'}
+                {isSubmittingAuth && 'Enviando dados de login…'}
                 {authError && `Erro no login: ${authError}`}
               </div>
 
@@ -158,7 +162,7 @@ export function LoginPage() {
                   role="alert"
                   aria-live="polite"
                   tabIndex={-1}
-                  className="focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                 >
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>{authError}</AlertDescription>
@@ -179,7 +183,7 @@ export function LoginPage() {
                     }
                     className="pl-10"
                     autoComplete="email"
-                    autoFocus
+                    autoFocus={!isMobile}
                     aria-invalid={errors.email ? 'true' : 'false'}
                     aria-describedby={
                       errors.email ? emailErrorId : undefined
@@ -205,7 +209,7 @@ export function LoginPage() {
                   <Input
                     id="password"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="Sua senha"
+                    placeholder="Ex.: Senha@123…"
                     className="pl-10 pr-10"
                     autoComplete="current-password"
                     aria-invalid={errors.password ? 'true' : 'false'}
@@ -216,7 +220,7 @@ export function LoginPage() {
                   />
                   <button
                     type="button"
-                    className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded"
+                    className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 rounded"
                     onClick={() => setShowPassword(!showPassword)}
                     aria-label={
                       showPassword ? 'Ocultar senha' : 'Mostrar senha'
@@ -264,7 +268,7 @@ export function LoginPage() {
                 {isSubmittingAuth ? (
                   <>
                     <LoadingSpinner size="sm" className="mr-2" />
-                    <span aria-live="polite" id="submit-status">Entrando...</span>
+                    <span aria-live="polite" id="submit-status">Entrando…</span>
                   </>
                 ) : (
                   'Entrar'
@@ -276,12 +280,12 @@ export function LoginPage() {
                   type="button"
                   onClick={handleForgotPassword}
                   disabled={showForgotPassword}
-                  className="text-sm text-blue-600 hover:text-blue-700 underline focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded disabled:opacity-50"
+                  className="text-sm text-blue-600 hover:text-blue-700 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 rounded disabled:opacity-50"
                   aria-label="Solicitar redefinição de senha"
                 >
                   <KeyRound className="inline h-4 w-4 mr-1" />
                   {showForgotPassword
-                    ? 'Processando...'
+                    ? 'Processando…'
                     : 'Esqueci minha senha'}
                 </button>
               </div>

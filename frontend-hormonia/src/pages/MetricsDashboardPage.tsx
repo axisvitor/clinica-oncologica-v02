@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import {
   Activity, BarChart3, TrendingUp, Users, Brain, Target,
-  Settings, Download, RefreshCw, AlertTriangle
+  Settings, Download, AlertTriangle
 } from 'lucide-react';
 import { createLogger } from '@/lib/logger'
 

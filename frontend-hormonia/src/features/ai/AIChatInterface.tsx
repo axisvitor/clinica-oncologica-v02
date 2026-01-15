@@ -379,7 +379,7 @@ export function AIChatInterface({
                 <div className="bg-muted rounded-lg p-3">
                   <div className="flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="text-sm text-muted-foreground">Pensando...</span>
+                    <span className="text-sm text-muted-foreground">Pensando…</span>
                   </div>
                 </div>
               </div>
@@ -398,14 +398,18 @@ export function AIChatInterface({
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Digite sua mensagem..."
+              placeholder='Ex.: "Preciso de ajuda"…'
               disabled={isLoading}
               className="flex-1"
+              name="message"
+              autoComplete="off"
+              aria-label="Mensagem"
             />
             <Button
               onClick={sendMessage}
               disabled={!inputValue.trim() || isLoading}
               size="icon"
+              aria-label={isLoading ? "Enviando mensagem…" : "Enviar mensagem"}
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

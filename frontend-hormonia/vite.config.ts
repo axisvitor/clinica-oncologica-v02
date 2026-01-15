@@ -40,18 +40,9 @@ export default defineConfig(({ mode }) => ({
             return undefined;
           }
 
-          // Charts and data visualization
-          if (id.includes("recharts")) return "charts-recharts";
-          if (id.includes("d3-")) return "charts-d3";
-
           // Router and state management
           if (id.includes("react-router-dom") || id.includes("@tanstack/react-query")) {
             return "router";
-          }
-
-          // UI component libraries
-          if (id.includes("@radix-ui/") || id.includes("lucide-react")) {
-            return "ui";
           }
 
           // Firebase

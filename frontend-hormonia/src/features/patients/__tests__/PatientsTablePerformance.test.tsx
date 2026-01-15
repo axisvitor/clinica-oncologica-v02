@@ -62,7 +62,7 @@ describe('PatientsTable Performance', () => {
     
     // Verify that not all 1000 items are in the DOM
     // For a 800px height and 80px itemSize, we expect around 10-15 rows
-    const rows = screen.queryAllByRole('row')
+    const _rows = screen.queryAllByRole('row')
     // Note: PatientRow might not have role='row', checking by name
     const patientNames = screen.queryAllByText(/Patient \d+/)
     

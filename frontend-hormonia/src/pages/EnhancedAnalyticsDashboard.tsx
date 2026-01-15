@@ -8,7 +8,6 @@ import { createLogger } from '@/utils/logger';
 import { useEnhancedAnalytics, usePredictions } from '@/hooks/useEnhancedAnalytics';
 
 const logger = createLogger('EnhancedAnalyticsDashboard');
-import { TrendAnalysisChart } from '@/features/analytics/TrendAnalysisChart';
 import { AIPredictionsPanel } from '@/features/analytics/AIPredictionsPanel';
 import {
   DashboardFilters,
@@ -19,7 +18,7 @@ import {
 } from '@/types/enhanced-analytics';
 
 export const EnhancedAnalyticsDashboard: React.FC = () => {
-  const [filters, setFilters] = useState<DashboardFilters>({});
+  const [filters] = useState<DashboardFilters>({});
   const [selectedMetric, setSelectedMetric] = useState<string>('patient_engagement');
   const [selectedPeriod, setSelectedPeriod] = useState<string>('30d');
   const [showReportBuilder, setShowReportBuilder] = useState(false);

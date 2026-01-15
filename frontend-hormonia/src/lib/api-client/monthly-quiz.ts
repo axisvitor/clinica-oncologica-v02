@@ -346,7 +346,14 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
       template_id?: string
       status?: QuizLink['status']
     }): Promise<Blob> => {
-      const queryParams = new URLSearchParams(params as any)
+      const queryParams = new URLSearchParams()
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined) {
+            queryParams.set(key, String(value))
+          }
+        })
+      }
       const response = await fetch(
         `${client.getBaseURL()}/api/v2/monthly-quiz/export?${queryParams}`,
         {

@@ -171,6 +171,15 @@ async function prefetchRoutesSequentially(routes: string[], delayMs: number = 50
 }
 
 /**
+ * Prefetch multiple routes concurrently
+ *
+ * @param routes - Array of route paths
+ */
+async function prefetchRoutesConcurrent(routes: string[]): Promise<void> {
+  await Promise.allSettled(routes.map((route) => prefetchRoute(route)));
+}
+
+/**
  * Prefetch high priority routes immediately after page load
  *
  * Uses requestIdleCallback to avoid blocking main thread
@@ -182,7 +191,7 @@ export function prefetchHighPriorityRoutes(): void {
 
   const prefetchFn = () => {
     logger.info("[Prefetch] Starting high priority route prefetch");
-    prefetchRoutesSequentially(HIGH_PRIORITY_ROUTES, 200);
+    void prefetchRoutesConcurrent(HIGH_PRIORITY_ROUTES);
   };
 
   if ("requestIdleCallback" in window) {
@@ -202,7 +211,7 @@ export function prefetchMediumPriorityRoutes(): void {
 
   const prefetchFn = () => {
     logger.info("[Prefetch] Starting medium priority route prefetch");
-    prefetchRoutesSequentially(MEDIUM_PRIORITY_ROUTES, 500);
+    void prefetchRoutesConcurrent(MEDIUM_PRIORITY_ROUTES);
   };
 
   if ("requestIdleCallback" in window) {

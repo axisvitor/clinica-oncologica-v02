@@ -132,7 +132,7 @@ export function PatientTimeline({ timeline, isLoading }: PatientTimelineProps) {
                                     addSuffix: true,
                                     locale: ptBR
                                   })
-                                } catch (e) {
+                                } catch {
                                   return 'Data inválida'
                                 }
                               })()}

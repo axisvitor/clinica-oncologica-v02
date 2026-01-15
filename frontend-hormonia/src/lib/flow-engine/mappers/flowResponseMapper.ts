@@ -1,7 +1,28 @@
 import { FlowState, FlowType, FlowStatus } from '@/lib/api-client/types'
 
-export const smartMapFlowResponse = (response: any): FlowState => {
-  const data = response?.data || response
+type FlowResponse = Partial<FlowState> & {
+  current_step?: number
+  template?: {
+    id?: string
+    metadata_json?: Record<string, unknown>
+  }
+  template_version?: string
+  state_data?: Record<string, unknown>
+  step_data?: Record<string, unknown>
+  patient?: {
+    name?: string
+    monthly_cycle?: number
+  }
+}
+
+export const smartMapFlowResponse = (
+  response: FlowResponse | { data?: FlowResponse } | null | undefined
+): FlowState => {
+  const raw =
+    response && typeof response === 'object' && 'data' in response
+      ? (response as { data?: FlowResponse }).data ?? response
+      : response
+  const data = (raw ?? {}) as FlowResponse
   const status =
     data?.status ||
     (data?.paused_at

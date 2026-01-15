@@ -11,7 +11,7 @@
  * - Paginação
  */
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -51,11 +51,11 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
-  Filter,
   Search,
   TrendingUp,
   TrendingDown,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { apiClient } from "@/lib/api-client";
@@ -230,7 +230,7 @@ export function DLQDashboard() {
   const getStatusBadge = (status: string) => {
     const variants: Record<
       string,
-      { variant: "default" | "secondary" | "destructive" | "outline"; icon: any }
+      { variant: "default" | "secondary" | "destructive" | "outline"; icon: LucideIcon }
     > = {
       pending: { variant: "outline", icon: Clock },
       retrying: { variant: "default", icon: RefreshCw },

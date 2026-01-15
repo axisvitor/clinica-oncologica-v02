@@ -18,19 +18,19 @@
 - [x] Task: Conductor - User Manual Verification 'Backend Documentation Refactoring' (Protocol in workflow.md) [checkpoint: 526f837]
 
 ## Phase 2: Frontend Documentation Refactoring
-- [ ] Task: Audit and inventory all frontend documentation files.
-    - [ ] List all .md files in `frontend-hormonia/` and `quiz-mensal-interface/`.
-    - [ ] List all frontend-related files in root `docs/`.
-- [ ] Task: Create new directory structure.
-    - [ ] Create `docs/frontend/` and subfolders (e.g., `dashboard`, `quiz`, `guides`).
-- [ ] Task: Consolidate Dashboard Docs.
-    - [ ] Merge `frontend-hormonia/README.md` and related docs into `docs/frontend/dashboard/`.
-- [ ] Task: Consolidate Quiz Interface Docs.
-    - [ ] Merge `quiz-mensal-interface/README.md` and related docs into `docs/frontend/quiz/`.
-- [ ] Task: Cleanup Frontend Directories.
-    - [ ] Update `frontend-hormonia/README.md` and `quiz-mensal-interface/README.md` to link to new locations.
-    - [ ] Remove redundant files.
-- [ ] Task: Conductor - User Manual Verification 'Frontend Documentation Refactoring' (Protocol in workflow.md)
+- [x] Task: Audit and inventory all frontend documentation files.
+    - [x] List all .md files in `frontend-hormonia/` and `quiz-mensal-interface/`.
+    - [x] List all frontend-related files in root `docs/`.
+- [x] Task: Create new directory structure.
+    - [x] Create `docs/frontend/` and subfolders (e.g., `dashboard`, `quiz`, `guides`).
+- [x] Task: Consolidate Dashboard Docs.
+    - [x] Merge `frontend-hormonia/README.md` and related docs into `docs/frontend/dashboard/`.
+- [x] Task: Consolidate Quiz Interface Docs.
+    - [x] Merge `quiz-mensal-interface/README.md` and related docs into `docs/frontend/quiz/`.
+- [x] Task: Cleanup Frontend Directories.
+    - [x] Update `frontend-hormonia/README.md` and `quiz-mensal-interface/README.md` to link to new locations.
+    - [x] Remove redundant files.
+- [~] Task: Conductor - User Manual Verification 'Frontend Documentation Refactoring' (Protocol in workflow.md)
 
 ## Phase 3: General Cleanup and Unification
 - [ ] Task: Update Root README.

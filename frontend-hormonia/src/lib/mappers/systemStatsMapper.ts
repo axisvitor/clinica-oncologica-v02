@@ -69,14 +69,19 @@ export function mapSystemStats(backendResponse: SystemStatsResponse): AdminDashb
 /**
  * Type guard to check if response matches SystemStatsResponse structure
  */
-export function isSystemStatsResponse(data: any): data is SystemStatsResponse {
+export function isSystemStatsResponse(data: unknown): data is SystemStatsResponse {
+  if (!data || typeof data !== 'object') {
+    return false
+  }
+
+  const candidate = data as {
+    system?: { cpu_percent?: unknown; memory_percent?: unknown }
+    users?: { total?: unknown }
+  }
+
   return (
-    data &&
-    typeof data === 'object' &&
-    data.system &&
-    typeof data.system.cpu_percent === 'number' &&
-    typeof data.system.memory_percent === 'number' &&
-    data.users &&
-    typeof data.users.total === 'number'
+    typeof candidate.system?.cpu_percent === 'number' &&
+    typeof candidate.system?.memory_percent === 'number' &&
+    typeof candidate.users?.total === 'number'
   )
 }
