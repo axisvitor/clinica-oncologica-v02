@@ -316,40 +316,18 @@ class SagaStepExecutor:
                 auto_commit=False,  # Defer commit to saga's Unit of Work
             )
 
-            # PERFORMANCE FIX: Schedule Celery task to send message asynchronously
-            # instead of blocking the saga with direct WhatsApp API call.
-            # This prevents the ~5-7s delay caused by:
-            # 1. AsyncSession mismatch (UnifiedWhatsAppService expects AsyncSession)
-            # 2. Circuit breaker checks and connection setup
-            # 3. Potential API timeouts
-            #
-            # The message is already in PENDING status from schedule_message(),
-            # and the Celery task will handle sending and retries.
-            # 
-            # RACE CONDITION FIX: Increased countdown to 5s to ensure saga.commit()
-            # completes before the task runs. If task still runs early and returns
-            # "Message not found", the periodic process_scheduled_messages task
-            # will pick it up on the next cycle (runs every 30s).
-            try:
-                from app.tasks.messaging import send_scheduled_message
-
-                # Schedule task with delay to ensure DB commit happens first
-                send_scheduled_message.apply_async(
-                    args=[str(message.id)],
-                    countdown=5,  # 5 second delay to ensure transaction commits
-                )
-                logger.info(
-                    f"Saga {saga.id}: Welcome message {message.id} scheduled for async send",
-                    extra={"patient_id": str(patient.id), "message_id": str(message.id)},
-                )
-            except Exception as task_exc:
-                # If Celery scheduling fails, message stays in PENDING status
-                # and process_scheduled_messages task will pick it up later
-                logger.warning(
-                    f"Saga {saga.id}: Failed to schedule Celery task for welcome message: "
-                    f"{type(task_exc).__name__}",
-                    exc_info=True,
-                )
+            # NOTE: Message is in PENDING status and will be sent by Cloud Scheduler
+            # job `process-scheduled-messages` which runs every 1 minute.
+            # This is more reliable than Celery and avoids race conditions with
+            # saga commit timing. The message will be picked up on next scheduler run.
+            logger.info(
+                f"Saga {saga.id}: Welcome message {message.id} created in PENDING status",
+                extra={
+                    "patient_id": str(patient.id),
+                    "message_id": str(message.id),
+                    "delivery_method": "cloud_scheduler",
+                },
+            )
 
             # Update Saga (message scheduling is best-effort; do not fail onboarding)
             saga.current_step = 4
