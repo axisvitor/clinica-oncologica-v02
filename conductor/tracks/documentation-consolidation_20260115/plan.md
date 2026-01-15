@@ -33,11 +33,11 @@
 - [~] Task: Conductor - User Manual Verification 'Frontend Documentation Refactoring' (Protocol in workflow.md)
 
 ## Phase 3: General Cleanup and Unification
-- [ ] Task: Update Root README.
-    - [ ] Rewrite root `README.md` to provide a high-level overview and links to `docs/backend/` and `docs/frontend/`.
-- [ ] Task: Clean root `docs/` folder.
-    - [ ] Remove any orphaned files in root `docs/` that have been moved.
-    - [ ] Ensure `docs/README.md` (if exists) is updated or removed.
-- [ ] Task: Verify links.
-    - [ ] Check key links in the new documentation to ensure they work.
-- [ ] Task: Conductor - User Manual Verification 'General Cleanup and Unification' (Protocol in workflow.md)
+- [x] Task: Update Root README.
+    - [x] Rewrite root `README.md` to provide a high-level overview and links to `docs/backend/` and `docs/frontend/`.
+- [x] Task: Clean root `docs/` folder.
+    - [x] Remove any orphaned files in root `docs/` that have been moved.
+    - [x] Ensure `docs/README.md` (if exists) is updated or removed.
+- [x] Task: Verify links.
+    - [x] Check key links in the new documentation to ensure they work.
+- [~] Task: Conductor - User Manual Verification 'General Cleanup and Unification' (Protocol in workflow.md)

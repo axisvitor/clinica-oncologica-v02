@@ -1,134 +1,54 @@
-# Clínica Oncológica - Sistema Integrado
+# Clínica Oncológica Hormonia - Sistema Integrado
 
-Sistema de gestão para clínica oncológica com backend FastAPI, frontend React e interface de quiz Next.js.
+Bem-vindo ao repositório do Sistema Hormonia, uma plataforma integrada para gestão clínica e acompanhamento de pacientes oncológicos.
 
-## Estrutura do Projeto
+## 🏗️ Estrutura do Projeto (Monorepo)
 
-```
-clinica-oncologica-v02-1/
-├── backend-hormonia/       # API FastAPI (Python 3.13)
-├── frontend-hormonia/      # Dashboard React 19 + Vite 6
-├── quiz-mensal-interface/  # Interface de Quiz Next.js 14
-```
+O projeto está dividido em três componentes principais:
 
-## Pré-requisitos
+- **[Backend (FastAPI)](./backend-hormonia/)**: API REST, workers assíncronos e orquestração de Sagas.
+- **[Frontend Dashboard (React)](./frontend-hormonia/)**: Painel administrativo para médicos e staff.
+- **[Quiz Interface (Next.js)](./quiz-mensal-interface/)**: Aplicação standalone para pacientes responderem aos questionários.
 
-- Node.js 20+
-- Python 3.13+
-- PostgreSQL 15+
-- Redis 7+
+## 📚 Documentação
 
-## Setup por Aplicação
+A documentação do projeto foi consolidada para facilitar o acesso:
 
-### Backend (FastAPI)
+### 🔧 Backend
+- **[Guia de Instalação e Setup](./docs/backend/setup.md)**
+- **[Visão Geral da Arquitetura](./docs/backend/architecture/overview.md)**
+- **[Decisões de Arquitetura (ADRs)](./docs/backend/architecture/decisions/)**
 
-```bash
-cd backend-hormonia
+### 💻 Frontend (Dashboard & Quiz)
+- **[Documentação do Dashboard](./docs/frontend/dashboard/overview.md)**
+- **[Documentação do Quiz](./docs/frontend/quiz/overview.md)**
+- **[Guias de Deploy](./docs/frontend/guides/deployment/DEPLOYMENT_GUIDE.md)**
 
-# Criar ambiente virtual
-python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-# ou: .venv\Scripts\activate  # Windows
+## 🚀 Quick Start Geral
 
-# Instalar dependências
-pip install -r requirements.txt
+Para iniciar o desenvolvimento em todos os serviços, recomendamos abrir terminais separados para cada componente:
 
-# Configurar variáveis de ambiente
-cp .env.example .env
-# Editar .env com suas configurações
+1. **Backend:**
+   ```bash
+   cd backend-hormonia
+   # Siga as instruções em docs/backend/setup.md
+   ```
 
-# Rodar migrations
-alembic upgrade head
+2. **Frontend:**
+   ```bash
+   cd frontend-hormonia
+   npm install && npm run dev
+   ```
 
-# Iniciar servidor
-uvicorn app.main:app --reload --port 8000
-```
+3. **Quiz:**
+   ```bash
+   cd quiz-mensal-interface
+   npm install && npm run dev
+   ```
 
-### Frontend (React + Vite)
+## 🤝 Contribuição
 
-```bash
-cd frontend-hormonia
+Por favor, consulte os guias específicos de cada módulo antes de contribuir. Padrões de código e convenções estão detalhados na documentação de arquitetura.
 
-# Instalar dependências
-npm install
-
-# Configurar variáveis de ambiente
-cp .env.example .env
-# Editar .env com suas configurações
-
-# Desenvolvimento
-npm run dev
-
-# Build de produção
-npm run build:prod
-
-# Testes
-npm run test
-npm run test:e2e
-```
-
-### Quiz Interface (Next.js)
-
-```bash
-cd quiz-mensal-interface
-
-# Instalar dependências
-npm install
-
-# Configurar variáveis de ambiente
-cp .env.example .env.local
-# Editar .env.local com suas configurações
-
-# Desenvolvimento
-npm run dev
-
-# Build de produção
-npm run build
-
-# Testes
-npm run test:unit
-```
-
-## Variáveis de Ambiente Obrigatórias
-
-### Backend
-- `DATABASE_URL` - PostgreSQL connection string
-- `REDIS_URL` - Redis connection string
-- `ENCRYPTION_KEY` - 32 caracteres para criptografia AES
-- `HASH_SALT` - 32 caracteres para hash
-- `CSRF_SECRET_KEY` - 32 caracteres para CSRF
-
-### Frontend
-- `VITE_API_URL` - URL do backend
-- `VITE_SENTRY_DSN` - (opcional) Sentry DSN
-- `VITE_FIREBASE_*` - Configurações Firebase Auth
-
-## Scripts Úteis
-
-| App | Comando | Descrição |
-|-----|---------|-----------|
-| frontend | `npm run dev` | Inicia dev server |
-| frontend | `npm run build:prod` | Build de produção |
-| frontend | `npm run lint` | Linting |
-| frontend | `npm run test` | Testes unitários |
-| frontend | `npm run test:e2e` | Testes E2E |
-| quiz | `npm run dev` | Inicia dev server |
-| quiz | `npm run build` | Build de produção |
-| backend | `uvicorn app.main:app --reload` | Dev server |
-| backend | `alembic upgrade head` | Rodar migrations |
-| backend | `pytest` | Testes |
-
-## Admin - Compensation Failures
-
-- Dashboard: `/admin/system/compensation` para listar falhas de compensacao e executar retry/cleanup manual.
-- Endpoints:
-  - `GET /api/v2/admin/compensation-failures`
-  - `POST /api/v2/admin/compensation-failures/{saga_id}/retry`
-  - `POST /api/v2/admin/compensation-failures/{saga_id}/cleanup`
-- Listagem de pacientes exclui quarantined por padrao (`include_quarantined=true` para incluir).
-
-## Importante
-
-- **NÃO** execute `npm install` na raiz do projeto
-- Cada aplicação tem seu próprio `node_modules`
-- Use o diretório correto antes de instalar dependências
+---
+*Propriedade de Clínica Oncológica Hormonia*
