@@ -386,9 +386,33 @@ class MessageWebhookHandler:
                     },
                 )
 
+            await self._trigger_sequential_continuation(patient.id)
+
         except Exception as e:
             logger.error(
                 f"Error handling flow message for patient {patient.id}: {e}",
+                exc_info=True,
+            )
+
+    async def _trigger_sequential_continuation(self, patient_id: UUID) -> None:
+        """Send next flow message when we're waiting for a patient response."""
+        try:
+            from app.services.flow.sequential_message_handler import (
+                SequentialMessageHandler,
+            )
+
+            handler = SequentialMessageHandler(self.db)
+            result = await handler.handle_response_and_continue(patient_id)
+            status = result.get("status") if isinstance(result, dict) else None
+
+            if status in {"waiting", "day_complete", "complete"}:
+                logger.info(
+                    "Sequential flow progressed after response",
+                    extra={"patient_id": str(patient_id), "status": status},
+                )
+        except Exception as e:
+            logger.error(
+                f"Failed to continue sequential flow for patient {patient_id}: {e}",
                 exc_info=True,
             )
 

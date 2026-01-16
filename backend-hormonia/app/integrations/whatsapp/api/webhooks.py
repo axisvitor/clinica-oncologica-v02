@@ -672,6 +672,28 @@ async def _trigger_flow_response_async(patient_id: str, content: str):
                     engine.process_patient_response(patient_id, content)
                 )
 
+                # Continue sequential flow if we were waiting for a response
+                try:
+                    from app.services.flow.sequential_message_handler import (
+                        SequentialMessageHandler,
+                    )
+
+                    handler = SequentialMessageHandler(sync_db)
+                    result = loop.run_until_complete(
+                        handler.handle_response_and_continue(patient_id)
+                    )
+                    status = result.get("status") if isinstance(result, dict) else None
+                    if status in {"waiting", "day_complete", "complete"}:
+                        logger.info(
+                            "Sequential flow progressed after response",
+                            extra={"patient_id": str(patient_id), "status": status},
+                        )
+                except Exception as continuation_error:
+                    logger.error(
+                        f"Failed to continue sequential flow for patient {patient_id}: {continuation_error}",
+                        exc_info=True,
+                    )
+
             loop.close()
             logger.info(
                 f"Completed background flow processing for patient {patient_id}"

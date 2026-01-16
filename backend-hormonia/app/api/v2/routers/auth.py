@@ -104,7 +104,7 @@ def _extract_user_id(current_user) -> str:
     response_model=FirebaseTokenVerifyResponse,
     summary="Verify Firebase token",
 )
-@limiter.limit("5/minute")
+@limiter.limit("60/minute")
 async def verify_firebase_token(
     request: Request,
     response: Response,
