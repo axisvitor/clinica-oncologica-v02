@@ -5,6 +5,8 @@
  * Handles all WhatsApp-related operations through the backend API
  */
 
+import { apiClient } from '@/lib/api-client';
+
 export interface WhatsAppMessage {
   id: string;
   externalId?: string;
@@ -109,8 +111,10 @@ class WhatsAppService {
       ...options,
       headers: {
         ...defaultHeaders,
+        ...apiClient.getSessionHeaders(),
         ...options.headers,
       },
+      credentials: options.credentials ?? 'include',
     };
 
     const response = await fetch(url, config);
@@ -431,10 +435,19 @@ class WhatsAppService {
     const formData = new FormData();
     formData.append('file', file);
 
+    const headers: Record<string, string> = {
+      ...apiClient.getSessionHeaders(),
+    };
+
+    if (this.apiKey) {
+      headers['Authorization'] = `Bearer ${this.apiKey}`;
+    }
+
     const response = await fetch(`${this.baseUrl}/api/v2/upload/media`, {
       method: 'POST',
       body: formData,
-      headers: this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {},
+      headers,
+      credentials: 'include',
     });
 
     if (!response.ok) {

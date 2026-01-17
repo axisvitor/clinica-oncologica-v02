@@ -9,7 +9,6 @@ import { ReportsSkeleton } from '@/features/reports/ReportsSkeleton'
 import { ReportCard } from '@/features/reports/ReportCard'
 import { ReportGenerator } from '@/features/reports/ReportGenerator'
 import { useToast } from '@/components/ui/use-toast'
-import { useAuth } from '@/hooks/useAuth'
 import { createLogger } from '@/lib/logger'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
@@ -25,7 +24,6 @@ export function ReportsPage() {
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [downloading, setDownloading] = useState<string | null>(null)
   const { toast } = useToast()
-  const { token } = useAuth()
 
   const { data: reportsData, isLoading } = useQuery({
     queryKey: ['reports', { page: currentPage, size: 20, search: searchQuery, status: statusFilter, type: typeFilter }],
@@ -64,8 +62,9 @@ export function ReportsPage() {
       const response = await fetch(`${apiClient.getBaseURL()}/api/v2/reports/${reportId}/download`, {
         method: 'GET',
         headers: {
-          ['Authorization']: `Bearer ${token}`
-        }
+          ...apiClient.getSessionHeaders(),
+        },
+        credentials: 'include'
       })
 
       if (!response.ok) {

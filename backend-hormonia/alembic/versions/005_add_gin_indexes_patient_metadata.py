@@ -14,6 +14,27 @@ Performance Impact:
 
 The indexes are created CONCURRENTLY to avoid locking the table during
 index creation, allowing zero-downtime deployment.
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 from alembic import op
 
@@ -24,7 +45,7 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade():
+def upgrade() -> None:
     """
     Add GIN indexes for JSONB queries optimization.
     
@@ -65,7 +86,7 @@ def upgrade():
     """)
 
 
-def downgrade():
+def downgrade() -> None:
     """
     Remove GIN indexes.
     

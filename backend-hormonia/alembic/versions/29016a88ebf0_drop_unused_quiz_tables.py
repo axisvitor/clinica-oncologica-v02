@@ -10,6 +10,27 @@ Drops unused quiz tables that are not referenced by any model:
 - quiz_template_versions_v2
 - quiz_questions
 - quiz_response_migration_log
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 
 from alembic import op

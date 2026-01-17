@@ -10,7 +10,7 @@ Note: Uses centralized auth_helpers for core logic.
 
 from typing import Optional
 
-from app.api.v2.utils.auth_helpers import is_admin as _is_admin_impl
+from app.utils.auth_helpers import is_admin as _is_admin_impl
 from app.core.redis_client import get_async_redis_client
 from app.utils.logging import get_logger
 

@@ -18,7 +18,7 @@ from ..models.message import (
 )
 from ..services.evolution_client import EvolutionAPIClient, validate_phone_number
 from ..services.message_service import WhatsAppMessageService, MessageQueue
-from app.database import get_db
+from app.database import get_async_db
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ async def get_evolution_client() -> EvolutionAPIClient:
 
 
 async def get_message_service(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     evolution_client: EvolutionAPIClient = Depends(get_evolution_client),
 ) -> WhatsAppMessageService:
     """Get WhatsApp message service instance."""
@@ -68,7 +68,7 @@ async def get_message_service(
 async def create_instance(
     instance_name: str,
     webhook_url: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     evolution_client: EvolutionAPIClient = Depends(get_evolution_client),
 ):
     """Create a new WhatsApp instance."""
@@ -163,7 +163,7 @@ async def restart_instance(
 @router.delete("/instances/{instance_name}")
 async def delete_instance(
     instance_name: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     evolution_client: EvolutionAPIClient = Depends(get_evolution_client),
 ):
     """Delete WhatsApp instance."""
@@ -353,7 +353,7 @@ async def get_contacts(
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
     search: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """Get contacts for an instance."""
     try:
@@ -469,7 +469,7 @@ async def health_check():
 
 
 @router.get("/instances")
-async def list_instances(db: AsyncSession = Depends(get_db)):
+async def list_instances(db: AsyncSession = Depends(get_async_db)):
     """List all WhatsApp instances."""
     try:
         stmt = select(WhatsAppInstance).order_by(WhatsAppInstance.created_at.desc())

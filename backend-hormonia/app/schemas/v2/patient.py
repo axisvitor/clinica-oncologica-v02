@@ -431,7 +431,7 @@ class PatientV2Response(PatientV2Base):
     )
 
     id: UUID
-    doctor_id: UUID
+    doctor_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
     current_day: Optional[int] = None

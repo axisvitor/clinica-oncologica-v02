@@ -11,6 +11,27 @@ and logs any violations without failing the migration.
 Revision ID: 016_validate_patient_metadata
 Revises: 015_rename_upload_metadata
 Create Date: 2025-11-16 18:30:00
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 
 from typing import Sequence, Union

@@ -250,7 +250,8 @@ class FlowCore:
             tz = pytz.timezone("America/Sao_Paulo")
 
         # Calculate days since enrollment using local time
-        enrollment_date_str = flow_state.step_data.get(
+        step_data = flow_state.step_data or {}
+        enrollment_date_str = step_data.get(
             "enrollment_date", flow_state.started_at.isoformat()
         )
         enrollment_dt = datetime.fromisoformat(enrollment_date_str)

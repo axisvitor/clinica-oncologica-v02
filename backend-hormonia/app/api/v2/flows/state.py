@@ -25,10 +25,8 @@ from ..dependencies import (
     get_pagination_params,
     get_eager_load_params,
 )
-from app.dependencies import (
-    get_current_user,
-    get_flow_management_service,
-)
+from app.dependencies.auth_dependencies import get_current_user
+from app.dependencies.service_dependencies import get_flow_management_service
 from app.services.flow_management import FlowManagementService
 from app.repositories.patient import PatientRepository
 from app.exceptions import (

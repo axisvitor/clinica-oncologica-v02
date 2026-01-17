@@ -213,6 +213,18 @@ export class ApiClientCore {
   }
 
   /**
+   * Build auth headers for direct fetch calls
+   */
+  getSessionHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {};
+    if (this.authToken) {
+      headers["Authorization"] = `Bearer ${this.authToken}`;
+      headers["X-Session-ID"] = this.authToken;
+    }
+    return headers;
+  }
+
+  /**
    * Fetch CSRF token from backend
    * Non-blocking: returns gracefully on failure to prevent app initialization blocking
    */

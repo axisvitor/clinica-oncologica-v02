@@ -454,10 +454,11 @@ def send_bulk_messages(message_data_list: List[dict[str, Any]]) -> dict[str, Any
 @celery_app.task(name="cleanup_old_messages")
 def cleanup_old_messages(days_old: int = 90) -> dict[str, Any]:
     """
-    Clean up old messages to manage database size.
+    Clean up old messages to manage database size by archiving them.
+    Moves messages older than 'days_old' to message_archives table.
 
     Args:
-        days_old: Number of days after which messages should be cleaned up
+        days_old: Number of days after which messages should be archived
 
     Returns:
         Dictionary with cleanup results
@@ -467,27 +468,69 @@ def cleanup_old_messages(days_old: int = 90) -> dict[str, Any]:
             # Calculate cutoff date
             cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
 
-            # Query old messages (keep failed messages for longer analysis)
+            # Query old messages (keep failed messages for longer analysis?)
+            # Strategy: Archive DELIVERED, READ, CANCELLED. Keep FAILED for longer?
+            # User request didn't specify, assumes all completed messages.
             from app.models.message import Message
+            from app.models.message_archive import MessageArchive
 
-            old_messages = (
+            # Select messages to archive (completed ones)
+            messages_to_archive = (
                 db.query(Message)
                 .filter(Message.created_at < cutoff_date)
-                .filter(Message.status.in_([MessageStatus.DELIVERED, MessageStatus.READ]))
+                .filter(Message.status.in_([
+                    MessageStatus.DELIVERED, 
+                    MessageStatus.READ,
+                    MessageStatus.CANCELLED
+                ]))
+                .limit(1000) # Process in batches
                 .all()
             )
 
-            # Archive or delete old messages
-            archived_count = 0
-            for message in old_messages:
-                # For now, we'll just mark them as archived in metadata
-                # In production, you might want to move them to an archive table
-                metadata = message.message_metadata or {}
-                metadata["archived"] = True
-                metadata["archived_at"] = datetime.now(timezone.utc).isoformat()
+            if not messages_to_archive:
+                return {
+                    "success": True, 
+                    "archived_count": 0,
+                    "message": "No messages to archive"
+                }
 
-                message.message_metadata = metadata
-                archived_count += 1
+            archived_count = 0
+            for msg in messages_to_archive:
+                try:
+                    # Create archive record
+                    archive = MessageArchive(
+                        original_id=msg.id,
+                        patient_id=msg.patient_id,
+                        direction=msg.direction,
+                        type=msg.type,
+                        content=msg.content,
+                        message_metadata=msg.message_metadata,
+                        priority=msg.priority,
+                        idempotency_key=msg.idempotency_key,
+                        whatsapp_id=msg.whatsapp_id,
+                        status=msg.status,
+                        scheduled_for=msg.scheduled_for,
+                        sent_at=msg.sent_at,
+                        delivered_at=msg.delivered_at,
+                        read_at=msg.read_at,
+                        delivery_status=msg.delivery_status,
+                        retry_count=msg.retry_count,
+                        last_retry_at=msg.last_retry_at,
+                        failure_reason=msg.failure_reason,
+                        archived_at=datetime.now(timezone.utc)
+                    )
+                    db.add(archive)
+                    
+                    # Delete original
+                    db.delete(msg)
+                    
+                    archived_count += 1
+                except Exception as e:
+                    logger.error(f"Failed to archive message {msg.id}: {e}")
+                    # Continue to next message, don't rollback entire batch if one fails?
+                    # Ideally allow partial success or fail batch.
+                    # Batch approach implies transaction.
+                    continue
 
             db.commit()
 

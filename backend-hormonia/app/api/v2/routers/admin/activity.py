@@ -24,7 +24,7 @@ from app.models.audit_log import AuditLog
 from app.repositories.user import UserRepository
 from app.utils.rate_limiter import limiter
 from app.infrastructure.cache import cache_response, invalidate_user_cache_async
-from app.dependencies import get_request_context, RequestContext
+from app.utils.request_context import get_request_context, RequestContext
 from app.schemas.v2.admin import (
     AuditLogListResponse,
     UserActionResponse,

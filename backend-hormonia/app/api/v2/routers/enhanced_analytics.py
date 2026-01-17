@@ -31,7 +31,7 @@ from app.schemas.v2.enhanced_analytics import (
 )
 from app.utils.logging import get_logger
 from app.services.analytics import EnhancedAnalyticsService
-from app.api.v2.utils.auth_helpers import extract_user_context, ensure_uuid
+from app.utils.auth_helpers import extract_user_context, ensure_uuid
 
 logger = get_logger(__name__)
 router = APIRouter()

@@ -48,6 +48,7 @@ from .routers.docs import router as docs_router
 from .routers.roles import router as roles_router
 from .routers.system import router as system_router
 from .routers.performance import router as performance_router
+from .routers.errors import router as errors_router
 from .routers.health import router as health_router
 from .routers.quiz_responses import router as quiz_responses_router
 from .routers.quiz_alerts import router as quiz_alerts_router
@@ -202,6 +203,7 @@ api_v2_router.include_router(system_router, prefix="/system", tags=["system-v2"]
 api_v2_router.include_router(
     performance_router, prefix="/performance", tags=["performance-v2"]
 )
+api_v2_router.include_router(errors_router, tags=["errors-v2"])
 api_v2_router.include_router(
     health_router, tags=["health-v2"]
 )  # Health router has its own /health prefix

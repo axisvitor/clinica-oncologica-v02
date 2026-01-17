@@ -24,7 +24,7 @@ from app.utils.rate_limiter import limiter
 from app.utils.logging import get_logger
 from app.config import settings
 from app.database import get_db
-from app.api.v2.utils.auth_helpers import is_admin as _is_admin
+from app.utils.auth_helpers import is_admin as _is_admin
 
 router = APIRouter(tags=["system-metrics"])
 logger = get_logger(__name__)

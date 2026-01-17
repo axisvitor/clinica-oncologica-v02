@@ -5,6 +5,27 @@ Revises: 002_patient_onboarding_saga
 Create Date: 2025-11-07 10:00:00.000000
 
 Sprint 1 - Fix: Add missing last_retry_at field for retry tracking
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 
 from alembic import op

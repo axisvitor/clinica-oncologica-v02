@@ -15,6 +15,7 @@ from redis import Redis
 from prometheus_client import Gauge, Counter, Histogram
 
 
+from app.models.message import Message
 from app.models.flow import PatientFlowState, FlowTemplateVersion, FlowKind
 from app.models.flow_analytics import FlowMessage
 from app.repositories.flow import FlowStateRepository
@@ -178,14 +179,14 @@ class FlowMonitoringService:
             twenty_four_hours_ago = datetime.now(timezone.utc) - timedelta(hours=24)
 
             messages_last_hour = (
-                self.db.query(FlowMessage)
-                .filter(FlowMessage.sent_at >= one_hour_ago)
+                self.db.query(Message)
+                .filter(Message.sent_at >= one_hour_ago)
                 .count()
             )
 
             messages_last_24h = (
-                self.db.query(FlowMessage)
-                .filter(FlowMessage.sent_at >= twenty_four_hours_ago)
+                self.db.query(Message)
+                .filter(Message.sent_at >= twenty_four_hours_ago)
                 .count()
             )
 

@@ -1,7 +1,7 @@
 """HIPAA Audit Trail Enhancement - Phase 3 Sprint 1
 
 Revision ID: 011_hipaa_audit
-Revises: 010_add_missing_foreign_key_and_composite_indexes_p0_performance
+Revises: 010_missing_indexes
 Create Date: 2025-01-13 00:00:00.000000
 
 This migration enhances the audit_logs table to achieve 75% HIPAA compliance by adding:
@@ -18,7 +18,27 @@ HIPAA Compliance Mapping:
 - § 164.316(b)(2)(i) - Retention: 6-year retention + archival
 
 Target Compliance: 55% → 75%
-"""
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration)."""
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql

@@ -1,7 +1,7 @@
 """Add GIN index on patients.metadata for JSONB queries
 
 Revision ID: 013
-Revises: 012
+Revises: 012_migrate_quiz_response_value_to_jsonb
 Create Date: 2025-01-16
 
 Part of MEDIUM-014: GIN Index on JSONB fields
@@ -12,7 +12,27 @@ GIN (Generalized Inverted Index) is ideal for JSONB columns because:
 - Handles nested JSON path queries
 - Minimal write overhead for read-heavy workloads
 - Excellent for filtering by consent, preferences, etc.
-"""
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration)."""
 from alembic import op
 import sqlalchemy as sa
 
@@ -24,7 +44,7 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade():
+def upgrade() -> None:
     """Add GIN indexes for patients.metadata JSONB column."""
 
     # Create GIN index on entire metadata column
@@ -65,7 +85,7 @@ def upgrade():
     """)
 
 
-def downgrade():
+def downgrade() -> None:
     """Remove GIN indexes."""
 
     op.execute("DROP INDEX CONCURRENTLY IF EXISTS idx_patient_metadata_gin;")

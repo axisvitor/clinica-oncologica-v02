@@ -31,14 +31,16 @@ export class EnhancedAnalyticsApi {
       headers: {
         'Content-Type': 'application/json',
       },
+      withCredentials: true,
       timeout: 30000, // AI operations may take longer
     });
 
     // Add auth token interceptor
     this.client.interceptors.request.use((config) => {
-      const token = localStorage.getItem('auth_token');
+      const token = localStorage.getItem('session_id') || localStorage.getItem('auth_token');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+        config.headers['X-Session-ID'] = token;
       }
       return config;
     });

@@ -9,6 +9,7 @@ import asyncio
 import logging
 from typing import Any
 from datetime import datetime, timezone
+from sqlalchemy import text
 
 from app.task_queue import task_queue as celery_app
 from app.task_queue import list_tasks as list_stored_tasks
@@ -59,7 +60,7 @@ def monitor_flow_task_health(self) -> dict[str, Any]:
 
             # Test database connection
             try:
-                db.execute("SELECT 1")
+                db.execute(text("SELECT 1"))
                 health_results["database_connection"] = True
             except Exception as e:
                 logger.error(f"Database health check failed: {e}")

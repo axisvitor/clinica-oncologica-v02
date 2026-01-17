@@ -29,7 +29,7 @@ from app.models.flow import PatientFlowState, FlowKind, FlowTemplateVersion
 from app.models.quiz import QuizTemplate, QuizResponse
 from app.models.report import MedicalReport
 from app.models.alert import Alert, AlertSeverity, AlertStatus
-from app.models.flow_analytics import FlowAnalytics, FlowMessage, QuizQuestion
+from app.models.flow_analytics import FlowAnalytics, FlowMessage
 from app.models.ab_experiment import (
     ABExperiment,
     ABVariantAssignment,

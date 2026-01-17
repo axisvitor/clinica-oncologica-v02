@@ -26,7 +26,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status, 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Local application imports
-from app.dependencies import get_db, get_patient_service, validate_patient_access
+from app.database import get_async_db
+from app.dependencies.business_dependencies import validate_patient_access
+from app.dependencies.service_dependencies import get_patient_service
 from app.models.user import User
 from app.schemas.v2.patient_summary import (
     GenerateSummaryRequest,
@@ -72,7 +74,8 @@ async def generate_patient_summary(
     request_obj: Request,
     request: GenerateSummaryRequest,
     current_user: User = Depends(verify_physician_or_admin),
-    db: AsyncSession = Depends(get_db),
+    patient_service=Depends(get_patient_service),
+    db: AsyncSession = Depends(get_async_db),
 ) -> PatientSummaryResponse:
     """
     Generate AI-powered patient summary.
@@ -82,9 +85,7 @@ async def generate_patient_summary(
     """
     try:
         # FIX: Validate patient access before generating summary (HIPAA compliance)
-        patient = await validate_patient_access(
-            request.patient_id, current_user, get_patient_service(db)
-        )
+        await validate_patient_access(request.patient_id, current_user, patient_service)
 
         service = get_patient_summary_service(db)
 
@@ -128,7 +129,7 @@ async def get_patient_summaries(
     limit: int = Query(10, ge=1, le=50, description="Max results"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
     current_user: User = Depends(verify_physician_or_admin),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ) -> PatientSummaryListResponse:
     """
     Get saved summaries for a patient.
@@ -169,7 +170,7 @@ async def export_summary_pdf(
     request: Request,
     summary_id: UUID,
     current_user: User = Depends(verify_physician_or_admin),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ) -> Response:
     """
     Export summary as PDF.
@@ -216,7 +217,7 @@ async def export_summary_pdf(
 async def get_summary_by_id(
     summary_id: UUID,
     current_user: User = Depends(verify_physician_or_admin),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ) -> PatientSummaryResponse:
     """
     Get a specific summary by ID.

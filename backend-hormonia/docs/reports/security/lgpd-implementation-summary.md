@@ -11,7 +11,7 @@ Complete LGPD compliance implementation for email/phone encryption and migration
 ## 📋 Implementation Checklist
 
 ### ✅ 1. Migration 027 - Consolidate Duplicates
-**File:** `/alembic/versions/027_consolidate_duplicate_migrations.py`
+**File:** `/alembic/versions/027_consolidate_duplicates.py`
 
 **Purpose:** Documentation-only migration to mark duplicate migrations (013, 022) for future cleanup.
 
@@ -477,7 +477,7 @@ ALTER TABLE patients DROP COLUMN phone;
 ## 📁 Files Created/Modified
 
 ### Created (6 files)
-1. `/alembic/versions/027_consolidate_duplicate_migrations.py` - 2.5 KB
+1. `/alembic/versions/027_consolidate_duplicates.py` - 2.5 KB
 2. `/alembic/versions/028_encrypt_email_phone_lgpd.py` - 5.2 KB
 3. `/app/middleware/lgpd_middleware.py` - 7.4 KB
 4. `/app/services/lgpd_encryption_service.py` - 14 KB

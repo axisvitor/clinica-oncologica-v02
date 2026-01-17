@@ -491,7 +491,7 @@ export type PatientFlowState =
  */
 export interface Patient {
   id: string
-  doctor_id: string // UUID as string
+  doctor_id: string | null // UUID as string (nullable when unassigned)
   phone: string
   name: string
   email: string | null

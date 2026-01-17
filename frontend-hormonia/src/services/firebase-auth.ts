@@ -33,12 +33,19 @@ export function getSessionId(): string | null {
 }
 
 /**
+ * Set the current session ID (UUID from backend)
+ */
+export function setSessionId(sessionId: string | null): void {
+  currentSessionId = sessionId
+  apiClient.setAuthToken(sessionId)
+}
+
+/**
  * Clear the stored session ID
  * Called on logout
  */
 export function clearSessionId(): void {
-  currentSessionId = null
-  apiClient.setAuthToken(null)
+  setSessionId(null)
 }
 
 /**

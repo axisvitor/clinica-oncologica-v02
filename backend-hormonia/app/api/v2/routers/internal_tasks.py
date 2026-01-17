@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request, status
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from app.config import settings
@@ -70,8 +71,13 @@ async def execute_task(payload: TaskExecutionPayload, request: Request) -> Dict[
 
     started_at = datetime.now(timezone.utc)
     try:
-        result = task_queue.execute(
-            payload.task_name, payload.args, payload.kwargs, task_id, payload.retries
+        result = await run_in_threadpool(
+            task_queue.execute,
+            payload.task_name,
+            payload.args,
+            payload.kwargs,
+            task_id,
+            payload.retries,
         )
     except CloudTaskRetry as retry_exc:
         countdown = retry_exc.countdown or 0

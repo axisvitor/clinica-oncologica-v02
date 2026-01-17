@@ -43,7 +43,7 @@ This document covers comprehensive database performance optimization strategies 
 
 ### Primary Indexes (P0 - Critical)
 
-Implemented in migration `010_add_missing_foreign_key_and_composite_indexes_p0_performance.py`:
+Implemented in migration `010_missing_indexes.py`:
 
 ```sql
 -- Foreign key indexes (critical for joins)

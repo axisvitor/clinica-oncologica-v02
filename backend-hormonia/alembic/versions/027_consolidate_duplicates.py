@@ -4,7 +4,7 @@ This migration marks 013 and 022 as duplicates of 005 and 014 respectively.
 No schema changes needed - just documentation for future deployments.
 
 Revision ID: 027_consolidate_duplicates
-Revises: 025
+Revises: 026_placeholder_reserved
 Create Date: 2025-11-26
 
 Duplicated migrations identified:
@@ -25,7 +25,24 @@ Impact:
 LGPD Compliance Note:
 This migration does not affect encrypted fields (cpf_encrypted, cpf_hash).
 All LGPD-compliant encryption remains intact from migrations 020 and 024.
-"""
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration)."""
 from alembic import op
 
 
@@ -36,7 +53,7 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade():
+def upgrade() -> None:
     """
     Migrations duplicadas identificadas:
     - 005 e 013: Ambas criam GIN indexes para patient metadata
@@ -62,7 +79,7 @@ def upgrade():
     pass
 
 
-def downgrade():
+def downgrade() -> None:
     """
     No downgrade needed - this is a documentation-only migration.
 

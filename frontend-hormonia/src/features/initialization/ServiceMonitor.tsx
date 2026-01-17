@@ -20,6 +20,7 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { toast } from '@/hooks/use-toast'
 import { createLogger } from '@/lib/logger'
 import { loadConfig } from '@/config'
+import { apiClient } from '@/lib/api-client'
 
 const logger = createLogger('ServiceMonitor')
 
@@ -359,7 +360,8 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
         method: 'GET',
         credentials: 'include',
         headers: {
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          ...apiClient.getSessionHeaders(),
         },
         signal: controller.signal
       })

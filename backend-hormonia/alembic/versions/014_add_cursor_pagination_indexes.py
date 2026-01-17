@@ -24,6 +24,27 @@ Index Structure:
     ON table (created_at DESC, id DESC);
 
 The DESC ordering matches our default sort order (newest first).
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 
 from alembic import op
@@ -37,7 +58,7 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade():
+def upgrade() -> None:
     """
     Add composite indexes for cursor pagination.
 
@@ -98,7 +119,7 @@ def upgrade():
     print("  - idx_quiz_responses_cursor_pagination")
 
 
-def downgrade():
+def downgrade() -> None:
     """
     Remove cursor pagination indexes.
 

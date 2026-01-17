@@ -42,6 +42,27 @@ Performance Impact:
 - Minimal: 4 new columns (2 LargeBinary, 2 String)
 - 4 new indexes (2 simple, 2 partial composite)
 - No impact on existing queries (columns nullable)
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 from alembic import op
 import sqlalchemy as sa
@@ -54,7 +75,7 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade():
+def upgrade() -> None:
     """
     Add encrypted storage for email and phone fields.
 
@@ -105,7 +126,7 @@ def upgrade():
     )
 
 
-def downgrade():
+def downgrade() -> None:
     """
     Remove encrypted email and phone storage.
 

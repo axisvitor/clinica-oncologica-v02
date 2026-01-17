@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 import logging
 
-from app.database import get_db
+from app.database import get_async_db
 from app.monitoring.infrastructure_monitor import infrastructure_monitor
 from app.monitoring.service_health_monitor import service_health_monitor
 from app.monitoring.capacity_planner import capacity_planner
@@ -48,7 +48,7 @@ async def health_check() -> Dict[str, Any]:
 
 
 @router.get("/health/detailed")
-async def detailed_health_check(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
+async def detailed_health_check(db: AsyncSession = Depends(get_async_db)) -> Dict[str, Any]:
     """
     Detailed health check with all subsystems
     """

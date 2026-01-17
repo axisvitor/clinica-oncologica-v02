@@ -21,7 +21,7 @@ from app.repositories.user import UserRepository
 from app.utils.security import get_password_hash
 from app.utils.rate_limiter import limiter
 from app.infrastructure.cache import invalidate_user_cache
-from app.dependencies import get_request_context, RequestContext
+from app.utils.request_context import get_request_context, RequestContext
 from app.schemas.v2.admin import (
     UserActionResponse,
     UserResetPasswordRequest,

@@ -17,7 +17,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.redis_client import get_redis_client
 from app.database import get_db
-from app.dependencies import get_request_context, RequestContext
+from app.utils.request_context import get_request_context, RequestContext
 from app.models.enums import SagaStatus
 from app.models.patient import Patient
 from app.models.patient_onboarding_saga import PatientOnboardingSaga

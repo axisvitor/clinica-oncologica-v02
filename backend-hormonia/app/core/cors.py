@@ -106,6 +106,8 @@ def configure_cors(app: FastAPI) -> None:
             "X-CSRF-Token",
             "X-CSRFToken",
             "X-XSRF-Token",
+            "X-Session-ID",
+            "X-Idempotency-Key",
         ],
     )
 

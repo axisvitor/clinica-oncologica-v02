@@ -42,7 +42,7 @@ export function useAuth(options: UseAuthOptions = {}) {
     user: auth.user,
     token: auth.session?.access_token || auth.session?.session_id || null,
     websocketToken: auth.session?.websocketToken || null,
-    refreshToken: null, // Firebase handles refresh internally
+    refreshToken: auth.refreshToken, // Expose for WebSocket token refresh
     isAuthenticated: auth.isAuthenticated,
     isLoading: auth.isInitializing,
     isInitializing: auth.isInitializing, // Alias for direct access

@@ -119,7 +119,7 @@ class FlowTemplateV2Response(BaseModel):
     version_number: int
     template_name: str
     description: Optional[str] = None
-    steps: Dict[str, Any]
+    steps: Dict[str, Any] | List[Dict[str, Any]]
     metadata: Dict[str, Any]
     is_active: bool
     is_draft: bool

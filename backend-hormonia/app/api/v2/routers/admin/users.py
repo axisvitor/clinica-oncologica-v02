@@ -33,7 +33,7 @@ from app.infrastructure.cache import (
     cache_response,
     invalidate_user_cache,
 )
-from app.dependencies import get_request_context, RequestContext
+from app.utils.request_context import get_request_context, RequestContext
 from app.schemas.v2.admin import (
     UserCreateRequest,
     UserUpdateRequest,

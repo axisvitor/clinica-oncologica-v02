@@ -52,6 +52,7 @@ EXEMPT_PATHS = frozenset({
     "/api/v2/auth/login",
     "/api/v2/auth/register",
     "/api/v2/auth/refresh",
+    "/api/v2/auth/logout",
     "/webhooks/",
     "/api/v2/webhooks/",  # WhatsApp/Evolution webhooks
     "/api/public/",

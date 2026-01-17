@@ -22,6 +22,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { toast } from '@/hooks/use-toast'
 import { createLogger } from '@/lib/logger'
+import { apiClient } from '@/lib/api-client'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -36,7 +37,7 @@ const userSetupSchema = z.object({
   specialization: z.string().min(1, 'Especialização é obrigatória'),
   password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
   confirmPassword: z.string(),
-  role: z.enum(['admin', 'medico', 'enfermeiro']),
+  role: z.enum(['admin', 'doctor']),
   acceptTerms: z.boolean().refine(val => val === true, 'Você deve aceitar os termos'),
   enableNotifications: z.boolean().optional()
 }).refine(data => data.password === data.confirmPassword, {
@@ -91,8 +92,7 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
 
   const roles = [
     { value: 'admin', label: 'Administrador', description: 'Acesso completo ao sistema' },
-    { value: 'medico', label: 'Médico', description: 'Acesso a pacientes e tratamentos' },
-    { value: 'enfermeiro', label: 'Enfermeiro', description: 'Acesso limitado a cuidados' }
+    { value: 'doctor', label: 'Médico', description: 'Acesso a pacientes e tratamentos' }
   ]
 
   const handleCreateUser = async (data: UserSetupForm) => {
@@ -100,30 +100,12 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
     logger.log('Creating initial admin user:', data.email)
 
     try {
-      // Simulate user creation API call
-      await new Promise(resolve => setTimeout(resolve, 2000))
-
-      // In real implementation, call the API to create user
-      const response = await fetch('/api/auth/setup-admin', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          name: data.name,
-          email: data.email,
-          phone: data.phone,
-          crm: data.crm,
-          specialization: data.specialization,
-          password: data.password,
-          role: data.role,
-          enableNotifications: data.enableNotifications
-        })
+      await apiClient.adminUsers.create({
+        email: data.email,
+        full_name: data.name,
+        role: data.role,
+        password: data.password,
       })
-
-      if (!response.ok) {
-        throw new Error('Falha ao criar usuário')
-      }
 
       toast({
         title: 'Usuário Criado com Sucesso',

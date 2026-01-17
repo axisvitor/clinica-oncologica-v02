@@ -28,7 +28,7 @@ from app.api.v2.dependencies import (
     get_eager_load_params,
     apply_field_selection,
 )
-from app.api.v2.utils.auth_helpers import (
+from app.utils.auth_helpers import (
     extract_user_context as _extract_user_context,
     is_admin,
     ensure_uuid as _ensure_uuid,

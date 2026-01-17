@@ -48,10 +48,10 @@ alembic current
 - `backend-hormonia/alembic/versions/028_encrypt_email_phone_lgpd.py`
 - `backend-hormonia/alembic/versions/029_migrate_email_phone_to_encrypted.py`
 - `backend-hormonia/alembic/versions/030_drop_plaintext_email_phone.py`
-- `backend-hormonia/alembic/versions/010_add_missing_foreign_key_and_composite_indexes_p0_performance.py`
+- `backend-hormonia/alembic/versions/010_missing_indexes.py`
 - `backend-hormonia/alembic/versions/031_add_performance_indexes.py`
 - `backend-hormonia/alembic/versions/034_add_performance_indexes.py`
-- `backend-hormonia/alembic/versions/027_consolidate_duplicate_migrations.py`
+- `backend-hormonia/alembic/versions/027_consolidate_duplicates.py`
 
 ## Findings
 - Ver `docs/reports/analysis/epic-2476b16c-database-review/findings.md`.

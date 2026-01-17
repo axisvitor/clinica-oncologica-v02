@@ -5,6 +5,27 @@ Revises: f1878d0fb2fc
 Create Date: 2025-12-28 12:00:00.000000
 
 Adds CLEANED_UP to saga_status enum to support manual cleanup tracking.
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 
 from alembic import op

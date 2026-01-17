@@ -212,7 +212,10 @@ class SecuritySettings(BaseAppSettings):
         description="Quiz interface URL (used for CORS in production)",
     )
     CORS_ALLOWED_ORIGINS: List[str] = Field(
-        default=[],
+        default=[
+            "https://clinica-oncologica-hosting.web.app",
+            "https://clinica-oncologica-hosting.firebaseapp.com",
+        ],
         description="Allowed CORS origins (combined with CORS_FRONTEND_URL + CORS_QUIZ_URL)",
     )
     CORS_ALLOWED_HEADERS: List[str] = Field(
@@ -225,6 +228,8 @@ class SecuritySettings(BaseAppSettings):
             "X-CSRF-Token",
             "X-CSRFToken",
             "X-XSRF-Token",
+            "X-Session-ID",
+            "X-Idempotency-Key",
         ],
         description="Allowed CORS headers (validated against safe headers whitelist)",
     )
@@ -425,6 +430,8 @@ class SecuritySettings(BaseAppSettings):
             "X-CSRF-Token",
             "X-CSRFToken",
             "X-XSRF-Token",
+            "X-Session-ID",
+            "X-Idempotency-Key",
             "X-API-Key",
             "Cache-Control",
             "Pragma",
@@ -774,6 +781,17 @@ class SecuritySettings(BaseAppSettings):
         """
         origins = set()
         is_production = self.APP_ENVIRONMENT.lower() == "production"
+
+        # Ensure production frontend is always allowed (prevents empty CORS config in deploys).
+        required_prod_origins = {
+            "https://clinica-oncologica-hosting.web.app",
+            "https://clinica-oncologica-hosting.firebaseapp.com",
+        }
+        if is_production:
+            for origin in required_prod_origins:
+                normalized = self._normalize_cors_origin(origin, is_production)
+                if normalized:
+                    origins.add(normalized)
 
         # 1. Explicitly configured origins
         if self.CORS_ALLOWED_ORIGINS:

@@ -36,11 +36,9 @@ from app.schemas.v2.flows import (
     FlowStatusV2,
     PatientV2Brief,
 )
-from app.dependencies import (
-    get_current_user,
-    validate_patient_access,
-    get_flow_management_service,
-)
+from app.dependencies.auth_dependencies import get_current_user
+from app.dependencies.business_dependencies import validate_patient_access
+from app.dependencies.service_dependencies import get_flow_management_service
 from app.dependencies.service_dependencies import get_flow_analytics_service
 from app.services.flow_dashboard import get_flow_dashboard_service
 from app.services.enhanced_flow_engine import EnhancedFlowEngine

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.services.audit import AuditService
-from app.dependencies import RequestContext
+from app.utils.request_context import RequestContext
 from app.dependencies.auth_dependencies import (
     TEST_TOKEN_REGISTRY,
     get_current_user_from_session,

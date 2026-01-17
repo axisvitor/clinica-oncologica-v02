@@ -13,7 +13,7 @@ from sqlalchemy import func
 
 from app.models.user import User
 from app.models.appointment import Appointment
-from app.dependencies import RequestContext
+from app.utils.request_context import RequestContext
 from app.api.v2.dependencies import apply_field_selection
 
 

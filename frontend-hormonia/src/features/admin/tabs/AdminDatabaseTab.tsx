@@ -40,17 +40,12 @@ export default function AdminDatabaseTab({ isLoading, setIsLoading, setMessage }
       const baseURL = apiClient.getBaseURL()
       const url = `${baseURL}/admin/backup`
 
-      // Type for apiClient with authToken property
-      interface ApiClientWithAuth {
-        authToken?: string;
-      }
-      const authToken = (apiClient as unknown as ApiClientWithAuth).authToken || '';
-
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${authToken}`
-        }
+          ...apiClient.getSessionHeaders(),
+        },
+        credentials: 'include'
       })
 
       if (!response.ok) {

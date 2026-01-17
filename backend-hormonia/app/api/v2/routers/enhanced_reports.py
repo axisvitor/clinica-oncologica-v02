@@ -54,7 +54,7 @@ from app.schemas.v2.enhanced_reports import (
     DashboardSnapshotResponse,
 )
 from app.api.v2.dependencies import get_pagination_params
-from app.api.v2.utils.auth_helpers import extract_user_context, ensure_uuid
+from app.utils.auth_helpers import extract_user_context, ensure_uuid
 from app.utils.rate_limiter import limiter
 from app.utils.logging import get_logger
 from app.services import EnhancedReportsService

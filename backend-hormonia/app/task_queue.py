@@ -535,10 +535,12 @@ def validate_task_request(headers: Mapping[str, str]) -> None:
 
     auth_header = headers.get("authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
+        logger.error(f"Task auth failed. Missing Authorization header. Headers: {headers.keys()}")
         raise TaskAuthError("Missing Authorization header")
 
     audience = settings.CLOUD_TASKS_AUDIENCE or settings.CLOUD_TASKS_SERVICE_URL
     if not audience:
+        logger.error("Task auth failed. Missing audience configuration.")
         raise TaskAuthError("Missing audience configuration")
 
     token = auth_header.split(" ", 1)[1]
@@ -549,8 +551,10 @@ def validate_task_request(headers: Mapping[str, str]) -> None:
 
         id_info = id_token.verify_oauth2_token(token, requests.Request(), audience=audience)
     except Exception as exc:
+        logger.error(f"Task auth failed. Token verification error: {exc}. Audience expected: {audience}")
         raise TaskAuthError(f"Invalid token: {exc}") from exc
 
     issuer = id_info.get("iss")
     if issuer not in ("https://accounts.google.com", "accounts.google.com"):
+        logger.error(f"Task auth failed. Invalid issuer: {issuer}")
         raise TaskAuthError("Invalid token issuer")

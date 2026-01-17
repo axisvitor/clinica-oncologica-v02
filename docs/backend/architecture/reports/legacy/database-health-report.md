@@ -123,7 +123,7 @@ Status: ✅ UP-TO-DATE
 5. `030_drop_plaintext_email_phone` (LGPD compliance)
 6. `029_migrate_email_phone_to_encrypted`
 7. `028_encrypt_email_phone_lgpd`
-8. `027_consolidate_duplicate_migrations`
+8. `027_consolidate_duplicates`
 9. `026_placeholder_reserved`
 10. `025_add_patient_idempotency_key`
 

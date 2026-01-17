@@ -6,6 +6,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createLogger } from '../../lib/logger';
+import { apiClient } from '@/lib/api-client';
 
 const logger = createLogger('metrics:websocket');
 
@@ -67,8 +68,11 @@ export const MetricsWebSocket = ({
 
     const poll = async () => {
       try {
-        const response = await fetch('/api/v2/enhanced-analytics/realtime-stream', {
-          credentials: 'include'
+        const response = await fetch(`${apiClient.getBaseURL()}/api/v2/enhanced-analytics/realtime-stream`, {
+          credentials: 'include',
+          headers: {
+            ...apiClient.getSessionHeaders(),
+          }
         });
         if (response.ok) {
           const data = await response.json();

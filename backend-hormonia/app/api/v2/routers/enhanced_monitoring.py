@@ -13,7 +13,7 @@ from fastapi.responses import PlainTextResponse
 
 from app.database import get_db
 from app.models.user import User, UserRole
-from app.dependencies import get_request_context, RequestContext
+from app.utils.request_context import get_request_context, RequestContext
 from app.infrastructure.cache.cache_decorators import async_cache
 from app.schemas.v2.enhanced_monitoring import (
     MonitoringHealthResponse,

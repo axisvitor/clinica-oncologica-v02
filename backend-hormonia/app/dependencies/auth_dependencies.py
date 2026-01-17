@@ -32,7 +32,8 @@ if TYPE_CHECKING:
     from app.core.redis_manager import FirebaseRedisCache
 
 from app.models.user import User, UserRole
-from app.services import ServiceProvider
+if TYPE_CHECKING:
+    from app.services import ServiceProvider
 from app.config import settings
 from app.database import SessionLocal
 
@@ -571,6 +572,7 @@ async def _get_user_from_db_async(
         )
         return result.scalar_one_or_none()
     except asyncio.TimeoutError:
+        await session.rollback()
         logger.warning(
             "Database query timeout for UID %s..., retrying with longer timeout",
             firebase_uid[:8],
@@ -586,6 +588,7 @@ async def _get_user_from_db_async(
             )
             return result.scalar_one_or_none()
         except asyncio.TimeoutError:
+            await session.rollback()
             logger.error(
                 "Database query timeout after retry for UID %s...", firebase_uid[:8]
             )
@@ -742,18 +745,22 @@ async def get_current_user_from_session(
 
                 async_session_factory = get_async_session_factory()
                 async with async_session_factory() as async_session:
-                    fallback_user = await asyncio.wait_for(
-                        _get_user_from_db_by_session(final_session_id, async_session),
-                        timeout=settings.DB_QUERY_TIMEOUT_READ,
-                    )
+                    try:
+                        fallback_user = await asyncio.wait_for(
+                            _get_user_from_db_by_session(final_session_id, async_session),
+                            timeout=settings.DB_QUERY_TIMEOUT_READ,
+                        )
+                    except Exception:
+                        await async_session.rollback()
+                        raise
             except asyncio.TimeoutError:
                 logger.error(
                     "Database timeout during fallback for session %s...",
                     final_session_id[:8],
                 )
                 raise HTTPException(
-                    status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                    detail="Database operation timed out during session fallback",
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Database temporarily unavailable. Please try again.",
                 )
             except Exception as e:
                 logger.error(
@@ -762,8 +769,8 @@ async def get_current_user_from_session(
                     str(e),
                 )
                 raise HTTPException(
-                    status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                    detail="Database operation failed during session fallback",
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Database temporarily unavailable. Please try again.",
                 )
 
             if not fallback_user:
@@ -949,16 +956,28 @@ async def get_current_user_from_session(
 
                 async_session_factory = get_async_session_factory()
                 async with async_session_factory() as async_session:
-                    user = await _get_user_from_db_async(
-                        firebase_uid, async_session
-                    )
+                    try:
+                        user = await _get_user_from_db_async(
+                            firebase_uid, async_session
+                        )
+                    except Exception:
+                        await async_session.rollback()
+                        raise
             except asyncio.CancelledError:
                 logger.warning(
                     f"Database query cancelled for firebase_uid={firebase_uid[:8]}..."
                 )
                 raise HTTPException(
-                    status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                    detail="Request was cancelled",
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Database temporarily unavailable. Please try again.",
+                )
+            except Exception as e:
+                logger.error(
+                    f"Database error for firebase_uid={firebase_uid[:8]}...: {e}"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Database temporarily unavailable. Please try again.",
                 )
 
             if not user:
@@ -1092,7 +1111,7 @@ async def get_current_user_object_from_session(
 async def get_current_user(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    services: ServiceProvider = Depends(_get_service_provider),
+    services: "ServiceProvider" = Depends(_get_service_provider),
 ) -> User:
     """
     Get current authenticated user by validating Firebase Auth token with Redis cache.
@@ -1239,16 +1258,28 @@ async def get_current_user(
 
                 async_session_factory = get_async_session_factory()
                 async with async_session_factory() as async_session:
-                    user = await _get_user_from_db_async(
-                        firebase_uid, async_session
-                    )
+                    try:
+                        user = await _get_user_from_db_async(
+                            firebase_uid, async_session
+                        )
+                    except Exception:
+                        await async_session.rollback()
+                        raise
         except asyncio.CancelledError:
             logger.warning(
                 f"Database query cancelled for firebase_uid={firebase_uid[:8]}..."
             )
             raise HTTPException(
-                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                detail="Request was cancelled",
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database temporarily unavailable. Please try again.",
+            )
+        except Exception as e:
+            logger.error(
+                f"Database error for firebase_uid={firebase_uid[:8]}...: {e}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database temporarily unavailable. Please try again.",
             )
 
         if user:
@@ -1364,7 +1395,7 @@ async def get_optional_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(
         HTTPBearer(auto_error=False)
     ),
-    services: ServiceProvider = Depends(_get_service_provider),
+    services: "ServiceProvider" = Depends(_get_service_provider),
 ) -> Optional[User]:
     """Get current user if authenticated, otherwise return None."""
     if credentials is None:
@@ -1411,7 +1442,7 @@ async def get_doctor_user(
 
 
 async def get_current_user_websocket(
-    websocket, services: ServiceProvider = Depends(_get_service_provider)
+    websocket, services: "ServiceProvider" = Depends(_get_service_provider)
 ) -> Optional[User]:
     """Get current user from WebSocket connection validating Firebase token only"""
     try:

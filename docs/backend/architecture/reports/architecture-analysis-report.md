@@ -677,7 +677,7 @@ config/settings/
 - `phi_encryption_service.py` - AES-256 para dados de saúde
 
 **Migration:**
-- `011_hipaa_audit_trail_enhancement.py`
+- `011_hipaa_audit.py`
 
 **Qualidade:** 7/10 (funcional, mas poderia consolidar com LGPD encryption)
 

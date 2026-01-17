@@ -99,39 +99,64 @@ class CacheMiddleware(BaseHTTPMiddleware):
         # Check for If-None-Match header (ETag conditional request)
         if_none_match = request.headers.get("If-None-Match")
 
-        # Try to get cached response
-        cached_data = self.cache_manager.get("http_cache", key_parts=[cache_key])
+        # Try to get cached response (fail open on cache corruption or errors)
+        cached_data = None
+        try:
+            cached_data = self.cache_manager.get("http_cache", key_parts=[cache_key])
+        except Exception as exc:
+            logger.warning(
+                "Cache lookup failed for key %s: %s", cache_key, exc, exc_info=True
+            )
 
         if cached_data:
-            cached_etag = cached_data.get("etag")
-            cached_body = cached_data.get("body")
-            cached_headers = cached_data.get("headers", {})
-            is_compressed = cached_data.get("is_compressed", False)
-
-            # Decode base64 for compressed data
-            if is_compressed and cached_body:
-                import base64
-                cached_body = base64.b64decode(cached_body)
-
-            # Check ETag match for 304 Not Modified
-            if if_none_match and if_none_match == cached_etag:
-                logger.debug(
-                    f"ETag match - returning 304 Not Modified for: {cache_key}"
+            if not isinstance(cached_data, dict):
+                logger.warning(
+                    "Invalid cache entry type for key %s: %s",
+                    cache_key,
+                    type(cached_data).__name__,
                 )
-                return Response(status_code=304, headers={"ETag": cached_etag})
+                cached_data = None
+            else:
+                cached_etag = cached_data.get("etag")
+                cached_body = cached_data.get("body")
+                cached_headers = cached_data.get("headers", {})
+                is_compressed = cached_data.get("is_compressed", False)
 
-            # Return cached response with ETag
-            logger.debug(f"Cache HIT - returning cached response for: {cache_key}")
-            headers = dict(cached_headers)
-            headers["ETag"] = cached_etag
-            headers["X-Cache"] = "HIT"
+                # Decode base64 for compressed data
+                if is_compressed and cached_body:
+                    try:
+                        import base64
 
-            return Response(
-                content=cached_body,
-                status_code=200,
-                headers=headers,
-                media_type=cached_headers.get("content-type", "application/json"),
-            )
+                        cached_body = base64.b64decode(cached_body)
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed to decode cached body for key %s: %s",
+                            cache_key,
+                            exc,
+                            exc_info=True,
+                        )
+                        cached_data = None
+
+                if cached_data is not None:
+                    # Check ETag match for 304 Not Modified
+                    if if_none_match and if_none_match == cached_etag:
+                        logger.debug(
+                            f"ETag match - returning 304 Not Modified for: {cache_key}"
+                        )
+                        return Response(status_code=304, headers={"ETag": cached_etag})
+
+                    # Return cached response with ETag
+                    logger.debug(f"Cache HIT - returning cached response for: {cache_key}")
+                    headers = dict(cached_headers)
+                    headers["ETag"] = cached_etag
+                    headers["X-Cache"] = "HIT"
+
+                    return Response(
+                        content=cached_body,
+                        status_code=200,
+                        headers=headers,
+                        media_type=cached_headers.get("content-type", "application/json"),
+                    )
 
         # Cache MISS - execute request
         logger.debug(f"Cache MISS - fetching fresh response for: {cache_key}")
@@ -154,27 +179,46 @@ class CacheMiddleware(BaseHTTPMiddleware):
             # Cache the response - handle compressed data
             # Check if response is gzip compressed (0x1f 0x8b magic bytes)
             is_compressed = body and len(body) >= 2 and body[0] == 0x1f and body[1] == 0x8b
-            if is_compressed:
-                # Store compressed body as base64
-                import base64
-                cache_data = {
-                    "body": base64.b64encode(body).decode("ascii"),
-                    "headers": dict(response.headers),
-                    "etag": etag,
-                    "is_compressed": True,
-                }
-            else:
-                cache_data = {
-                    "body": body.decode("utf-8") if body else "",
-                    "headers": dict(response.headers),
-                    "etag": etag,
-                    "is_compressed": False,
-                }
+            cache_data = None
+            try:
+                if is_compressed:
+                    # Store compressed body as base64
+                    import base64
 
-            self.cache_manager.set(
-                "http_cache", cache_data, key_parts=[cache_key], ttl_override=ttl
-            )
-            logger.debug(f"Cached response for: {cache_key} (TTL: {ttl}s)")
+                    cache_data = {
+                        "body": base64.b64encode(body).decode("ascii"),
+                        "headers": dict(response.headers),
+                        "etag": etag,
+                        "is_compressed": True,
+                    }
+                else:
+                    body_text = ""
+                    if body:
+                        try:
+                            body_text = body.decode("utf-8")
+                        except UnicodeDecodeError:
+                            logger.warning(
+                                "Skipping cache for key %s due to non-UTF8 body",
+                                cache_key,
+                            )
+                            body_text = None
+                    if body_text is not None:
+                        cache_data = {
+                            "body": body_text,
+                            "headers": dict(response.headers),
+                            "etag": etag,
+                            "is_compressed": False,
+                        }
+
+                if cache_data is not None:
+                    self.cache_manager.set(
+                        "http_cache", cache_data, key_parts=[cache_key], ttl_override=ttl
+                    )
+                    logger.debug(f"Cached response for: {cache_key} (TTL: {ttl}s)")
+            except Exception as exc:
+                logger.warning(
+                    "Cache write failed for key %s: %s", cache_key, exc, exc_info=True
+                )
 
             # Build response headers
             response_headers = dict(response.headers)

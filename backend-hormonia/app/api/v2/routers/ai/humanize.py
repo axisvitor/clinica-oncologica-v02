@@ -15,8 +15,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 
 # Local application imports
 from app.core.config import settings
-from app.database import get_db
-from app.dependencies import get_patient_service, validate_patient_access
+from app.dependencies.business_dependencies import validate_patient_access
+from app.dependencies.service_dependencies import get_patient_service
 from app.models.user import User
 from app.schemas.v2.ai import (
     AIModelType,
@@ -69,7 +69,7 @@ async def humanize_message(
     humanize_request: HumanizeRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(verify_physician_or_admin),
-    db=Depends(get_db),
+    patient_service=Depends(get_patient_service),
 ) -> HumanizeResponse:
     """
     Humanize a message using AI with caching and cost tracking.
@@ -119,7 +119,7 @@ async def humanize_message(
         if humanize_request.patient_id:
             try:
                 patient = await validate_patient_access(
-                    humanize_request.patient_id, current_user, get_patient_service(db)
+                    humanize_request.patient_id, current_user, patient_service
                 )
                 patient_context = {
                     "name": patient.name,
@@ -270,7 +270,7 @@ async def batch_humanize_messages(
     batch_request: BatchHumanizeRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(verify_physician_or_admin),
-    db=Depends(get_db),
+    patient_service=Depends(get_patient_service),
 ) -> BatchHumanizeResponse:
     """
     Batch humanize multiple messages with TRUE parallel processing using asyncio.gather.
@@ -279,7 +279,7 @@ async def batch_humanize_messages(
     Each message is processed simultaneously, significantly improving performance for
     batch operations.
     """
-    if not humanize_request.messages:
+    if not batch_request.messages:
         return BatchHumanizeResponse(
             results=[],
             total_token_usage=TokenUsage(
@@ -294,9 +294,9 @@ async def batch_humanize_messages(
     # Create tasks for TRUE parallel processing
     tasks = [
         _process_single_humanize_message(
-            request_obj, msg_request, background_tasks, current_user, db
+            request, msg_request, background_tasks, current_user, patient_service
         )
-        for msg_request in humanize_request.messages
+        for msg_request in batch_request.messages
     ]
 
     # Execute all tasks concurrently (TRUE parallelism)
@@ -319,7 +319,7 @@ async def batch_humanize_messages(
             logger.error(f"Batch item {i} failed: {result}", exc_info=result)
             # Add fallback response for failed items
             processed_results.append(
-                _create_fallback_response(humanize_request.messages[i])
+                _create_fallback_response(batch_request.messages[i])
             )
         else:
             processed_results.append(result)
@@ -367,7 +367,7 @@ async def _process_single_humanize_message(
     msg_request: HumanizeRequest,
     background_tasks: BackgroundTasks,
     current_user: User,
-    db,
+    patient_service,
 ) -> HumanizeResponse:
     """
     Process a single message in batch operation.
@@ -379,7 +379,7 @@ async def _process_single_humanize_message(
         msg_request: Individual humanize request
         background_tasks: FastAPI background tasks
         current_user: Authenticated user
-        db: Database session
+        patient_service: Patient service for access validation
 
     Returns:
         HumanizeResponse for the single message
@@ -388,7 +388,7 @@ async def _process_single_humanize_message(
         Exception: Any processing error (caught by gather with return_exceptions=True)
     """
     return await humanize_message(
-        request_obj, msg_request, background_tasks, current_user, db
+        request_obj, msg_request, background_tasks, current_user, patient_service
     )
 
 

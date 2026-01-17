@@ -4,6 +4,26 @@ Revision ID: ${up_revision}
 Revises: ${down_revision | comma,n}
 Create Date: ${create_date}
 
+WHY:
+- [business reason]
+
+WHAT:
+- [schema/data changes]
+
+IMPACT:
+- [perf/data/lock impact]
+
+BENCHMARK:
+- [test results]
+
+ROLLBACK:
+- [safety/data loss]
+
+RELATED:
+- [issues/PRs/docs]
+
+MIGRATION TYPE:
+- [Schema-Only | Data Transformation | Zero-Downtime Multi-Step | Emergency]
 """
 from alembic import op
 import sqlalchemy as sa

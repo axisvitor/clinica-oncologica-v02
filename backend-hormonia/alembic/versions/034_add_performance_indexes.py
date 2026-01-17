@@ -26,6 +26,27 @@ index creation on production databases.
 IMPORTANT: CONCURRENTLY requires running outside a transaction.
 Run with: alembic upgrade head --sql | psql  (for manual review)
 Or ensure transaction_per_migration=False in env.py for this migration.
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 
 from alembic import op

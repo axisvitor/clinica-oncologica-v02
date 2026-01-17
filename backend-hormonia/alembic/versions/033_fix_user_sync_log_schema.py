@@ -19,6 +19,27 @@ Index Creation Note:
 - Indexes are created with IF NOT EXISTS for idempotency
 - For production with live traffic, consider running indexes separately
   with CONCURRENTLY to avoid table locks
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 
 from alembic import op

@@ -19,6 +19,27 @@ Changes:
 Note: The webhook_events table has related_message_id and related_patient_id as plain
 UUID columns without FK constraints. This migration adds proper FK constraints with
 SET NULL behavior to maintain referential integrity while allowing flexibility.
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 
 from alembic import op

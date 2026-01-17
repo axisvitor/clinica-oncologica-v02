@@ -359,7 +359,7 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
         {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer ${client.getAuthToken()}`
+            ...client.getSessionHeaders(),
           },
           credentials: 'include'
         }
@@ -384,7 +384,7 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
         {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer ${client.getAuthToken()}`
+            ...client.getSessionHeaders(),
           },
           credentials: 'include'
         }

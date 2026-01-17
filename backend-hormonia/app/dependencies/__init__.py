@@ -15,8 +15,6 @@ from .business_dependencies import (
     get_validated_patient,
     verify_patient_access,
     verify_monthly_quiz_token,
-    get_request_context,
-    RequestContext,
 )
 
 from .service_dependencies import (
@@ -167,8 +165,6 @@ __all__ = [
     "get_validated_patient",
     "verify_patient_access",
     "verify_monthly_quiz_token",
-    "get_request_context",
-    "RequestContext",
     # Service dependencies
     "get_patient_service",
     "get_patient_repository",

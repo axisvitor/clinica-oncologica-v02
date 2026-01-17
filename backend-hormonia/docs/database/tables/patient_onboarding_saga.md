@@ -106,3 +106,11 @@ Example:
 - `status` values are defined in `app/models/enums.py` (`SagaStatus`).
 - `current_step` uses saga step numbering (1=patient created, 3=flow initialized, 4=welcome scheduled); step 2 is deprecated.
 - `step_data.idempotency_key` is populated when the onboarding request includes an idempotency key.
+
+### Enums: `saga_status`
+- `STARTED`
+- `IN_PROGRESS`
+- `COMPLETED`
+- `FAILED`
+- `COMPENSATED`
+- `CLEANED_UP` (Added in revision `b7c2f9a1d3e4` for manual cleanup tracking)

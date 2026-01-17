@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends
 from uuid import UUID
 from app.api.v2.routers.ai.dependencies import verify_physician_or_admin
 from app.schemas.v2.ai import AIRecommendations, RecommendationItem
-from app.database import get_db
-from app.dependencies import get_patient_service, validate_patient_access
+from app.dependencies.business_dependencies import validate_patient_access
+from app.dependencies.service_dependencies import get_patient_service
 from app.models.user import User
 
 router = APIRouter()
@@ -20,14 +20,14 @@ router = APIRouter()
 async def get_patient_recommendations(
     patient_id: UUID,
     current_user: User = Depends(verify_physician_or_admin),
-    db=Depends(get_db)
+    patient_service=Depends(get_patient_service),
 ):
     """
     Get AI-generated recommendations for a patient.
     Currently returns simulated data.
     """
     # Validate access
-    await validate_patient_access(patient_id, current_user, get_patient_service(db))
+    await validate_patient_access(patient_id, current_user, patient_service)
     
     # Mock response (simulation)
     return AIRecommendations(

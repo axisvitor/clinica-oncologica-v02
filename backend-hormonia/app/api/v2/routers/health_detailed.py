@@ -10,14 +10,14 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, Any
 import asyncio
 
-from app.database import get_db
+from app.database import get_async_db
 from app.core.redis_client import get_async_redis_client
 
 router = APIRouter(tags=["health"])
 
 
 @router.get("/health/detailed")
-async def detailed_health_check(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
+async def detailed_health_check(db: AsyncSession = Depends(get_async_db)) -> Dict[str, Any]:
     """
     Comprehensive health check including all critical systems
 

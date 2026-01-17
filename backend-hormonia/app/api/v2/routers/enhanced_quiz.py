@@ -41,7 +41,7 @@ from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.utils.rate_limiter import limiter
 from app.utils.logging import get_logger
 from app.services.enhanced_quiz_service import EnhancedQuizService
-from app.api.v2.utils.auth_helpers import extract_user_context, ensure_uuid
+from app.utils.auth_helpers import extract_user_context, ensure_uuid
 
 logger = get_logger(__name__)
 router = APIRouter()

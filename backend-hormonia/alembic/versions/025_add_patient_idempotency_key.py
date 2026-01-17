@@ -1,7 +1,7 @@
 """add patient idempotency key
 
 Revision ID: 025
-Revises: 024
+Revises: 024_drop_plaintext_cpf
 Create Date: 2025-11-26
 
 QW-004: Add idempotency_key column to patients table for duplicate request prevention
@@ -18,7 +18,27 @@ Changes:
 Performance Impact:
 - Minimal - single column addition with partial index
 - Index only applies to rows with non-NULL idempotency_key
-"""
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration)."""
 from alembic import op
 import sqlalchemy as sa
 

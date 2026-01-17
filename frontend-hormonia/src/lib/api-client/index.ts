@@ -354,12 +354,47 @@ export class ApiClient extends ApiClientCore {
         return { data: items, items, total: res?.total ?? 0, has_more: res?.has_more, next_cursor: res?.next_cursor };
       },
 
-      generate: (patientId: string, reportType: string, config?: Record<string, unknown>) =>
-        this.post("/api/v2/reports/generate", {
-          patient_id: patientId,
+      generate: (patientId: string, reportType: string, config?: Record<string, unknown>) => {
+        const rawTitle = typeof config?.title === "string" ? config.title.trim() : "";
+        const params: Record<string, string | number | boolean> = {
+          title: rawTitle || `Relatorio ${reportType}`,
           report_type: reportType,
-          ...config,
-        }),
+        };
+
+        if (patientId) {
+          params.patient_ids = patientId;
+        }
+
+        if (typeof config?.format === "string" && config.format.trim()) {
+          params.format = config.format.trim();
+        }
+
+        if (typeof config?.start_date === "string" && config.start_date) {
+          params.date_from = config.start_date;
+        }
+
+        if (typeof config?.end_date === "string" && config.end_date) {
+          params.date_to = config.end_date;
+        }
+
+        if (typeof config?.include_messages === "boolean") {
+          params.include_messages = config.include_messages;
+        }
+
+        if (typeof config?.include_quizzes === "boolean") {
+          params.include_quizzes = config.include_quizzes;
+        }
+
+        if (typeof config?.include_alerts === "boolean") {
+          params.include_alerts = config.include_alerts;
+        }
+
+        if (typeof config?.include_timeline === "boolean") {
+          params.include_timeline = config.include_timeline;
+        }
+
+        return this.post("/api/v2/reports/generate", undefined, params);
+      },
 
       download: async (reportId: string, format: "pdf" | "excel" | "csv" = "pdf") => {
         const response = await fetch(
@@ -367,7 +402,7 @@ export class ApiClient extends ApiClientCore {
           {
             method: "GET",
             headers: {
-              Authorization: `Bearer ${this.getAuthToken()}`,
+              ...this.getSessionHeaders(),
             },
             credentials: "include",
           },
@@ -448,7 +483,7 @@ export class ApiClient extends ApiClientCore {
             {
               method: "GET",
               headers: {
-                Authorization: `Bearer ${this.getAuthToken()}`,
+                ...this.getSessionHeaders(),
               },
               credentials: "include",
             },
@@ -571,10 +606,7 @@ export class ApiClient extends ApiClientCore {
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
         };
-        const token = this.getAuthToken();
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-        }
+        Object.assign(headers, this.getSessionHeaders());
         const response = await fetch(`${this.getBaseURL()}/api/v2/ai/summary/${summaryId}/pdf`, {
           method: 'GET',
           headers,

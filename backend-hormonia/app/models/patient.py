@@ -19,8 +19,8 @@ from sqlalchemy import (
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, validates
-from typing import Dict, Any, Optional, TYPE_CHECKING
-from datetime import date, timedelta
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
+from datetime import date, timedelta, datetime
 import os
 
 from app.models.base import BaseModel
@@ -599,6 +599,80 @@ class Patient(BaseModel):
         preferences["timezone"] = value
         self.patient_data["preferences"] = preferences
         self.patient_data.pop("timezone", None)
+
+    # =========================================================================
+    # PLATFORM SYNCHRONIZATION PROPERTIES (Stored in patient_data)
+    # =========================================================================
+
+    @property
+    def response_history(self) -> List[Dict[str, Any]]:
+        """Get response history from metadata."""
+        return self.get_metadata_field("response_history", [])
+
+    @response_history.setter
+    def response_history(self, value: List[Dict[str, Any]]):
+        """Set response history in metadata."""
+        self.set_metadata_field("response_history", value)
+
+    @property
+    def quiz_history(self) -> List[Dict[str, Any]]:
+        """Get quiz history from metadata."""
+        return self.get_metadata_field("quiz_history", [])
+
+    @quiz_history.setter
+    def quiz_history(self, value: List[Dict[str, Any]]):
+        """Set quiz history in metadata."""
+        self.set_metadata_field("quiz_history", value)
+
+    @property
+    def alert_history(self) -> List[Dict[str, Any]]:
+        """Get alert history from metadata."""
+        return self.get_metadata_field("alert_history", [])
+
+    @alert_history.setter
+    def alert_history(self, value: List[Dict[str, Any]]):
+        """Set alert history in metadata."""
+        self.set_metadata_field("alert_history", value)
+
+    @property
+    def flow_milestones(self) -> List[Dict[str, Any]]:
+        """Get flow milestones from metadata."""
+        return self.get_metadata_field("flow_milestones", [])
+
+    @flow_milestones.setter
+    def flow_milestones(self, value: List[Dict[str, Any]]):
+        """Set flow milestones in metadata."""
+        self.set_metadata_field("flow_milestones", value)
+
+    @property
+    def current_flow_type(self) -> Optional[str]:
+        """Get current flow type from metadata."""
+        return self.get_metadata_field("current_flow_type")
+
+    @current_flow_type.setter
+    def current_flow_type(self, value: Optional[str]):
+        """Set current flow type in metadata."""
+        self.set_metadata_field("current_flow_type", value)
+
+    @property
+    def last_quiz_completed(self) -> Optional[datetime]:
+        """Get last quiz completion date from metadata."""
+        val = self.get_metadata_field("last_quiz_completed")
+        if val and isinstance(val, str):
+            try:
+                return datetime.fromisoformat(val)
+            except ValueError:
+                return None
+        return val
+
+    @last_quiz_completed.setter
+    def last_quiz_completed(self, value: Optional[datetime]):
+        """Set last quiz completion date in metadata."""
+        if value and isinstance(value, datetime):
+            self.set_metadata_field("last_quiz_completed", value.isoformat())
+        else:
+            self.set_metadata_field("last_quiz_completed", value)
+
 
     def __repr__(self):
         # Use phone_hash for repr (phone column removed in migration 030)

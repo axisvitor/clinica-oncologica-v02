@@ -294,7 +294,7 @@ export function createPatientsApi(client: ApiClientCore) {
         {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer ${client.getAuthToken()}`
+            ...client.getSessionHeaders(),
           },
           credentials: 'include'
         }
@@ -323,7 +323,7 @@ export function createPatientsApi(client: ApiClientCore) {
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${client.getAuthToken()}`
+            ...client.getSessionHeaders(),
           },
           credentials: 'include',
           body: formData
@@ -387,7 +387,7 @@ export function createPatientsApi(client: ApiClientCore) {
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${client.getAuthToken()}`
+            ...client.getSessionHeaders(),
           },
           credentials: 'include',
           body: formData
@@ -431,7 +431,7 @@ export function createPatientsApi(client: ApiClientCore) {
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${client.getAuthToken()}`
+            ...client.getSessionHeaders(),
           },
           credentials: 'include',
           body: formData
@@ -455,7 +455,7 @@ export function createPatientsApi(client: ApiClientCore) {
         {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer ${client.getAuthToken()}`
+            ...client.getSessionHeaders(),
           },
           credentials: 'include'
         }

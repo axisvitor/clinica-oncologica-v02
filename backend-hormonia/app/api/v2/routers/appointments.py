@@ -30,7 +30,7 @@ from app.api.v2.patients_utils import (
     _extract_user_context,
     _ensure_uuid,
 )
-from app.api.v2.utils.auth_helpers import is_admin
+from app.utils.auth_helpers import is_admin
 from app.dependencies.auth_dependencies import (
     get_current_user_from_session,
     get_redis_cache,

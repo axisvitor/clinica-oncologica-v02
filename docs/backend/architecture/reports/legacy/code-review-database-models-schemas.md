@@ -467,7 +467,7 @@ MAX_PATIENT_AGE_YEARS = 120
 ---
 
 ### MIGRATION-002: CONCURRENTLY Index Creation Requires Transaction Isolation
-**File**: `/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/alembic/versions/010_add_missing_foreign_key_and_composite_indexes_p0_performance.py`
+**File**: `/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/alembic/versions/010_missing_indexes.py`
 **Lines**: 77-336
 **Type**: WARNING
 **Severity**: LOW

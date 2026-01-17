@@ -1,7 +1,7 @@
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.dependencies.auth_dependencies import get_current_user_from_session
-from app.api.v2.utils.auth_helpers import is_admin
+from app.utils.auth_helpers import is_admin
 from app.services.hive_mind_integration import get_hive_mind_integration
 from app.schemas.v2.hive_mind import (
     AgentListResponse,

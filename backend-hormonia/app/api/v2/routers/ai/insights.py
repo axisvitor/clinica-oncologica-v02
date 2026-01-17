@@ -82,6 +82,7 @@ async def generate_patient_insights(
     """
     from app.models.patient import Patient
     from app.models.user import UserRole
+    from app.api.v2.utils import ensure_uuid, extract_user_context
     
     redis_client = None
 
@@ -94,13 +95,17 @@ async def generate_patient_insights(
                 detail="Patient not found"
             )
         
-        # RBAC validation
-        user_role = current_user.role.value if isinstance(current_user.role, UserRole) else str(current_user.role)
-        if user_role == UserRole.DOCTOR.value and patient.doctor_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied: Patient not assigned to current doctor"
-            )
+
+        role_enum, user_id = extract_user_context(current_user)
+        user_uuid = ensure_uuid(user_id)
+        user_id_str = user_id or (str(user_uuid) if user_uuid else "unknown")
+
+        if role_enum == UserRole.DOCTOR:
+            if not user_uuid or patient.doctor_id != user_uuid:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access denied: Patient not assigned to current doctor"
+                )
 
         # Get Redis client
         redis_client = await ai_module.get_redis_cache()
@@ -108,7 +113,7 @@ async def generate_patient_insights(
         # Generate cache key with user_id to prevent cross-user cache sharing (HIPAA/Privacy)
         cache_key = generate_cache_key(
             "ai:insights:v2",
-            user_id=str(current_user.id),  # SECURITY FIX: Include user_id
+            user_id=user_id_str, 
             patient_id=str(insights_request.patient_id),
             analysis_type=insights_request.analysis_type,
             days=insights_request.days,
@@ -199,7 +204,7 @@ async def generate_patient_insights(
             redis_client,
             "insights",
             token_usage,
-            current_user.id,
+            user_uuid if user_uuid else user_id_str,
         )
 
         logger.info(

@@ -418,7 +418,7 @@ export function createAdminApi(client: ApiClientCore) {
         {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer ${client.getAuthToken()}`
+            ...client.getSessionHeaders(),
           },
           credentials: 'include'
         }

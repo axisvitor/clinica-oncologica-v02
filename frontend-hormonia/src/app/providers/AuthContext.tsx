@@ -305,6 +305,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // Authentication will still work; token fetched lazily if needed
       }
 
+      const storedSessionId = safeLocalStorage.getItem('session_id')
+      if (storedSessionId) {
+        logger.log('Restoring session_id from localStorage for API auth')
+        firebaseAuthService.setSessionId(storedSessionId)
+      }
+
       if (isMockAuthEnabled()) {
         logger.log('Using mock authentication')
         try {
@@ -387,6 +393,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
             } catch {
               // Non-blocking prefetch
             }
+          } else if (storedSessionId) {
+            logger.warn('Stored session_id invalid, clearing')
+            safeLocalStorage.removeItem('session_id')
+            firebaseAuthService.clearSessionId()
           }
         } catch (error) {
           logger.debug('Cookie session check failed (will rely on Firebase):', error)
