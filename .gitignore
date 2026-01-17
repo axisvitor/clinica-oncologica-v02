@@ -187,3 +187,10 @@ hive-mind-prompt-*.txt
 
 # GCP Service Account Keys
 *.json
+
+# User requested ignores
+.claude/
+.codex/
+skills/
+uploads/
+
