@@ -88,8 +88,10 @@ class LangChainOrchestrator:
     """
     LangChain orchestrator for AI operations.
 
-    Manages Google Gemini integration, prompt templates, and AI-powered features
-    for message personalization and sentiment analysis.
+    CONSOLIDATED: Now uses GeminiClient as the underlying implementation.
+    This class is maintained for backward compatibility.
+    
+    DEPRECATION: Use GeminiClient directly for new code.
     """
 
     def __init__(
@@ -100,36 +102,39 @@ class LangChainOrchestrator:
         max_tokens: int = 500,
     ):
         """
-        Initialize LangChain orchestrator.
+        Initialize LangChain orchestrator using GeminiClient.
 
         Args:
             api_key: Google Gemini API key (defaults to settings.AI_GEMINI_API_KEY)
             model_name: Google Gemini model to use (defaults to settings.AI_GEMINI_MODEL)
-            temperature: Creativity level (0-1)
-            max_tokens: Maximum response tokens
+            temperature: Creativity level (0-1) - passed to GeminiClient settings
+            max_tokens: Maximum response tokens - passed to GeminiClient settings
 
         Raises:
             OpenAIClientError: If API key is missing or invalid
         """
+        from app.integrations.gemini_client import GeminiClient, GeminiAPIError
+
         self.api_key = api_key or settings.AI_GEMINI_API_KEY
-
-        # Validate API key
-        if not self.api_key:
-            raise OpenAIClientError("Gemini API key is required but not provided")
-
-        # Use settings.AI_GEMINI_MODEL as default instead of gpt-3.5-turbo (fixes provider mismatch)
         self.model_name = model_name or settings.AI_GEMINI_MODEL
         self.temperature = temperature
         self.max_tokens = max_tokens
 
+        if not self.api_key:
+            raise OpenAIClientError("Gemini API key is required but not provided")
+
         try:
-            # Initialize Google Gemini chat model
+            # Use GeminiClient as the underlying implementation
+            self._client = GeminiClient(api_key=self.api_key, model=self.model_name)
+            # Also keep direct chat model reference for template-based operations
             self.chat_model = ChatGoogleGenerativeAI(
-                model=self.model_name,  # FIX: Use self.model_name instead of model_name parameter
+                model=self.model_name,
                 google_api_key=self.api_key,
                 temperature=temperature,
                 max_output_tokens=max_tokens,
             )
+        except GeminiAPIError as e:
+            raise OpenAIClientError(f"Failed to initialize Gemini client: {str(e)}")
         except Exception as e:
             logger.error(f"Failed to initialize ChatGoogleGenerativeAI: {e}")
             raise OpenAIClientError(f"Failed to initialize Gemini client: {str(e)}")
@@ -137,7 +142,10 @@ class LangChainOrchestrator:
         # Initialize prompt templates
         self._setup_prompt_templates()
 
-        logger.info(f"LangChain orchestrator initialized with model: {model_name}")
+        logger.info(
+            "LangChainOrchestrator initialized (using GeminiClient backend)",
+            extra={"model": self.model_name},
+        )
 
     def _setup_prompt_templates(self):
         """Setup prompt templates for different AI operations."""
@@ -333,8 +341,8 @@ class LangChainOrchestrator:
         """
         Generate text from a simple prompt (compatibility method for DataExtractionService).
 
-        This method provides a simple text generation interface compatible with
-        the DataExtractionService which expects a generate_text(prompt) method.
+        CONSOLIDATED: Now delegates to GeminiClient.generate_content() for
+        rate limiting, caching, and circuit breaker benefits.
 
         Args:
             prompt: The text prompt to generate from
@@ -346,9 +354,8 @@ class LangChainOrchestrator:
             OpenAIClientError: If generation fails
         """
         try:
-            messages = [HumanMessage(content=prompt)]
-            response = await self.chat_model.agenerate([messages])
-            return response.generations[0][0].text.strip()
+            # Delegate to GeminiClient for rate limiting and caching
+            return await self._client.generate_content(prompt)
         except Exception as e:
             logger.error(f"Text generation failed: {e}")
             raise OpenAIClientError(f"Failed to generate text: {str(e)}")
@@ -437,7 +444,7 @@ class LangChainOrchestrator:
                 "model": self.model_name,
                 "api_key_configured": bool(self.api_key),
                 "test_response": response_text,
-                "timestamp": "2024-01-01T00:00:00Z",  # Would use actual timestamp
+                "timestamp": "2024-01-01T00:00:00-03:00",  # Would use actual timestamp
             }
 
         except Exception as e:
@@ -447,7 +454,7 @@ class LangChainOrchestrator:
                 "model": self.model_name,
                 "api_key_configured": bool(self.api_key),
                 "error": str(e),
-                "timestamp": "2024-01-01T00:00:00Z",  # Would use actual timestamp
+                "timestamp": "2024-01-01T00:00:00-03:00",  # Would use actual timestamp
             }
 
 

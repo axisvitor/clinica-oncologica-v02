@@ -207,6 +207,42 @@ def get_rate_limit(limit_type: str) -> str:
 
 
 # ============================================================================
+# AI SERVICE RATE LIMITING
+# ============================================================================
+
+
+async def check_ai_rate_limit(
+    service_name: str = "gemini",
+    max_requests: int = 60,
+    window_seconds: int = 60,
+) -> tuple[bool, int]:
+    """
+    Check rate limit for AI service calls.
+
+    Args:
+        service_name: Name of the AI service (gemini, openai, etc.)
+        max_requests: Maximum requests allowed in window (default: 60 RPM)
+        window_seconds: Time window in seconds (default: 60)
+
+    Returns:
+        tuple: (allowed: bool, retry_after: int)
+    """
+    key = f"rate_limit:ai:{service_name}"
+    return await check_rate_limit_redis(key, max_requests, window_seconds)
+
+
+class AIRateLimitExceeded(Exception):
+    """Raised when AI rate limit is exceeded."""
+
+    def __init__(self, retry_after: int = 60, service: str = "gemini"):
+        self.retry_after = retry_after
+        self.service = service
+        super().__init__(
+            f"AI rate limit exceeded for {service}. Retry after {retry_after}s."
+        )
+
+
+# ============================================================================
 # MULTI-LAYER RATE LIMITING (HIGH-001 FIX)
 # ============================================================================
 

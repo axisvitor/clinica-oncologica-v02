@@ -1,0 +1,149 @@
+# Healthcare AI Prompt Templates
+# =================================
+# Externalized prompts for GeminiClient operations.
+# Uses Jinja2 syntax for variable substitution.
+
+# Message Humanization Prompt
+humanization:
+  system: |
+    Você é uma assistente de saúde especializada em comunicação empática e humanizada.
+    Sua missão é transformar mensagens médicas em conversas naturais e acolhedoras.
+  
+  user: |
+    CONTEXTO DO PACIENTE:
+    - Nome: {{ patient_name }}
+    - Tratamento: {{ treatment_type | default("Terapia hormonal") }}
+    - Dia: {{ treatment_day | default(1) }}
+    - Preferências: {{ preferences | default("casual, acolhedor") }}
+    
+    {% if conversation_history %}
+    CONVERSAS RECENTES:
+    {% for msg in conversation_history[-5:] %}
+    - {{ msg }}
+    {% endfor %}
+    {% else %}
+    CONVERSAS RECENTES: Nenhuma conversa anterior
+    {% endif %}
+    
+    MENSAGEM ORIGINAL: {{ template }}
+    
+    {% if few_shot_examples %}
+    EXEMPLOS DE REFERÊNCIA:
+    {% for ex in few_shot_examples %}
+    Entrada: {{ ex.input }}
+    Saída: {{ ex.output }}
+    ---
+    {% endfor %}
+    {% endif %}
+    
+    DIRETRIZES:
+    1. Use linguagem natural e acolhedora, como uma conversa entre amigos
+    2. Evite repetir frases ou estruturas já usadas nas conversas recentes
+    3. Adapte o tom baseado no contexto do paciente
+    4. Inclua elementos que demonstrem que você "lembra" das conversas anteriores
+    5. Mantenha a precisão médica, mas torne a linguagem mais acessível
+    6. Use emojis moderadamente para criar proximidade (se apropriado)
+    7. Mantenha o foco na saúde hormonal e bem-estar
+    
+    MENSAGEM HUMANIZADA:
+
+# Question Variation Prompt
+question_variation:
+  user: |
+    Você precisa fazer uma pergunta sobre saúde, mas de forma que não pareça repetitiva.
+    
+    PERGUNTA BASE: {{ base_question }}
+    
+    {% if previous_questions %}
+    PERGUNTAS JÁ FEITAS:
+    {% for q in previous_questions[-5:] %}
+    - {{ q }}
+    {% endfor %}
+    {% else %}
+    PERGUNTAS JÁ FEITAS: Nenhuma pergunta anterior
+    {% endif %}
+    
+    CONTEXTO DO PACIENTE: {{ patient_context | tojson }}
+    
+    {% if few_shot_examples %}
+    EXEMPLOS DE REFERÊNCIA:
+    {% for ex in few_shot_examples %}
+    Entrada: {{ ex.input }}
+    Saída: {{ ex.output }}
+    ---
+    {% endfor %}
+    {% endif %}
+    
+    Crie uma versão completamente diferente da pergunta que:
+    1. Tenha o mesmo objetivo médico
+    2. Use palavras e estrutura totalmente diferentes
+    3. Seja mais conversacional e natural
+    4. Demonstre interesse genuíno no bem-estar do paciente
+    5. Evite soar como questionário médico
+    6. Mantenha o foco na saúde hormonal
+    
+    NOVA PERGUNTA:
+
+# Sentiment Analysis Prompt
+sentiment_analysis:
+  user: |
+    Analise a resposta de um paciente de terapia hormonal e forneça insights estruturados.
+    
+    RESPOSTA DO PACIENTE: {{ response }}
+    CONTEXTO: {{ patient_context | tojson }}
+    
+    Forneça uma análise no seguinte formato JSON:
+    {
+        "sentiment": "positive|neutral|negative|concerning",
+        "confidence": 0.0-1.0,
+        "emotional_indicators": ["lista", "de", "indicadores"],
+        "medical_concerns": true|false,
+        "requires_attention": true|false,
+        "key_themes": ["temas", "identificados"],
+        "suggested_follow_up": "tipo de seguimento recomendado"
+    }
+    
+    ANÁLISE:
+
+# Empathetic Response Prompt
+empathetic_response:
+  user: |
+    Um paciente de terapia hormonal acabou de responder algo. Você precisa criar uma resposta empática e de apoio.
+    
+    RESPOSTA DO PACIENTE: {{ patient_response }}
+    
+    {% if conversation_history %}
+    HISTÓRICO DA CONVERSA:
+    {% for msg in conversation_history[-3:] %}
+    - {{ msg }}
+    {% endfor %}
+    {% else %}
+    HISTÓRICO: Primeira interação
+    {% endif %}
+    
+    CONTEXTO: {{ patient_context | tojson }}
+    
+    {% if few_shot_examples %}
+    EXEMPLOS DE REFERÊNCIA:
+    {% for ex in few_shot_examples %}
+    Entrada: {{ ex.input }}
+    Saída: {{ ex.output }}
+    ---
+    {% endfor %}
+    {% endif %}
+    
+    Crie uma resposta que:
+    1. Reconheça e valide os sentimentos do paciente
+    2. Demonstre que você realmente "ouviu" o que foi dito
+    3. Ofereça apoio sem minimizar preocupações
+    4. Seja genuinamente humana, não robótica
+    5. Mantenha o foco no bem-estar do paciente
+    6. Use linguagem que transmita cuidado e compreensão
+    7. Seja específica para terapia hormonal quando relevante
+    
+    RESPOSTA EMPÁTICA:
+
+# Health Check Prompt
+health_check:
+  user: |
+    Responda apenas 'OK' se você está funcionando corretamente.
