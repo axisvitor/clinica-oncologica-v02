@@ -258,6 +258,22 @@ def extract_recurrence(
     return recurrence, weekday, interval_days
 
 
+def extract_interval_days(
+    text: str,
+    *,
+    normalized: Optional[str] = None,
+) -> Optional[int]:
+    """Extract interval days for recurrence like 'a cada X dias'."""
+    normalized = normalized if normalized is not None else normalize_text(text)
+    interval_match = RE_INTERVAL_DAYS.search(normalized)
+    if not interval_match:
+        return None
+    interval_days = safe_int(interval_match.group(1))
+    if interval_days and interval_days > 0:
+        return interval_days
+    return None
+
+
 def extract_duration_info(
     text: str,
     now_local: datetime,
