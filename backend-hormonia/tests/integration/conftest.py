@@ -16,14 +16,54 @@ Key Features:
 import os
 import pytest
 import asyncio
-from datetime import datetime
+from datetime import datetime, date
 from typing import List, Dict, Any
+from uuid import UUID
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import NullPool
 
 # Database session is created directly in fixtures
 from app.orchestration.saga_orchestrator import SagaOrchestrator
+from app.models.user import User, UserRole
+
+
+def _generate_valid_cpf(seed: int) -> str:
+    base = f"{seed % 1_000_000_000:09d}"
+    if len(set(base)) == 1:
+        base = "123456789"
+
+    def _calc(s: str, weights: list[int]) -> str:
+        total = sum(int(d) * w for d, w in zip(s, weights))
+        mod = total % 11
+        return "0" if mod < 2 else str(11 - mod)
+
+    digit_1 = _calc(base, list(range(10, 1, -1)))
+    digit_2 = _calc(base + digit_1, list(range(11, 1, -1)))
+    return base + digit_1 + digit_2
+
+
+def _table_exists(session: Session, table_name: str) -> bool:
+    result = session.execute(
+        text(
+            "SELECT 1 FROM information_schema.tables "
+            "WHERE table_schema = 'public' AND table_name = :name"
+        ),
+        {"name": table_name},
+    ).first()
+    return result is not None
+
+
+def _column_exists(session: Session, table_name: str, column_name: str) -> bool:
+    result = session.execute(
+        text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = :name "
+            "AND column_name = :col"
+        ),
+        {"name": table_name, "col": column_name},
+    ).first()
+    return result is not None
 
 
 @pytest.fixture(scope="session")
@@ -38,11 +78,18 @@ def real_database_url() -> str:
     if not db_url:
         pytest.skip("DATABASE_URL not set - skipping integration tests")
 
-    # Safety check: warn if not using a test database
-    if "test" not in db_url.lower():
+    # Safety check: require explicit override to run against non-test databases
+    allow_real_db = os.getenv("CONFIRM_REAL_DB") == "1"
+    if "test" not in db_url.lower() and not allow_real_db:
         pytest.fail(
             "DATABASE_URL does not contain 'test' - refusing to run integration tests "
-            "on what appears to be a production database!"
+            "on what appears to be a production database! "
+            "If you intend to run on a real database, set CONFIRM_REAL_DB=1."
+        )
+    if "test" not in db_url.lower() and allow_real_db:
+        print(
+            "WARNING: Running integration tests against a non-test database. "
+            "This will write real data."
         )
 
     return db_url
@@ -58,7 +105,15 @@ def real_engine(real_database_url):
     engine = create_engine(
         real_database_url,
         poolclass=NullPool,  # No connection pooling for tests
-        echo=False  # Set to True for SQL debugging
+        echo=False,  # Set to True for SQL debugging
+        pool_pre_ping=True,
+        connect_args={
+            "connect_timeout": 10,
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 5,
+        },
     )
     yield engine
     engine.dispose()
@@ -78,7 +133,11 @@ def real_db_session(real_engine) -> Session:
     try:
         yield session
     finally:
-        session.close()
+        try:
+            session.close()
+        except Exception as e:
+            # Avoid failing test teardown on transient DB connection issues
+            print(f"Warning: Failed to close DB session cleanly: {e}")
 
 
 @pytest.fixture
@@ -110,33 +169,61 @@ def cleanup_patients(real_db_session: Session):
     # Cleanup after test
     if created_patient_ids:
         try:
+            has_notifications = (
+                _table_exists(real_db_session, "notifications")
+                and _column_exists(real_db_session, "notifications", "patient_id")
+            )
+            has_flow_states = (
+                _table_exists(real_db_session, "patient_flow_states")
+                and _column_exists(real_db_session, "patient_flow_states", "patient_id")
+            )
+            has_sagas = (
+                _table_exists(real_db_session, "patient_onboarding_saga")
+                and _column_exists(real_db_session, "patient_onboarding_saga", "patient_id")
+            )
+            has_quiz_sessions = (
+                _table_exists(real_db_session, "quiz_sessions")
+                and _column_exists(real_db_session, "quiz_sessions", "patient_id")
+            )
+            has_consents = (
+                _table_exists(real_db_session, "consents")
+                and _column_exists(real_db_session, "consents", "patient_id")
+            )
+            has_patients = _table_exists(real_db_session, "patients")
+
             # Delete in reverse order to handle foreign key constraints
             for patient_id in reversed(created_patient_ids):
                 # Delete related records first
-                real_db_session.execute(
-                    text("DELETE FROM notifications WHERE patient_id = :id"),
-                    {"id": patient_id}
-                )
-                real_db_session.execute(
-                    text("DELETE FROM patient_flow_states WHERE patient_id = :id"),
-                    {"id": patient_id}
-                )
-                real_db_session.execute(
-                    text("DELETE FROM patient_onboarding_sagas WHERE patient_id = :id"),
-                    {"id": patient_id}
-                )
-                real_db_session.execute(
-                    text("DELETE FROM quiz_sessions WHERE patient_id = :id"),
-                    {"id": patient_id}
-                )
-                real_db_session.execute(
-                    text("DELETE FROM consents WHERE patient_id = :id"),
-                    {"id": patient_id}
-                )
-                real_db_session.execute(
-                    text("DELETE FROM patients WHERE id = :id"),
-                    {"id": patient_id}
-                )
+                if has_notifications:
+                    real_db_session.execute(
+                        text("DELETE FROM notifications WHERE patient_id = :id"),
+                        {"id": patient_id},
+                    )
+                if has_flow_states:
+                    real_db_session.execute(
+                        text("DELETE FROM patient_flow_states WHERE patient_id = :id"),
+                        {"id": patient_id},
+                    )
+                if has_sagas:
+                    real_db_session.execute(
+                        text("DELETE FROM patient_onboarding_saga WHERE patient_id = :id"),
+                        {"id": patient_id},
+                    )
+                if has_quiz_sessions:
+                    real_db_session.execute(
+                        text("DELETE FROM quiz_sessions WHERE patient_id = :id"),
+                        {"id": patient_id},
+                    )
+                if has_consents:
+                    real_db_session.execute(
+                        text("DELETE FROM consents WHERE patient_id = :id"),
+                        {"id": patient_id},
+                    )
+                if has_patients:
+                    real_db_session.execute(
+                        text("DELETE FROM patients WHERE id = :id"),
+                        {"id": patient_id},
+                    )
 
             real_db_session.commit()
         except Exception as e:
@@ -169,11 +256,13 @@ def cleanup_sagas(real_db_session: Session):
     # Cleanup after test
     if created_saga_ids:
         try:
+            has_sagas = _table_exists(real_db_session, "patient_onboarding_saga")
             for saga_id in reversed(created_saga_ids):
-                real_db_session.execute(
-                    text("DELETE FROM patient_onboarding_sagas WHERE id = :id"),
-                    {"id": saga_id}
-                )
+                if has_sagas:
+                    real_db_session.execute(
+                        text("DELETE FROM patient_onboarding_saga WHERE id = :id"),
+                        {"id": saga_id},
+                    )
             real_db_session.commit()
         except Exception as e:
             real_db_session.rollback()
@@ -235,7 +324,8 @@ def unique_email() -> str:
     Returns an email in format: test_TIMESTAMP@example.com
     """
     timestamp = int(datetime.now().timestamp() * 1000)
-    return f"test_{timestamp}@example.com"
+    domain = os.getenv("TEST_EMAIL_DOMAIN", "gmail.com")
+    return f"test_{timestamp}@{domain}"
 
 
 @pytest.fixture
@@ -262,11 +352,30 @@ def sample_patient_data(unique_phone_number, unique_email) -> Dict[str, Any]:
         "name": f"Test Patient {timestamp}",
         "phone": unique_phone_number,
         "email": unique_email,
-        "birth_date": "1990-01-01",
-        "cpf": f"{timestamp % 100000000000:011d}",  # 11 digits
-        "gender": "F",
-        "firebase_uid": f"test_firebase_uid_{timestamp}",
+        "birth_date": date(1990, 1, 1),
+        "cpf": _generate_valid_cpf(timestamp),
     }
+
+
+@pytest.fixture
+def real_doctor_id(real_db_session: Session) -> UUID:
+    """
+    Resolve a real doctor/admin user id from the database.
+
+    Override with TEST_DOCTOR_ID if needed.
+    """
+    override = os.getenv("TEST_DOCTOR_ID")
+    if override:
+        return UUID(override)
+
+    doctor = (
+        real_db_session.query(User)
+        .filter(User.role.in_([UserRole.DOCTOR, UserRole.ADMIN]))
+        .first()
+    )
+    if not doctor:
+        pytest.fail("No doctor/admin user found in database. Set TEST_DOCTOR_ID.")
+    return doctor.id
 
 
 @pytest.fixture(scope="function")

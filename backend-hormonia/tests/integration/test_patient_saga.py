@@ -11,7 +11,7 @@ Run with: pytest -m integration tests/integration/test_patient_saga.py
 Skip with: pytest -m "not integration"
 """
 
-from datetime import datetime
+from datetime import datetime, date
 from enum import IntEnum
 
 import pytest
@@ -30,6 +30,16 @@ class SagaStep(IntEnum):
     FLOW_INITIALIZED = 2
     WELCOME_MESSAGE = 3
     COMPLETED = 4
+
+
+def _serialize_patient_data(patient_data: dict) -> dict:
+    serialized = {}
+    for key, value in patient_data.items():
+        if isinstance(value, (date, datetime)):
+            serialized[key] = value.isoformat()
+        else:
+            serialized[key] = value
+    return serialized
 
 
 @pytest.mark.integration
@@ -61,7 +71,7 @@ class TestPatientOnboardingSaga:
             patient_id=patient.id,
             status=SagaStatus.STARTED,
             current_step=SagaStep.PATIENT_CREATED,
-            patient_data=sample_patient_data,
+            patient_data=_serialize_patient_data(sample_patient_data),
             step_data={
                 "source": "integration_test",
                 "test_timestamp": datetime.now().isoformat(),
@@ -126,7 +136,7 @@ class TestPatientOnboardingSaga:
             patient_id=patient.id,
             status=SagaStatus.STARTED,
             current_step=SagaStep.PATIENT_CREATED,
-            patient_data=sample_patient_data,
+            patient_data=_serialize_patient_data(sample_patient_data),
             step_data={"test": "compensation_test"},
         )
         real_db_session.add(saga)
@@ -186,10 +196,8 @@ class TestPatientOnboardingSaga:
                 "name": f"Test Patient {timestamp}",
                 "phone": phone,
                 "email": email,
-                "birth_date": "1990-01-01",
+                "birth_date": date(1990, 1, 1),
                 "cpf": f"{timestamp % 100000000000:011d}",
-                "gender": "F",
-                "firebase_uid": f"test_firebase_uid_{timestamp}",
             }
 
             patient = Patient(**patient_data)
@@ -203,7 +211,7 @@ class TestPatientOnboardingSaga:
                 patient_id=patient.id,
                 status=SagaStatus.STARTED,
                 current_step=SagaStep.PATIENT_CREATED,
-                patient_data=patient_data,
+                patient_data=_serialize_patient_data(patient_data),
                 step_data={"batch_index": i},
             )
             real_db_session.add(saga)
@@ -257,7 +265,7 @@ class TestPatientOnboardingSaga:
             patient_id=patient.id,
             status=SagaStatus.IN_PROGRESS,
             current_step=SagaStep.FLOW_INITIALIZED,
-            patient_data=sample_patient_data,
+            patient_data=_serialize_patient_data(sample_patient_data),
             step_data={"retry_test": True},
         )
         real_db_session.add(saga)
@@ -304,7 +312,7 @@ class TestPatientOnboardingSaga:
             patient_id=patient.id,
             status=SagaStatus.IN_PROGRESS,
             current_step=SagaStep.FLOW_INITIALIZED,
-            patient_data=sample_patient_data,
+            patient_data=_serialize_patient_data(sample_patient_data),
             step_data={
                 "started_at": "2023-01-01T00:00:00",
                 "timeout_test": True,
