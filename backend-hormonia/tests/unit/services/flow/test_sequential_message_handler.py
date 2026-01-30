@@ -14,6 +14,12 @@ from uuid import uuid4
 from datetime import datetime, timezone
 
 from app.services.flow.sequential_message_handler import SequentialMessageHandler
+from app.ai.langgraph.nodes import (
+    load_flow_context,
+    dispatch_send_mode,
+    load_response_context,
+    dispatch_response_continuation,
+)
 from app.models.flow import PatientFlowState
 from app.models.patient import Patient
 
@@ -59,6 +65,39 @@ def handler(mock_db):
     return handler
 
 
+class _FlowGraphStub:
+    async def ainvoke(self, state, config=None):
+        updates = await load_flow_context(state, config=config)
+        state = {**state, **updates}
+        if state.get("result"):
+            return state
+        updates = await dispatch_send_mode(state, config=config)
+        return {**state, **updates}
+
+
+class _ResponseGraphStub:
+    async def ainvoke(self, state, config=None):
+        updates = await load_response_context(state, config=config)
+        state = {**state, **updates}
+        if state.get("result"):
+            return state
+        updates = await dispatch_response_continuation(state, config=config)
+        return {**state, **updates}
+
+
+@pytest.fixture(autouse=True)
+def mock_langgraph_graphs(monkeypatch):
+    """Stub LangGraph to avoid dependency for unit tests."""
+    monkeypatch.setattr(
+        "app.services.flow.sequential_message_handler.get_flow_message_graph",
+        lambda: _FlowGraphStub(),
+    )
+    monkeypatch.setattr(
+        "app.services.flow.sequential_message_handler.get_flow_response_graph",
+        lambda: _ResponseGraphStub(),
+    )
+
+
 class TestSkipForMissingDayConfig:
     """FIX 1: Days without config should return 'skip' not 'error'."""
 
@@ -72,8 +111,8 @@ class TestSkipForMissingDayConfig:
         # Act
         result = await handler.send_day_messages(
             patient_id=mock_patient.id,
-            day_number=4,  # Day 4 has no messages in initial_15_days
-            flow_kind="initial_15_days"
+            day_number=4,  # Day 4 has no messages in onboarding
+            flow_kind="onboarding"
         )
         
         # Assert
@@ -89,7 +128,7 @@ class TestSkipForMissingDayConfig:
         result = await handler.send_day_messages(
             patient_id=mock_patient.id,
             day_number=6,
-            flow_kind="initial_15_days"
+            flow_kind="onboarding"
         )
         
         assert "day 6" in result["message"].lower()
@@ -126,7 +165,7 @@ class TestResetIndexOnDayChange:
         await handler.send_day_messages(
             patient_id=mock_patient.id,
             day_number=5,  # Different from previous day (3)
-            flow_kind="initial_15_days"
+            flow_kind="onboarding"
         )
         
         # Assert - step_data should have been reset
@@ -162,7 +201,7 @@ class TestResetIndexOnDayChange:
         await handler.send_day_messages(
             patient_id=mock_patient.id,
             day_number=5,  # Same day
-            flow_kind="initial_15_days"
+            flow_kind="onboarding"
         )
         
         # Index should remain at 1, not reset to 0
@@ -186,7 +225,9 @@ class TestWaitEachAutoAdvance:
             {"content": "Question 2", "expects_response": True},
         ]
         
-        handler._personalize_message_ai = AsyncMock(side_effect=lambda c, *a: c)
+        handler._personalize_message_ai = AsyncMock(
+            side_effect=lambda m, *a, **k: m.get("content", "")
+        )
         handler._send_flow_message = AsyncMock(return_value=True)
         
         result = await handler._send_wait_each_with_auto_advance(
@@ -195,7 +236,7 @@ class TestWaitEachAutoAdvance:
             start_index=0,
             flow_state=mock_flow_state,
             day_number=15,
-            flow_kind="initial_15_days"
+            flow_kind="onboarding"
         )
         
         # Should have stopped at message index 1 (first expects_response=True)
@@ -215,7 +256,9 @@ class TestWaitEachAutoAdvance:
             {"content": "Info 2", "expects_response": False},
         ]
         
-        handler._personalize_message_ai = AsyncMock(side_effect=lambda c, *a: c)
+        handler._personalize_message_ai = AsyncMock(
+            side_effect=lambda m, *a, **k: m.get("content", "")
+        )
         handler._send_flow_message = AsyncMock(return_value=True)
         
         result = await handler._send_wait_each_with_auto_advance(
@@ -224,7 +267,7 @@ class TestWaitEachAutoAdvance:
             start_index=0,
             flow_state=mock_flow_state,
             day_number=2,
-            flow_kind="initial_15_days"
+            flow_kind="onboarding"
         )
         
         assert result["status"] == "complete"
@@ -242,7 +285,9 @@ class TestWaitEachAutoAdvance:
             {"content": "Question without explicit expects_response"}
         ]
         
-        handler._personalize_message_ai = AsyncMock(side_effect=lambda c, *a: c)
+        handler._personalize_message_ai = AsyncMock(
+            side_effect=lambda m, *a, **k: m.get("content", "")
+        )
         handler._send_flow_message = AsyncMock(return_value=True)
         
         result = await handler._send_wait_each_with_auto_advance(
@@ -251,7 +296,7 @@ class TestWaitEachAutoAdvance:
             start_index=0,
             flow_state=mock_flow_state,
             day_number=15,
-            flow_kind="initial_15_days"
+            flow_kind="onboarding"
         )
         
         # Should wait for response (default True)
