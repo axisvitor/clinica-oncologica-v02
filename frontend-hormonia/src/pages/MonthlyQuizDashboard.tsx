@@ -3,12 +3,14 @@ import { useQuery } from '@tanstack/react-query'
 import { Send, TrendingUp, CircleCheck as CheckCircle, Circle as XCircle, Clock } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { MonthlyQuizSkeleton } from '@/features/quiz/MonthlyQuizSkeleton'
+import { Skeleton } from '@/components/ui/skeleton'
 import { apiClient } from '@/lib/api-client'
 import { useMonthlyQuizAdmin } from '@/hooks/useMonthlyQuizAdmin'
 import { SendQuizLinkModal } from '@/features/quiz/SendQuizLinkModal'
 import { QuizLinkStatus } from '@/features/quiz/QuizLinkStatus'
 import { createLogger } from '@/lib/logger'
+import type { QuizLink } from '@/lib/api-client/monthly-quiz'
 import {
   Table,
   TableBody,
@@ -37,7 +39,7 @@ export function MonthlyQuizDashboard() {
 
   const { resendQuizLink } = useMonthlyQuizAdmin()
 
-  const handleSendToPatient = (patient: { id: string; name: string }) => {
+  const _handleSendToPatient = (patient: { id: string; name: string }) => {
     setSelectedPatient(patient)
     setShowSendModal(true)
   }
@@ -51,11 +53,7 @@ export function MonthlyQuizDashboard() {
   }
 
   if (isLoadingStats) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner size="lg" />
-      </div>
-    )
+    return <MonthlyQuizSkeleton />
   }
 
   // Extract stats with fallbacks for backward compatibility
@@ -144,7 +142,7 @@ export function MonthlyQuizDashboard() {
             <div className="flex-1 w-full">
               <div className="h-3 sm:h-4 bg-gray-200 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-blue-600 transition-all duration-500"
+                className="h-full bg-blue-600 transition-[width] duration-500"
                   style={{ width: `${completionRate}%` }}
                 />
               </div>
@@ -166,8 +164,16 @@ export function MonthlyQuizDashboard() {
         </CardHeader>
         <CardContent className="px-0 sm:px-6">
           {isLoadingLinks ? (
-            <div className="flex items-center justify-center py-8">
-              <LoadingSpinner size="lg" />
+            <div className="space-y-4 p-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-5 w-20" />
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-6 w-16" />
+                  <Skeleton className="h-8 w-20 ml-auto" />
+                </div>
+              ))}
             </div>
           ) : !activeLinks || activeLinks.length === 0 ? (
             <div className="text-center py-8">
@@ -187,7 +193,7 @@ export function MonthlyQuizDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {activeLinks.map((link: any) => {
+                  {activeLinks.map((link: QuizLink) => {
                     // Fallback for sent_at field (backward compatibility)
                     const sentDate = link.sent_at ?? link.created_at;
 
@@ -223,7 +229,7 @@ export function MonthlyQuizDashboard() {
                             variant="outline"
                             size="sm"
                             className="text-xs"
-                            onClick={() => handleResend(link.session_id || link.id)}
+                            onClick={() => handleResend(link.quiz_session_id || link.id)}
                           >
                             Reenviar
                           </Button>

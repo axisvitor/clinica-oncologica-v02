@@ -29,9 +29,13 @@ interface AlertsPanelProps {
   alerts?: IncomingAlert[]
 }
 
+// Type guard helpers for alert normalization
+type AlertLike = Record<string, unknown>
+
 function normalizeAlert(a: IncomingAlert): UIAlert {
+  const alertRecord = a as AlertLike
   const inferredSeverity = ((): UISeverity => {
-    const t = (a as any).severity || (a as any).type
+    const t = (alertRecord['severity'] as string) || (alertRecord['type'] as string)
     if (t === 'critical') return 'critical'
     if (t === 'high') return 'high'
     if (t === 'medium') return 'medium'
@@ -39,14 +43,14 @@ function normalizeAlert(a: IncomingAlert): UIAlert {
   })()
 
   return {
-    id: (a as any).id,
-    type: (a as any).type || 'system',
-    severity: (a as any).severity || inferredSeverity,
-    title: (a as any).title,
-    message: (a as any).message,
-    patient_name: (a as any).patient_name,
-    is_acknowledged: (a as any).is_acknowledged ?? (a as any).acknowledged ?? false,
-    created_at: (a as any).created_at,
+    id: alertRecord['id'] as string,
+    type: (alertRecord['type'] as string) || 'system',
+    severity: (alertRecord['severity'] as UISeverity) || inferredSeverity,
+    title: alertRecord['title'] as string,
+    message: alertRecord['message'] as string,
+    patient_name: alertRecord['patient_name'] as string | undefined,
+    is_acknowledged: (alertRecord['is_acknowledged'] as boolean) ?? (alertRecord['acknowledged'] as boolean) ?? false,
+    created_at: alertRecord['created_at'] as string,
   }
 }
 

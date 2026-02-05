@@ -7,7 +7,7 @@ Provides version control operations for flow templates including:
 - Draft publication workflow
 """
 
-from typing import Dict, Any
+from typing import Dict
 from datetime import datetime, timezone
 from uuid import UUID
 import logging
@@ -18,8 +18,7 @@ from sqlalchemy import func, desc
 
 from app.database import get_db
 from app.models.flow import FlowTemplateVersion
-from app.models.user import User
-from app.dependencies.auth_dependencies import get_redis_cache
+from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.schemas.v2.templates import (
     FlowTemplateV2Response,
     TemplateVersionV2List,
@@ -30,7 +29,6 @@ from app.utils.rate_limiter import limiter
 
 # Import shared helpers and constants from templates_shared module
 from app.api.v2.templates_shared import (
-    _get_current_user_simple,
     _extract_user_context,
     _check_write_permission,
     _get_cache_key,
@@ -63,8 +61,7 @@ async def list_template_versions(
     request: Request,
     template_id: UUID,
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
-    redis_cache=Depends(get_redis_cache),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     """
     List all versions for a specific flow template.
@@ -94,7 +91,7 @@ async def list_template_versions(
         versions = (
             db.query(FlowTemplateVersion)
             .options(joinedload(FlowTemplateVersion.kind))
-            .filter(FlowTemplateVersion.kind_id == template.kind_id)
+            .filter(FlowTemplateVersion.flow_kind_id == template.flow_kind_id)
             .order_by(desc(FlowTemplateVersion.version_number))
             .all()
         )
@@ -134,7 +131,7 @@ async def compare_template_versions(
     template_id: UUID,
     compare_with_id: UUID = Query(..., description="Version ID to compare with"),
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     """
     Compare two template versions and generate a diff.
@@ -195,8 +192,7 @@ async def rollback_template_version(
     template_id: UUID,
     rollback_data: TemplateVersionRollbackRequest,
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
-    redis_cache=Depends(get_redis_cache),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     """
     Rollback to a previous template version.
@@ -224,7 +220,7 @@ async def rollback_template_version(
         # Get latest version number for this kind
         latest = (
             db.query(func.max(FlowTemplateVersion.version_number))
-            .filter(FlowTemplateVersion.kind_id == source_version.kind_id)
+            .filter(FlowTemplateVersion.flow_kind_id == source_version.flow_kind_id)
             .scalar()
         )
 
@@ -232,19 +228,20 @@ async def rollback_template_version(
 
         # Create rollback version
         rollback_version = FlowTemplateVersion(
-            kind_id=source_version.kind_id,
+            flow_kind_id=source_version.flow_kind_id,
             version_number=new_version_number,
             template_name=f"{source_version.template_name} (Rollback)",
             description=rollback_data.reason
             or f"Rollback to version {source_version.version_number}",
-            messages=source_version.messages,
-            template_metadata=source_version.template_metadata.copy()
-            if source_version.template_metadata
+            steps=source_version.steps,
+            metadata_json=source_version.metadata_json.copy()
+            if source_version.metadata_json
             else {},
             is_active=rollback_data.set_as_active
             if rollback_data.set_as_active is not None
             else False,
-            is_draft=False,  # Rollbacks are published by default
+            is_draft=False,
+            # Rollbacks are published by default
             published_at=datetime.now(timezone.utc),
             created_by=user_uuid,
         )
@@ -254,7 +251,7 @@ async def rollback_template_version(
         # If set_as_active, deactivate other versions
         if rollback_data.set_as_active:
             db.query(FlowTemplateVersion).filter(
-                FlowTemplateVersion.kind_id == source_version.kind_id,
+                FlowTemplateVersion.flow_kind_id == source_version.flow_kind_id,
                 FlowTemplateVersion.id != rollback_version.id,
             ).update({"is_active": False})
 
@@ -318,8 +315,7 @@ async def publish_template_version(
     template_id: UUID,
     set_as_active: bool = Query(False, description="Set this version as active"),
     db=Depends(get_db),
-    current_user: Dict = Depends(_get_current_user_simple),
-    redis_cache=Depends(get_redis_cache),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     """
     Publish a draft template version.
@@ -355,7 +351,7 @@ async def publish_template_version(
         if set_as_active:
             # Deactivate other versions
             db.query(FlowTemplateVersion).filter(
-                FlowTemplateVersion.kind_id == template.kind_id,
+                FlowTemplateVersion.flow_kind_id == template.flow_kind_id,
                 FlowTemplateVersion.id != template.id,
             ).update({"is_active": False})
             template.is_active = True

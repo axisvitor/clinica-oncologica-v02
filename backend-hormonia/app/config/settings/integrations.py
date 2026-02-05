@@ -35,6 +35,32 @@ class IntegrationsSettings(BaseAppSettings):
             "Generate with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
         ),
     )
+    WHATSAPP_WEBHOOK_SECRET: Optional[str] = Field(
+        default=None,
+        description=(
+            "WhatsApp webhook secret for HMAC validation. "
+            "Use this to override WHATSAPP_EVOLUTION_WEBHOOK_SECRET when needed."
+        ),
+    )
+    WHATSAPP_WEBHOOK_HMAC_ENABLED: bool = Field(
+        default=True,
+        description="Enable HMAC signature validation for WhatsApp webhooks",
+    )
+    WHATSAPP_WEBHOOK_TIMESTAMP_REQUIRED: bool = Field(
+        default=False,
+        description="Require webhook timestamp header for replay protection",
+    )
+    WHATSAPP_WEBHOOK_MAX_TIMESTAMP_AGE_SECONDS: int = Field(
+        default=300,
+        description="Maximum webhook timestamp age in seconds",
+    )
+    WHATSAPP_WEBHOOK_IP_WHITELIST: List[str] = Field(
+        default_factory=list,
+        description=(
+            "Optional list of allowed webhook source IPs. "
+            "Leave empty to disable IP filtering."
+        ),
+    )
     WHATSAPP_EVOLUTION_WEBHOOK_URL: Optional[str] = Field(
         default=None, description="Webhook URL for receiving Evolution API events"
     )
@@ -169,6 +195,39 @@ class IntegrationsSettings(BaseAppSettings):
     CELERY_QUEUES: str = Field(
         default="celery,flows,quiz,maintenance,monitoring",
         description="Comma-separated list of Celery queues",
+    )
+
+    # ========================================================================
+    # Cloud Tasks (Cloud Run native background tasks)
+    # ========================================================================
+    TASK_QUEUE_PROVIDER: str = Field(
+        default="celery",
+        description="Task queue provider: celery (local) or cloud_tasks (production)",
+    )
+    CLOUD_TASKS_PROJECT_ID: Optional[str] = Field(
+        default=None, description="GCP project ID for Cloud Tasks"
+    )
+    CLOUD_TASKS_LOCATION: str = Field(
+        default="us-central1", description="Cloud Tasks queue region"
+    )
+    CLOUD_TASKS_QUEUE: Optional[str] = Field(
+        default=None, description="Cloud Tasks queue name"
+    )
+    CLOUD_TASKS_SERVICE_URL: Optional[str] = Field(
+        default=None, description="Cloud Run service URL for task execution"
+    )
+    CLOUD_TASKS_HANDLER_PATH: str = Field(
+        default="/api/v2/internal/tasks/execute",
+        description="Task execution endpoint path",
+    )
+    CLOUD_TASKS_OIDC_SERVICE_ACCOUNT: Optional[str] = Field(
+        default=None, description="Service account email for OIDC auth"
+    )
+    CLOUD_TASKS_AUDIENCE: Optional[str] = Field(
+        default=None, description="Audience override for task OIDC tokens"
+    )
+    CLOUD_TASKS_SHARED_SECRET: Optional[str] = Field(
+        default=None, description="Optional shared secret for task execution"
     )
 
     # ============================================================================

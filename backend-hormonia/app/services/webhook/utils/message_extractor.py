@@ -22,14 +22,29 @@ def extract_message_data(event_data: Dict[str, Any]) -> Optional[Dict[str, Any]]
         Extracted message data or None if invalid
     """
     try:
-        data = event_data.get("data", {})
-
-        # Check for required fields
-        if not data.get("message") or not data.get("key"):
+        if not isinstance(event_data, dict):
             return None
 
-        message = data["message"]
-        key = data["key"]
+        data = event_data.get("data")
+        if data is None:
+            data = event_data
+
+        message_block = None
+        if isinstance(data, dict) and "messages" in data:
+            messages = data.get("messages")
+            if isinstance(messages, list) and messages:
+                message_block = messages[0]
+            elif isinstance(messages, dict):
+                message_block = messages
+        else:
+            message_block = data if isinstance(data, dict) else None
+
+        # Check for required fields
+        if not message_block or not message_block.get("message") or not message_block.get("key"):
+            return None
+
+        message = message_block["message"]
+        key = message_block["key"]
 
         # Extract phone number from remoteJid
         remote_jid = key.get("remoteJid", "")
@@ -44,6 +59,18 @@ def extract_message_data(event_data: Dict[str, Any]) -> Optional[Dict[str, Any]]
         if not content:
             return None
 
+        timestamp = message.get("messageTimestamp")
+        if not timestamp and isinstance(message_block, dict):
+            timestamp = message_block.get("messageTimestamp")
+        if not timestamp and isinstance(data, dict):
+            timestamp = data.get("messageTimestamp")
+
+        push_name = None
+        if isinstance(data, dict):
+            push_name = data.get("pushName")
+        if not push_name and isinstance(message_block, dict):
+            push_name = message_block.get("pushName")
+
         return {
             "phone": phone,
             "content": content,
@@ -51,8 +78,8 @@ def extract_message_data(event_data: Dict[str, Any]) -> Optional[Dict[str, Any]]
             "whatsapp_id": key.get("id"),
             "metadata": {
                 "from_me": key.get("fromMe", False),
-                "timestamp": message.get("messageTimestamp"),
-                "pushName": data.get("pushName"),
+                "timestamp": timestamp,
+                "pushName": push_name,
             },
         }
 

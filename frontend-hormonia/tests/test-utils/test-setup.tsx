@@ -26,6 +26,7 @@ export interface MockAuthContextValue {
 }
 
 // Default test user
+// eslint-disable-next-line react-refresh/only-export-components
 export const createTestUser = (overrides: Partial<TestUser> = {}): TestUser => ({
   id: '1',
   email: 'test@example.com',
@@ -36,6 +37,7 @@ export const createTestUser = (overrides: Partial<TestUser> = {}): TestUser => (
 })
 
 // Default admin user
+// eslint-disable-next-line react-refresh/only-export-components
 export const createAdminUser = (overrides: Partial<TestUser> = {}): TestUser => ({
   id: 'admin-1',
   email: 'admin@example.com',
@@ -46,6 +48,7 @@ export const createAdminUser = (overrides: Partial<TestUser> = {}): TestUser => 
 })
 
 // Default medico user
+// eslint-disable-next-line react-refresh/only-export-components
 export const createMedicoUser = (overrides: Partial<TestUser> = {}): TestUser => ({
   id: 'medico-1',
   email: 'medico@example.com',
@@ -83,6 +86,7 @@ export const MockAuthProvider: React.FC<{
 }
 
 // Query client for testing
+// eslint-disable-next-line react-refresh/only-export-components
 export const createTestQueryClient = () =>
   new QueryClient({
     defaultOptions: {
@@ -130,6 +134,7 @@ export interface CustomRenderOptions extends Omit<RenderOptions, 'wrapper'> {
   initialRoute?: string
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const renderWithProviders = (
   ui: React.ReactElement,
   {
@@ -153,7 +158,8 @@ export const renderWithProviders = (
 }
 
 // Mock API responses
-export const createMockApiResponse = <T>(data: T, total?: number) => ({
+// eslint-disable-next-line react-refresh/only-export-components
+export const createMockApiResponse = <T,>(data: T, total?: number) => ({
   data,
   total: total ?? (Array.isArray(data) ? data.length : 1),
   page: 1,
@@ -161,6 +167,7 @@ export const createMockApiResponse = <T>(data: T, total?: number) => ({
 })
 
 // Mock quiz data
+// eslint-disable-next-line react-refresh/only-export-components
 export const createMockQuiz = (overrides: any = {}) => ({
   id: 'quiz-1',
   title: 'Test Quiz',
@@ -181,6 +188,7 @@ export const createMockQuiz = (overrides: any = {}) => ({
 })
 
 // Mock patient data
+// eslint-disable-next-line react-refresh/only-export-components
 export const createMockPatient = (overrides: any = {}) => ({
   id: 'patient-1',
   name: 'João Silva',
@@ -196,6 +204,7 @@ export const createMockPatient = (overrides: any = {}) => ({
 })
 
 // Mock quiz session data
+// eslint-disable-next-line react-refresh/only-export-components
 export const createMockQuizSession = (overrides: any = {}) => ({
   id: 'session-1',
   patient_id: 'patient-1',
@@ -218,6 +227,7 @@ export const createMockQuizSession = (overrides: any = {}) => ({
 })
 
 // WebSocket message mocks
+// eslint-disable-next-line react-refresh/only-export-components
 export const createMockWebSocketMessage = (type: string, data: any = {}) => ({
   type,
   data,
@@ -225,6 +235,7 @@ export const createMockWebSocketMessage = (type: string, data: any = {}) => ({
 })
 
 // Error mocks
+// eslint-disable-next-line react-refresh/only-export-components
 export const createMockApiError = (message: string, status: number = 400) => ({
   message,
   status,
@@ -232,6 +243,7 @@ export const createMockApiError = (message: string, status: number = 400) => ({
 })
 
 // Form validation test helpers
+// eslint-disable-next-line react-refresh/only-export-components
 export const fillFormField = async (
   getByTestId: (testId: string) => HTMLElement,
   fieldId: string,
@@ -244,6 +256,7 @@ export const fillFormField = async (
 }
 
 // Accessibility test helpers
+// eslint-disable-next-line react-refresh/only-export-components
 export const checkAccessibility = (container: HTMLElement) => {
   // Check for basic accessibility requirements
   const forms = container.querySelectorAll('form')
@@ -268,6 +281,7 @@ export const checkAccessibility = (container: HTMLElement) => {
 }
 
 // Test data generators
+// eslint-disable-next-line react-refresh/only-export-components
 export const generateMockUsers = (count: number): TestUser[] =>
   Array.from({ length: count }, (_, i) =>
     createTestUser({
@@ -276,6 +290,7 @@ export const generateMockUsers = (count: number): TestUser[] =>
     })
   )
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const generateMockPatients = (count: number) =>
   Array.from({ length: count }, (_, i) =>
     createMockPatient({
@@ -286,6 +301,7 @@ export const generateMockPatients = (count: number) =>
   )
 
 // Performance testing helpers
+// eslint-disable-next-line react-refresh/only-export-components
 export const measureRenderTime = (renderFn: () => void): number => {
   const start = performance.now()
   renderFn()
@@ -294,6 +310,7 @@ export const measureRenderTime = (renderFn: () => void): number => {
 }
 
 // Mock localStorage for testing
+// eslint-disable-next-line react-refresh/only-export-components
 export const mockLocalStorage = () => {
   const store: Record<string, string> = {}
 
@@ -312,6 +329,7 @@ export const mockLocalStorage = () => {
 }
 
 // Mock window.matchMedia for responsive testing
+// eslint-disable-next-line react-refresh/only-export-components
 export const mockMatchMedia = (matches: boolean = false) => {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
@@ -329,6 +347,7 @@ export const mockMatchMedia = (matches: boolean = false) => {
 }
 
 // Cleanup utilities
+// eslint-disable-next-line react-refresh/only-export-components
 export const cleanupAfterTest = () => {
   // Clear all mocks
   jest.clearAllMocks()

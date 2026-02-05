@@ -1,5 +1,4 @@
-import React, { memo, useMemo, useCallback } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import React, { memo, useCallback } from 'react'
 import {
   TrendingUp,
   TrendingDown,
@@ -9,23 +8,14 @@ import {
   AlertTriangle,
   CheckCircle
 } from 'lucide-react'
-import { apiClient } from '@/lib/api-client'
-import { useAuth } from '@/app/providers/AuthContext'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import type { DashboardMainData } from '@/lib/api-client/dashboard'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
-interface DashboardMetrics {
-  active_patients?: number
-  patients_change?: number
-  active_patients_percentage?: number
-  response_rate?: number
-  response_rate_change?: number
-  alerts_pending?: number
-  alerts_change?: number
-  completed_quizzes?: number
-  quizzes_change?: number
+interface QuickStatsProps {
+  data?: DashboardMainData | null
+  isLoading?: boolean
+  error?: unknown
 }
 
 // Loading skeleton component for better UX
@@ -111,55 +101,37 @@ const StatCard = memo<{
 
 StatCard.displayName = 'StatCard'
 
-const QuickStats = memo(() => {
-  const { user, isInitializing: authLoading } = useAuth()
-
-  const { data: metrics, isLoading, error } = useQuery<DashboardMetrics>({
-    queryKey: ['dashboard-metrics'],
-    queryFn: () => apiClient.analytics.dashboard(),
-    enabled: !!user && !authLoading, // Only run when authenticated
-    refetchInterval: 60000, // Refresh every minute
-    staleTime: 30000, // Consider data stale after 30 seconds
-    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
-    retry: 2
-  })
-
-  // Memoize stats configuration to prevent recreating on every render
-  const stats = useMemo(() => [
+const QuickStats = memo(({ data, isLoading = false, error }: QuickStatsProps) => {
+  const stats = [
     {
       title: 'Pacientes Ativos',
-      value: metrics?.active_patients || 0,
-      change: metrics?.patients_change || 0,
+      value: data?.active_patients ?? 0,
+      change: data?.patients_change ?? 0,
       icon: Users,
-      description: `${metrics?.active_patients_percentage || 0}% do total`
+      description: `${data?.active_patients_percentage ?? 0}% do total`
     },
     {
       title: 'Taxa de Resposta',
-      value: `${metrics?.response_rate || 0}%`,
-      change: metrics?.response_rate_change || 0,
+      value: `${data?.response_rate ?? 0}%`,
+      change: data?.response_rate_change ?? 0,
       icon: MessageSquare,
       description: 'Ultimos 7 dias'
     },
     {
       title: 'Alertas Ativos',
-      value: metrics?.alerts_pending || 0,
-      change: metrics?.alerts_change || 0,
+      value: data?.alerts_pending ?? 0,
+      change: data?.alerts_change ?? 0,
       icon: AlertTriangle,
       description: 'Requerem atencao'
     },
     {
       title: 'Questionarios',
-      value: metrics?.completed_quizzes || 0,
-      change: metrics?.quizzes_change || 0,
+      value: data?.completed_quizzes ?? 0,
+      change: data?.quizzes_change ?? 0,
       icon: CheckCircle,
       description: 'Completados esta semana'
     }
-  ], [metrics])
-
-  // Loading state with skeleton
-  if (isLoading) {
-    return <QuickStatsLoading />
-  }
+  ]
 
   // Error state
   if (error) {
@@ -175,6 +147,11 @@ const QuickStats = memo(() => {
         </Card>
       </div>
     )
+  }
+
+  // Loading state with skeleton
+  if (isLoading) {
+    return <QuickStatsLoading />
   }
 
   return (

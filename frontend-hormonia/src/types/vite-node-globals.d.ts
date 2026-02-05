@@ -1,4 +1,3 @@
-import { afterEach, beforeEach, expect, describe, it, vi } from 'vitest'
 import type { TestingLibraryMatchers } from '@testing-library/jest-dom/matchers'
 
 declare global {
@@ -12,7 +11,7 @@ declare global {
 
 declare module 'vitest' {
   interface Assertion<T = unknown> extends TestingLibraryMatchers<string, T> {}
-  interface AsymmetricMatchersContaining extends TestingLibraryMatchers<string, any> {}
+  interface AsymmetricMatchersContaining extends TestingLibraryMatchers<string, unknown> {}
 }
 
 declare module 'url' {

@@ -8,7 +8,7 @@ import { render, RenderOptions } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import { vi } from 'vitest'
-import { AuthProvider } from '@/src/contexts/AuthContext'
+import { AuthProvider } from '@/contexts/AuthContext'
 
 // Mock user types
 export const mockUser = {
@@ -77,6 +77,7 @@ interface AllProvidersProps {
   initialRoute?: string
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 function AllProviders({ children, queryClient, initialRoute = '/' }: AllProvidersProps) {
   const testQueryClient = queryClient || createTestQueryClient()
 
@@ -221,5 +222,6 @@ export async function waitForElementToBeRemoved(
 }
 
 // Re-export everything from testing library
+// eslint-disable-next-line react-refresh/only-export-components
 export * from '@testing-library/react'
 export { default as userEvent } from '@testing-library/user-event'

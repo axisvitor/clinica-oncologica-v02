@@ -3,24 +3,33 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { User } from '@/hooks/auth/types'
+import * as firebaseAuthService from '@/services/firebase-auth'
 
 // Mock Firebase
 vi.mock('@/lib/firebase-lazy', () => ({
   firebaseAuthLazy: {
-    signInWithEmailAndPassword: vi.fn(),
+    getCurrentUser: vi.fn(),
     signOut: vi.fn(),
-    currentUser: null,
-    onAuthStateChanged: vi.fn()
+    setPersistence: vi.fn(),
+    isConfigured: vi.fn(() => true),
+    onAuthStateChanged: vi.fn(),
+    onIdTokenChanged: vi.fn()
   }
 }))
 
 // Mock API Client
 vi.mock('@/lib/api-client', () => ({
   apiClient: {
-    post: vi.fn(),
-    get: vi.fn(),
     setAuthToken: vi.fn(),
-    clearAuthToken: vi.fn()
+    clearAuthToken: vi.fn(),
+    fetchCsrfToken: vi.fn(),
+    auth: {
+      me: vi.fn(),
+      checkAuth: vi.fn()
+    },
+    dashboard: {
+      getMain: vi.fn()
+    }
   }
 }))
 
@@ -29,8 +38,15 @@ vi.mock('@/lib/websocket', () => ({
   wsManager: {
     connect: vi.fn(),
     disconnect: vi.fn(),
-    setAuthToken: vi.fn()
+    updateToken: vi.fn()
   }
+}))
+
+// Mock Firebase auth service
+vi.mock('@/services/firebase-auth', () => ({
+  loginUser: vi.fn(),
+  logoutUser: vi.fn(),
+  logoutAllDevices: vi.fn()
 }))
 
 // Mock Toast
@@ -41,7 +57,7 @@ vi.mock('@/hooks/use-toast', () => ({
 describe('AuthContext', () => {
   let queryClient: QueryClient
 
-  beforeEach(() => {
+  beforeEach(async () => {
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -49,6 +65,9 @@ describe('AuthContext', () => {
       }
     })
     vi.clearAllMocks()
+
+    const { apiClient } = await import('@/lib/api-client')
+    vi.mocked(apiClient.auth.checkAuth).mockResolvedValue({ authenticated: false })
   })
 
   afterEach(() => {
@@ -90,22 +109,18 @@ describe('AuthContext', () => {
       }
 
       const mockSession = {
-        access_token: 'mock-access-token',
-        session_id: 'mock-session-id'
+        access_token: 'mock-session-id',
+        session_id: 'mock-session-id',
+        websocketToken: 'mock-firebase-token'
       }
 
-      // Mock Firebase auth
+      // Mock Firebase auth + backend login
       const { firebaseAuthLazy } = await import('@/lib/firebase-lazy')
-      vi.mocked(firebaseAuthLazy.signInWithEmailAndPassword).mockResolvedValue({
-        user: mockFirebaseUser
-      } as any)
-
-      // Mock API response
-      const { apiClient } = await import('@/lib/api-client')
-      vi.mocked(apiClient.post).mockResolvedValue({
+      vi.mocked(firebaseAuthLazy.getCurrentUser).mockResolvedValue(mockFirebaseUser as any)
+      vi.mocked(firebaseAuthService.loginUser).mockResolvedValue({
         user: mockUser,
-        session: mockSession
-      })
+        session_id: mockSession.session_id
+      } as any)
 
       const { result } = renderHook(() => useAuth(), { wrapper: createWrapper })
 
@@ -124,10 +139,7 @@ describe('AuthContext', () => {
     })
 
     it('should handle login failure gracefully', async () => {
-      const { firebaseAuthLazy } = await import('@/lib/firebase-lazy')
-      vi.mocked(firebaseAuthLazy.signInWithEmailAndPassword).mockRejectedValue(
-        new Error('Invalid credentials')
-      )
+      vi.mocked(firebaseAuthService.loginUser).mockRejectedValue(new Error('Invalid credentials'))
 
       const { result } = renderHook(() => useAuth(), { wrapper: createWrapper })
 
@@ -287,17 +299,6 @@ describe('AuthContext', () => {
 
   describe('Token Management', () => {
     it('should refresh token successfully', async () => {
-      const mockUser: User = {
-        id: 'user-id',
-        email: 'user@test.com',
-        full_name: 'Test User',
-        role: 'user',
-        permissions: [],
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }
-
       const { result } = renderHook(() => useAuth(), { wrapper: createWrapper })
 
       // Mock Firebase getIdToken
@@ -305,27 +306,14 @@ describe('AuthContext', () => {
         getIdToken: vi.fn().mockResolvedValue('new-firebase-token')
       }
 
-      // Mock API response
-      const { apiClient } = await import('@/lib/api-client')
-      vi.mocked(apiClient.post).mockResolvedValue({
-        access_token: 'new-access-token',
-        session_id: 'new-session-id'
-      })
-
-      act(() => {
-        // @ts-ignore - Setting for test purposes
-        result.current.user = mockUser
-        result.current.session = { access_token: 'old-token', session_id: 'old-session' }
-      })
+      const { firebaseAuthLazy } = await import('@/lib/firebase-lazy')
+      vi.mocked(firebaseAuthLazy.getCurrentUser).mockResolvedValue(mockFirebaseUser as any)
 
       await act(async () => {
         await result.current.refreshToken()
       })
 
-      // Verify API was called
-      expect(apiClient.post).toHaveBeenCalledWith('/auth/refresh', {
-        firebase_token: 'new-firebase-token'
-      })
+      expect(mockFirebaseUser.getIdToken).toHaveBeenCalledWith(true)
     })
 
     it('should get Firebase token successfully', async () => {
@@ -337,8 +325,7 @@ describe('AuthContext', () => {
 
       // Mock Firebase current user
       const { firebaseAuthLazy } = await import('@/lib/firebase-lazy')
-      // @ts-ignore
-      firebaseAuthLazy.currentUser = mockFirebaseUser
+      vi.mocked(firebaseAuthLazy.getCurrentUser).mockResolvedValue(mockFirebaseUser as any)
 
       const token = await result.current.getFirebaseToken()
       expect(token).toBe('firebase-token')
@@ -356,29 +343,19 @@ describe('AuthContext', () => {
     it('should logout from all sessions successfully', async () => {
       const { result } = renderHook(() => useAuth(), { wrapper: createWrapper })
 
-      // Mock API response
-      const { apiClient } = await import('@/lib/api-client')
-      vi.mocked(apiClient.post).mockResolvedValue({ success: true })
-
-      // Mock Firebase signOut
-      const { firebaseAuthLazy } = await import('@/lib/firebase-lazy')
-      vi.mocked(firebaseAuthLazy.signOut).mockResolvedValue()
+      vi.mocked(firebaseAuthService.logoutAllDevices).mockResolvedValue({ sessions_deleted: 1 })
 
       await act(async () => {
         await result.current.logoutAll()
       })
 
-      expect(apiClient.post).toHaveBeenCalledWith('/auth/logout-all')
-      expect(firebaseAuthLazy.signOut).toHaveBeenCalled()
+      expect(firebaseAuthService.logoutAllDevices).toHaveBeenCalled()
     })
   })
 
   describe('Error Handling', () => {
     it('should handle network errors during login', async () => {
-      const { firebaseAuthLazy } = await import('@/lib/firebase-lazy')
-      vi.mocked(firebaseAuthLazy.signInWithEmailAndPassword).mockRejectedValue(
-        new Error('Network error')
-      )
+      vi.mocked(firebaseAuthService.loginUser).mockRejectedValue(new Error('Network error'))
 
       const { result } = renderHook(() => useAuth(), { wrapper: createWrapper })
 
@@ -394,9 +371,8 @@ describe('AuthContext', () => {
     it('should handle API errors during token refresh', async () => {
       const { result } = renderHook(() => useAuth(), { wrapper: createWrapper })
 
-      // Mock API error
-      const { apiClient } = await import('@/lib/api-client')
-      vi.mocked(apiClient.post).mockRejectedValue(new Error('API Error'))
+      const { firebaseAuthLazy } = await import('@/lib/firebase-lazy')
+      vi.mocked(firebaseAuthLazy.getCurrentUser).mockRejectedValue(new Error('API Error'))
 
       await expect(
         act(async () => {

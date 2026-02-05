@@ -491,7 +491,7 @@ export type PatientFlowState =
  */
 export interface Patient {
   id: string
-  doctor_id: string // UUID as string
+  doctor_id: string | null // UUID as string (nullable when unassigned)
   phone: string
   name: string
   email: string | null
@@ -504,7 +504,7 @@ export interface Patient {
   diagnosis: string | null
   treatment_phase: string | null
   doctor_notes: string | null
-  patient_data: Record<string, any> | null // Renamed from metadata
+  patient_data: Record<string, unknown> | null // Renamed from metadata
   created_at: string
   updated_at: string
   deleted_at?: string | null
@@ -524,7 +524,7 @@ export interface PatientCreateRequest {
   diagnosis?: string
   treatment_phase?: string
   doctor_notes?: string
-  patient_data?: Record<string, any>
+  patient_data?: Record<string, unknown>
 }
 
 /**
@@ -543,7 +543,7 @@ export interface PatientUpdateRequest {
   diagnosis?: string | null
   treatment_phase?: string | null
   doctor_notes?: string | null
-  patient_data?: Record<string, any> | null
+  patient_data?: Record<string, unknown> | null
 }
 
 // ============================================================================
@@ -559,7 +559,7 @@ export type QuizResponseValue =
   | number
   | boolean
   | Array<string | number | boolean>
-  | Record<string, any>
+  | Record<string, unknown>
 
 /**
  * Quiz question response
@@ -596,7 +596,7 @@ export interface QuizSession {
 export interface SystemConfiguration {
   id: string
   key: string
-  value: any
+  value: string | number | boolean | Record<string, unknown> | unknown[]
   value_type: 'string' | 'number' | 'boolean' | 'json'
   description: string
   is_public: boolean

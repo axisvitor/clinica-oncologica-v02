@@ -25,7 +25,7 @@ interface FlowsTableProps {
 export function FlowsTable({ flows, isLoading }: FlowsTableProps) {
   const pauseFlow = usePauseFlow()
   const resumeFlow = useResumeFlow()
-  const [isMobile, setIsMobile] = useState(false)
+  const [_isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768)
@@ -67,9 +67,16 @@ export function FlowsTable({ flows, isLoading }: FlowsTableProps) {
 
   const getFlowTypeName = (flowType: string) => {
     const typeMap: Record<string, string> = {
-      'initial_15_days': 'Inicial 1-15 dias',
-      'days_16_45': 'Dias 16-45',
-      'monthly_recurring': 'Mensal Recorrente',
+      onboarding: 'Onboarding',
+      daily_follow_up: 'Acompanhamento Diario',
+      quiz_mensal: 'Quiz Mensal',
+      custom: 'Personalizado',
+      initial_15_days: 'Inicial 1-15 dias',
+      days_16_45: 'Dias 16-45',
+      monthly_recurring: 'Mensal Recorrente',
+      monthly_quiz: 'Quiz Mensal',
+      daily_checkin: 'Check-in Diario',
+      daily_engagement: 'Engajamento Diario',
     }
     return typeMap[flowType] || flowType
   }

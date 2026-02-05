@@ -5,13 +5,35 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { AIAnalyticsDashboard } from '@/features/ai/AIAnalyticsDashboard'
 import { AIChatInterface } from '@/features/ai/AIChatInterface'
-import { Tabs, TabsContent } from '@/components/ui/tabs'
+import { TabsContent } from '@/components/ui/tabs'
+
+interface AIInsightsData {
+  risk_level?: 'critical' | 'high' | 'medium' | 'low';
+  risk_factors?: string[];
+  compliance_score?: number;
+  sentiment_score?: number;
+  sentiment_analysis?: {
+    overall: string;
+    confidence: number;
+  };
+}
+
+interface AIRecommendation {
+  id?: string;
+  title?: string;
+  description?: string;
+  priority: string;
+}
+
+interface AIRecommendationsData {
+  recommendations?: AIRecommendation[];
+}
 
 interface PatientAIAnalysisProps {
   patientId: string
   patientName: string
-  aiInsightsData: any
-  aiRecommendations: any
+  aiInsightsData: AIInsightsData | null | undefined
+  aiRecommendations: AIRecommendation[] | AIRecommendationsData | null | undefined
 }
 
 export function PatientAIAnalysis({
@@ -108,14 +130,14 @@ export function PatientAIAnalysis({
               )}
 
               {/* Top Recommendations */}
-              {(aiRecommendations?.length ?? 0) > 0 && (
+              {((Array.isArray(aiRecommendations) ? aiRecommendations.length : (aiRecommendations as AIRecommendationsData)?.recommendations?.length) ?? 0) > 0 && (
                 <div className="p-4 border rounded-lg">
                   <div className="flex items-center gap-2 mb-3">
                     <Lightbulb className="h-5 w-5" />
                     <span className="font-medium">Principais Recomendações</span>
                   </div>
                   <div className="space-y-2">
-                    {(Array.isArray(aiRecommendations) ? aiRecommendations : aiRecommendations?.recommendations || []).slice(0, 3).map((rec: { id?: string; title?: string; description?: string; priority: string }) => (
+                    {(Array.isArray(aiRecommendations) ? aiRecommendations : (aiRecommendations as AIRecommendationsData)?.recommendations || []).slice(0, 3).map((rec: AIRecommendation) => (
                       <div key={rec.id} className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">{rec.title}</span>
                         <Badge variant={rec.priority === 'high' ? 'destructive' : 'secondary'} className="text-xs">

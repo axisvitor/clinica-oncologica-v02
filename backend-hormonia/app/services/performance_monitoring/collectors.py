@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from redis import Redis
 
 from app.services.performance_monitoring.models import MetricType, PerformanceMetric
-from app.models.flow_analytics import FlowMessage
+from app.models.message import Message
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
@@ -72,8 +72,8 @@ class MetricCollector:
             one_minute_ago = datetime.now(timezone.utc) - timedelta(minutes=1)
 
             message_count = (
-                self.db.query(FlowMessage)
-                .filter(FlowMessage.sent_at >= one_minute_ago)
+                self.db.query(Message)
+                .filter(Message.sent_at >= one_minute_ago)
                 .count()
             )
 

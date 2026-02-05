@@ -17,13 +17,13 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Dict, List, Optional
 from uuid import UUID, uuid4
 
 # Local application imports
 from ..config import get_flow_config
 from ..types import FlowContext, FlowEvent, FlowEventType, FlowStepData
+from app.core.executors import get_event_executor
 
 
 logger = logging.getLogger(__name__)

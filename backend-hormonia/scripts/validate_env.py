@@ -15,11 +15,10 @@ Usage:
 
 import sys
 import os
-import re
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 from enum import Enum
 
@@ -99,8 +98,12 @@ class EnvironmentValidator:
             # Security
             'SECRET_KEY': 'Application secret key for JWT signing',
             'ENCRYPTION_KEY': 'Encryption key for sensitive data',
+            'SECURITY_CSRF_SECRET_KEY': 'Secret key for CSRF protection',
+            'HASH_SALT': 'Salt for hashing sensitive data',
             # API
             'CORS_ORIGINS': 'Allowed CORS origins',
+            # Firebase
+            'FIREBASE_ADMIN_PROJECT_ID': 'Firebase project ID',
         }
 
         for var, description in required.items():
@@ -279,35 +282,52 @@ class EnvironmentValidator:
         logger.info("\n[7/8] Checking file permissions...")
 
         # Check .env file
-        env_file = project_root / '.env'
+        env_file = project_root / ".env"
         if env_file.exists():
             stat_info = env_file.stat()
             mode = oct(stat_info.st_mode)[-3:]
 
             # .env should be 600 (read/write owner only)
-            if mode != '600':
-                self.issues.append(ValidationIssue(
-                    variable='.env file',
-                    severity=Severity.WARNING,
-                    message=f'.env file has permissive permissions: {mode}',
-                    suggestion='Set secure permissions: chmod 600 .env'
-                ))
+            if mode not in ["600", "400"]:
+                self.issues.append(
+                    ValidationIssue(
+                        variable=".env file",
+                        severity=Severity.WARNING,
+                        message=f".env file has permissive permissions: {mode}",
+                        suggestion="Set secure permissions: chmod 600 .env",
+                    )
+                )
 
-        # Check credentials files
-        creds_patterns = ['*credentials*.json', '*.key', '*.pem']
+        # Check credentials files (excluding venv and node_modules)
+        creds_patterns = ["*credentials*.json", "*.key", "*.pem"]
+        exclude_dirs = {
+            "venv",
+            "venv_linux",
+            "node_modules",
+            ".git",
+            ".mypy_cache",
+            ".ruff_cache",
+        }
+
         for pattern in creds_patterns:
             for file in project_root.rglob(pattern):
+                # Skip excluded directories
+                if any(ex in file.parts for ex in exclude_dirs):
+                    continue
+
                 if file.is_file():
                     stat_info = file.stat()
                     mode = oct(stat_info.st_mode)[-3:]
 
-                    if mode not in ['600', '400']:
-                        self.issues.append(ValidationIssue(
-                            variable=f'{file.name}',
-                            severity=Severity.WARNING,
-                            message=f'Credentials file has permissive permissions: {mode}',
-                            suggestion=f'Set secure permissions: chmod 600 {file}'
-                        ))
+                    if mode not in ["600", "400"]:
+                        self.issues.append(
+                            ValidationIssue(
+                                variable=f"{file.name}",
+                                severity=Severity.WARNING,
+                                message=f"Credentials file has permissive permissions: {mode}",
+                                suggestion=f"Set secure permissions: chmod 600 {file}",
+                            )
+                        )
 
     def _security_audit(self) -> None:
         """Run security audit"""

@@ -58,8 +58,9 @@ DATABASE_URL = "postgresql+psycopg://..."
 # Redis (Redis Cloud - working)
 REDIS_CLOUD_URL = "redis://..."
 
-# Existing doctor ID for patient creation
-EXISTING_DOCTOR_ID = "28844c5c-6bb8-484f-9502-b6a22c466745"
+# Doctor ID for patient creation
+# Use the test user created in fixtures to avoid DB coupling
+DOCTOR_ID = test_user["id"]
 ```
 
 ## Recommendations
@@ -77,7 +78,7 @@ EXISTING_DOCTOR_ID = "28844c5c-6bb8-484f-9502-b6a22c466745"
 ## Files Modified
 
 1. `tests/api/critical/conftest.py` - Firebase auth, lazy loading, pre-computed bcrypt hash
-2. `tests/api/critical/test_patients_crud.py` - UUID format fixes, existing doctor ID
+2. `tests/api/critical/test_patients_crud.py` - UUID format fixes, fixture-based doctor ID
 3. `tests/api/critical/test_patients_list.py` - Trailing slash fixes (previous session)
 
 ## Next Steps

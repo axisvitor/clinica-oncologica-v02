@@ -71,7 +71,8 @@ export function usePatientFilters(options: UsePatientFiltersOptions = {}) {
     }
 
     return params
-  }, [debouncedSearch, filters['status'], filters['treatment_type'], filters['start_date_from'], filters['start_date_to'], filters['page'], filters.size, pageSize])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- filters object properties are explicitly destructured for precise dependency tracking
+  }, [debouncedSearch, filters.status, filters.treatment_type, filters.start_date_from, filters.start_date_to, filters.page, filters.size, pageSize])
 
   // Update specific filter
   const updateFilter = useCallback(<K extends keyof PatientFilters>(
@@ -169,7 +170,7 @@ export function usePatients(filterOptions?: UsePatientFiltersOptions) {
 
   // Compute effective API params using cursor-based pagination
   const effectiveParams = useMemo(() => {
-    const limit = queryParams['size'] || filterOptions?.pageSize || 20
+    const limit: number = Number(queryParams['size']) || filterOptions?.pageSize || 20
     const cursor = cursorsByPage[filters.page || 1]
     const { page: _page, size: _size, ...rest } = queryParams as Record<string, unknown>
     return { limit, ...(cursor ? { cursor } : {}), ...rest }
@@ -185,7 +186,7 @@ export function usePatients(filterOptions?: UsePatientFiltersOptions) {
   } = useQuery<PaginatedApiResponse<Patient>>({
     queryKey: ['patients', effectiveParams, filters.page],
     queryFn: async () => {
-      const response = await apiClient.patients.list({ ...effectiveParams } as any) as unknown as Partial<PaginatedApiResponse<Patient>> & {
+      const response = await apiClient.patients.list(effectiveParams) as unknown as Partial<PaginatedApiResponse<Patient>> & {
         items?: Patient[]
         pages?: number
       }
@@ -254,7 +255,7 @@ export function usePatients(filterOptions?: UsePatientFiltersOptions) {
             size: limit,
             has_more,
             next_cursor: response?.next_cursor
-          } as any
+          } as PaginatedApiResponse<Patient>
         },
         staleTime: 60000 // Aligned with main query
       })

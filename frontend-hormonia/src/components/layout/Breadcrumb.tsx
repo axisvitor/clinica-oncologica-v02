@@ -65,7 +65,7 @@ export function Breadcrumb({
   maxItems = 4
 }: BreadcrumbProps) {
   const location = useLocation();
-  const params = useParams();
+  const _params = useParams(); // Used for dynamic route detection, prefixed with _ to mark intentionally unused
 
   // Generate breadcrumb items from URL path if not provided
   const breadcrumbItems = React.useMemo(() => {
@@ -121,7 +121,7 @@ export function Breadcrumb({
     }
 
     return generatedItems;
-  }, [location.pathname, params, items, showIcons, maxItems]);
+  }, [location.pathname, items, showIcons, maxItems]);
 
   if (breadcrumbItems.length === 0 && !showHome) return null;
 
@@ -164,7 +164,7 @@ export function Breadcrumb({
               to={item?.href}
               className={cn(
                 "flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors rounded-md p-1 hover:bg-accent/50",
-                "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               )}
               aria-current={item?.isActive ? "page" : undefined}
             >

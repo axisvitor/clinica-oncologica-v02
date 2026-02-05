@@ -131,16 +131,18 @@ class SecurityMonitor:
             # Check if alert threshold is reached
             await self._check_alert_threshold(phone, audit_data["risk_score"])
 
+            from app.utils.pii_masking import mask_phone
             logger.info(
                 f"Logged unauthorized access attempt: {audit_id} "
-                f"(phone={phone}, risk_score={audit_data['risk_score']})"
+                f"(phone={mask_phone(phone)}, risk_score={audit_data['risk_score']})"
             )
 
             return audit_id
 
         except Exception as e:
+            from app.utils.pii_masking import mask_phone
             logger.error(
-                f"Failed to log unauthorized access for {phone}: {e}", exc_info=True
+                f"Failed to log unauthorized access for {mask_phone(phone)}: {e}", exc_info=True
             )
             self.db.rollback()
             # Return a fallback UUID to prevent breaking caller logic
@@ -198,15 +200,17 @@ class SecurityMonitor:
             # Reset Redis counters for successful access
             await self._reset_redis_counters(phone)
 
+            from app.utils.pii_masking import mask_phone
             logger.debug(
-                f"Logged authorized access: {audit_id} (phone={phone}, patient_id={patient_id})"
+                f"Logged authorized access: {audit_id} (phone={mask_phone(phone)}, patient_id={patient_id})"
             )
 
             return audit_id
 
         except Exception as e:
+            from app.utils.pii_masking import mask_phone
             logger.error(
-                f"Failed to log authorized access for {phone}: {e}", exc_info=True
+                f"Failed to log authorized access for {mask_phone(phone)}: {e}", exc_info=True
             )
             self.db.rollback()
             return uuid4()
@@ -255,7 +259,8 @@ class SecurityMonitor:
             return count
 
         except Exception as e:
-            logger.error(f"Error getting attempt count for {phone}: {e}")
+            from app.utils.pii_masking import mask_phone
+            logger.error(f"Error getting attempt count for {mask_phone(phone)}: {e}")
             return 0
 
     async def should_block_phone(self, phone: str) -> bool:
@@ -279,15 +284,17 @@ class SecurityMonitor:
             )
 
             if should_block:
+                from app.utils.pii_masking import mask_phone
                 logger.warning(
-                    f"Phone {phone} should be blocked: "
+                    f"Phone {mask_phone(phone)} should be blocked: "
                     f"hourly_attempts={hourly_attempts}, daily_attempts={daily_attempts}"
                 )
 
             return should_block
 
         except Exception as e:
-            logger.error(f"Error checking block status for {phone}: {e}")
+            from app.utils.pii_masking import mask_phone
+            logger.error(f"Error checking block status for {mask_phone(phone)}: {e}")
             # Fail safe - don't block on errors
             return False
 
@@ -311,13 +318,15 @@ class SecurityMonitor:
             if is_blocked:
                 # Get block details for logging
                 block_info = await redis_client.hgetall(block_key)
-                logger.debug(f"Phone {phone} is blocked: {block_info}")
+                from app.utils.pii_masking import mask_phone
+                logger.debug(f"Phone {mask_phone(phone)} is blocked: {block_info}")
                 return True
 
             return False
 
         except Exception as e:
-            logger.error(f"Error checking if phone {phone} is blocked: {e}")
+            from app.utils.pii_masking import mask_phone
+            logger.error(f"Error checking if phone {mask_phone(phone)} is blocked: {e}")
             # Fail safe - don't block on errors
             return False
 
@@ -376,13 +385,14 @@ class SecurityMonitor:
             )
 
             logger.warning(
-                f"Phone {phone} blocked for {duration_hours}h. Reason: {reason}"
+                f"Phone {mask_phone(phone)} blocked for {duration_hours}h. Reason: {reason}"
             )
 
             return True
 
         except Exception as e:
-            logger.error(f"Failed to block phone {phone}: {e}", exc_info=True)
+            from app.utils.pii_masking import mask_phone
+            logger.error(f"Failed to block phone {mask_phone(phone)}: {e}", exc_info=True)
             return False
 
     async def unblock_phone(self, phone: str, reason: str = "manual_unblock") -> bool:
@@ -403,20 +413,22 @@ class SecurityMonitor:
             block_key = f"blocked_phone:{phone}"
             block_existed = await redis_client.delete(block_key)
 
+            from app.utils.pii_masking import mask_phone
             if block_existed:
                 # Log unblock event
                 await self._log_block_event(
                     phone, f"unblocked: {reason}", 0, {"action": "unblock"}
                 )
 
-                logger.info(f"Phone {phone} unblocked. Reason: {reason}")
+                logger.info(f"Phone {mask_phone(phone)} unblocked. Reason: {reason}")
                 return True
             else:
-                logger.info(f"Phone {phone} was not blocked")
+                logger.info(f"Phone {mask_phone(phone)} was not blocked")
                 return True
 
         except Exception as e:
-            logger.error(f"Failed to unblock phone {phone}: {e}", exc_info=True)
+            from app.utils.pii_masking import mask_phone
+            logger.error(f"Failed to unblock phone {mask_phone(phone)}: {e}", exc_info=True)
             return False
 
     async def get_security_stats(self, time_window_hours: int = 24) -> Dict[str, Any]:
@@ -604,7 +616,8 @@ class SecurityMonitor:
             await redis_client.expire(daily_key, 86400)  # 24 hours
 
         except Exception as e:
-            logger.error(f"Failed to update Redis counters for {phone}: {e}")
+            from app.utils.pii_masking import mask_phone
+            logger.error(f"Failed to update Redis counters for {mask_phone(phone)}: {e}")
 
     async def _reset_redis_counters(self, phone: str) -> None:
         """Reset Redis counters after successful authorization."""
@@ -618,7 +631,8 @@ class SecurityMonitor:
             await redis_client.delete(hourly_key, daily_key)
 
         except Exception as e:
-            logger.error(f"Failed to reset Redis counters for {phone}: {e}")
+            from app.utils.pii_masking import mask_phone
+            logger.error(f"Failed to reset Redis counters for {mask_phone(phone)}: {e}")
 
     async def _check_alert_threshold(self, phone: str, risk_score: int) -> None:
         """Check if alert threshold is reached and send alerts."""
@@ -637,7 +651,8 @@ class SecurityMonitor:
                 )
 
         except Exception as e:
-            logger.error(f"Error checking alert threshold for {phone}: {e}")
+            from app.utils.pii_masking import mask_phone
+            logger.error(f"Error checking alert threshold for {mask_phone(phone)}: {e}")
 
     async def _log_block_event(
         self,
@@ -681,7 +696,8 @@ class SecurityMonitor:
             self.db.commit()
 
         except Exception as e:
-            logger.error(f"Failed to log block event for {phone}: {e}")
+            from app.utils.pii_masking import mask_phone
+            logger.error(f"Failed to log block event for {mask_phone(phone)}: {e}")
             self.db.rollback()
 
     async def _send_security_alert(

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { AlertCircle, RefreshCcw } from "lucide-react"
 import { ErrorBoundary } from "@/components/error/ErrorBoundary"
 import { ResumeQuizDialog } from "@/components/quiz/ResumeQuizDialog"
+import { QuizSkeleton } from "@/components/quiz/QuizSkeleton"
 import { loadQuizProgress, clearQuizProgress, cleanupOldProgress, type QuizProgress } from "@/lib/quiz-progress-storage"
 
 /**
@@ -42,14 +43,11 @@ function QuizPage() {
     }
   }, [session])
 
-  // Loading state
+  // Loading state - show skeleton for better perceived performance
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20 flex items-center justify-center p-4">
-        <Card className="p-8 text-center space-y-4">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-lg text-muted-foreground">Carregando questionário...</p>
-        </Card>
+      <main className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20">
+        <QuizSkeleton />
       </main>
     )
   }
@@ -137,11 +135,8 @@ function QuizPage() {
 export default function Home() {
   return (
     <Suspense fallback={
-      <main className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20 flex items-center justify-center p-4">
-        <Card className="p-8 text-center space-y-4">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-lg text-muted-foreground">Carregando...</p>
-        </Card>
+      <main className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20">
+        <QuizSkeleton />
       </main>
     }>
       <QuizPage />

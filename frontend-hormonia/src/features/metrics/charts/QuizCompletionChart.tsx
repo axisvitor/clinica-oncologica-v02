@@ -8,7 +8,7 @@
  */
 import React, { Suspense, useMemo } from 'react';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   ComposedChart
 } from '@/components/ui/charts/LazyRechartsComponents';
@@ -80,6 +80,7 @@ export const QuizCompletionChart = React.memo<QuizCompletionChartProps>(({
   const completionStatusData = useMemo(() => [
     { status: 'Completados', count: data.completed_quizzes, color: '#10B981' },
     { status: 'Pendentes', count: data['total_quizzes_sent'] - data['completed_quizzes'], color: '#E5E7EB' }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- using only specific fields from data object
   ], [data.completed_quizzes, data.total_quizzes_sent]);
 
   // ✅ Memoize best performing quiz computation - expensive reduce operation

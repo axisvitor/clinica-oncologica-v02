@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useMemo } from 'react'
 import { AuthError, AuthRetryConfig } from './types'
 import { createLogger } from '../../lib/logger'
 
@@ -19,7 +19,7 @@ export function useAuthRetry({
   config = {},
   onRetryFailed
 }: UseAuthRetryOptions = {}) {
-  const retryConfig = { ...DEFAULT_RETRY_CONFIG, ...config }
+  const retryConfig = useMemo(() => ({ ...DEFAULT_RETRY_CONFIG, ...config }), [config])
   const [isRetrying, setIsRetrying] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)

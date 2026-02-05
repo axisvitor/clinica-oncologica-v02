@@ -6,7 +6,7 @@
 import { useForm, UseFormReturn } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useRef } from 'react'
+import { useRef, useEffect } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { useToast } from '@/components/ui/use-toast'
 import { apiClient } from '@/lib/api-client'
@@ -32,6 +32,7 @@ interface UsePatientFormReturn {
   onSubmit: (data: CreatePatientFormData | UpdatePatientFormData) => void
   isPending: boolean
   reset: () => void
+  resetIdempotencyKey: () => void
 }
 
 /**
@@ -51,6 +52,9 @@ export function usePatientForm({
   // Idempotency key for preventing duplicate patient creation
   // QW-004: Reset after successful creation for next patient
   const idempotencyKeyRef = useRef<string>(uuidv4())
+  const resetIdempotencyKey = () => {
+    idempotencyKeyRef.current = uuidv4()
+  }
 
   // Configuração do form baseada no modo
   const form = useForm<CreatePatientFormData | UpdatePatientFormData>({
@@ -62,7 +66,7 @@ export function usePatientForm({
       cpf: patient.cpf || '',
       birth_date: patient.birth_date || '',
       treatment_type: patient.treatment_type,
-      treatment_phase: patient.treatment_phase as any,
+      treatment_phase: patient.treatment_phase as 'initial' | 'adjustment' | 'maintenance' | 'monitoring' | 'followup' | 'completed' | undefined,
       treatment_start_date: patient.treatment_start_date || '',
       diagnosis: patient.diagnosis || '',
       doctor_notes: patient.doctor_notes || '',
@@ -97,18 +101,19 @@ export function usePatientForm({
       if (data.treatment_start_date) cleanData.treatment_start_date = data.treatment_start_date
       if (data.doctor_notes) cleanData.doctor_notes = data.doctor_notes
 
-      // QW-004: Include idempotency key to prevent duplicate patient creation
-      // The key is sent as custom header and as part of the payload
-      const payloadWithIdempotency = {
-        ...cleanData,
-        idempotency_key: idempotencyKeyRef.current
-      }
-
-      return apiClient.patients.create(payloadWithIdempotency as Parameters<typeof apiClient.patients.create>[0])
+      // QW-004: Send idempotency key via header to prevent duplicates
+      return apiClient.patients.create(
+        cleanData as Parameters<typeof apiClient.patients.create>[0],
+        {
+          headers: {
+            'X-Idempotency-Key': idempotencyKeyRef.current
+          }
+        }
+      )
     },
     onSuccess: () => {
       // QW-004: Reset idempotency key for next patient creation
-      idempotencyKeyRef.current = uuidv4()
+      resetIdempotencyKey()
 
       queryClient.invalidateQueries({ queryKey: ['patients'] })
       toast({
@@ -165,7 +170,7 @@ export function usePatientForm({
   })
 
   // Reseta form quando paciente muda (modo edit)
-  React.useEffect(() => {
+  useEffect(() => {
     if (mode === 'edit' && patient) {
       form.reset({
         name: patient.name,
@@ -174,13 +179,14 @@ export function usePatientForm({
         cpf: patient.cpf || '',
         birth_date: patient.birth_date || '',
         treatment_type: patient.treatment_type,
-        treatment_phase: patient.treatment_phase as any,
+        treatment_phase: patient.treatment_phase as 'initial' | 'adjustment' | 'maintenance' | 'monitoring' | 'followup' | 'completed' | undefined,
         treatment_start_date: patient.treatment_start_date || '',
         diagnosis: patient.diagnosis || '',
         doctor_notes: patient.doctor_notes || '',
         timezone: patient.timezone || 'America/Sao_Paulo'
       })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- form object reference is stable, only form.reset needed
   }, [mode, patient, form.reset])
 
   const onSubmit = (data: CreatePatientFormData | UpdatePatientFormData) => {
@@ -197,9 +203,8 @@ export function usePatientForm({
     form,
     onSubmit,
     isPending: mutation.isPending,
-    reset: form.reset
+    reset: form.reset,
+    resetIdempotencyKey
   }
 }
 
-// Re-export React for useEffect
-import React from 'react'

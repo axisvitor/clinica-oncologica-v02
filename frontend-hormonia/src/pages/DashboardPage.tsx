@@ -10,7 +10,6 @@ import {
   CircleCheck as CheckCircle,
   Circle as XCircle,
   Calendar,
-  FileText,
   Shield,
   Settings,
 } from "lucide-react";
@@ -19,7 +18,7 @@ import { useAuth } from "@/app/providers/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { DashboardSkeleton } from "@/features/dashboard/DashboardSkeleton";
 import { MetricCard } from "@/features/dashboard/MetricCard";
 import { RecentActivity } from "@/features/dashboard/RecentActivity";
 import { AlertsPanel } from "@/features/dashboard/AlertsPanel";
@@ -29,29 +28,28 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRoleGuard, PermissionGate } from "@/features/auth/ProtectedRoute";
 import { getRoleLabel } from "@/types/shared";
 import { Link } from "react-router-dom";
+import type { DashboardMainData } from "@/lib/api-client/dashboard";
 
 export function DashboardPage() {
   const { user, isInitializing: authLoading } = useAuth();
-  const { permissions, userRole, isAdmin, isDoctor } = useRoleGuard();
+  const { userRole, isAdmin, isDoctor } = useRoleGuard();
 
   // Wait for authentication to be ready before making API calls
   const {
     data: metrics,
     isLoading,
     error,
-  } = useQuery({
+  } = useQuery<DashboardMainData>({
     queryKey: ["dashboard-metrics"],
-    queryFn: () => apiClient.analytics.dashboard(),
+    queryFn: () => apiClient.dashboard.getMain({ time_range: 'week' }),
     enabled: !!user && !authLoading, // Only run when authenticated
     refetchInterval: 60000, // Refresh every 60 seconds (optimized from 30s)
+    staleTime: 30000, // Consider data fresh for 30 seconds
   });
 
+  // Show skeleton while loading - UI appears immediately!
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   if (error) {
@@ -166,7 +164,7 @@ export function DashboardPage() {
       </PermissionGate>
 
       {/* Quick Stats */}
-      <QuickStats />
+      <QuickStats data={metrics} />
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="overview" className="space-y-4 md:space-y-6">
@@ -282,22 +280,26 @@ export function DashboardPage() {
               <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-4 xl:gap-6">
                 <div className="text-center p-4 border rounded-lg">
                   <div className="text-2xl font-bold font-mono tabular-nums text-green-600">
-                    {metrics?.active_patients || 0}
+                    {metrics?.flow_breakdown?.active || 0}
                   </div>
                   <p className="text-sm text-gray-600 font-body">Ativos</p>
                 </div>
                 <div className="text-center p-4 border rounded-lg">
                   <div className="text-2xl font-bold font-mono tabular-nums text-yellow-600">
-                    12
+                    {metrics?.flow_breakdown?.paused || 0}
                   </div>
                   <p className="text-sm text-gray-600 font-body">Pausados</p>
                 </div>
                 <div className="text-center p-4 border rounded-lg">
-                  <div className="text-2xl font-bold font-mono tabular-nums text-blue-600">8</div>
+                  <div className="text-2xl font-bold font-mono tabular-nums text-blue-600">
+                    {metrics?.flow_breakdown?.completed || 0}
+                  </div>
                   <p className="text-sm text-gray-600 font-body">Concluídos</p>
                 </div>
                 <div className="text-center p-4 border rounded-lg">
-                  <div className="text-2xl font-bold font-mono tabular-nums text-gray-600">3</div>
+                  <div className="text-2xl font-bold font-mono tabular-nums text-gray-600">
+                    {(metrics?.total_patients || 0) - (metrics?.flow_breakdown?.active || 0) - (metrics?.flow_breakdown?.paused || 0) - (metrics?.flow_breakdown?.completed || 0)}
+                  </div>
                   <p className="text-sm text-gray-600 font-body">Inativos</p>
                 </div>
               </div>
@@ -370,19 +372,19 @@ export function DashboardPage() {
               <CardContent className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Críticos</span>
-                  <Badge variant="destructive">2</Badge>
+                  <Badge variant="destructive">{metrics?.alert_breakdown?.critical || 0}</Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Altos</span>
-                  <Badge className="bg-orange-100 text-orange-800">5</Badge>
+                  <Badge className="bg-orange-100 text-orange-800">{metrics?.alert_breakdown?.high || 0}</Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Médios</span>
-                  <Badge className="bg-yellow-100 text-yellow-800">12</Badge>
+                  <Badge className="bg-yellow-100 text-yellow-800">{metrics?.alert_breakdown?.medium || 0}</Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Baixos</span>
-                  <Badge className="bg-blue-100 text-blue-800">8</Badge>
+                  <Badge className="bg-blue-100 text-blue-800">{metrics?.alert_breakdown?.low || 0}</Badge>
                 </div>
               </CardContent>
             </Card>

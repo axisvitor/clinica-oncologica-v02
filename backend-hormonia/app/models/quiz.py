@@ -260,12 +260,16 @@ class QuizResponse(BaseModel):
     response_type = Column(
         String(50), nullable=False
     )  # 'multiple_choice', 'open_text', 'scale'
+    
+    # Text backup for response value (required by DB schema)
+    response_value_text_backup = Column(Text, nullable=False, default="")
+    
     # JSONB column for structured response storage - supports:
     # - Plain text: "response text" or {"text": "response text"}
     # - Multiple choice: ["option1", "option2"]
     # - Scale: {"value": 7, "type": "scale"}
     # - Boolean: {"text": "yes", "boolean": true}
-    response_value = Column(JSONB, nullable=False)
+    response_value = Column(JSONB, nullable=True)  # nullable per DB schema
     response_metadata = Column(
         JSONB, nullable=True, default=dict
     )  # Sentiment analysis, entities, etc.

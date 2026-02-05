@@ -70,6 +70,14 @@ class HiveMindIntegrationService:
         self.migration_percentage = 30  # Start with 30% of patients on agents
         self.gradual_migration_enabled = True
 
+    def close(self) -> None:
+        """Close any owned database resources."""
+        try:
+            if self.db_session:
+                self.db_session.close()
+        except Exception as e:
+            self.logger.warning(f"Failed to close HiveMind DB session: {e}")
+
     async def initialize(self):
         """Initialize the integration service."""
         try:
@@ -722,21 +730,39 @@ async def get_hive_mind_integration() -> HiveMindIntegrationService:
     global _integration_service
 
     if _integration_service is None:
-        from app.database import get_db
+        from app.database import SessionLocal
 
-        db = next(get_db())
-        _integration_service = HiveMindIntegrationService(db)
-        await _integration_service.initialize()
+        db = SessionLocal()
+        try:
+            _integration_service = HiveMindIntegrationService(db)
+            await _integration_service.initialize()
+        except Exception:
+            db.close()
+            raise
 
     return _integration_service
 
 
-async def initialize_integration_service(db_session: Any) -> HiveMindIntegrationService:
+async def initialize_integration_service(
+    db_session: Any | None = None,
+) -> HiveMindIntegrationService:
     """Initialize integration service with specific database session."""
     global _integration_service
 
     if _integration_service is None:
+        if db_session is None:
+            from app.database import SessionLocal
+
+            db_session = SessionLocal()
         _integration_service = HiveMindIntegrationService(db_session)
         await _integration_service.initialize()
 
     return _integration_service
+
+
+def cleanup_hive_mind_integration() -> None:
+    """Cleanup the global integration service."""
+    global _integration_service
+    if _integration_service:
+        _integration_service.close()
+        _integration_service = None

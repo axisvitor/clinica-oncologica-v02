@@ -29,6 +29,7 @@ from app.config import settings
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+SESSION_COOKIE_NAME = settings.SESSION_COOKIE_NAME
 
 
 def _serialize_session(
@@ -103,7 +104,7 @@ def _extract_user_id(current_user) -> str:
     response_model=FirebaseTokenVerifyResponse,
     summary="Verify Firebase token",
 )
-@limiter.limit("5/minute")
+@limiter.limit("60/minute")
 async def verify_firebase_token(
     request: Request,
     response: Response,
@@ -227,7 +228,7 @@ async def verify_firebase_token(
 
         # Set HttpOnly Cookie
         response.set_cookie(
-            key="session_id",
+            key=SESSION_COOKIE_NAME,
             value=str(session.id),
             httponly=True,
             secure=settings.SESSION_ENABLE_COOKIE_SECURE,
@@ -235,7 +236,7 @@ async def verify_firebase_token(
             path="/",  # Important: ensure cookie is sent on all routes
             max_age=432000,  # 5 days
         )
-        logger.info(f"Cookie set: session_id={session.id}, path=/")
+        logger.info("Cookie set: %s=%s, path=/", SESSION_COOKIE_NAME, session.id)
 
         # Set X-Session-ID header for compatibility
         if (
@@ -252,8 +253,11 @@ async def verify_firebase_token(
                 "id": str(user.id),
                 "email": user.email,
                 "full_name": user.full_name,
-                "role": user.role,
-                "permissions": user_data.get("permissions", []),
+                "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
+                "is_active": getattr(user, 'is_active', True),
+                "created_at": user.created_at or datetime.now(timezone.utc),
+                "updated_at": user.updated_at or datetime.now(timezone.utc),
+                "last_login": getattr(user, 'firebase_last_sign_in', None),
             },
         }
 
@@ -324,7 +328,7 @@ async def verify_session(
             current_user["last_login"] = db_user.firebase_last_sign_in
 
     # Get session_id from cookie or header for is_current check
-    session_id_from_request = request.cookies.get("session_id") or request.headers.get(
+    session_id_from_request = request.cookies.get(SESSION_COOKIE_NAME) or request.headers.get(
         "X-Session-ID"
     )
 
@@ -337,12 +341,13 @@ async def verify_session(
 @limiter.limit("20/minute")
 async def logout(
     request: Request,
+    response: Response,
     current_user=Depends(get_current_user_from_session),
     redis_cache=Depends(get_redis_cache),
     db=Depends(get_db),
 ):
     """Logout current session."""
-    session_id = request.cookies.get("session_id") or request.headers.get(
+    session_id = request.cookies.get(SESSION_COOKIE_NAME) or request.headers.get(
         "X-Session-ID"
     )
     if session_id:
@@ -371,6 +376,15 @@ async def logout(
             db.rollback()
             raise BusinessRuleError("Failed to revoke session")
 
+    # Clear session cookie
+    response.delete_cookie(
+        key=SESSION_COOKIE_NAME,
+        path="/",
+        httponly=True,
+        secure=settings.SESSION_ENABLE_COOKIE_SECURE,
+        samesite=settings.SESSION_COOKIE_SAMESITE,
+    )
+
     return {"message": "Logged out successfully", "success": True}
 
 
@@ -378,6 +392,7 @@ async def logout(
 @limiter.limit("5/minute")
 async def logout_all(
     request: Request,
+    response: Response,
     current_user=Depends(get_current_user_from_session),
     redis_cache=Depends(get_redis_cache),
     db=Depends(get_db),
@@ -409,6 +424,15 @@ async def logout_all(
         logger.error(f"Error revoking all DB sessions: {e}")
         db.rollback()
         raise BusinessRuleError("Failed to revoke all sessions")
+
+    # Clear session cookie
+    response.delete_cookie(
+        key=SESSION_COOKIE_NAME,
+        path="/",
+        httponly=True,
+        secure=settings.SESSION_ENABLE_COOKIE_SECURE,
+        samesite=settings.SESSION_COOKIE_SAMESITE,
+    )
 
     return {
         "message": "Logged out from all devices",
@@ -491,3 +515,216 @@ async def get_csrf_token_endpoint(request: Request, response: Response):
         # Handle unexpected errors
         logger.error(f"Unexpected error generating CSRF token: {str(e)}")
         raise BusinessRuleError("Internal server error")
+
+
+# ============================================================================
+# Profile Management Endpoints
+# ============================================================================
+
+
+@router.put("/profile")
+@limiter.limit("10/minute")
+async def update_profile(
+    request: Request,
+    current_user=Depends(get_current_user_from_session),
+    db=Depends(get_db),
+):
+    """
+    Update current user's profile information.
+    
+    Accepts: full_name, email, phone, specialty
+    """
+    from app.models.user import User
+    from pydantic import BaseModel, EmailStr
+    from typing import Optional
+    
+    class ProfileUpdateRequest(BaseModel):
+        email: Optional[EmailStr] = None
+        full_name: Optional[str] = None
+        phone: Optional[str] = None
+        specialty: Optional[str] = None
+    
+    user_id = _extract_user_id(current_user)
+    
+    try:
+        user_uuid = UUID(user_id)
+    except (ValueError, TypeError):
+        raise ValidationError("Invalid user_id UUID", field="user_id")
+    
+    # Parse request body
+    body = await request.json()
+    update_data = ProfileUpdateRequest(**body)
+    
+    # Get user from database
+    user = db.query(User).filter(User.id == user_uuid).first()
+    if not user:
+        raise BusinessRuleError("User not found")
+    
+    # Update fields
+    updated = False
+    if update_data.full_name is not None:
+        user.full_name = update_data.full_name
+        updated = True
+    if update_data.email is not None:
+        # Check if email is already taken
+        existing = db.query(User).filter(User.email == update_data.email, User.id != user_uuid).first()
+        if existing:
+            raise ValidationError("Email already in use", field="email")
+        user.email = update_data.email
+        updated = True
+    
+    # Store phone and specialty in firebase_custom_claims (or a dedicated field)
+    claims = user.firebase_custom_claims or {}
+    if update_data.phone is not None:
+        claims["phone"] = update_data.phone
+        updated = True
+    if update_data.specialty is not None:
+        claims["specialty"] = update_data.specialty
+        updated = True
+    
+    if updated:
+        user.firebase_custom_claims = claims
+        user.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(user)
+    
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "full_name": user.full_name,
+        "phone": claims.get("phone"),
+        "specialty": claims.get("specialty"),
+        "avatar_url": claims.get("avatar_url"),
+        "updated_at": user.updated_at.isoformat() if user.updated_at else None,
+    }
+
+
+@router.put("/password")
+@limiter.limit("5/minute")
+async def change_password(
+    request: Request,
+    current_user=Depends(get_current_user_from_session),
+):
+    """
+    Change user password via Firebase.
+    
+    Note: This endpoint delegates to Firebase for password management.
+    The client should reauthenticate with Firebase before calling this.
+    """
+    from pydantic import BaseModel
+    
+    class PasswordChangeRequest(BaseModel):
+        new_password: str
+    
+    body = await request.json()
+    password_data = PasswordChangeRequest(**body)
+    
+    firebase_uid = (
+        current_user.get("firebase_uid")
+        if isinstance(current_user, dict)
+        else getattr(current_user, "firebase_uid", None)
+    )
+    
+    if not firebase_uid:
+        raise ValidationError("Firebase UID not found", field="firebase_uid")
+    
+    # Update password in Firebase
+    try:
+        from app.dependencies.auth_dependencies import _firebase_service
+        
+        if _firebase_service and hasattr(_firebase_service, "update_user"):
+            await _firebase_service.update_user(
+                firebase_uid,
+                password=password_data.new_password
+            )
+        else:
+            # Fallback to Firebase Admin SDK directly
+            import firebase_admin.auth as firebase_auth
+            firebase_auth.update_user(firebase_uid, password=password_data.new_password)
+        
+        logger.info(f"Password changed for user: {firebase_uid}")
+        return {"message": "Password changed successfully", "success": True}
+    
+    except Exception as e:
+        logger.error(f"Password change failed: {e}")
+        raise BusinessRuleError("Failed to change password. Please try again.")
+
+
+@router.post("/avatar")
+@limiter.limit("5/minute")
+async def upload_avatar(
+    request: Request,
+    current_user=Depends(get_current_user_from_session),
+    db=Depends(get_db),
+):
+    """
+    Upload user avatar image.
+    
+    Accepts multipart/form-data with 'file' field.
+    Stores in local storage or cloud storage based on configuration.
+    """
+    from fastapi import UploadFile
+    from app.models.user import User
+    import os
+    import hashlib
+    
+    user_id = _extract_user_id(current_user)
+    
+    try:
+        user_uuid = UUID(user_id)
+    except (ValueError, TypeError):
+        raise ValidationError("Invalid user_id UUID", field="user_id")
+    
+    # Parse multipart form data
+    form = await request.form()
+    file: UploadFile = form.get("file")
+    
+    if not file:
+        raise ValidationError("No file provided", field="file")
+    
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+    content_type = file.content_type or ""
+    if content_type not in allowed_types:
+        raise ValidationError(
+            f"Invalid file type. Allowed: {', '.join(allowed_types)}",
+            field="file"
+        )
+    
+    # Read file content
+    content = await file.read()
+    
+    # Validate file size (max 5MB)
+    if len(content) > 5 * 1024 * 1024:
+        raise ValidationError("File too large. Maximum size is 5MB", field="file")
+    
+    # Generate unique filename
+    file_hash = hashlib.md5(content).hexdigest()[:12]
+    ext = content_type.split("/")[-1]
+    if ext == "jpeg":
+        ext = "jpg"
+    filename = f"avatar_{user_id}_{file_hash}.{ext}"
+    
+    # Save to uploads directory (create if needed)
+    uploads_dir = os.path.join(settings.BASE_DIR if hasattr(settings, 'BASE_DIR') else ".", "uploads", "avatars")
+    os.makedirs(uploads_dir, exist_ok=True)
+    
+    file_path = os.path.join(uploads_dir, filename)
+    with open(file_path, "wb") as f:
+        f.write(content)
+    
+    # Generate URL (assuming static file serving is configured)
+    avatar_url = f"/uploads/avatars/{filename}"
+    
+    # Update user's avatar_url in database
+    user = db.query(User).filter(User.id == user_uuid).first()
+    if user:
+        claims = user.firebase_custom_claims or {}
+        claims["avatar_url"] = avatar_url
+        user.firebase_custom_claims = claims
+        user.updated_at = datetime.now(timezone.utc)
+        db.commit()
+    
+    logger.info(f"Avatar uploaded for user: {user_id}")
+    
+    return {"avatar_url": avatar_url, "success": True}

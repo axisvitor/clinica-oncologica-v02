@@ -19,11 +19,12 @@ from uuid import UUID
 
 # Third-party imports
 # FIX P1-007: Changed from AsyncSession to Session as code uses sync patterns
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import Union
 
 # Local application imports
-from app.core.exceptions import NotFoundError, ValidationError
+from app.core.exceptions import NotFoundError
 from app.models.quiz import QuizResponse, QuizSession, QuizTemplate
 from app.repositories.quiz import (
     QuizResponseRepository,
@@ -195,8 +196,11 @@ class QuizSessionService:
             self.db.query(QuizSession)
             .filter(
                 QuizSession.patient_id == patient_id,
-                QuizSession.is_completed == False,
-                QuizSession.expires_at > now,
+                QuizSession.status == "started",
+                or_(
+                    QuizSession.expiration_date.is_(None),
+                    QuizSession.expiration_date > now,
+                ),
             )
             .order_by(QuizSession.created_at.desc())
             .first()

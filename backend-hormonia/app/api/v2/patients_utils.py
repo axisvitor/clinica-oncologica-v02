@@ -147,22 +147,27 @@ def _normalize_cpf(cpf: Optional[str]) -> Optional[str]:
 
 def _normalize_phone(phone: Optional[str]) -> Optional[str]:
     """
-    Normalize phone by removing non-digit characters.
+    Normalize phone number to E.164 format.
 
-    DEPRECATED: Use app.utils.phone_validator.normalize_phone() instead.
+    DEPRECATED: Use app.schemas.validators.phone.normalize_phone() instead.
     This function is kept for backward compatibility.
 
     Args:
         phone: Phone string with optional formatting
 
     Returns:
-        Phone with only digits or None
+        Phone in E.164 format or None
     """
     if not phone:
         return None
-    # Remove all non-digit characters (spaces, parentheses, dashes)
-    normalized = re.sub(r"[^0-9+]", "", phone)
-    return normalized if normalized else None
+    from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
+
+    try:
+        return normalize_phone(
+            phone, mode=PhoneValidationMode.BR_TO_E164, allow_none=True
+        )
+    except ValueError:
+        return None
 
 
 def _validate_and_format_phone(phone: str, strict: bool = True) -> str:
@@ -199,7 +204,7 @@ def _validate_and_format_phone(phone: str, strict: bool = True) -> str:
 
         return formatted
 
-    except PhoneValidationError as e:
+    except PhoneValidationError:
         if strict:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid phone number format")
         return None

@@ -5,6 +5,27 @@ Revises: 27ee28e62ff8
 Create Date: 2025-11-22 21:45:00.000000
 
 Seeds the welcome message template used in the patient onboarding saga.
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 from alembic import op
 import sqlalchemy as sa

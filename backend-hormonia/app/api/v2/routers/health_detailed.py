@@ -10,14 +10,14 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, Any
 import asyncio
 
-from app.database import get_db
-from app.core.redis_client import get_redis_client
+from app.database import get_async_db
+from app.core.redis_client import get_async_redis_client
 
 router = APIRouter(tags=["health"])
 
 
 @router.get("/health/detailed")
-async def detailed_health_check(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
+async def detailed_health_check(db: AsyncSession = Depends(get_async_db)) -> Dict[str, Any]:
     """
     Comprehensive health check including all critical systems
 
@@ -115,7 +115,10 @@ async def check_database_health(db: AsyncSession) -> Dict[str, Any]:
 async def check_redis_health() -> Dict[str, Any]:
     """Check Redis connection and latency"""
     try:
-        redis_client = await get_redis_client()
+        redis_client = await get_async_redis_client()
+        if redis_client is None:
+            return {"status": "unhealthy", "error": "Redis client not available"}
+
         start_time = datetime.now(timezone.utc)
         await redis_client.ping()
         latency_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
@@ -343,20 +346,21 @@ async def check_celery_health() -> Dict[str, Any]:
 
         # Get queue lengths from Redis
         try:
-            redis_client = get_redis_client()
+            redis_client = await get_async_redis_client()
             queue_lengths = {}
-            for queue in [
-                "celery",
-                "high_priority",
-                "low_priority",
-                "quiz_flow",
-                "alerts",
-                "whatsapp",
-                "reports",
-            ]:
-                queue_key = f"celery:queue:{queue}"
-                length = await redis_client.llen(queue_key)
-                queue_lengths[queue] = length or 0
+            if redis_client:
+                for queue in [
+                    "celery",
+                    "high_priority",
+                    "low_priority",
+                    "quiz_flow",
+                    "alerts",
+                    "whatsapp",
+                    "reports",
+                ]:
+                    queue_key = f"celery:queue:{queue}"
+                    length = await redis_client.llen(queue_key)
+                    queue_lengths[queue] = length or 0
 
             total_queued = sum(queue_lengths.values())
         except Exception:

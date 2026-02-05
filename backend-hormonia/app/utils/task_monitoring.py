@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from celery.events.state import State
 import concurrent.futures
 
-from app.celery_app import celery_app
+from app.task_queue import task_queue as celery_app
 
 
 logger = logging.getLogger(__name__)

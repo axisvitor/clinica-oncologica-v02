@@ -2,9 +2,6 @@
 
 global:
   resolve_timeout: 5m
-  # Slack webhook (replace with your webhook URL)
-  slack_api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
-
 # Templates for custom alert messages
 templates:
   - '/etc/alertmanager/templates/*.tmpl'
@@ -28,20 +25,16 @@ route:
 
   # Child routes for specific alert routing
   routes:
-    # Critical alerts → PagerDuty + Slack
+    # Critical alerts -> PagerDuty
     - match:
         severity: critical
       receiver: 'pagerduty-critical'
       continue: true
-      routes:
-        - match:
-            service: quiz_system
-          receiver: 'slack-quiz-critical'
 
-    # Warning alerts → Slack only
+    # Warning alerts -> Email
     - match:
         severity: warning
-      receiver: 'slack-quiz-warnings'
+      receiver: 'email-info'
 
     # Info alerts → Email
     - match:
@@ -65,39 +58,6 @@ receivers:
           severity: '{{ .CommonLabels.severity }}'
           alert_url: '{{ .CommonAnnotations.dashboard }}'
           runbook: '{{ .CommonAnnotations.runbook }}'
-
-  # Slack for critical quiz alerts
-  - name: 'slack-quiz-critical'
-    slack_configs:
-      - channel: '#alerts-quiz-critical'
-        title: '🚨 CRITICAL: {{ .CommonAnnotations.summary }}'
-        text: |
-          *Alert:* {{ .CommonLabels.alertname }}
-          *Severity:* {{ .CommonLabels.severity }}
-          *Service:* {{ .CommonLabels.service }}
-
-          *Description:*
-          {{ .CommonAnnotations.description }}
-
-          *Dashboard:* {{ .CommonAnnotations.dashboard }}
-          *Runbook:* {{ .CommonAnnotations.runbook }}
-        color: 'danger'
-        send_resolved: true
-
-  # Slack for warning quiz alerts
-  - name: 'slack-quiz-warnings'
-    slack_configs:
-      - channel: '#alerts-quiz-warnings'
-        title: '⚠️ WARNING: {{ .CommonAnnotations.summary }}'
-        text: |
-          *Alert:* {{ .CommonLabels.alertname }}
-          *Service:* {{ .CommonLabels.service }}
-
-          {{ .CommonAnnotations.description }}
-
-          *Dashboard:* {{ .CommonAnnotations.dashboard }}
-        color: 'warning'
-        send_resolved: true
 
   # Email for info alerts
   - name: 'email-info'

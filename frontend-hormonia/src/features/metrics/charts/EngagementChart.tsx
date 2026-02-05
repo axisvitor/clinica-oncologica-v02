@@ -32,7 +32,7 @@ interface EngagementChartProps {
   detailed?: boolean;
 }
 
-const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+const _COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
 export const EngagementChart: React.FC<EngagementChartProps> = ({
   data,

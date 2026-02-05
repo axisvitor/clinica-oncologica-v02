@@ -1,10 +1,8 @@
 import React, { useState } from 'react'
-import { useForm } from 'react-hook-form'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle, Circle, Star } from 'lucide-react'
+import { CheckCircle } from 'lucide-react'
 import { apiClient } from '../../lib/api-client'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -231,7 +229,7 @@ export function QuizForm({ session, onComplete }: QuizFormProps) {
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                className="bg-blue-600 h-2 rounded-full transition-[width] duration-300"
                 style={{ width: `${progressPercentage}%` }}
               />
             </div>

@@ -24,7 +24,7 @@ export interface QuestionOption {
 
 export interface ValidationRule {
     type: string
-    value: string | number | boolean | any[]
+    value: string | number | boolean | unknown[]
     message: string
 }
 

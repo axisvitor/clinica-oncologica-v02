@@ -10,8 +10,8 @@ import logging
 from typing import Any
 from datetime import datetime, timedelta, timezone
 
-from app.celery_app import celery_app
-from app.database import get_db
+from app.task_queue import task_queue as celery_app
+from app.database import get_db, get_scoped_session
 from app.repositories.flow import FlowStateRepository
 from app.models.flow import PatientFlowState
 from app.models.message import Message, MessageStatus
@@ -42,10 +42,7 @@ def cleanup_old_flow_data(self, days_old: int = 90) -> dict[str, Any]:
     try:
         logger.info(f"Starting cleanup of flow data older than {days_old} days")
 
-        # Get database session
-        db = next(get_db())
-
-        try:
+        with get_scoped_session() as db:
             cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
 
             # Initialize repositories
@@ -135,9 +132,6 @@ def cleanup_old_flow_data(self, days_old: int = 90) -> dict[str, Any]:
 
             logger.info(f"Flow data cleanup completed: {results}")
             return results
-
-        finally:
-            db.close()
 
     except Exception as e:
         logger.error(f"Flow data cleanup failed: {e}")

@@ -6,8 +6,6 @@ used throughout the saga orchestration system.
 """
 
 from typing import TypedDict, Optional, List, Any, Dict
-from uuid import UUID
-from datetime import datetime
 
 
 class SagaLogEntry(TypedDict):

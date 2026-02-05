@@ -43,6 +43,19 @@ class ReportService:
         self._query_cache = {}
         self._cache_ttl = 300  # 5 minutes cache TTL
 
+    def get_scheduled_reports(self) -> List[Dict[str, Any]]:
+        """
+        Get scheduled reports for processing.
+
+        Note: Scheduled reports feature not yet implemented.
+        Returns empty list to prevent task failures.
+
+        Returns:
+            Empty list (placeholder for future implementation)
+        """
+        logger.info("get_scheduled_reports called - feature not implemented, returning empty list")
+        return []
+
     async def create_report(self, report_request, user_id: UUID):
         """Create a new report record with sensitive data protection."""
         try:

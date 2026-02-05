@@ -10,7 +10,7 @@ LGPD Articles Implemented:
 This middleware provides:
 1. Access logging for patient data endpoints
 2. Request validation for sensitive fields
-3. Audit trail for LGPD compliance
+3. Audit trail for LGPD compliance (persisted to database)
 4. IP-based access control monitoring
 
 Integration:
@@ -18,12 +18,12 @@ Add to main.py middleware stack:
     app.add_middleware(LGPDMiddleware)
 """
 
-from typing import Callable
-from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
 import logging
 import time
 from datetime import datetime, timezone
+from typing import Optional
+from fastapi import Request
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 logger = logging.getLogger(__name__)
 
@@ -33,192 +33,164 @@ LGPD_SENSITIVE_FIELDS = ["cpf", "email", "phone", "rg", "cns", "birth_date"]
 # Patient data endpoints that require logging
 PATIENT_ENDPOINTS = ["/patients", "/api/v1/patients", "/api/v2/patients"]
 
+# Map HTTP methods to LGPD action types
+HTTP_METHOD_TO_ACTION = {
+    "GET": "view",
+    "POST": "create",
+    "PUT": "update",
+    "PATCH": "update",
+    "DELETE": "delete",
+}
 
-class LGPDMiddleware(BaseHTTPMiddleware):
+
+def _enqueue_lgpd_audit(
+    action: str,
+    resource_type: str,
+    user_id: Optional[str] = None,
+    user_role: Optional[str] = None,
+    ip_address: Optional[str] = None,
+    user_agent: Optional[str] = None,
+    success: bool = True,
+    additional_data: Optional[dict] = None,
+) -> None:
     """
-    Middleware for LGPD compliance validation and audit logging.
+    Enqueue LGPD audit log for async persistence.
+    
+    Uses Celery to avoid adding latency to HTTP requests.
+    Falls back to logger-only if Celery is unavailable.
+    """
+    try:
+        from app.tasks.lgpd_tasks import persist_lgpd_audit_log
+        
+        persist_lgpd_audit_log.delay(
+            action=action,
+            resource_type=resource_type,
+            data_category="health",  # Patient data is health category
+            user_id=user_id,
+            user_role=user_role,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            success=success,
+            additional_data=additional_data,
+        )
+    except Exception as exc:
+        # Log but don't fail the request if Celery is unavailable
+        logger.warning(
+            f"LGPD: Failed to enqueue audit log (Celery unavailable?): {exc}",
+            extra={"action": action, "resource_type": resource_type},
+        )
 
-    LGPD Compliance Features:
-    1. Access Logging: Track all patient data access
-    2. Field Validation: Ensure encryption for sensitive fields
-    3. Audit Trail: Maintain compliance audit logs
-    4. IP Tracking: Monitor access patterns
 
-    Logged Information (Art. 37 - LGPD Transparency):
-    - User ID (who accessed)
-    - Timestamp (when)
-    - HTTP method (operation type)
-    - Endpoint path (what resource)
-    - IP address (from where)
-    - User agent (access method)
-
-    Example Audit Log:
-    {
-        "event": "patient_data_access",
-        "user_id": "uuid-123",
-        "method": "GET",
-        "path": "/api/v1/patients/456",
-        "ip": "192.168.1.100",
-        "timestamp": "2025-11-26T15:30:00Z",
-        "user_agent": "Mozilla/5.0..."
-    }
+class LGPDMiddleware:
+    """
+    ASGI Middleware for LGPD compliance validation and audit logging.
+    
+    Avoids BaseHTTPMiddleware issues with request.state and performance.
+    Persists audit logs to database via async Celery task.
     """
 
-    def __init__(self, app, enable_ip_logging: bool = True):
-        """
-        Initialize LGPD compliance middleware.
-
-        Args:
-            app: FastAPI application instance
-            enable_ip_logging: Enable IP address logging (default: True)
-        """
-        super().__init__(app)
+    def __init__(self, app: ASGIApp, enable_ip_logging: bool = True, enable_db_logging: bool = True):
+        self.app = app
         self.enable_ip_logging = enable_ip_logging
-        logger.info("LGPD Compliance Middleware initialized")
+        self.enable_db_logging = enable_db_logging
+        logger.info("LGPD Compliance Middleware (ASGI) initialized with DB logging=%s", enable_db_logging)
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """
-        Process request with LGPD compliance checks.
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
 
-        Args:
-            request: Incoming HTTP request
-            call_next: Next middleware in chain
-
-        Returns:
-            HTTP response
-        """
+        request = Request(scope, receive=receive)
         start_time = time.time()
 
         # Check if this is a patient data endpoint
-        is_patient_endpoint = any(
-            endpoint in request.url.path for endpoint in PATIENT_ENDPOINTS
-        )
+        path = scope.get("path", "")
+        is_patient_endpoint = any(endpoint in path for endpoint in PATIENT_ENDPOINTS)
 
-        if is_patient_endpoint:
-            # Log access to patient data (LGPD Art. 37 - Transparency)
-            self._log_patient_data_access(request)
-
-            # Validate request for sensitive data handling
-            if request.method in ["POST", "PUT", "PATCH"]:
-                await self._validate_sensitive_data_handling(request)
-
-        # Process request
-        response = await call_next(request)
-
-        # Log response time for performance monitoring
-        if is_patient_endpoint:
-            duration = time.time() - start_time
-            logger.debug(
-                f"LGPD: Patient endpoint processed in {duration:.3f}s",
-                extra={
-                    "path": request.url.path,
-                    "method": request.method,
-                    "duration_ms": duration * 1000,
-                },
-            )
-
-        return response
-
-    def _log_patient_data_access(self, request: Request) -> None:
-        """
-        Log access to patient data endpoints.
-
-        LGPD Art. 37: Right to transparency and information about data processing.
-
-        Args:
-            request: HTTP request object
-        """
-        # Extract user information from request state (set by auth middleware)
-        user_id = getattr(request.state, "user_id", None)
-        user_role = getattr(request.state, "user_role", None)
-
-        # Extract IP address
-        ip_address = None
-        if self.enable_ip_logging and request.client:
-            ip_address = request.client.host
-
-        # Extract user agent
-        user_agent = request.headers.get("user-agent", "unknown")
-
-        # Build audit log entry
-        audit_data = {
-            "event": "patient_data_access",
-            "user_id": str(user_id) if user_id else None,
-            "user_role": user_role,
-            "method": request.method,
-            "path": request.url.path,
-            "query_params": dict(request.query_params)
-            if request.query_params
-            else None,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "user_agent": user_agent[:200],  # Truncate long user agents
-        }
-
-        # Add IP address if enabled
-        if ip_address:
-            audit_data["ip_address"] = ip_address
-
-        # Log with INFO level for compliance audit trail
-        logger.info("LGPD: Patient data access", extra=audit_data)
-
-    async def _validate_sensitive_data_handling(self, request: Request) -> None:
-        """
-        Validate that sensitive data fields are properly handled.
-
-        LGPD Art. 46: Security, technical and administrative measures.
-
-        This method validates that:
-        1. Sensitive fields are present in the request
-        2. Application layer will handle encryption
-        3. No plaintext storage of PII occurs
-
-        Args:
-            request: HTTP request object
-
-        Note:
-        Actual encryption validation happens at the service/repository layer.
-        This middleware provides early warning for compliance issues.
-        """
-        try:
-            # Check if request has JSON body
-            content_type = request.headers.get("content-type", "")
-
-            if "application/json" not in content_type:
-                return
-
-            # Note: We don't consume the request body here to avoid interfering
-            # with downstream processing. Body validation happens at the service layer.
-
-            # Log that a data modification request was received
+        if is_patient_endpoint and request.method in ["POST", "PUT", "PATCH"]:
+            # Basic validation (logging only, encryption is handled by repository)
             logger.debug(
                 "LGPD: Patient data modification request received",
                 extra={
                     "method": request.method,
-                    "path": request.url.path,
-                    "content_type": content_type,
+                    "path": path,
                 },
             )
 
-        except Exception as e:
-            # Don't block requests on validation errors
-            logger.warning(
-                f"LGPD: Failed to validate sensitive data handling: {e}",
-                extra={
-                    "path": request.url.path,
-                    "method": request.method,
-                    "error": str(e),
-                },
-            )
+        # We need to capture the response status code
+        status_code = [None]
+
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                status_code[0] = message["status"]
+            await send(message)
+
+        # Process request
+        await self.app(scope, receive, send_wrapper)
+
+        # Log access after request to ensure dependencies have set user context in request.state
+        if is_patient_endpoint:
+            duration = time.time() - start_time
+            
+            # Extract user information from request state
+            # NOTE: In ASGI middleware, we access the same scope that dependencies used
+            user_id = getattr(request.state, "user_id", None)
+            user_role = getattr(request.state, "user_role", None)
+
+            # Extract IP address
+            ip_address = None
+            if self.enable_ip_logging and request.client:
+                ip_address = request.client.host
+
+            # Extract user agent
+            user_agent = request.headers.get("user-agent", "unknown")
+
+            # Determine success based on status code
+            is_success = status_code[0] is not None and status_code[0] < 400
+
+            # Build audit log entry for logger (backwards compatibility)
+            audit_data = {
+                "event": "patient_data_access",
+                "user_id": str(user_id) if user_id else None,
+                "user_role": user_role,
+                "method": request.method,
+                "path": path,
+                "status_code": status_code[0],
+                "duration_ms": round(duration * 1000, 2),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "user_agent": user_agent[:200],
+            }
+
+            if ip_address:
+                audit_data["ip_address"] = ip_address
+
+            if self.enable_ip_logging:
+                audit_data["ip"] = ip_address  # Compatibility with old schema if any
+
+            # Log to Python logger (always)
+            logger.info("LGPD: Patient data access", extra=audit_data)
+
+            # Persist to database via async task (if enabled)
+            if self.enable_db_logging:
+                action = HTTP_METHOD_TO_ACTION.get(request.method, "view")
+                _enqueue_lgpd_audit(
+                    action=action,
+                    resource_type="patients",
+                    user_id=str(user_id) if user_id else None,
+                    user_role=user_role,
+                    ip_address=ip_address,
+                    user_agent=user_agent[:500] if user_agent else None,
+                    success=is_success,
+                    additional_data={
+                        "path": path,
+                        "method": request.method,
+                        "status_code": status_code[0],
+                        "duration_ms": round(duration * 1000, 2),
+                    },
+                )
 
     @staticmethod
     def is_sensitive_field(field_name: str) -> bool:
-        """
-        Check if a field contains sensitive PII data.
-
-        Args:
-            field_name: Field name to check
-
-        Returns:
-            True if field is sensitive, False otherwise
-        """
+        """Check if a field contains sensitive PII data."""
         return field_name in LGPD_SENSITIVE_FIELDS
+

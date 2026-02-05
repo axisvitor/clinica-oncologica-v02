@@ -18,7 +18,7 @@ from ..models.message import (
 )
 from ..services.evolution_client import EvolutionAPIClient, validate_phone_number
 from ..services.message_service import WhatsAppMessageService, MessageQueue
-from app.database import get_db
+from app.database import get_async_db
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ async def get_evolution_client() -> EvolutionAPIClient:
 
 
 async def get_message_service(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     evolution_client: EvolutionAPIClient = Depends(get_evolution_client),
 ) -> WhatsAppMessageService:
     """Get WhatsApp message service instance."""
@@ -68,7 +68,7 @@ async def get_message_service(
 async def create_instance(
     instance_name: str,
     webhook_url: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     evolution_client: EvolutionAPIClient = Depends(get_evolution_client),
 ):
     """Create a new WhatsApp instance."""
@@ -163,7 +163,7 @@ async def restart_instance(
 @router.delete("/instances/{instance_name}")
 async def delete_instance(
     instance_name: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     evolution_client: EvolutionAPIClient = Depends(get_evolution_client),
 ):
     """Delete WhatsApp instance."""
@@ -253,6 +253,57 @@ async def get_message_history(
         raise HTTPException(status_code=500, detail="Failed to get message history")
 
 
+@router.get("/messages")
+async def list_messages(
+    instance: str,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    message_service: WhatsAppMessageService = Depends(get_message_service),
+):
+    """List recent messages for an instance (Frontend compatibility)."""
+    try:
+        messages = await message_service.get_instance_messages(
+            instance, limit, offset
+        )
+        return {
+            "messages": [
+                {
+                    "id": msg.id,
+                    "external_id": msg.external_id,
+                    "message_type": msg.message_type,
+                    "content": msg.content,
+                    "media_url": msg.media_url,
+                    "media_caption": msg.media_caption,
+                    "status": msg.status,
+                    "sender_id": msg.sender_id,
+                    "recipient_id": msg.recipient_id,
+                    "created_at": msg.created_at,
+                    "sent_at": msg.sent_at,
+                    "delivered_at": msg.delivered_at,
+                    "read_at": msg.read_at,
+                    "retry_count": msg.retry_count,
+                    "message_data": msg.message_data,
+                    "error_message": msg.error_message
+                }
+                for msg in messages
+            ],
+            "total": len(messages),
+            "limit": limit,
+            "offset": offset,
+        }
+    except Exception as e:
+        logger.error(f"Error listing messages: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to list messages")
+
+@router.get("/messages/stats")
+async def get_message_stats_alias(
+    instance: str,
+    message_service: WhatsAppMessageService = Depends(get_message_service),
+):
+    """Get message statistics (Frontend compatibility alias)."""
+    return await get_message_statistics(instance, message_service=message_service)
+
+
 @router.get("/messages/{instance_name}/statistics")
 async def get_message_statistics(
     instance_name: str,
@@ -302,7 +353,7 @@ async def get_contacts(
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
     search: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """Get contacts for an instance."""
     try:
@@ -418,7 +469,7 @@ async def health_check():
 
 
 @router.get("/instances")
-async def list_instances(db: AsyncSession = Depends(get_db)):
+async def list_instances(db: AsyncSession = Depends(get_async_db)):
     """List all WhatsApp instances."""
     try:
         stmt = select(WhatsAppInstance).order_by(WhatsAppInstance.created_at.desc())

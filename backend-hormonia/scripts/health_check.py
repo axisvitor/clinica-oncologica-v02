@@ -14,7 +14,6 @@ Usage:
 """
 
 import sys
-import os
 import asyncio
 import time
 import json
@@ -61,7 +60,7 @@ class HealthChecker:
         """Check database health"""
         start = time.time()
         try:
-            from app.core.database import AsyncSessionLocal
+            from app.database import AsyncSessionLocal
             from sqlalchemy import text
 
             async with AsyncSessionLocal() as session:

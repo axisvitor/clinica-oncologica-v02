@@ -1,0 +1,1 @@
+Obrigada por avisar, {patient_name}. Vou acionar sua equipe para cuidar disso com voce.

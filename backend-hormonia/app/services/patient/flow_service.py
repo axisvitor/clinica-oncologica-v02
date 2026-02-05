@@ -18,7 +18,6 @@ from typing import Any, Optional, TYPE_CHECKING
 from uuid import UUID
 
 # Third-party imports
-from sqlalchemy.ext.asyncio import AsyncSession
 
 # Local application imports
 from app.config import settings
@@ -202,23 +201,26 @@ class PatientFlowService:
         update_data = {"flow_state": FlowState.ACTIVE}
         updated_patient = repository.update(patient, update_data, auto_commit=auto_commit)
 
-        # Publish WebSocket event (non-blocking, best-effort)
-        try:
-            await websocket_events.broadcast_flow_event(
-                event_type=WebSocketEventType.PATIENT_FLOW_CHANGED,
-                patient_id=patient_id,
-                flow_data={
-                    "flow_state": FlowState.ACTIVE.value,
-                    "action": "activated",
-                    "patient_name": updated_patient.name,
-                    "doctor_id": str(updated_patient.doctor_id),
-                    "changes": {"flow_state": FlowState.ACTIVE.value},
-                    "metadata": {"action": "activated"},
-                },
-            )
-        except Exception as ws_error:
-            # WebSocket events are non-critical - log and continue
-            logger.warning(f"Failed to broadcast flow event for patient {patient_id}: {ws_error}")
+        if auto_commit:
+            # Publish WebSocket event (non-blocking, best-effort) only after commit
+            try:
+                await websocket_events.broadcast_flow_event(
+                    event_type=WebSocketEventType.PATIENT_FLOW_CHANGED,
+                    patient_id=patient_id,
+                    flow_data={
+                        "flow_state": FlowState.ACTIVE.value,
+                        "action": "activated",
+                        "patient_name": updated_patient.name,
+                        "doctor_id": str(updated_patient.doctor_id),
+                        "changes": {"flow_state": FlowState.ACTIVE.value},
+                        "metadata": {"action": "activated"},
+                    },
+                )
+            except Exception as ws_error:
+                # WebSocket events are non-critical - log and continue
+                logger.warning(
+                    f"Failed to broadcast flow event for patient {patient_id}: {ws_error}"
+                )
 
         return updated_patient
 

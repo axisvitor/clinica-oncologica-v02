@@ -21,9 +21,9 @@ async def get_async_redis_client() -> redis_async.Redis:
     Returns:
         Async Redis client
     """
-    from .utils import get_redis_manager
+    from app.core import redis_manager as redis_manager_module
 
-    manager = get_redis_manager()
+    manager = redis_manager_module.get_redis_manager()
     return await manager.get_async_client()
 
 
@@ -71,9 +71,9 @@ async def redis_health_check() -> dict:
         return re.sub(r"://([^:]*):([^@]*)@", r"://\1:***@", url)
 
     try:
-        from .utils import get_redis_manager
+        from app.core import redis_manager as redis_manager_module
 
-        manager = get_redis_manager()
+        manager = redis_manager_module.get_redis_manager()
 
         # Test async client
         async_client = await manager.get_async_client()

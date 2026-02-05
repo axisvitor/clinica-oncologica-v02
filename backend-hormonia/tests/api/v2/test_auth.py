@@ -131,7 +131,7 @@ class TestUserProfile:
     ):
         """Test successfully getting current user profile"""
         # Mock Redis to return None (cache miss)
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -154,7 +154,7 @@ class TestUserProfile:
         mock_redis
     ):
         """Test getting user profile with field selection"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -191,7 +191,7 @@ class TestUserProfile:
         db_session.add(patient)
         db_session.commit()
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -218,7 +218,7 @@ class TestUserProfile:
             "preferences": {}
         }
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=json.dumps(cached_data))
 
             response = client.get("/api/v2/auth/me", headers=auth_headers)
@@ -284,7 +284,7 @@ class TestUserProfile:
             db_session.add(patient)
         db_session.commit()
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -313,7 +313,7 @@ class TestUserProfile:
                 title=f"Notification {i}"
             )
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -333,7 +333,7 @@ class TestUserProfile:
         mock_redis
     ):
         """Test user profile for different user roles"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -635,7 +635,7 @@ class TestUserPreferences:
         mock_redis
     ):
         """Test successfully getting user preferences"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -661,7 +661,7 @@ class TestUserPreferences:
         mock_redis
     ):
         """Test getting default preferences for new user"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -691,7 +691,7 @@ class TestUserPreferences:
             "updated_at": datetime.utcnow().isoformat()
         }
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=json.dumps(cached_prefs))
 
             response = client.get("/api/v2/auth/preferences", headers=auth_headers)
@@ -722,7 +722,7 @@ class TestUserPreferences:
             "marketing_consent": False
         }
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.delete = AsyncMock(return_value=1)
 
             response = client.put(
@@ -791,7 +791,7 @@ class TestUserPreferences:
             "theme": "dark"
         }
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.delete = AsyncMock(return_value=1)
 
             response = client.put(
@@ -818,7 +818,7 @@ class TestUserPreferences:
             "language": "en-US"
         }
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.delete = AsyncMock(return_value=1)
 
             response = client.patch(
@@ -842,7 +842,7 @@ class TestUserPreferences:
         mock_redis
     ):
         """Test updating a single preference field"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.delete = AsyncMock(return_value=1)
 
             response = client.patch(
@@ -898,7 +898,7 @@ class TestUserPreferences:
         mock_redis
     ):
         """Test handling concurrent preference updates"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.delete = AsyncMock(return_value=1)
 
             # First update
@@ -1095,7 +1095,7 @@ class TestNotifications:
         """Test marking a single notification as read"""
         notification = create_test_notification(db_session, test_user, is_read=False)
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.delete = AsyncMock(return_value=1)
 
             response = client.post(
@@ -1129,7 +1129,7 @@ class TestNotifications:
             notif = create_test_notification(db_session, test_user, is_read=False)
             notification_ids.append(str(notif.id))
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.delete = AsyncMock(return_value=1)
 
             response = client.post(
@@ -1169,7 +1169,7 @@ class TestNotifications:
         mock_redis
     ):
         """Test marking notifications with invalid IDs"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.delete = AsyncMock(return_value=1)
 
             response = client.post(
@@ -1188,7 +1188,7 @@ class TestNotifications:
         mock_redis
     ):
         """Test marking non-existent notifications"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.delete = AsyncMock(return_value=1)
 
             fake_id = str(uuid4())
@@ -1219,7 +1219,7 @@ class TestNotifications:
         for i in range(2):
             create_test_notification(db_session, test_user, is_read=True)
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -1240,7 +1240,7 @@ class TestNotifications:
         mock_redis
     ):
         """Test getting unread count from cache"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value="5")
 
             response = client.get(
@@ -1260,7 +1260,7 @@ class TestNotifications:
         mock_redis
     ):
         """Test unread count when user has no unread notifications"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -1774,7 +1774,7 @@ class TestFirebaseAndHealth:
         mock_redis
     ):
         """Test health check when all services are healthy"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.ping = AsyncMock(return_value=True)
 
             response = client.get("/api/v2/auth/health")
@@ -1791,7 +1791,7 @@ class TestFirebaseAndHealth:
         db_session: Session
     ):
         """Test health check when Redis is unavailable"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=None):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=None):
             response = client.get("/api/v2/auth/health")
 
             assert response.status_code == 200
@@ -1812,7 +1812,7 @@ class TestFirebaseAndHealth:
         mock_redis
     ):
         """Test health check shows Firebase status"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.ping = AsyncMock(return_value=True)
 
             response = client.get("/api/v2/auth/health")
@@ -1859,7 +1859,7 @@ class TestCacheAndPerformance:
             "email": test_user.email
         })
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=cached_data)
 
             response = client.get("/api/v2/auth/me", headers=auth_headers)
@@ -1877,7 +1877,7 @@ class TestCacheAndPerformance:
         mock_redis
     ):
         """Test cache invalidation on data update"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.delete = AsyncMock(return_value=1)
 
             # Update preferences (should invalidate cache)
@@ -1899,7 +1899,7 @@ class TestCacheAndPerformance:
         mock_redis
     ):
         """Test Redis cache TTL expiration"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)  # Expired
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -1959,7 +1959,7 @@ class TestCacheAndPerformance:
             db_session.add(patient)
         db_session.commit()
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -1989,7 +1989,7 @@ class TestCacheAndPerformance:
         mock_redis
     ):
         """Test handling concurrent requests"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -2028,7 +2028,7 @@ class TestCacheAndPerformance:
         mock_redis
     ):
         """Test field selection reduces payload size"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 

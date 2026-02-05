@@ -19,7 +19,7 @@ from app.services.dlq_service import DLQService
 from app.services.audit import AuditService
 from app.utils.rate_limiter import limiter
 from app.infrastructure.cache import cache_response, invalidate_cache
-from app.dependencies import get_request_context, RequestContext
+from app.utils.request_context import get_request_context, RequestContext
 from app.schemas.v2.admin_extensions import (
     DLQItemResponse,
     DLQItemListResponse,
@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.get(
-    "/",
+    "",
     response_model=DLQItemListResponse,
     summary="List DLQ Items",
     description="Retrieve paginated list of Dead Letter Queue items with cursor-based pagination and filters.",
@@ -58,7 +58,9 @@ async def list_dlq_items(
     fields: Optional[str] = Query(
         None, description="Comma-separated fields to include"
     ),
-    status: Optional[str] = Query(None, description="Filter by status"),
+    status_filter: Optional[str] = Query(
+        None, alias="status", description="Filter by status"
+    ),
     error_code: Optional[str] = Query(None, description="Filter by error code"),
     patient_id: Optional[UUID] = Query(None, description="Filter by patient"),
     search: Optional[str] = Query(None, description="Search in error messages"),
@@ -96,8 +98,8 @@ async def list_dlq_items(
             query = query.filter(FailedMessage.id > cursor_data.get("id", 0))
 
         # Apply filters
-        if status:
-            query = query.filter(FailedMessage.status == status)
+        if status_filter:
+            query = query.filter(FailedMessage.status == status_filter)
 
         if error_code:
             query = query.filter(FailedMessage.error_code == error_code)
@@ -143,7 +145,7 @@ async def list_dlq_items(
             additional_data={
                 "count": len(items),
                 "filters": {
-                    "status": status,
+                    "status": status_filter,
                     "patient_id": str(patient_id) if patient_id else None,
                 },
             },
@@ -156,6 +158,8 @@ async def list_dlq_items(
             "total": None,  # Cursor pagination doesn't include total for performance
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error listing DLQ items: {e}")
         raise HTTPException(

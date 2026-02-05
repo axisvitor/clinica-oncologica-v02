@@ -15,8 +15,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Activity, Users, Brain, Clock, AlertTriangle, CheckCircle,
-  TrendingUp, TrendingDown, Heart, MessageSquare, Target, Cpu
+  Activity, Brain, AlertTriangle,
+  Heart, Target, Cpu
 } from 'lucide-react';
 
 import { EngagementChart } from './charts/EngagementChart';
@@ -26,6 +26,7 @@ import { SystemHealthChart } from './charts/SystemHealthChart';
 import { AlertsPanel } from './AlertsPanel';
 import { MetricsWebSocket } from './MetricsWebSocket';
 import { createLogger } from '../../lib/logger';
+import { apiClient } from '@/lib/api-client';
 
 import type {
   MetricsSummary,
@@ -48,13 +49,12 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({
   const [realTimeMetrics, setRealTimeMetrics] = useState<RealTimeMetrics | null>(null);
   const [alerts, setAlerts] = useState<AlertType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error] = useState<string | null>(null);
   const [selectedTab, setSelectedTab] = useState('overview');
 
   // WebSocket for real-time updates
   const {
     isConnected,
-    lastMessage,
     connect,
     disconnect
   } = MetricsWebSocket({
@@ -69,8 +69,11 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({
   const fetchSummary = useCallback(async () => {
     try {
       // Try existing dashboard endpoint instead of non-existent /metrics/summary
-      const response = await fetch('/api/v2/dashboard/main', {
-        credentials: 'include'
+      const response = await fetch(`${apiClient.getBaseURL()}/api/v2/dashboard/main`, {
+        credentials: 'include',
+        headers: {
+          ...apiClient.getSessionHeaders(),
+        }
       });
 
       if (!response.ok) {
@@ -111,8 +114,11 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({
   const fetchRealTimeMetrics = useCallback(async () => {
     try {
       // Try enhanced-analytics endpoint instead of non-existent /metrics/realtime
-      const response = await fetch('/api/v2/enhanced-analytics/realtime-stream', {
-        credentials: 'include'
+      const response = await fetch(`${apiClient.getBaseURL()}/api/v2/enhanced-analytics/realtime-stream`, {
+        credentials: 'include',
+        headers: {
+          ...apiClient.getSessionHeaders(),
+        }
       });
 
       if (!response.ok) {
@@ -243,8 +249,11 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({
   const fetchAlerts = useCallback(async () => {
     try {
       // Use existing /api/v2/alerts endpoint instead of non-existent /metrics/alerts
-      const response = await fetch('/api/v2/alerts', {
-        credentials: 'include'
+      const response = await fetch(`${apiClient.getBaseURL()}/api/v2/alerts`, {
+        credentials: 'include',
+        headers: {
+          ...apiClient.getSessionHeaders(),
+        }
       });
 
       if (!response.ok) {
@@ -308,10 +317,11 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({
   const acknowledgeAlert = async (alertId: string) => {
     try {
       // Use existing alerts endpoint with PATCH to update status
-      const response = await fetch(`/api/v2/alerts/${alertId}`, {
+      const response = await fetch(`${apiClient.getBaseURL()}/api/v2/alerts/${alertId}`, {
         method: 'PATCH',
         credentials: 'include',
         headers: {
+          ...apiClient.getSessionHeaders(),
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ status: 'acknowledged', is_read: true })
@@ -331,7 +341,7 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({
     }
   };
 
-  const getSeverityColor = (severity: string) => {
+  const _getSeverityColor = (severity: string) => {
     switch (severity) {
       case 'critical': return 'bg-red-100 text-red-800';
       case 'high': return 'bg-orange-100 text-orange-800';

@@ -371,8 +371,20 @@ def session_auth_headers(test_user: User, active_session: SessionModel, client) 
         TEST_TOKEN_REGISTRY,
     )
 
-    app.dependency_overrides[get_current_user_from_session] = lambda: test_user
-    TEST_TOKEN_REGISTRY[f"session_{active_session.id}"] = test_user
+    user_obj = test_user["user"] if isinstance(test_user, dict) else test_user
+    session_user = (
+        test_user.session_dict() if hasattr(test_user, "session_dict") else {
+            "id": str(user_obj.id),
+            "email": user_obj.email,
+            "full_name": user_obj.full_name,
+            "role": user_obj.role.value if hasattr(user_obj.role, "value") else str(user_obj.role),
+            "is_active": user_obj.is_active,
+            "firebase_uid": getattr(user_obj, "firebase_uid", None),
+        }
+    )
+
+    app.dependency_overrides[get_current_user_from_session] = lambda: session_user
+    TEST_TOKEN_REGISTRY[f"session_{active_session.id}"] = user_obj
 
     return {
         "Authorization": f"Bearer session_{active_session.id}",

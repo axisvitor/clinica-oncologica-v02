@@ -28,17 +28,17 @@ export function useOptimizedTransition() {
 }
 
 // Optimized memo with React 19 features
-export function createOptimizedMemo<T extends React.ComponentType<any>>(
-  Component: T,
-  areEqual?: (prev: React.ComponentProps<T>, next: React.ComponentProps<T>) => boolean
-): T {
+export function createOptimizedMemo<P extends object>(
+  Component: React.ComponentType<P>,
+  areEqual?: (prev: Readonly<P>, next: Readonly<P>) => boolean
+): React.MemoExoticComponent<React.ComponentType<P>> {
   if (REACT_19_FLAGS.ENABLE_CONCURRENT_FEATURES) {
     // Use React 19 enhanced memo if available
-    return React.memo(Component as any, areEqual as any) as any
+    return React.memo(Component, areEqual)
   }
 
   // Fallback to regular memo
-  return React.memo(Component as any, areEqual as any) as any
+  return React.memo(Component, areEqual)
 }
 
 // Performance monitoring hook
@@ -90,7 +90,7 @@ export function useOptimizedState<T>(
       setState(value)
     } else {
       // Manual batching for older React versions
-      const batchedUpdates = (React as any).unstable_batchedUpdates
+      const batchedUpdates = (React as { unstable_batchedUpdates?: (fn: () => void) => void }).unstable_batchedUpdates
       if (typeof batchedUpdates === 'function') {
         batchedUpdates(() => {
           setState(value)
@@ -108,19 +108,19 @@ export function useOptimizedState<T>(
 export function createSuspenseResource<T>(
   fetchFn: () => Promise<T>
 ): () => T {
-  let status = 'pending'
-  let result: T
+  let status: 'pending' | 'success' | 'error' = 'pending'
+  let result: T | unknown
   let suspender: Promise<T>
 
   const resource = () => {
     if (status === 'pending') {
       suspender = fetchFn().then(
-        (data: any) => {
+        (data: T) => {
           status = 'success'
           result = data
           return data
         },
-        (error: any) => {
+        (error: unknown) => {
           status = 'error'
           result = error
           throw error
@@ -130,7 +130,7 @@ export function createSuspenseResource<T>(
     } else if (status === 'error') {
       throw result
     } else if (status === 'success') {
-      return result
+      return result as T
     }
     throw new Error('Unexpected resource status')
   }
@@ -216,11 +216,16 @@ export const RailwayOptimizations = {
 
 // Error boundary for React 19
 export function createReact19ErrorBoundary() {
+  type ErrorBoundaryProps = {
+    children: React.ReactNode
+    fallback?: React.ComponentType<{ error: Error }>
+  }
+
   return class React19ErrorBoundary extends React.Component<
-    { children: React.ReactNode; fallback?: React.ComponentType<{ error: Error }> },
+    ErrorBoundaryProps,
     { hasError: boolean; error: Error | null }
   > {
-    constructor(props: any) {
+    constructor(props: ErrorBoundaryProps) {
       super(props)
       this.state = { hasError: false, error: null }
     }
@@ -293,7 +298,10 @@ export function initializeReact19Optimizations() {
   React19Features.logFeatures()
 
   // Enable React 19 profiler in development
-  if (environment.isDevelopment && (REACT_19_FLAGS as any).ENABLE_PROFILING) {
+  const profilingEnabled = Boolean(
+    (REACT_19_FLAGS as { ENABLE_PROFILING?: boolean }).ENABLE_PROFILING
+  )
+  if (environment.isDevelopment && profilingEnabled) {
     if ('Profiler' in React) {
       logger.info('React 19 Profiler enabled for development')
     }
@@ -307,8 +315,11 @@ export function createOptimizedQueryClient() {
       queries: {
         staleTime: 5 * 60 * 1000, // 5 minutes
         gcTime: 10 * 60 * 1000, // 10 minutes
-        retry: (failureCount: number, error: any) => {
-          if (error?.status === 404) return false
+        retry: (failureCount: number, error: unknown) => {
+          const status = typeof error === 'object' && error !== null && 'status' in error
+            ? (error as { status?: number }).status
+            : undefined
+          if (status === 404) return false
           return failureCount < 3
         },
         refetchOnWindowFocus: false,

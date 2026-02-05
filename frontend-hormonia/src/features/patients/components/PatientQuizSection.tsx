@@ -6,9 +6,18 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { QuizLinkStatus } from '@/features/quiz/QuizLinkStatus'
 import type { QuizHistoryEntry } from '@/lib/api-client/monthly-quiz'
 
+interface QuizStatusData {
+  status: string
+  session_id?: string
+  expires_at?: string
+  sent_at?: string
+  last_sent?: string
+  access_date?: string
+}
+
 interface PatientQuizSectionProps {
   patientId: string
-  quizStatus: any
+  quizStatus: QuizStatusData | null | undefined
   quizHistory: QuizHistoryEntry[]
   quizHistoryLoading: boolean
   completedQuizCount: number
@@ -63,13 +72,13 @@ export function PatientQuizSection({
               <>
                 <Button
                   variant="outline"
-                  onClick={() => onResendQuiz(quizStatus.session_id)}
+                  onClick={() => quizStatus.session_id && onResendQuiz(quizStatus.session_id)}
                 >
                   Reenviar
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={() => onCancelQuiz(quizStatus.session_id)}
+                  onClick={() => quizStatus.session_id && onCancelQuiz(quizStatus.session_id)}
                 >
                   Cancelar
                 </Button>

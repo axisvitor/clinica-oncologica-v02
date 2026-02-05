@@ -9,10 +9,10 @@
  * @module hooks/admin/useUserList
  */
 
-import { useQuery, UseQueryResult } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import { AdminUser } from '@/types/admin'
-import { PaginatedResponse } from '@/lib/api-client/core'
+// import { PaginatedResponse } from '@/lib/api-client/core' // Unused - using inline types
 import { createLogger } from '@/utils/logger'
 
 const logger = createLogger('useUserList')

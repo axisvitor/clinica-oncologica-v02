@@ -7,7 +7,6 @@ Coordinates quiz flow with adaptive intelligence and multi-agent collaboration.
 from __future__ import annotations
 
 # Standard library imports
-import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 from uuid import UUID

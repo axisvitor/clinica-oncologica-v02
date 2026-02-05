@@ -25,7 +25,6 @@ from ..types import (
 from ..config import get_flow_config
 from ..constants import (
     TemplateValidation,
-    TreatmentFlow,
     FlowErrorMessages,
 )
 from app.utils.version_utils import is_semantic_version, is_valid_version

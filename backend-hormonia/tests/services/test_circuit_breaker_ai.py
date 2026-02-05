@@ -22,7 +22,6 @@ from app.services.ai.ai_service import AIService, PatientContext, ConcernLevel
 from app.services.circuit_breaker import (
     CircuitBreaker,
     CircuitState,
-    CircuitOpenError,
     get_ai_circuit_breaker,
 )
 

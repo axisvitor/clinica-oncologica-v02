@@ -6,16 +6,9 @@
 
 import { useMemo } from 'react'
 import { getDateString } from '../utils/messageFormatters'
+import type { Message } from '@/lib/api-client/types'
 
-export interface Message {
-  id: string
-  patient_id: string
-  content: string
-  direction: 'inbound' | 'outbound'
-  message_type: string
-  status: string
-  created_at: string
-}
+export type { Message }
 
 export interface ListItem {
   type: 'date' | 'message'

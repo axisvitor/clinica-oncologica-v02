@@ -160,6 +160,24 @@ PATIENT_METADATA_SCHEMA = {
             "type": "string",
             "description": "Cached doctor name for performance",
         },
+        "quarantine": {
+            "type": "boolean",
+            "description": "Indicates the patient is quarantined due to a system issue",
+        },
+        "quarantine_reason": {
+            "type": "string",
+            "description": "Reason for patient quarantine",
+        },
+        "quarantine_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp when quarantine was applied",
+        },
+        "saga_id": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F-]{36}$",
+            "description": "Saga identifier associated with quarantine",
+        },
         "system": {
             "type": "object",
             "description": "System-managed metadata",

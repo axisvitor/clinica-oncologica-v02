@@ -13,10 +13,7 @@ Date: 2025-12-22
 """
 
 import pytest
-import re
 from fastapi import status
-from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock, AsyncMock
 
 # Test fixtures would be imported from conftest
 # from .conftest_auth import test_client, mock_firebase, mock_redis

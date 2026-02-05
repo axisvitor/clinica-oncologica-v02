@@ -30,7 +30,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   const [uploadProgress, setUploadProgress] = useState(0)
   const [dragActive, setDragActive] = useState(false)
 
-  const validateFile = (file: File): boolean => {
+  const validateFile = useCallback((file: File): boolean => {
     const maxSizeBytes = maxSize * 1024 * 1024
 
     if (file.size > maxSizeBytes) {
@@ -63,7 +63,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     }
 
     return true
-  }
+  }, [maxSize, accept, toast])
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -91,7 +91,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         setFiles(newFiles)
       }
     },
-    [disabled, uploading, files, multiple]
+    [disabled, uploading, files, multiple, validateFile]
   )
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {

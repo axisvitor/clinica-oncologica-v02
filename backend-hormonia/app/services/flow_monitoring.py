@@ -10,16 +10,40 @@ from enum import Enum
 from dataclasses import dataclass
 import json
 
-from sqlalchemy import and_, or_  # FIX: Add missing imports
+from sqlalchemy import and_, or_, func  # FIX: Add missing imports
 from redis import Redis
+from prometheus_client import Gauge, Counter, Histogram
 
 
-from app.models.flow import PatientFlowState
+from app.models.message import Message
+from app.models.flow import PatientFlowState, FlowTemplateVersion, FlowKind
 from app.models.flow_analytics import FlowMessage
 from app.repositories.flow import FlowStateRepository
 from app.services.data_corruption import DataCorruptionDetector
 
 logger = logging.getLogger(__name__)
+
+# Prometheus metrics
+flow_active_count = Gauge(
+    "flow_active_count",
+    "Active flow count by kind",
+    ["flow_kind"],
+)
+flow_completed_count = Counter(
+    "flow_completed_count",
+    "Completed flow count by kind",
+    ["flow_kind"],
+)
+flow_completion_rate = Gauge(
+    "flow_completion_rate",
+    "Flow completion rate by kind",
+    ["flow_kind"],
+)
+flow_duration_seconds = Histogram(
+    "flow_duration_seconds",
+    "Flow duration in seconds by kind",
+    ["flow_kind"],
+)
 
 
 class AlertSeverity(Enum):
@@ -81,6 +105,8 @@ class FlowMonitoringService:
         self.redis = redis
         self.flow_repository = flow_repository
         self.corruption_detector = corruption_detector
+        self._last_completion_counts: dict[str, int] = {}
+        self._last_metrics_check = datetime.now(timezone.utc)
 
         # Monitoring thresholds
         self.thresholds = {
@@ -144,9 +170,7 @@ class FlowMonitoringService:
             # Database metrics
             total_active_flows = (
                 self.db.query(PatientFlowState)
-                .filter(  # FIX: Use PatientFlowState instead of FlowState
-                    not PatientFlowState.is_paused
-                )
+                .filter(PatientFlowState.status == "active")
                 .count()
             )
 
@@ -155,14 +179,14 @@ class FlowMonitoringService:
             twenty_four_hours_ago = datetime.now(timezone.utc) - timedelta(hours=24)
 
             messages_last_hour = (
-                self.db.query(FlowMessage)
-                .filter(FlowMessage.sent_at >= one_hour_ago)
+                self.db.query(Message)
+                .filter(Message.sent_at >= one_hour_ago)
                 .count()
             )
 
             messages_last_24h = (
-                self.db.query(FlowMessage)
-                .filter(FlowMessage.sent_at >= twenty_four_hours_ago)
+                self.db.query(Message)
+                .filter(Message.sent_at >= twenty_four_hours_ago)
                 .count()
             )
 
@@ -208,6 +232,90 @@ class FlowMonitoringService:
                 redis_memory_usage=0.0,
                 database_connection_count=0,
             )
+
+        finally:
+            try:
+                self._update_flow_metrics()
+            except Exception as metrics_error:
+                logger.warning(f"Failed to update flow metrics: {metrics_error}")
+
+    def _update_flow_metrics(self) -> None:
+        now = datetime.now(timezone.utc)
+
+        totals = (
+            self.db.query(FlowKind.kind_key, func.count(PatientFlowState.id))
+            .join(
+                FlowTemplateVersion,
+                PatientFlowState.flow_template_version_id == FlowTemplateVersion.id,
+            )
+            .join(FlowKind, FlowTemplateVersion.flow_kind_id == FlowKind.id)
+            .group_by(FlowKind.kind_key)
+            .all()
+        )
+
+        active = (
+            self.db.query(FlowKind.kind_key, func.count(PatientFlowState.id))
+            .join(
+                FlowTemplateVersion,
+                PatientFlowState.flow_template_version_id == FlowTemplateVersion.id,
+            )
+            .join(FlowKind, FlowTemplateVersion.flow_kind_id == FlowKind.id)
+            .filter(PatientFlowState.completed_at.is_(None))
+            .group_by(FlowKind.kind_key)
+            .all()
+        )
+
+        completed = (
+            self.db.query(FlowKind.kind_key, func.count(PatientFlowState.id))
+            .join(
+                FlowTemplateVersion,
+                PatientFlowState.flow_template_version_id == FlowTemplateVersion.id,
+            )
+            .join(FlowKind, FlowTemplateVersion.flow_kind_id == FlowKind.id)
+            .filter(PatientFlowState.completed_at.is_not(None))
+            .group_by(FlowKind.kind_key)
+            .all()
+        )
+
+        total_map = {kind: count for kind, count in totals}
+        active_map = {kind: count for kind, count in active}
+        completed_map = {kind: count for kind, count in completed}
+
+        for kind_key, total_count in total_map.items():
+            active_count = active_map.get(kind_key, 0)
+            completed_count = completed_map.get(kind_key, 0)
+
+            flow_active_count.labels(kind_key).set(active_count)
+            completion_rate = (
+                completed_count / total_count if total_count > 0 else 0.0
+            )
+            flow_completion_rate.labels(kind_key).set(completion_rate)
+
+            previous = self._last_completion_counts.get(kind_key, 0)
+            if completed_count > previous:
+                flow_completed_count.labels(kind_key).inc(completed_count - previous)
+            self._last_completion_counts[kind_key] = completed_count
+
+        recent_completions = (
+            self.db.query(FlowKind.kind_key, PatientFlowState)
+            .join(
+                FlowTemplateVersion,
+                PatientFlowState.flow_template_version_id == FlowTemplateVersion.id,
+            )
+            .join(FlowKind, FlowTemplateVersion.flow_kind_id == FlowKind.id)
+            .filter(
+                PatientFlowState.completed_at.is_not(None),
+                PatientFlowState.completed_at >= self._last_metrics_check,
+            )
+            .all()
+        )
+
+        for kind_key, flow_state in recent_completions:
+            if flow_state.started_at and flow_state.completed_at:
+                duration = (flow_state.completed_at - flow_state.started_at).total_seconds()
+                flow_duration_seconds.labels(kind_key).observe(duration)
+
+        self._last_metrics_check = now
 
     async def check_and_create_alerts(self) -> List[SystemAlert]:
         """Check system metrics and create alerts if thresholds are exceeded."""

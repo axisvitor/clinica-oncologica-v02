@@ -9,7 +9,7 @@
  */
 
 import { createLogger } from './lib/logger';
-import { getRuntimeConfig, getRuntimeConfigSync, isProduction } from './lib/runtime-config';
+import { getRuntimeConfig } from './lib/runtime-config';
 
 const logger = createLogger('Config');
 
@@ -59,7 +59,7 @@ interface RuntimeConfigType {
 
 // Configuration state
 let configPromise: Promise<RuntimeConfigType> | null = null;
-let syncConfig: RuntimeConfigType | null = null;
+let _syncConfig: RuntimeConfigType | null = null;
 
 /**
  * Use this in React components with useEffect or in async functions
@@ -117,7 +117,7 @@ export async function loadConfig() {
           logger.warn('WebSocket URL not configured. Real-time features may be limited.');
         }
 
-        syncConfig = config;
+        _syncConfig = config;
         return config;
       } catch (error) {
         logger.error('Failed to load configuration:', error);
@@ -132,13 +132,13 @@ export async function loadConfig() {
 // Backward compatibility exports - these will work once config is loaded
 export let API_BASE_URL = '';
 export let WS_BASE_URL = '';
-export let WHATSAPP_INSTANCE_NAME = '';
-export let SENTRY_DSN = '';
-export let ANALYTICS_TRACKING_ID = '';
-export let ENVIRONMENT = '';
-export let DEBUG_MODE = false;
-export let SESSION_TIMEOUT = 28800000;
-export let TOKEN_REFRESH_THRESHOLD = 300000;
+export const WHATSAPP_INSTANCE_NAME = '';
+export const SENTRY_DSN = '';
+export const ANALYTICS_TRACKING_ID = '';
+export const ENVIRONMENT = '';
+export const DEBUG_MODE = false;
+export const SESSION_TIMEOUT = 28800000;
+export const TOKEN_REFRESH_THRESHOLD = 300000;
 
 // Update exports when config is loaded
 loadConfig().then(config => {
@@ -154,8 +154,8 @@ const STATIC_SENTRY_DSN = import.meta.env['VITE_MONITORING_SENTRY_DSN'];
 const STATIC_ANALYTICS_TRACKING_ID = import.meta.env['VITE_MONITORING_ANALYTICS_ID'];
 const STATIC_ENVIRONMENT = import.meta.env['VITE_APP_ENVIRONMENT'] || 'development';
 const STATIC_DEBUG_MODE = import.meta.env['VITE_APP_ENABLE_DEBUG'] === 'true';
-const STATIC_SESSION_TIMEOUT = parseInt(import.meta.env['VITE_SESSION_TIMEOUT_MS'] || '28800000', 10);
-const STATIC_TOKEN_REFRESH_THRESHOLD = parseInt(import.meta.env['VITE_SESSION_TOKEN_REFRESH_THRESHOLD_MS'] || '300000', 10);
+const _STATIC_SESSION_TIMEOUT = parseInt(import.meta.env['VITE_SESSION_TIMEOUT_MS'] || '28800000', 10);
+const _STATIC_TOKEN_REFRESH_THRESHOLD = parseInt(import.meta.env['VITE_SESSION_TOKEN_REFRESH_THRESHOLD_MS'] || '300000', 10);
 
 // AI Feature Flag Statics - NEW NAMING: VITE_AI_ENABLE_*
 const STATIC_AI_CHAT_ENABLED = import.meta.env['VITE_AI_ENABLE_CHAT'] === 'true' || import.meta.env['VITE_AI_ENABLE_CHAT'] === undefined;

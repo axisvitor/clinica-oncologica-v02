@@ -8,7 +8,12 @@ Endpoints:
 
 # NOTE: Removed 'from __future__ import annotations' to fix Pydantic/FastAPI OpenAPI issues
 
+from typing import Optional, List, Dict, Any
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+
+from app.core.monthly_quiz_config import get_monthly_quiz_config
+from app.domain.quizzes.session import TokenManager
 
 from ._shared import (
     UUID,
@@ -30,6 +35,7 @@ from ._shared import (
     get_redis_cache,
     CACHE_TTL_STATISTICS,
     asc,
+    desc,
 )
 
 router = APIRouter()
@@ -145,6 +151,249 @@ async def get_monthly_quiz_responses(
         data=enriched_responses, next_cursor=next_cursor, has_more=has_more, total=total
     )
 
+
+# --- New Endpoints matching Frontend monthly-quiz.ts ---
+
+from pydantic import BaseModel
+
+class QuizLinkCreate(BaseModel):
+    patient_id: UUID
+    quiz_template_id: UUID
+    delivery_method: str = "whatsapp"
+    expiry_hours: int = 48
+    custom_message: Optional[str] = None
+
+class QuizLinkResponse(BaseModel):
+    id: UUID
+    quiz_session_id: UUID
+    patient_id: UUID
+    quiz_template_id: UUID
+    link: str
+    token: str
+    status: str
+    expires_at: datetime
+    created_at: datetime
+    delivery_method: str
+
+class QuizStatsDashboard(BaseModel):
+    total_sent: int
+    total_completed: int
+    total_expired: int
+    total_active: int
+    average_score: float
+    completion_rate: float
+    expiration_rate: float
+
+@router.post(
+    "/links/",
+    response_model=QuizLinkResponse,
+    summary="Create quiz link",
+    description="Create a monthly quiz link for a patient"
+)
+async def create_quiz_link(
+    link_data: QuizLinkCreate,
+    db=Depends(get_db),
+    current_user: User = Depends(_get_current_user_simple)
+):
+    """Create a quiz link (session + token)."""
+    # Verify template
+    template = db.query(QuizTemplate).filter(QuizTemplate.id == link_data.quiz_template_id).first()
+    if not template:
+        raise HTTPException(status_code=404, detail="Quiz template not found")
+
+    # Check/Create Session
+    session = db.query(QuizSession).filter(
+        QuizSession.quiz_template_id == link_data.quiz_template_id,
+        QuizSession.patient_id == link_data.patient_id,
+        QuizSession.status.in_(["started", "active"])
+    ).first()
+
+    if not session:
+        session = QuizSession(
+            patient_id=link_data.patient_id,
+            quiz_template_id=link_data.quiz_template_id,
+            status="started",
+            started_at=datetime.now(timezone.utc),
+            session_metadata={
+                "delivery_method": link_data.delivery_method,
+                "custom_message": link_data.custom_message
+            }
+        )
+        session.set_expiration_date(hours=link_data.expiry_hours)
+        db.add(session)
+        db.commit()
+        db.refresh(session)
+    
+    # Generate JWT token for access (patient/session scoped)
+    token_manager = TokenManager()
+    expires_at = session.expiration_date or (
+        datetime.now(timezone.utc) + timedelta(hours=48)
+    )
+    token = token_manager.generate_token(
+        patient_id=session.patient_id,
+        quiz_template_id=session.quiz_template_id,
+        expires_at=expires_at,
+        session_id=session.id,
+        token_type="quiz_access",
+    )
+
+    # Construct Link using configured base URL
+    config = get_monthly_quiz_config()
+    link = f"{config.MONTHLY_QUIZ_BASE_URL}?token={token}"
+
+    return QuizLinkResponse(
+        id=session.id, # Session ID as Link ID for now
+        quiz_session_id=session.id,
+        patient_id=session.patient_id,
+        quiz_template_id=session.quiz_template_id,
+        link=link,
+        token=token,
+        status=session.status,
+        expires_at=session.expiration_date or (datetime.now(timezone.utc) + timedelta(hours=48)),
+        created_at=session.started_at,
+        delivery_method=session.session_metadata.get("delivery_method", "whatsapp")
+    )
+
+@router.get(
+    "/patients/{patient_id}/status",
+    summary="Get patient quiz status",
+    response_model=List[Dict[str, Any]]
+)
+async def get_patient_quiz_status(
+    patient_id: UUID,
+    db=Depends(get_db),
+    current_user: User = Depends(_get_current_user_simple)
+):
+    sessions = db.query(QuizSession).filter(
+        QuizSession.patient_id == patient_id
+    ).order_by(desc(QuizSession.started_at)).limit(5).all()
+
+    result = []
+    for s in sessions:
+        template = db.query(QuizTemplate).filter(QuizTemplate.id == s.quiz_template_id).first()
+        result.append({
+            "id": str(s.id),
+            "quiz_session_id": str(s.id),
+            "quiz_template_id": str(s.quiz_template_id),
+            "template_name": template.name if template else "Unknown",
+            "status": s.status,
+            "score": float(s.score) if s.score is not None else None,
+            "expires_at": s.expiration_date,
+            "created_at": s.started_at,
+            "completed_at": s.completed_at
+        })
+    return result
+
+@router.get(
+    "/patients/{patient_id}/history",
+    summary="Get patient quiz history",
+    response_model=List[Dict[str, Any]]
+)
+async def get_patient_quiz_history(
+    patient_id: UUID,
+    db=Depends(get_db),
+    current_user: User = Depends(_get_current_user_simple)
+):
+    return await get_patient_quiz_status(patient_id, db, current_user)
+
+@router.get(
+    "/links/active/",
+    summary="Get active quiz links",
+    response_model=List[Dict[str, Any]]
+)
+async def get_active_links(
+    db=Depends(get_db),
+    current_user: User = Depends(_get_current_user_simple)
+):
+    """Get all active (non-expired, non-completed) quiz links/sessions."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        now = datetime.now(timezone.utc)
+        
+        # Get active sessions (started, not expired)
+        sessions = db.query(QuizSession).filter(
+            QuizSession.status.in_(["started", "active"]),
+        ).order_by(desc(QuizSession.started_at)).limit(50).all()
+        
+        result = []
+        for s in sessions:
+            # Check expiration
+            if s.expiration_date and s.expiration_date < now:
+                continue
+                
+            template = db.query(QuizTemplate).filter(QuizTemplate.id == s.quiz_template_id).first()
+            patient = db.query(Patient).filter(Patient.id == s.patient_id).first()
+            
+            result.append({
+                "id": str(s.id),
+                "quiz_session_id": str(s.id),
+                "patient_id": str(s.patient_id),
+                "patient_name": patient.full_name if patient else "Unknown",
+                "quiz_template_id": str(s.quiz_template_id),
+                "template_name": template.name if template else "Unknown",
+                "status": s.status,
+                "expires_at": s.expiration_date.isoformat() if s.expiration_date else None,
+                "created_at": s.started_at.isoformat() if s.started_at else None,
+            })
+        return result
+    except Exception as e:
+        logger.error(f"Error getting active links: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get active links: {str(e)}"
+        )
+
+@router.get(
+    "/stats/dashboard/",
+    summary="Get dashboard quiz stats",
+    response_model=QuizStatsDashboard
+)
+async def get_dashboard_stats(
+    db=Depends(get_db),
+    current_user: User = Depends(_get_current_user_simple)
+):
+    """Get dashboard statistics for monthly quizzes."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Aggregate stats
+        total_active = db.query(QuizSession).filter(QuizSession.status == "started").count()
+        total_completed = db.query(QuizSession).filter(QuizSession.status == "completed").count()
+        total_expired = db.query(QuizSession).filter(QuizSession.status == "expired").count()
+        total_sent = total_active + total_completed + total_expired  # Approximate
+
+        # Avg score - with safe conversion
+        completed_sessions = db.query(QuizSession).filter(QuizSession.status == "completed").all()
+        scores = []
+        for s in completed_sessions:
+            if s.score is not None:
+                try:
+                    scores.append(float(s.score))
+                except (TypeError, ValueError):
+                    pass
+        avg_score = sum(scores) / len(scores) if scores else 0.0
+
+        completion_rate = (total_completed / total_sent * 100) if total_sent > 0 else 0.0
+        expiration_rate = (total_expired / total_sent * 100) if total_sent > 0 else 0.0
+
+        return QuizStatsDashboard(
+            total_sent=total_sent,
+            total_completed=total_completed,
+            total_expired=total_expired,
+            total_active=total_active,
+            average_score=round(avg_score, 2),
+            completion_rate=round(completion_rate, 2),
+            expiration_rate=round(expiration_rate, 2)
+        )
+    except Exception as e:
+        logger.error(f"Error getting dashboard stats: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get dashboard stats: {str(e)}"
+        )
 
 @router.get(
     "/monthly/{quiz_id}/statistics",

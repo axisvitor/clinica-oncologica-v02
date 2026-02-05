@@ -14,7 +14,7 @@ Lines: 45-434
 import csv
 import io
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 from typing import List, Optional
 from uuid import UUID
 
@@ -31,6 +31,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import StreamingResponse
+from email_validator import EmailNotValidError, validate_email
 from sqlalchemy.orm import Session
 
 # Local application imports
@@ -41,7 +42,8 @@ from app.dependencies.auth_dependencies import (
 )
 from app.models.patient import FlowState, Patient
 from app.models.user import UserRole
-from app.utils.phone_validator import normalize_phone
+from app.schemas.patient import validate_cpf
+from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
 from app.utils.rate_limiter import limiter
 
 from .base import (
@@ -329,21 +331,17 @@ async def import_patients(
                 failed_count += 1
                 continue
 
-            # Normalize phone
-            normalized_phone = normalize_phone(phone)
-            if not normalized_phone:
+            # Normalize phone to E.164
+            try:
+                e164_phone = normalize_phone(
+                    phone, mode=PhoneValidationMode.BR_TO_E164, allow_none=False
+                )
+            except ValueError:
                 errors.append(
                     ImportError(row=row_number, message="Invalid phone format")
                 )
                 failed_count += 1
                 continue
-
-            # Ensure E.164 format
-            e164_phone = (
-                normalized_phone
-                if normalized_phone.startswith("+")
-                else f"+{normalized_phone}"
-            )
 
             # Check for duplicate phone (LGPD: use hash lookup)
             from app.services.encryption import get_lgpd_encryption_service
@@ -372,6 +370,18 @@ async def import_patients(
             diagnosis = row.get("Diagnosis", "").strip() or None
             treatment_phase = row.get("Treatment Phase", "").strip() or None
             doctor_notes = row.get("Doctor Notes", "").strip() or None
+
+            # Validate email format (parity with API)
+            if email:
+                try:
+                    validated_email = validate_email(email)
+                    email = validated_email.normalized
+                except EmailNotValidError:
+                    errors.append(
+                        ImportError(row=row_number, message="Invalid email format")
+                    )
+                    failed_count += 1
+                    continue
 
             # Parse dates
             birth_date = None
@@ -406,6 +416,36 @@ async def import_patients(
                     failed_count += 1
                     continue
 
+            # Birth date range validation (parity with API)
+            if birth_date:
+                today = date.today()
+                min_date = today - timedelta(days=int(18 * 365.25))
+                max_date = today - timedelta(days=int(120 * 365.25))
+                if birth_date > today:
+                    errors.append(
+                        ImportError(
+                            row=row_number, message="Birth date cannot be in future"
+                        )
+                    )
+                    failed_count += 1
+                    continue
+                if birth_date > min_date:
+                    errors.append(
+                        ImportError(
+                            row=row_number, message="Patient must be 18+"
+                        )
+                    )
+                    failed_count += 1
+                    continue
+                if birth_date < max_date:
+                    errors.append(
+                        ImportError(
+                            row=row_number, message="Birth date is not realistic"
+                        )
+                    )
+                    failed_count += 1
+                    continue
+
             # Validate CPF if provided
             if cpf and len(cpf) != 11:
                 errors.append(
@@ -413,6 +453,12 @@ async def import_patients(
                         row=row_number,
                         message=f"CPF must have exactly 11 digits, got {len(cpf)}",
                     )
+                )
+                failed_count += 1
+                continue
+            if cpf and not validate_cpf(cpf):
+                errors.append(
+                    ImportError(row=row_number, message="Invalid CPF checksum")
                 )
                 failed_count += 1
                 continue
@@ -461,31 +507,38 @@ async def import_patients(
                     continue
 
             # Create patient (LGPD: use encrypted fields)
-            new_patient = Patient(
-                name=name,
-                birth_date=birth_date,
-                treatment_type=treatment_type,
-                treatment_start_date=treatment_start_date,
-                diagnosis=diagnosis,
-                treatment_phase=treatment_phase,
-                doctor_notes=doctor_notes,
-                doctor_id=current_user_uuid,
-                flow_state=FlowState.ONBOARDING,
-                current_day=0,
-            )
+            savepoint = db.begin_nested()
+            try:
+                new_patient = Patient(
+                    name=name,
+                    birth_date=birth_date,
+                    treatment_type=treatment_type,
+                    treatment_start_date=treatment_start_date,
+                    diagnosis=diagnosis,
+                    treatment_phase=treatment_phase,
+                    doctor_notes=doctor_notes,
+                    doctor_id=current_user_uuid,
+                    flow_state=FlowState.ONBOARDING,
+                    current_day=0,
+                )
 
-            # LGPD: Set encrypted fields using proper methods
-            if e164_phone:
-                new_patient.set_phone(e164_phone)
-            if email:
-                new_patient.set_email(email)
-            if cpf:
-                new_patient.set_cpf(cpf)
+                # LGPD: Set encrypted fields using proper methods
+                if e164_phone:
+                    new_patient.set_phone(e164_phone)
+                if email:
+                    new_patient.set_email(email)
+                if cpf:
+                    new_patient.set_cpf(cpf)
 
-            db.add(new_patient)
-            db.flush()  # Flush to get the ID but don't commit yet
+                db.add(new_patient)
+                db.flush()  # Flush to get the ID but don't commit yet
+                savepoint.commit()
 
-            success_count += 1
+                success_count += 1
+            except Exception:
+                if savepoint.is_active:
+                    savepoint.rollback()
+                raise
 
         except Exception as e:
             logger.error(f"Failed to import row {row_number}: {e}")
@@ -493,7 +546,6 @@ async def import_patients(
                 ImportError(row=row_number, message=f"Unexpected error: {str(e)}")
             )
             failed_count += 1
-            db.rollback()
             continue
 
     # Commit all successful imports

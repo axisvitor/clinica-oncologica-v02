@@ -3,7 +3,6 @@
 Debug script for testing saga flow directly.
 Run with: python tests/debug_saga_flow.py
 """
-import os
 import sys
 import asyncio
 from pathlib import Path
@@ -27,7 +26,6 @@ async def test_saga_flow():
     from app.orchestration.saga_orchestrator import SagaOrchestrator
     from app.schemas.patient import PatientCreate
     from app.core.redis_client import get_redis_client
-    from uuid import UUID
     from datetime import date
 
     # Get admin user's doctor_id
@@ -72,7 +70,7 @@ async def test_saga_flow():
         )
 
         if patient:
-            print(f"\n✅ SAGA COMPLETED SUCCESSFULLY!")
+            print("\n✅ SAGA COMPLETED SUCCESSFULLY!")
             print(f"   Patient ID: {patient.id}")
             print(f"   Name: {patient.name}")
             print(f"   Flow State: {patient.flow_state}")

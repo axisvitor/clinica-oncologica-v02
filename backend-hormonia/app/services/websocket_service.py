@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from fastapi import WebSocket
 from redis import Redis
-from jose import jwt, JWTError
+import jwt  # PyJWT - replaces python-jose to fix CVE-2024-23342
 
 from app.config import settings
 from app.schemas.websocket import (
@@ -200,7 +200,7 @@ class WebSocketConnectionManager:
             logger.info(f"Connection {connection_id} authenticated as {user_id}")
             return True
 
-        except JWTError as e:
+        except jwt.exceptions.PyJWTError as e:
             logger.error(f"JWT authentication error: {e}")
             return False
 
@@ -455,7 +455,23 @@ class WebSocketEventBroadcaster:
             Number of connections reached
         """
         try:
-            event_data = FlowEventData(**flow_data)
+            enriched_data = dict(flow_data or {})
+            if not enriched_data.get("patient_id"):
+                enriched_data["patient_id"] = patient_id
+            flow_type = enriched_data.get("flow_type")
+            if not flow_type:
+                flow_type = "unknown"
+            elif not isinstance(flow_type, str):
+                flow_type = (
+                    flow_type.value if hasattr(flow_type, "value") else str(flow_type)
+                )
+            enriched_data["flow_type"] = flow_type
+            if enriched_data.get("current_day") is None:
+                enriched_data["current_day"] = 0
+            if not enriched_data.get("enrollment_date"):
+                enriched_data["enrollment_date"] = datetime.now(timezone.utc)
+
+            event_data = FlowEventData(**enriched_data)
             message = create_websocket_message(event_type, event_data)
 
             sent = await self.manager.broadcast_to_patient_room(

@@ -1,6 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { ErrorFallback } from './ErrorFallback';
 import { logger } from '@/lib/logger';
+import { apiClient } from '@/lib/api-client';
 
 export interface ErrorBoundaryProps {
   children: ReactNode;
@@ -97,10 +98,23 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   private reportError = (error: Error, errorInfo: ErrorInfo, level: string) => {
+    // Type definition for Sentry on window
+    interface SentryScope {
+      setTag: (key: string, value: string | boolean) => void;
+      setLevel: (level: string) => void;
+      setContext: (name: string, context: Record<string, unknown>) => void;
+    }
+    interface SentryInstance {
+      withScope: (callback: (scope: SentryScope) => void) => void;
+      captureException: (error: Error) => void;
+    }
+    type WindowWithSentry = Window & typeof globalThis & { Sentry?: SentryInstance };
+
     try {
       // Report to Sentry if available
-      if (typeof window !== 'undefined' && (window as any).Sentry) {
-        (window as any).Sentry.withScope((scope: any) => {
+      const windowWithSentry = window as WindowWithSentry;
+      if (typeof window !== 'undefined' && windowWithSentry.Sentry) {
+        windowWithSentry.Sentry.withScope((scope: SentryScope) => {
           scope.setTag('errorBoundary', true);
           scope.setLevel(level === 'critical' ? 'error' : 'warning');
           scope.setContext('errorInfo', {
@@ -108,34 +122,35 @@ export class ErrorBoundary extends Component<Props, State> {
             errorBoundaryLevel: level,
             errorId: this.state.errorId
           });
-          (window as any).Sentry.captureException(error);
+          windowWithSentry.Sentry?.captureException(error);
         });
       }
 
       // Send to backend error tracking
-      fetch('/api/v2/errors/client', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
+      const payload = {
+        error: {
+          message: error.message,
+          stack: error.stack,
+          name: error.name,
         },
-        body: JSON.stringify({
-          error: {
-            message: error.message,
-            stack: error.stack,
-            name: error.name
-          },
-          errorInfo: {
-            componentStack: errorInfo.componentStack
-          },
-          level,
-          errorId: this.state.errorId,
-          url: window.location.href,
-          userAgent: navigator.userAgent,
-          timestamp: new Date().toISOString()
+        errorInfo: {
+          componentStack: errorInfo.componentStack,
+        },
+        level,
+        errorId: this.state.errorId,
+        url: window.location.href,
+        userAgent: navigator.userAgent,
+        timestamp: new Date().toISOString(),
+      };
+
+      void apiClient
+        .request("/api/v2/errors/client", {
+          method: "POST",
+          body: JSON.stringify(payload),
         })
-      }).catch(reportError => {
-        logger.error('Failed to report error to backend', reportError);
-      });
+        .catch(reportError => {
+          logger.error("Failed to report error to backend", reportError);
+        });
     } catch (reportError) {
       logger.error('Error reporting failed', reportError);
     }
@@ -218,6 +233,7 @@ export class ErrorBoundary extends Component<Props, State> {
 }
 
 // Higher-order component for easier use
+// eslint-disable-next-line react-refresh/only-export-components
 export function withErrorBoundary<P extends object>(
   Component: React.ComponentType<P>,
   errorBoundaryProps?: Omit<ErrorBoundaryProps, 'children'>
@@ -233,14 +249,26 @@ export function withErrorBoundary<P extends object>(
 }
 
 // Hook for reporting errors manually
+// eslint-disable-next-line react-refresh/only-export-components
 export function useErrorReporting() {
+  // Type definition for Sentry on window
+  interface SentryScope {
+    setContext: (name: string, context: Record<string, unknown>) => void;
+  }
+  interface SentryInstance {
+    withScope: (callback: (scope: SentryScope) => void) => void;
+    captureException: (error: Error) => void;
+  }
+  type WindowWithSentry = Window & typeof globalThis & { Sentry?: SentryInstance };
+
   const reportError = (error: Error, context?: Record<string, unknown>) => {
-    if (process.env['NODE_ENV'] === 'production' && typeof window !== 'undefined' && (window as any).Sentry) {
-      (window as any).Sentry.withScope((scope: any) => {
+    const windowWithSentry = window as WindowWithSentry;
+    if (process.env['NODE_ENV'] === 'production' && typeof window !== 'undefined' && windowWithSentry.Sentry) {
+      windowWithSentry.Sentry.withScope((scope: SentryScope) => {
         if (context) {
           scope.setContext('manual_report', context);
         }
-        (window as any).Sentry.captureException(error);
+        windowWithSentry.Sentry?.captureException(error);
       });
     } else {
       logger.error('Manual error report', { error, context });
@@ -248,6 +276,55 @@ export function useErrorReporting() {
   };
 
   return { reportError };
+}
+
+// Legacy hook for compatibility (alias for useErrorReporting)
+// eslint-disable-next-line react-refresh/only-export-components
+export function useErrorHandler() {
+  const { reportError } = useErrorReporting();
+
+  return (error: Error, errorInfo?: React.ErrorInfo) => {
+    logger.error('Manual error handler triggered:', {
+      error: error.message,
+      stack: error.stack,
+      errorInfo
+    });
+
+    if (process.env['NODE_ENV'] === 'production') {
+      reportError(error, { errorInfo });
+    }
+  };
+}
+
+// Simple error fallback component for inline use
+export function SimpleErrorFallback({
+  error,
+  resetError
+}: {
+  error: Error;
+  resetError: () => void;
+}) {
+  return (
+    <div className="text-center py-8">
+      <div className="w-12 h-12 text-red-500 mx-auto mb-4">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+      </div>
+      <h3 className="text-lg font-medium text-gray-900 mb-2">
+        Algo deu errado
+      </h3>
+      <p className="text-gray-600 mb-4">
+        {error.message}
+      </p>
+      <button
+        onClick={resetError}
+        className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+      >
+        Tentar novamente
+      </button>
+    </div>
+  );
 }
 
 export default ErrorBoundary;

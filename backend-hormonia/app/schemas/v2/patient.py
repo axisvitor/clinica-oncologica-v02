@@ -4,7 +4,7 @@ Enhanced patient models with field selection and eager loading support.
 """
 
 import re
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from datetime import datetime, date, timedelta
 from uuid import UUID
 from pydantic import BaseModel, Field, EmailStr, field_validator, ConfigDict
@@ -54,21 +54,30 @@ class PatientV2Base(BaseModel):
     treatment_phase: Optional[str] = Field(
         None,
         max_length=100,
-        pattern="^(initial|adjustment|maintenance|monitoring|followup|completed)$"
+        pattern="^(initial|adjustment|maintenance|monitoring|followup|completed|inicial|ajuste|manutenção|monitoramento|acompanhamento|concluído)$"
     )
     timezone: str = Field(
         "America/Sao_Paulo", description="Patient timezone (e.g., America/Sao_Paulo)"
     )
 
     # Clinical information fields (from v1 schema)
-    allergies: Optional[str] = Field(None, description="Known allergies (medications, foods)")
-    medications: Optional[str] = Field(None, description="Current medications")
+    allergies: Optional[str] = Field(
+        None,
+        description="Known allergies (e.g., 'Penicilina, Dipirona' or 'Penicilina; Dipirona')",
+    )
+    medications: Optional[str] = Field(
+        None, description="Current medications (e.g., 'Levotiroxina 100mcg, Metformina 500mg')"
+    )
     blood_type: Optional[str] = Field(
         None,
         pattern="^(A|B|AB|O)[+-]$",
         description="Blood type (A+, A-, B+, B-, AB+, AB-, O+, O-)"
     )
-    emergency_contact: Optional[str] = Field(None, max_length=200, description="Emergency contact information")
+    emergency_contact: Optional[str] = Field(
+        None,
+        max_length=200,
+        description="Emergency contact (e.g., 'Nome - Telefone' or 'Nome: Telefone')",
+    )
 
     # Metadata JSONB field for additional dynamic data
     patient_data: Optional[Dict[str, Any]] = Field(None, description="Additional patient metadata")
@@ -95,14 +104,14 @@ class PatientV2Base(BaseModel):
     @classmethod
     def validate_phone_format(cls, v):
         """
-        Validate phone number for E.164 or Brazilian format.
+        Validate phone number and normalize to E.164.
 
         This validator accepts both formats for v2 API flexibility:
         - E.164 format: +5511987654321
         - Brazilian format: 11987654321, (11) 98765-4321
 
-        The hybrid mode ensures compatibility with both international
-        and local Brazilian phone numbers.
+        The BR_TO_E164 mode standardizes storage to E.164 while
+        preserving input flexibility.
 
         See: app/schemas/validators/phone.py for implementation details
         """
@@ -111,7 +120,7 @@ class PatientV2Base(BaseModel):
 
         from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
 
-        return normalize_phone(v, mode=PhoneValidationMode.HYBRID, allow_none=True)
+        return normalize_phone(v, mode=PhoneValidationMode.BR_TO_E164, allow_none=True)
 
     @field_validator("birth_date")
     @classmethod
@@ -171,6 +180,46 @@ class PatientV2Base(BaseModel):
         return v
 
 
+class PatientMetadataV2(BaseModel):
+    """
+    Pydantic model for patient_data (metadata) validation.
+
+    Validates metadata structure and types according to jsonb_validator.py schema.
+    Unknown keys are moved to custom_fields automatically.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    preferences: Optional[Dict[str, Any]] = None
+    medical_history: Optional[Dict[str, Any]] = None
+    blood_type: Optional[str] = Field(None, pattern="^(A|B|AB|O)[+-]$")
+    emergency_contact: Optional[Dict[str, Any]] = None
+    insurance: Optional[Dict[str, Any]] = None
+    onboarding: Optional[Dict[str, Any]] = None
+    custom_fields: Optional[Dict[str, Any]] = None
+    doctor_name: Optional[str] = None
+    quarantine: Optional[bool] = None
+    quarantine_reason: Optional[str] = None
+    quarantine_at: Optional[Union[str, datetime]] = None
+    saga_id: Optional[str] = Field(None, pattern="^[0-9a-fA-F-]{36}$")
+    system: Optional[Dict[str, Any]] = None
+
+    @field_validator(
+        "preferences",
+        "medical_history",
+        "emergency_contact",
+        "insurance",
+        "onboarding",
+        "system",
+    )
+    @classmethod
+    def validate_dict_type(cls, v):
+        """Ensure nested fields are dicts."""
+        if v is not None and not isinstance(v, dict):
+            raise ValueError("Must be a dictionary")
+        return v
+
+
 class PatientV2Create(PatientV2Base):
     """Schema for creating a patient"""
 
@@ -187,10 +236,13 @@ class PatientV2Create(PatientV2Base):
                 "doctor_notes": "Paciente apresentou boa resposta ao tratamento.",
                 "doctor_id": "123e4567-e89b-12d3-a456-426614174000",
                 "allergies": "Penicilina, Dipirona",
-                "medications": "Levotiroxina 100mcg",
+                "medications": "Levotiroxina 100mcg, Metformina 500mg",
                 "blood_type": "A+",
                 "emergency_contact": "Maria Silva - (11) 99999-9999",
-                "patient_data": {"insurance": "Unimed", "preferred_contact": "whatsapp"}
+                "patient_data": {
+                    "insurance": {"provider": "Unimed"},
+                    "preferences": {"communication_channel": "whatsapp"},
+                },
             }
         }
     )
@@ -228,7 +280,7 @@ class PatientV2Update(BaseModel):
     treatment_phase: Optional[str] = Field(
         None,
         max_length=100,
-        pattern="^(initial|adjustment|maintenance|monitoring|followup|completed)$"
+        pattern="^(initial|adjustment|maintenance|monitoring|followup|completed|inicial|ajuste|manutenção|monitoramento|acompanhamento|concluído)$"
     )
     flow_state: Optional[FlowState] = None
 
@@ -267,14 +319,14 @@ class PatientV2Update(BaseModel):
     @classmethod
     def validate_phone_format(cls, v):
         """
-        Validate phone number for E.164 or Brazilian format.
+        Validate phone number and normalize to E.164.
 
         This validator accepts both formats for v2 API flexibility:
         - E.164 format: +5511987654321
         - Brazilian format: 11987654321, (11) 98765-4321
 
-        The hybrid mode ensures compatibility with both international
-        and local Brazilian phone numbers.
+        The BR_TO_E164 mode standardizes storage to E.164 while
+        preserving input flexibility.
 
         See: app/schemas/validators/phone.py for implementation details
         """
@@ -283,7 +335,7 @@ class PatientV2Update(BaseModel):
 
         from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
 
-        return normalize_phone(v, mode=PhoneValidationMode.HYBRID, allow_none=True)
+        return normalize_phone(v, mode=PhoneValidationMode.BR_TO_E164, allow_none=True)
 
     @field_validator("birth_date")
     @classmethod
@@ -379,7 +431,7 @@ class PatientV2Response(PatientV2Base):
     )
 
     id: UUID
-    doctor_id: UUID
+    doctor_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
     current_day: Optional[int] = None

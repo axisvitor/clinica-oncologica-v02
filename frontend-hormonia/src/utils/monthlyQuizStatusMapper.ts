@@ -141,13 +141,13 @@ export function getStatusLabel(status: string): string {
 /**
  * Type guard to check if a value is a valid backend status
  */
-export function isBackendStatus(value: any): value is BackendStatus {
+export function isBackendStatus(value: unknown): value is BackendStatus {
   return typeof value === 'string' && ['active', 'expired', 'used', 'cancelled'].includes(value.toLowerCase())
 }
 
 /**
  * Type guard to check if a value is a valid UI status
  */
-export function isUIStatus(value: any): value is UIStatus {
+export function isUIStatus(value: unknown): value is UIStatus {
   return typeof value === 'string' && isValidUIStatus(value)
 }

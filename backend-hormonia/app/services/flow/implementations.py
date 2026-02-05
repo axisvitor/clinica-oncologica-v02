@@ -60,8 +60,9 @@ class DatabaseFlowProcessor:
             flow_state.flow_type = required_flow_type.value
 
         flow_state.current_step = current_day
-        flow_state.state_data = flow_state.state_data or {}
-        flow_state.state_data["last_advancement"] = datetime.now(timezone.utc).isoformat()
+        step_data = dict(flow_state.step_data or {})
+        step_data["last_advancement"] = datetime.now(timezone.utc).isoformat()
+        flow_state.step_data = step_data
 
         self.db.commit()
 

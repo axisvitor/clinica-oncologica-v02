@@ -6,7 +6,6 @@ CacheInvalidationService.
 """
 
 import asyncio
-from typing import List
 from uuid import UUID
 
 from app.services.cache import (

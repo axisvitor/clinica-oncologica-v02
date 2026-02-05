@@ -8,7 +8,7 @@
  */
 
 // Main composition hook
-export { useUserAdmin } from './useUserAdmin'
+export { useUserAdmin, useUserActivity } from './useUserAdmin'
 export type { UseUserAdminOptions } from './useUserAdmin'
 
 // Individual feature hooks (for advanced usage)

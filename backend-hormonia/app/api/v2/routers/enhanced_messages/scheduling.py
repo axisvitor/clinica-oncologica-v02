@@ -10,7 +10,7 @@ Handles scheduling of messages including:
 
 from typing import Optional
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 import json
 import logging
 from fastapi import (
@@ -72,9 +72,15 @@ async def schedule_message(
     """
     try:
         # Validate patient access
-        patient = (
-            db.query(Patient).filter(Patient.id == schedule_data.patient_id).first()
-        )
+        try:
+            patient_id = UUID(str(schedule_data.patient_id))
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Invalid patient_id",
+            ) from exc
+
+        patient = db.query(Patient).filter(Patient.id == patient_id).first()
 
         if not patient:
             raise HTTPException(

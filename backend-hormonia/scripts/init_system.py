@@ -19,7 +19,7 @@ import os
 import asyncio
 import logging
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Optional
 from dataclasses import dataclass
 from enum import Enum
 
@@ -221,7 +221,7 @@ class SystemInitializer:
         self.logger.info("\n[3/6] Initializing Database...")
 
         try:
-            from app.core.database import engine, AsyncSessionLocal
+            from app.database import AsyncSessionLocal
             from sqlalchemy import text
 
             # Test connection

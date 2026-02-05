@@ -143,7 +143,7 @@ export class FrontendBootstrap {
 
     try {
       // Initialize Sentry (lazy load to avoid import errors)
-      const sentryModule = await import('../monitoring/sentry');
+      await import('../monitoring/sentry');
       // SentryMonitoring.init() is called automatically on module import
 
       // Setup global error handlers

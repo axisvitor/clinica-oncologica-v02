@@ -1,15 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { Search, Send, Phone, Clock, MessageSquare, CheckCheck, User as User2 } from 'lucide-react'
+import { Search, Phone, MessageSquare, User as User2 } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { MessagesSkeleton } from '@/features/messages/MessagesSkeleton'
 import { MessagesList } from '@/features/messages/MessagesList'
 import { MessageComposer } from '@/features/messages/MessageComposer'
 import type { Patient } from '@/types/api'
@@ -30,6 +29,7 @@ export function MessagesPage() {
   const [searchParams] = useSearchParams()
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const queryClient = useQueryClient()
 
   // Debounce search term to reduce API calls
   const debouncedSearch = useDebounce(searchTerm, 300)
@@ -50,7 +50,7 @@ export function MessagesPage() {
   React.useEffect(() => {
     const patientId = searchParams.get('patient')
     if (patientId && patientsData?.items) {
-      const patient = patientsData.items.find((p: any) => p.id === patientId)
+      const patient = patientsData.items.find((p: Patient) => p.id === patientId)
       if (patient) {
         setSelectedPatient(patient)
       }
@@ -123,9 +123,9 @@ export function MessagesPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 min-h-[calc(100vh-10rem)] md:min-h-[calc(100vh-12rem)]">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 min-h-[calc(100dvh-10rem)] md:min-h-[calc(100dvh-12rem)]">
         {/* Patients List */}
-        <Card className="lg:col-span-1 flex flex-col max-h-[calc(100vh-10rem)]">
+        <Card className="lg:col-span-1 flex flex-col max-h-[calc(100dvh-10rem)]">
           <CardHeader>
             <CardTitle>Conversas</CardTitle>
             <CardDescription>
@@ -147,9 +147,7 @@ export function MessagesPage() {
 
             <ScrollArea className="h-[400px] md:h-[500px] flex-1">
               {patientsLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <LoadingSpinner size="md" />
-                </div>
+                <MessagesSkeleton />
               ) : filteredPatients.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
                   <User2 className="h-12 w-12 text-gray-300 mb-3" />
@@ -214,10 +212,7 @@ export function MessagesPage() {
             <>
               {/* Messages List */}
               <MessagesList
-                messages={(messagesData?.items || []).map((msg: any) => ({
-                  ...msg,
-                  message_type: msg.type
-                }))}
+                messages={messagesData?.items || []}
                 isLoading={messagesLoading}
                 patientName={selectedPatient.name}
               />
@@ -227,7 +222,10 @@ export function MessagesPage() {
                 patientId={selectedPatient.id}
                 patientName={selectedPatient.name}
                 onMessageSent={() => {
-                  // Refresh messages when a new message is sent
+                  // Refresh messages query for real-time updates
+                  queryClient.invalidateQueries({
+                    queryKey: ['messages', { patient_id: selectedPatient.id }]
+                  })
                 }}
               />
             </>

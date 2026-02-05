@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Plus, Search, Filter, Download } from 'lucide-react'
+import { Plus, Search, Download } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

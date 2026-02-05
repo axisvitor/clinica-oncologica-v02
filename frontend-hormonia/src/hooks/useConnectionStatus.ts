@@ -3,6 +3,13 @@ import { createLogger } from '../lib/logger'
 
 const logger = createLogger('ConnectionStatus')
 
+// Network Information API types (not yet standardized)
+interface NetworkInformation extends EventTarget {
+  readonly effectiveType?: '2g' | '3g' | '4g' | 'slow-2g'
+  readonly downlink?: number
+  readonly saveData?: boolean
+}
+
 export interface ConnectionStatus {
   isOnline: boolean
   isSlowConnection: boolean
@@ -22,14 +29,16 @@ export function useConnectionStatus() {
 
   const updateConnectionInfo = useCallback(() => {
     if ('connection' in navigator) {
-      const connection = (navigator as any).connection
+      const connection = (navigator as Navigator & { connection?: NetworkInformation }).connection
 
-      setStatus(prev => ({
-        ...prev,
-        connectionType: connection.effectiveType || 'unknown',
-        estimatedBandwidth: connection.downlink || null,
-        isSlowConnection: connection.effectiveType === '2g' || connection.effectiveType === 'slow-2g'
-      }))
+      if (connection) {
+        setStatus(prev => ({
+          ...prev,
+          connectionType: connection.effectiveType || 'unknown',
+          estimatedBandwidth: connection.downlink || null,
+          isSlowConnection: connection.effectiveType === '2g' || connection.effectiveType === 'slow-2g'
+        }))
+      }
     }
   }, [])
 
@@ -57,18 +66,20 @@ export function useConnectionStatus() {
 
     // Listen for connection changes
     if ('connection' in navigator) {
-      const connection = (navigator as any).connection
+      const connection = (navigator as Navigator & { connection?: NetworkInformation }).connection
       const handleConnectionChange = () => updateConnectionInfo()
 
-      connection.addEventListener('change', handleConnectionChange)
+      if (connection) {
+        connection.addEventListener('change', handleConnectionChange)
 
-      // Initial connection info
-      updateConnectionInfo()
+        // Initial connection info
+        updateConnectionInfo()
 
-      return () => {
-        window.removeEventListener('online', handleOnline)
-        window.removeEventListener('offline', handleOffline)
-        connection.removeEventListener('change', handleConnectionChange)
+        return () => {
+          window.removeEventListener('online', handleOnline)
+          window.removeEventListener('offline', handleOffline)
+          connection.removeEventListener('change', handleConnectionChange)
+        }
       }
     }
 

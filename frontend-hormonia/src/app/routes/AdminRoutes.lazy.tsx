@@ -221,6 +221,7 @@ const AdminProfilePage = lazy(() =>
  * Preload critical components on app initialization
  * Call this in App.tsx after initial render
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const preloadCriticalComponents = () => {
   logger.info('Preloading critical components...');
 
@@ -244,6 +245,7 @@ export const preloadCriticalComponents = () => {
  * Preload component on hover (prefetch optimization)
  * Usage: onMouseEnter={() => preloadOnHover('dashboard')}
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const preloadOnHover = (route: string) => {
   logger.debug(`Preloading ${route} on hover...`);
 

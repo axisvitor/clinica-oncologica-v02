@@ -13,7 +13,7 @@ from enum import Enum
 
 
 from app.services.patient import PatientIntegrityService
-from app.domain.flows.core import FlowIntegrityService
+from app.services.flow_integrity import FlowIntegrityService
 from app.repositories.message import MessageIntegrityService
 from app.models.patient import Patient
 from app.models.flow import PatientFlowState

@@ -20,7 +20,7 @@ class FlowTemplateV2Base(BaseModel):
         ..., min_length=1, max_length=255, description="Template name"
     )
     description: Optional[str] = Field(None, description="Template description")
-    steps: Dict[str, Any] = Field(
+    steps: Dict[str, Any] | List[Dict[str, Any]] = Field(
         ..., description="Template steps/messages configuration"
     )
     metadata: Optional[Dict[str, Any]] = Field(None, description="Template metadata")
@@ -73,7 +73,7 @@ class FlowTemplateV2Update(BaseModel):
 
     template_name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
-    steps: Optional[Dict[str, Any]] = None
+    steps: Optional[Dict[str, Any] | List[Dict[str, Any]]] = None
     metadata: Optional[Dict[str, Any]] = None
     is_active: Optional[bool] = None
     is_draft: Optional[bool] = None
@@ -119,7 +119,7 @@ class FlowTemplateV2Response(BaseModel):
     version_number: int
     template_name: str
     description: Optional[str] = None
-    steps: Dict[str, Any]
+    steps: Dict[str, Any] | List[Dict[str, Any]]
     metadata: Dict[str, Any]
     is_active: bool
     is_draft: bool
@@ -300,7 +300,7 @@ class QuizTemplateV2Response(BaseModel):
     description: Optional[str] = None
     questions: List[Dict[str, Any]]
     category: Optional[str] = None
-    tags: List[str]
+    tags: Optional[List[str]] = Field(default_factory=list)
     passing_score: Optional[int] = None
     time_limit_minutes: Optional[int] = None
     randomize_questions: Optional[bool] = None

@@ -20,7 +20,7 @@ const themeColors = {
   red: 'bg-red-600'
 } as const
 
-type AccentColor = keyof typeof themeColors
+type _AccentColor = keyof typeof themeColors
 
 /**
  * Appearance Settings Component
@@ -59,7 +59,7 @@ export function AppearanceSettings() {
           <h3 className="text-lg font-medium mb-4">Densidade da Interface</h3>
           <Select
             value={preferences?.density || 'comfortable'}
-            onValueChange={(value) => updatePreferences({ density: value as any })}
+            onValueChange={(value) => updatePreferences({ density: value as 'compact' | 'comfortable' | 'spacious' })}
           >
             <SelectTrigger className="w-[200px]">
               <SelectValue placeholder="Selecione a densidade" />

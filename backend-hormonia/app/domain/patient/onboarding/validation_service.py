@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from app.exceptions import ValidationError
 from app.models.patient import Patient
 from app.schemas.patient import PatientCreate
+from app.core.executors import get_validation_executor
 
 
 class ValidationService:
@@ -128,7 +129,7 @@ class ValidationService:
 
             return None
 
-        except Exception as e:
+        except Exception:
             self._logger.error(
                 "Error finding existing patient",
                 extra={
@@ -266,14 +267,12 @@ class ValidationService:
         if not phone:
             raise ValidationError("Phone number is required")
 
-        # Remove all non-digit characters
-        digits_only = "".join(filter(str.isdigit, phone))
+        from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
 
-        # Brazilian phone validation: must have 10-11 digits
-        if len(digits_only) < 10 or len(digits_only) > 11:
-            raise ValidationError(
-                f"Invalid phone number format. Expected 10-11 digits, got {len(digits_only)}"
-            )
+        try:
+            normalize_phone(phone, mode=PhoneValidationMode.BR_TO_E164, allow_none=False)
+        except ValueError as exc:
+            raise ValidationError(f"Invalid phone number format: {exc}") from exc
 
     async def validate_cpf_format(self, cpf: Optional[str]) -> None:
         """

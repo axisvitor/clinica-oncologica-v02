@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from app.models.webhook_event import WebhookEvent
-from app.core.database import get_db
+from app.database import get_db
 
 logger = logging.getLogger(__name__)
 

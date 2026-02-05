@@ -15,8 +15,6 @@ from .business_dependencies import (
     get_validated_patient,
     verify_patient_access,
     verify_monthly_quiz_token,
-    get_request_context,
-    RequestContext,
 )
 
 from .service_dependencies import (
@@ -34,7 +32,6 @@ from .service_dependencies import (
     get_flow_management_service,
     get_redis,
     get_database,
-    # get_supabase_client - REMOVED (migrated to AWS RDS PostgreSQL)
     get_message_service,
     get_analytics_service,
     get_report_service,
@@ -135,8 +132,10 @@ def get_thread_safe_service_provider() -> Generator:
             status_code=500, detail="Database connection failed"
         ) from conn_error
     except Exception as e:
+        import traceback
         logger.error(f"Unexpected error in get_thread_safe_service_provider: {e}")
         logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Full traceback:\n{traceback.format_exc()}")
 
         if provider:
             try:
@@ -166,8 +165,6 @@ __all__ = [
     "get_validated_patient",
     "verify_patient_access",
     "verify_monthly_quiz_token",
-    "get_request_context",
-    "RequestContext",
     # Service dependencies
     "get_patient_service",
     "get_patient_repository",
@@ -182,7 +179,6 @@ __all__ = [
     "get_flow_management_service",
     "get_redis",
     "get_database",
-    # "get_supabase_client", - REMOVED (migrated to AWS RDS PostgreSQL)
     "get_thread_safe_db",
     "get_thread_safe_service_provider",
     "get_message_service",

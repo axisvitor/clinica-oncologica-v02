@@ -11,7 +11,7 @@
  * @module useOptimizedQuery
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import type { UseQueryOptions, UseQueryResult } from '@tanstack/react-query';
 import type { LoadingState, QueryPerformanceMetrics } from './useOptimizedQuery.helpers';
 import {
@@ -79,7 +79,7 @@ export function useOptimizedQuery<TData = unknown, TError = Error>(
   } = options;
 
   const queryKeyString = JSON.stringify(queryOptions.queryKey);
-  const dedupeAwareQueryFn = useDedupeAwareQueryFn<TData, TError>({
+  const dedupeAwareQueryFn = useDedupeAwareQueryFn<TData>({
     queryKeyString,
     deduplicationWindow,
     originalQueryFn: queryOptions.queryFn,

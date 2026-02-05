@@ -1,5 +1,4 @@
 // API types for the application
-import type { Priority } from './shared'
 import type {
   Alert,
   QuizSession,
@@ -20,38 +19,12 @@ import type {
   CreateFlowTemplateRequest,
   UpdateFlowTemplateRequest,
   StartFlowRequest,
+  PaginatedResponse,
+  BulkMessageResponse,
   AlertListFilters as AlertQueryParams,
   CreateAlertRequest
 } from '@/lib/api-client/types'
 import { FlowType, FlowStatus, ResponseType } from '@/lib/api-client/types'
-import type {
-  Appointment,
-  AppointmentCreate,
-  AppointmentUpdate,
-  AppointmentFilters,
-  AppointmentStatus,
-  AppointmentType,
-  ConflictCheckRequest,
-  ConflictCheckResponse,
-} from '@/lib/api-client/appointments'
-import type {
-  Treatment,
-  TreatmentCreate,
-  TreatmentUpdate,
-  TreatmentFilters,
-  TreatmentStats,
-  TreatmentStatus,
-  TreatmentType
-} from '@/lib/api-client/treatments'
-import type {
-  Medication,
-  MedicationCreate,
-  MedicationUpdate,
-  MedicationFilters,
-  MedicationSchedule,
-  MedicationRoute,
-  MedicationStats,
-} from '@/lib/api-client/medications'
 import type { Patient } from '@/lib/api-client/patients'
 
 // Re-export canonical types for convenience
@@ -618,7 +591,7 @@ export interface ApiClient {
 
   // Patients
   patients: {
-    list: (params?: PatientQueryParams) => Promise<any>
+    list: (params?: PatientQueryParams) => Promise<PaginatedResponse<Patient>>
     get: (id: string) => Promise<Patient>
     create: (data: CreatePatientRequest) => Promise<Patient>
     update: (id: string, data: UpdatePatientRequest) => Promise<Patient>
@@ -628,9 +601,9 @@ export interface ApiClient {
 
   // Messages
   messages: {
-    list: (params?: MessageQueryParams) => Promise<any>
+    list: (params?: MessageQueryParams) => Promise<PaginatedResponse<Message>>
     send: (data: SendMessageRequest) => Promise<Message>
-    sendBulk: (data: BulkMessageRequest) => Promise<any>
+    sendBulk: (data: BulkMessageRequest) => Promise<BulkMessageResponse>
   }
 
   // Flows
@@ -642,7 +615,7 @@ export interface ApiClient {
 
   // Alerts
   alerts: {
-    list: (params?: AlertQueryParams) => Promise<any>
+    list: (params?: AlertQueryParams) => Promise<PaginatedResponse<Alert>>
     create: (data: CreateAlertRequest) => Promise<Alert>
     acknowledge: (id: string) => Promise<void>
     resolve: (id: string) => Promise<void>
@@ -650,7 +623,7 @@ export interface ApiClient {
 
   // Reports
   reports: {
-    list: (params?: ReportQueryParams) => Promise<any>
+    list: (params?: ReportQueryParams) => Promise<PaginatedResponse<Report>>
     generate: (data: GenerateReportRequest) => Promise<Report>
     download: (id: string, format?: string) => Promise<Blob>
   }
@@ -658,7 +631,7 @@ export interface ApiClient {
   // Quiz
   quiz: {
     templates: () => Promise<QuizTemplate[]>
-    sessions: (filters?: Record<string, unknown>) => Promise<any>
+    sessions: (filters?: Record<string, unknown>) => Promise<PaginatedResponse<QuizSession>>
     getSession: (id: string) => Promise<QuizSession>
   }
 

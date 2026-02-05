@@ -22,10 +22,8 @@ Usage:
 
 from locust import HttpUser, task, between, events
 import random
-import json
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Any
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

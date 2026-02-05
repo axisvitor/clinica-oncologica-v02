@@ -144,6 +144,16 @@ export interface CreateRoleRequest {
   permissions: string[]
 }
 
+export interface CompensationFailure {
+  saga_id: string
+  patient_id: string | null
+  patient_name: string | null
+  timestamp: string | null
+  error_details: string
+  failed_steps: Array<{ step: number; error: string }>
+  status?: string
+}
+
 // ============================================================================
 // ADMIN API METHODS
 // ============================================================================
@@ -175,7 +185,7 @@ export function createAdminApi(client: ApiClientCore) {
         ...filters
       }
 
-      const response = await client.get<any>('/api/v2/admin/users', params)
+      const response = await client.get<{ data?: AdminUser[]; items?: AdminUser[]; total?: number; pages?: number }>('/api/v2/admin/users', params)
 
       // Normalize response to match PaginatedResponse interface
       const items = Array.isArray(response?.data) ? response.data : (response?.items ?? [])
@@ -266,7 +276,7 @@ export function createAdminApi(client: ApiClientCore) {
       size: number = 20
     ): Promise<PaginatedResponse<UserActivityEntry>> => {
       const params = { page, limit: size }
-      const response = await client.get<any>(
+      const response = await client.get<{ data?: UserActivityEntry[]; items?: UserActivityEntry[]; total?: number; pages?: number }>(
         `/api/v2/admin/users/${userId}/activity`,
         params
       )
@@ -280,6 +290,56 @@ export function createAdminApi(client: ApiClientCore) {
         size,
         pages: response?.pages ?? Math.ceil((response?.total ?? items.length) / size)
       }
+    },
+
+    // ========================================================================
+    // COMPENSATION FAILURES
+    // ========================================================================
+
+    /**
+     * List compensation failures with pagination
+     */
+    listCompensationFailures: async (
+      page: number = 1,
+      size: number = 20
+    ): Promise<PaginatedResponse<CompensationFailure>> => {
+      const params = { page, limit: size }
+      const response = await client.get<{ data?: CompensationFailure[]; items?: CompensationFailure[]; total?: number; pages?: number }>(
+        '/api/v2/admin/compensation-failures',
+        params
+      )
+
+      const items = Array.isArray(response?.data) ? response.data : (response?.items ?? [])
+
+      return {
+        items,
+        total: response?.total ?? items.length,
+        page,
+        size,
+        pages: response?.pages ?? Math.ceil((response?.total ?? items.length) / size)
+      }
+    },
+
+    /**
+     * Retry compensation for a failed saga
+     */
+    retryCompensation: async (
+      sagaId: string
+    ): Promise<{ message: string; success: boolean }> => {
+      return client.post<{ message: string; success: boolean }>(
+        `/api/v2/admin/compensation-failures/${sagaId}/retry`
+      )
+    },
+
+    /**
+     * Cleanup compensation failure artifacts
+     */
+    cleanupCompensation: async (
+      sagaId: string
+    ): Promise<{ message: string }> => {
+      return client.post<{ message: string }>(
+        `/api/v2/admin/compensation-failures/${sagaId}/cleanup`
+      )
     },
 
     // ========================================================================
@@ -331,7 +391,7 @@ export function createAdminApi(client: ApiClientCore) {
         ...filters
       }
 
-      const response = await client.get<any>('/api/v2/admin/audit', params)
+      const response = await client.get<{ data?: AuditLogEntry[]; items?: AuditLogEntry[]; total?: number; pages?: number }>('/api/v2/admin/audit', params)
       const items = Array.isArray(response?.data) ? response.data : (response?.items ?? [])
 
       return {
@@ -352,13 +412,13 @@ export function createAdminApi(client: ApiClientCore) {
       start_date?: string
       end_date?: string
     }): Promise<Blob> => {
-      const queryParams = new URLSearchParams(filters as any)
+      const queryParams = new URLSearchParams(filters as Record<string, string>)
       const response = await fetch(
         `${client.getBaseURL()}/api/v2/admin/audit/export?${queryParams}`,
         {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer ${client.getAuthToken()}`
+            ...client.getSessionHeaders(),
           },
           credentials: 'include'
         }
@@ -379,8 +439,8 @@ export function createAdminApi(client: ApiClientCore) {
      * List all roles
      */
     listRoles: async (): Promise<Role[]> => {
-      const response = await client.get<any>('/api/v2/admin/roles')
-      return Array.isArray(response) ? response : (response?.data ?? response?.items ?? [])
+      const response = await client.get<Role[] | { data?: Role[]; items?: Role[] }>('/api/v2/admin/roles')
+      return Array.isArray(response) ? response : ((response as { data?: Role[]; items?: Role[] })?.data ?? (response as { data?: Role[]; items?: Role[] })?.items ?? [])
     },
 
     /**

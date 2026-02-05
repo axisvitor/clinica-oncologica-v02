@@ -28,7 +28,7 @@ import { useQuizTemplates } from './quiz/hooks/useQuizTemplates';
 
 export type TemplateFilter = 'all' | 'active' | 'draft';
 
-function TemplateManagementPage() {
+const TemplateManagementPage = memo(function TemplateManagementPage() {
   // Shared state
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState<TemplateFilter>('all');
@@ -162,9 +162,12 @@ function TemplateManagementPage() {
       />
     </div>
   );
-}
+});
 
-export default withErrorBoundary(memo(TemplateManagementPage), {
+// Named export to satisfy react-refresh/only-export-components
+const TemplateManagementPageWithErrorBoundary = withErrorBoundary(TemplateManagementPage, {
   level: 'page',
   enableReporting: true,
 });
+
+export default TemplateManagementPageWithErrorBoundary;

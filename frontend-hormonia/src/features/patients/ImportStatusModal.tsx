@@ -20,7 +20,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   CheckCircle,
@@ -28,7 +27,6 @@ import {
   AlertTriangle,
   Loader2,
   Download,
-  FileText,
 } from 'lucide-react';
 import type { ValidationResult, ImportResult } from '@/types/import';
 
@@ -59,7 +57,7 @@ export function ImportStatusModal({
 }: ImportStatusModalProps) {
   // Determine modal state
   const isProcessing = validating || importing;
-  const hasValidationErrors = validationResult && !validationResult.valid;
+  const _hasValidationErrors = validationResult && !validationResult.valid;
   const hasImportErrors = importResult && importResult.failed > 0;
   const isSuccess = importResult && importResult.successful > 0;
 

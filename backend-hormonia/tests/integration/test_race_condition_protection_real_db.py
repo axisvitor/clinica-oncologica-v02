@@ -8,13 +8,13 @@ This version ensures visibility by avoiding the global test transaction.
 import pytest
 import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Tuple, List
+from typing import Tuple
 from datetime import date
 from faker import Faker
 from uuid import UUID
 
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy import exc, delete, select
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import exc
 
 from app.models.user import User, UserRole
 from app.models.patient import Patient

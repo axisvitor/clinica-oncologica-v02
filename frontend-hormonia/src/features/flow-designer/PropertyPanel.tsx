@@ -234,8 +234,8 @@ export function PropertyPanel({
               <Input
                 id="conn-label"
                 value={selectedConnection.label || ''}
-                onChange={(e) => {
-                  // Handle connection update
+                onChange={(_e) => {
+                  // Handle connection update - to be implemented
                 }}
                 className="mt-1"
               />
@@ -246,8 +246,8 @@ export function PropertyPanel({
               <Input
                 id="conn-condition"
                 value={selectedConnection.condition || ''}
-                onChange={(e) => {
-                  // Handle connection update
+                onChange={(_e) => {
+                  // Handle connection update - to be implemented
                 }}
                 className="mt-1"
                 placeholder="ex: response == 'sim'"

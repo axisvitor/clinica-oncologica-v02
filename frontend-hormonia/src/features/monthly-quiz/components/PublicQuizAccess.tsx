@@ -24,6 +24,7 @@ export const PublicQuizAccess: React.FC = () => {
     if (token) {
       loadQuiz();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadQuiz is stable and should only run when token changes
   }, [token]);
 
   const loadQuiz = async () => {
@@ -49,6 +50,7 @@ export const PublicQuizAccess: React.FC = () => {
 
     const response = await submitQuizResponse({
       token,
+      quiz_id: quizData.quiz_id,
       question_id: currentQuestion.id,
       response_value: answers[currentQuestion.id] || ''
     });
@@ -144,7 +146,7 @@ export const PublicQuizAccess: React.FC = () => {
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                className="bg-blue-600 h-2 rounded-full transition-[width] duration-300"
                 style={{ width: `${progress}%` }}
               ></div>
             </div>
@@ -162,7 +164,7 @@ export const PublicQuizAccess: React.FC = () => {
           {/* Answer Input based on question type */}
           {currentQuestion.type === 'multiple_choice' && (
             <div className="space-y-2">
-              {currentQuestion.options?.map((option: any) => (
+              {currentQuestion.options?.map((option: { id: string; text: string }) => (
                 <label key={option.id} className="flex items-center p-3 border rounded hover:bg-gray-50 cursor-pointer">
                   <input
                     type="radio"

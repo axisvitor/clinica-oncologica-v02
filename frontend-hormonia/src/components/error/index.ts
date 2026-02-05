@@ -3,7 +3,7 @@
  * Global error handling for React applications
  */
 
-export { ErrorBoundary } from './ErrorBoundary';
+export { ErrorBoundary, withErrorBoundary, useErrorReporting, useErrorHandler, SimpleErrorFallback } from './ErrorBoundary';
 export { ErrorFallback } from './ErrorFallback';
 export type { ErrorBoundaryProps } from './ErrorBoundary';
 export type { ErrorFallbackProps } from './ErrorFallback';

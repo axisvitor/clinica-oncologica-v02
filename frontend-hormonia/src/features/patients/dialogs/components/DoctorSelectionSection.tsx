@@ -46,11 +46,12 @@ export function DoctorSelectionSection({
       <div className="space-y-2">
         <Label htmlFor="doctor_id">Médico responsável *</Label>
         <Select
+          name="doctor_id"
           value={selectedDoctorId}
           onValueChange={onDoctorChange}
           disabled={isLoading}
         >
-          <SelectTrigger>
+          <SelectTrigger id="doctor_id">
             <SelectValue
               placeholder={isLoading ? 'Carregando médicos...' : 'Selecione o médico responsável'}
             />
@@ -74,10 +75,15 @@ export function DoctorSelectionSection({
   if (isAdmin && !hasDoctorOptions) {
     return (
       <div className="space-y-2">
-        <Label>Médico responsável</Label>
+        <Label>Médico responsável *</Label>
         <div className="rounded-md border border-dashed border-muted-foreground/40 px-3 py-2 text-sm text-muted-foreground">
-          Nenhum médico foi cadastrado ainda. O paciente será atribuído ao administrador atual.
+          {isLoading
+            ? 'Carregando médicos...'
+            : 'Nenhum médico disponível. Cadastre um médico para seguir com o cadastro.'}
         </div>
+        {showError && (
+          <p className="text-sm text-red-600">Selecione o médico responsável.</p>
+        )}
       </div>
     )
   }
@@ -87,6 +93,8 @@ export function DoctorSelectionSection({
     <div className="space-y-2">
       <Label>Médico responsável</Label>
       <Input
+        id="current_doctor_display"
+        name="current_doctor_display"
         disabled
         value={currentUserName || 'Você'}
         className="bg-muted text-muted-foreground"

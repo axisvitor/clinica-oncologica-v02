@@ -39,7 +39,10 @@ class ConnectionWebhookHandler:
 
     @with_db_retry(max_retries=3)
     async def process_connection(
-        self, event_data: dict[str, Any], webhook_store: Optional[Any] = None
+        self,
+        event_data: dict[str, Any],
+        webhook_store: Optional[Any] = None,
+        webhook_id: Optional[str] = None,
     ) -> bool:
         """
         Process connection status webhook (connection.update events).
@@ -52,19 +55,28 @@ class ConnectionWebhookHandler:
         Args:
             event_data: Webhook event data
             webhook_store: Optional webhook persistence store
+            webhook_id: Optional webhook event ID header (for persistence)
 
         Returns:
             True if processed successfully
         """
-        webhook_id = None
+        stored_event_id = None
         try:
             # Persist webhook event if store provided
             if webhook_store:
-                webhook_id = await webhook_store.persist_event(
-                    event_type="connection.update",
-                    source="evolution_api",
-                    payload=event_data,
-                )
+                if webhook_id:
+                    _, stored_event_id = await webhook_store.persist_event_atomic(
+                        event_id=webhook_id,
+                        event_type="connection.update",
+                        source="evolution_api",
+                        payload=event_data,
+                    )
+                else:
+                    stored_event_id = await webhook_store.persist_event(
+                        event_type="connection.update",
+                        source="evolution_api",
+                        payload=event_data,
+                    )
 
             # Extract connection data
             instance = event_data.get("instance")
@@ -72,9 +84,9 @@ class ConnectionWebhookHandler:
 
             if not instance or not state:
                 logger.warning("Missing instance or state in connection webhook")
-                if webhook_id and webhook_store:
+                if stored_event_id and webhook_store:
                     await webhook_store.mark_processed(
-                        webhook_id, False, "Missing required fields"
+                        stored_event_id, False, "Missing required fields"
                     )
                 return False
 
@@ -86,20 +98,23 @@ class ConnectionWebhookHandler:
                 extra={"instance": instance, "state": state},
             )
 
-            if webhook_id and webhook_store:
-                await webhook_store.mark_processed(webhook_id, True)
+            if stored_event_id and webhook_store:
+                await webhook_store.mark_processed(stored_event_id, True)
 
             return True
 
         except Exception as e:
             logger.error(f"Error processing connection webhook: {e}", exc_info=True)
-            if webhook_id and webhook_store:
-                await webhook_store.mark_processed(webhook_id, False, str(e))
+            if stored_event_id and webhook_store:
+                await webhook_store.mark_processed(stored_event_id, False, str(e))
             return False
 
     @with_db_retry(max_retries=3)
     async def process_qrcode(
-        self, event_data: dict[str, Any], webhook_store: Optional[Any] = None
+        self,
+        event_data: dict[str, Any],
+        webhook_store: Optional[Any] = None,
+        webhook_id: Optional[str] = None,
     ) -> bool:
         """
         Process QR code webhook (qrcode.updated events).
@@ -109,19 +124,28 @@ class ConnectionWebhookHandler:
         Args:
             event_data: Webhook event data containing QR code
             webhook_store: Optional webhook persistence store
+            webhook_id: Optional webhook event ID header (for persistence)
 
         Returns:
             True if processed successfully
         """
-        webhook_id = None
+        stored_event_id = None
         try:
             # Persist webhook event if store provided
             if webhook_store:
-                webhook_id = await webhook_store.persist_event(
-                    event_type="qrcode.updated",
-                    source="evolution_api",
-                    payload=event_data,
-                )
+                if webhook_id:
+                    _, stored_event_id = await webhook_store.persist_event_atomic(
+                        event_id=webhook_id,
+                        event_type="qrcode.updated",
+                        source="evolution_api",
+                        payload=event_data,
+                    )
+                else:
+                    stored_event_id = await webhook_store.persist_event(
+                        event_type="qrcode.updated",
+                        source="evolution_api",
+                        payload=event_data,
+                    )
 
             # Extract QR code data
             instance = event_data.get("instance")
@@ -131,9 +155,9 @@ class ConnectionWebhookHandler:
 
             if not instance:
                 logger.warning("Missing instance in QR code webhook")
-                if webhook_id and webhook_store:
+                if stored_event_id and webhook_store:
                     await webhook_store.mark_processed(
-                        webhook_id, False, "Missing instance"
+                        stored_event_id, False, "Missing instance"
                     )
                 return False
 
@@ -157,13 +181,13 @@ class ConnectionWebhookHandler:
                 extra={"instance": instance, "has_qrcode": bool(qr_code)},
             )
 
-            if webhook_id and webhook_store:
-                await webhook_store.mark_processed(webhook_id, True)
+            if stored_event_id and webhook_store:
+                await webhook_store.mark_processed(stored_event_id, True)
 
             return True
 
         except Exception as e:
             logger.error(f"Error processing QR code webhook: {e}", exc_info=True)
-            if webhook_id and webhook_store:
-                await webhook_store.mark_processed(webhook_id, False, str(e))
+            if stored_event_id and webhook_store:
+                await webhook_store.mark_processed(stored_event_id, False, str(e))
             return False

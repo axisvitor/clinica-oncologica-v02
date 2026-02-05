@@ -27,6 +27,13 @@
 // Route import map - maps route paths to their lazy import functions
 import { createLogger } from '@/lib/logger';
 
+// Network Information API types (not yet standardized)
+interface NetworkInformation {
+  readonly effectiveType?: '2g' | '3g' | '4g' | 'slow-2g';
+  readonly saveData?: boolean;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type RouteImportMap = Record<string, () => Promise<any>>;
 
 const logger = createLogger('RoutePrefetch');
@@ -65,7 +72,7 @@ const LOW_PRIORITY_ROUTES = [
 const prefetchedRoutes = new Set<string>();
 
 // Track in-progress prefetches
-const prefetchingRoutes = new Map<string, Promise<any>>();
+const prefetchingRoutes = new Map<string, Promise<{ default: React.ComponentType }>>();
 
 /**
  * Check if prefetching should be performed based on network conditions
@@ -73,7 +80,7 @@ const prefetchingRoutes = new Map<string, Promise<any>>();
 function shouldPrefetch(): boolean {
   // Check if user has save-data preference
   if ("connection" in navigator) {
-    const connection = (navigator as any).connection;
+    const connection = (navigator as Navigator & { connection?: NetworkInformation }).connection;
 
     // Respect save-data preference
     if (connection?.saveData) {
@@ -105,10 +112,11 @@ export async function prefetchRoute(route: string, force: boolean = false): Prom
     return;
   }
 
-  // Return existing prefetch promise if in progress
+  // Wait for existing prefetch if in progress
   if (prefetchingRoutes.has(route)) {
     logger.info(`[Prefetch] Route ${route} prefetch in progress`);
-    return prefetchingRoutes.get(route);
+    await prefetchingRoutes.get(route);
+    return;
   }
 
   // Check network conditions
@@ -163,6 +171,15 @@ async function prefetchRoutesSequentially(routes: string[], delayMs: number = 50
 }
 
 /**
+ * Prefetch multiple routes concurrently
+ *
+ * @param routes - Array of route paths
+ */
+async function prefetchRoutesConcurrent(routes: string[]): Promise<void> {
+  await Promise.allSettled(routes.map((route) => prefetchRoute(route)));
+}
+
+/**
  * Prefetch high priority routes immediately after page load
  *
  * Uses requestIdleCallback to avoid blocking main thread
@@ -174,7 +191,7 @@ export function prefetchHighPriorityRoutes(): void {
 
   const prefetchFn = () => {
     logger.info("[Prefetch] Starting high priority route prefetch");
-    prefetchRoutesSequentially(HIGH_PRIORITY_ROUTES, 200);
+    void prefetchRoutesConcurrent(HIGH_PRIORITY_ROUTES);
   };
 
   if ("requestIdleCallback" in window) {
@@ -194,7 +211,7 @@ export function prefetchMediumPriorityRoutes(): void {
 
   const prefetchFn = () => {
     logger.info("[Prefetch] Starting medium priority route prefetch");
-    prefetchRoutesSequentially(MEDIUM_PRIORITY_ROUTES, 500);
+    void prefetchRoutesConcurrent(MEDIUM_PRIORITY_ROUTES);
   };
 
   if ("requestIdleCallback" in window) {

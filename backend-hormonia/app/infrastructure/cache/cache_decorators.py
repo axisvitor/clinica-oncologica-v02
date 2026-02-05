@@ -10,6 +10,8 @@ from typing import Callable, Optional, Union, List
 from datetime import timedelta
 from contextlib import asynccontextmanager
 
+from starlette.requests import Request
+
 from app.utils.logging import get_logger
 from .cache_manager import get_unified_cache_manager, CacheConfig
 
@@ -214,7 +216,28 @@ def cache_response(
 
             # Generate cache key from function name and arguments
             func_name = key_prefix or func.__name__
-            key_parts = [func_name, str(hash(str(args) + str(sorted(kwargs.items()))))]
+            request_obj = None
+            for arg in args:
+                if isinstance(arg, Request):
+                    request_obj = arg
+                    break
+            if request_obj is None:
+                for value in kwargs.values():
+                    if isinstance(value, Request):
+                        request_obj = value
+                        break
+
+            if request_obj is not None:
+                key_parts = [
+                    func_name,
+                    request_obj.url.path,
+                    request_obj.url.query,
+                ]
+            else:
+                key_parts = [
+                    func_name,
+                    str(hash(str(args) + str(sorted(kwargs.items())))),
+                ]
 
             # Try to get from cache
             cached_result = await cache_manager.get_async(cache_type, key_parts)

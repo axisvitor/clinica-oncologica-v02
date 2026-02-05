@@ -6,6 +6,27 @@ Create Date: 2025-10-17 11:59:51.705745
 
 Seeds the flow_kinds and flow_template_versions tables with the initial onboarding flow template.
 This is required for the patient onboarding saga to create flow states.
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 from alembic import op
 import sqlalchemy as sa

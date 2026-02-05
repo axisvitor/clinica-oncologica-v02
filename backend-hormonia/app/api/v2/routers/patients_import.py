@@ -32,7 +32,7 @@ from app.dependencies.auth_dependencies import (
     get_redis_cache,
 )
 from app.utils.rate_limiter import limiter
-from app.utils.phone_validator import normalize_phone
+from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
 from app.api.v2.patients_utils import (
     _extract_user_context,
     _ensure_uuid,
@@ -355,21 +355,17 @@ async def import_patients(
                 failed_count += 1
                 continue
 
-            # Normalize phone
-            normalized_phone = normalize_phone(phone)
-            if not normalized_phone:
+            # Normalize phone to E.164
+            try:
+                e164_phone = normalize_phone(
+                    phone, mode=PhoneValidationMode.BR_TO_E164, allow_none=False
+                )
+            except ValueError:
                 errors.append(
                     ImportError(row=row_number, message="Invalid phone format")
                 )
                 failed_count += 1
                 continue
-
-            # Ensure E.164 format
-            e164_phone = (
-                normalized_phone
-                if normalized_phone.startswith("+")
-                else f"+{normalized_phone}"
-            )
 
             # Check for duplicate phone (LGPD: use hash lookup)
             from app.services.encryption import get_lgpd_encryption_service

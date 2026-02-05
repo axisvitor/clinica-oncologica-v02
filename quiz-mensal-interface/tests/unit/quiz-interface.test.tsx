@@ -17,6 +17,17 @@ beforeAll(() => server.close())
 
 // Create mock fetch
 const mockFetch = jest.fn()
+const createMockResponse = <T,>(
+  data: T,
+  options: { ok?: boolean; status?: number; headers?: Record<string, string> } = {}
+) => ({
+  ok: options.ok ?? true,
+  status: options.status ?? 200,
+  json: () => Promise.resolve(data),
+  headers: {
+    get: (name: string) => options.headers?.[name] ?? null
+  }
+})
 
 // Mock Next.js Image component
 jest.mock('next/image', () => ({
@@ -95,27 +106,19 @@ describe('QuizInterface - Comprehensive Tests', () => {
 
     // Mock fetch for CSRF token and submit answer
     mockFetch.mockImplementation((url: string) => {
-      if (url.includes('/api/csrf-token')) {
-        return Promise.resolve({
-          json: () => Promise.resolve({ csrfToken: 'mock-csrf-token' })
-        })
+      if (url.includes('/auth/csrf-token')) {
+        return Promise.resolve(createMockResponse({ csrf_token: 'mock-csrf-token' }))
       }
 
-      if (url.includes('/api/quiz/submit-answer')) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({
-            success: true,
-            is_last_question: false,
-            next_question_index: 1
-          })
-        })
+      if (url.includes('/submit')) {
+        return Promise.resolve(createMockResponse({
+          success: true,
+          is_last_question: false,
+          next_question_index: 1
+        }))
       }
 
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({})
-      })
+      return Promise.resolve(createMockResponse({}))
     })
   })
 
@@ -412,7 +415,7 @@ describe('QuizInterface - Comprehensive Tests', () => {
 
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalledWith(
-          '/api/quiz/submit-answer',
+          expect.stringContaining('/submit'),
           expect.objectContaining({
             method: 'POST'
           })
@@ -441,18 +444,14 @@ describe('QuizInterface - Comprehensive Tests', () => {
 
       // Mock error response for submit endpoint
       mockFetch.mockImplementation((url: string) => {
-        if (url.includes('/api/csrf-token')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ csrfToken: 'mock-csrf-token' })
-          })
+        if (url.includes('/auth/csrf-token')) {
+          return Promise.resolve(createMockResponse({ csrf_token: 'mock-csrf-token' }))
         }
         // All other API calls fail
-        return Promise.resolve({
-          ok: false,
-          status: 500,
-          json: () => Promise.resolve({ error: 'Network error' })
-        })
+        return Promise.resolve(createMockResponse(
+          { detail: 'Network error' },
+          { ok: false, status: 500 }
+        ))
       })
 
       render(<QuizInterface session={mockSession} token={mockToken} />)
@@ -469,15 +468,13 @@ describe('QuizInterface - Comprehensive Tests', () => {
 
       // Mock slow response
       mockFetch.mockImplementation((url: string) => {
-        if (url.includes('/api/csrf-token')) {
-          return Promise.resolve({
-            json: () => Promise.resolve({ csrfToken: 'mock-csrf-token' })
-          })
+        if (url.includes('/auth/csrf-token')) {
+          return Promise.resolve(createMockResponse({ csrf_token: 'mock-csrf-token' }))
         }
-        return new Promise(resolve => setTimeout(() => resolve({
-          ok: true,
-          json: () => Promise.resolve({ success: true })
-        }), 1000))
+        return new Promise(resolve => setTimeout(() => resolve(createMockResponse({
+          success: true,
+          is_last_question: false
+        })), 1000))
       })
 
       render(<QuizInterface session={mockSession} token={mockToken} />)
@@ -500,18 +497,13 @@ describe('QuizInterface - Comprehensive Tests', () => {
 
       // Mock completion response
       mockFetch.mockImplementation((url: string) => {
-        if (url.includes('/api/csrf-token')) {
-          return Promise.resolve({
-            json: () => Promise.resolve({ csrfToken: 'mock-csrf-token' })
-          })
+        if (url.includes('/auth/csrf-token')) {
+          return Promise.resolve(createMockResponse({ csrf_token: 'mock-csrf-token' }))
         }
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({
-            success: true,
-            is_last_question: true
-          })
-        })
+        return Promise.resolve(createMockResponse({
+          success: true,
+          is_last_question: true
+        }))
       })
 
       const sessionLast = { ...mockSession, current_question_index: 2 }
@@ -538,18 +530,13 @@ describe('QuizInterface - Comprehensive Tests', () => {
 
       // Mock completion response
       mockFetch.mockImplementation((url: string) => {
-        if (url.includes('/api/csrf-token')) {
-          return Promise.resolve({
-            json: () => Promise.resolve({ csrfToken: 'mock-csrf-token' })
-          })
+        if (url.includes('/auth/csrf-token')) {
+          return Promise.resolve(createMockResponse({ csrf_token: 'mock-csrf-token' }))
         }
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({
-            success: true,
-            is_last_question: true
-          })
-        })
+        return Promise.resolve(createMockResponse({
+          success: true,
+          is_last_question: true
+        }))
       })
 
       const sessionLast = { ...mockSession, current_question_index: 2 }
@@ -570,18 +557,13 @@ describe('QuizInterface - Comprehensive Tests', () => {
 
       // Mock completion response
       mockFetch.mockImplementation((url: string) => {
-        if (url.includes('/api/csrf-token')) {
-          return Promise.resolve({
-            json: () => Promise.resolve({ csrfToken: 'mock-csrf-token' })
-          })
+        if (url.includes('/auth/csrf-token')) {
+          return Promise.resolve(createMockResponse({ csrf_token: 'mock-csrf-token' }))
         }
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({
-            success: true,
-            is_last_question: true
-          })
-        })
+        return Promise.resolve(createMockResponse({
+          success: true,
+          is_last_question: true
+        }))
       })
 
       const sessionLast = { ...mockSession, current_question_index: 2 }
@@ -594,7 +576,7 @@ describe('QuizInterface - Comprehensive Tests', () => {
 
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalledWith(
-          '/api/quiz/submit-answer',
+          expect.stringContaining('/submit'),
           expect.objectContaining({
             method: 'POST'
           })
@@ -609,15 +591,13 @@ describe('QuizInterface - Comprehensive Tests', () => {
 
       // Mock slow response
       mockFetch.mockImplementation((url: string) => {
-        if (url.includes('/api/csrf-token')) {
-          return Promise.resolve({
-            json: () => Promise.resolve({ csrfToken: 'mock-csrf-token' })
-          })
+        if (url.includes('/auth/csrf-token')) {
+          return Promise.resolve(createMockResponse({ csrf_token: 'mock-csrf-token' }))
         }
-        return new Promise(resolve => setTimeout(() => resolve({
-          ok: true,
-          json: () => Promise.resolve({ success: true })
-        }), 1000))
+        return new Promise(resolve => setTimeout(() => resolve(createMockResponse({
+          success: true,
+          is_last_question: false
+        })), 1000))
       })
 
       render(<QuizInterface session={mockSession} token={mockToken} />)

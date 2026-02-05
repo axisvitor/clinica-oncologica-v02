@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 from app.infrastructure.cache import get_unified_cache_manager as get_cache_manager
 from app.models.patient import Patient
 from app.schemas.patient import PatientCreate
+from app.core.executors import get_io_executor
 
 if TYPE_CHECKING:
     from app.domain.patient.onboarding.notification_service import NotificationService
@@ -175,7 +176,7 @@ class CompletionService:
 
             return existing_patient
 
-        except Exception as e:
+        except Exception:
             self._logger.error(
                 "Error completing partial onboarding",
                 exc_info=True,
@@ -236,7 +237,7 @@ class CompletionService:
                     "Updated patient data",
                     extra={"patient_id": str(existing_patient.id)}
                 )
-            except Exception as e:
+            except Exception:
                 self._logger.error("Failed to commit patient updates in executor", exc_info=True)
                 raise
 
@@ -274,6 +275,21 @@ class CompletionService:
                 await self.flow_service.initialize_default_flow(
                     patient, current_user_id
                 )
+                try:
+                    from app.models.enums import FlowState
+
+                    current_state = (
+                        patient.flow_state.value
+                        if hasattr(patient.flow_state, "value")
+                        else patient.flow_state
+                    )
+                    if current_state == FlowState.ONBOARDING.value:
+                        await self.flow_service.activate_patient(patient.id)
+                except Exception as e:
+                    self._logger.warning(
+                        "Failed to activate patient after flow initialization",
+                        extra={"patient_id": str(patient.id), "error": str(e)},
+                    )
                 self._logger.info(
                     "Initialized flow for existing patient",
                     extra={"patient_id": str(patient.id)}
@@ -291,6 +307,21 @@ class CompletionService:
                 "Flow already initialized for patient",
                 extra={"patient_id": str(patient.id)}
             )
+            try:
+                from app.models.enums import FlowState
+
+                current_state = (
+                    patient.flow_state.value
+                    if hasattr(patient.flow_state, "value")
+                    else patient.flow_state
+                )
+                if current_state == FlowState.ONBOARDING.value:
+                    await self.flow_service.activate_patient(patient.id)
+            except Exception as e:
+                self._logger.warning(
+                    "Failed to activate patient with existing flow",
+                    extra={"patient_id": str(patient.id), "error": str(e)},
+                )
             return False
 
     async def _invalidate_cache(self, doctor_id: UUID) -> None:

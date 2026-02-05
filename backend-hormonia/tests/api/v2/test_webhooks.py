@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.main import app
-from app.models.webhook_event import WebhookEvent
+from app.models.webhook import WebhookEndpoint
 from app.config import settings
 
 
@@ -58,10 +58,8 @@ def mock_db(monkeypatch):
 @pytest.fixture
 def sample_webhook():
     """Sample webhook configuration"""
-    return WebhookEvent(
+    return WebhookEndpoint(
         id=uuid4(),
-        webhook_id="wh_test_123",
-        event_type="message.received",
         url="https://api.example.com/webhooks",
         events=["message.received", "message.sent"],
         description="Test webhook",
@@ -708,10 +706,8 @@ class TestPagination:
         # Create multiple webhooks
         webhooks = []
         for i in range(25):
-            wh = WebhookEvent(
+            wh = WebhookEndpoint(
                 id=uuid4(),
-                webhook_id=f"wh_test_{i}",
-                event_type="message.received",
                 url=f"https://api.example.com/webhook{i}",
                 events=["message.received"],
                 status="active",

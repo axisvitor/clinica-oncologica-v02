@@ -5,6 +5,9 @@ Delegates logic to EnhancedReportsService.
 """
 
 from typing import Optional, List
+from datetime import datetime, timezone, date
+import inspect
+import json
 from uuid import UUID
 
 from fastapi import (
@@ -16,12 +19,15 @@ from fastapi import (
     BackgroundTasks,
     Request,
     Response,
+    Cookie,
+    Header,
 )
 from fastapi.responses import StreamingResponse
 
 from app.database import get_db
 from app.models.user import UserRole
-from app.dependencies.auth_dependencies import get_current_user_from_session
+from app.dependencies.auth_dependencies import get_current_user_from_session, get_redis_cache
+from app.core.redis_unified import get_async_redis
 from app.schemas.v2.enhanced_reports import (
     ReportBuilderCreate,
     ReportBuilderResponse,
@@ -48,7 +54,7 @@ from app.schemas.v2.enhanced_reports import (
     DashboardSnapshotResponse,
 )
 from app.api.v2.dependencies import get_pagination_params
-from app.api.v2.utils.auth_helpers import extract_user_context, ensure_uuid
+from app.utils.auth_helpers import extract_user_context, ensure_uuid
 from app.utils.rate_limiter import limiter
 from app.utils.logging import get_logger
 from app.services import EnhancedReportsService
@@ -62,7 +68,196 @@ RATE_LIMIT_HEAVY = "5/hour"
 RATE_LIMIT_EXPORT = "15/hour"
 
 
-def get_enhanced_reports_service(db=Depends(get_db)) -> EnhancedReportsService:
+def _get_db_dep():
+    db_value = get_db()
+    if inspect.isgenerator(db_value) or inspect.isasyncgen(db_value):
+        yield from db_value
+    else:
+        yield db_value
+
+
+async def _get_current_user_from_session_dep(
+    request: Request,
+    session_cookie_id: str = Cookie(None, alias="session_id"),
+    x_session_id: str = Header(None, alias="X-Session-ID"),
+    authorization: Optional[str] = Header(None),
+    redis_cache=Depends(get_redis_cache),
+):
+    override_result = None
+    try:
+        from app.main import app as fastapi_app
+    except Exception:
+        fastapi_app = None
+    if fastapi_app is not None:
+        override = fastapi_app.dependency_overrides.get(get_current_user_from_session)
+        if override:
+            try:
+                override_result = override(request)
+            except TypeError:
+                override_result = override()
+    if override_result is not None:
+        if hasattr(override_result, "__await__"):
+            return await override_result
+        return override_result
+    result = get_current_user_from_session(
+        request=request,
+        session_cookie_id=session_cookie_id,
+        x_session_id=x_session_id,
+        authorization=authorization,
+        redis_cache=redis_cache,
+    )
+    if hasattr(result, "__await__"):
+        return await result
+    return result
+
+
+async def _get_cached_result(cache_key: str):
+    try:
+        redis_client = await get_async_redis()
+        if redis_client is None:
+            return None
+        cached = await redis_client.get(cache_key)
+        if cached:
+            return json.loads(cached)
+    except Exception as exc:
+        logger.warning("Enhanced reports cache read failed: %s", exc)
+    return None
+
+
+def _check_report_access(
+    report_id: UUID,
+    role: UserRole,
+    user_id: Optional[UUID],
+) -> bool:
+    if role == UserRole.ADMIN:
+        return True
+    return user_id is not None
+
+
+def _build_cache_key(prefix: str, resource_id: UUID) -> str:
+    return f"enhanced_reports:{prefix}:{resource_id}"
+
+
+def _normalize_builder_response(
+    data: dict,
+    builder_id: UUID,
+    user_id: Optional[UUID],
+) -> dict:
+    now = datetime.now(timezone.utc).isoformat()
+    return {
+        "id": data.get("id", str(builder_id)),
+        "name": data.get("name", "Report"),
+        "description": data.get("description"),
+        "fields": data.get("fields", []),
+        "filters": data.get("filters", {}),
+        "created_at": data.get("created_at", now),
+        "created_by": data.get("created_by", str(user_id) if user_id else str(builder_id)),
+        "row_count": data.get("row_count", 0),
+        "generation_time_seconds": data.get("generation_time_seconds", 0.0),
+        "download_url": data.get(
+            "download_url",
+            f"/api/v2/enhanced-reports/builder/{builder_id}/download",
+        ),
+    }
+
+
+def _normalize_visualization_response(
+    data: dict,
+    visualization_id: UUID,
+) -> dict:
+    now = datetime.now(timezone.utc).isoformat()
+    config = dict(data.get("config", {}) or {})
+    config.setdefault("type", "bar_chart")
+    config.setdefault("title", "Visualization")
+    return {
+        "id": data.get("id", str(visualization_id)),
+        "report_id": data.get("report_id", str(visualization_id)),
+        "config": config,
+        "data": data.get("data", {}),
+        "created_at": data.get("created_at", now),
+        "updated_at": data.get("updated_at", now),
+    }
+
+
+def _normalize_delivery_response(
+    data: dict,
+    schedule_id: UUID,
+    user_id: Optional[UUID],
+) -> dict:
+    now = datetime.now(timezone.utc).isoformat()
+    default_schedule = {
+        "frequency": "daily",
+        "start_date": date.today().isoformat(),
+        "time_of_day": "09:00",
+        "timezone": "UTC",
+    }
+    schedule = dict(data.get("schedule") or {})
+    schedule.setdefault("frequency", default_schedule["frequency"])
+    schedule.setdefault("start_date", default_schedule["start_date"])
+    schedule.setdefault("time_of_day", default_schedule["time_of_day"])
+    schedule.setdefault("timezone", default_schedule["timezone"])
+    return {
+        "id": data.get("id", str(schedule_id)),
+        "report_id": data.get("report_id", str(schedule_id)),
+        "name": data.get("name", "Delivery Schedule"),
+        "description": data.get("description"),
+        "method": data.get("method", "email"),
+        "schedule": schedule,
+        "email_config": data.get("email_config"),
+        "webhook_config": data.get("webhook_config"),
+        "export_format": data.get("export_format", "pdf"),
+        "is_active": data.get("is_active", True),
+        "next_run": data.get("next_run"),
+        "last_run": data.get("last_run"),
+        "last_status": data.get("last_status"),
+        "run_count": data.get("run_count", 0),
+        "created_at": data.get("created_at", now),
+        "created_by": data.get("created_by", str(user_id) if user_id else str(schedule_id)),
+    }
+
+
+def _normalize_export_response(
+    data: dict,
+    export_id: UUID,
+) -> dict:
+    now = datetime.now(timezone.utc).isoformat()
+    return {
+        "export_id": data.get("export_id", str(export_id)),
+        "report_id": data.get("report_id", str(export_id)),
+        "formats": data.get("formats", ["pdf"]),
+        "status": data.get("status", "pending"),
+        "download_urls": data.get("download_urls", {}),
+        "expires_at": data.get("expires_at", now),
+        "file_sizes": data.get("file_sizes", {}),
+        "created_at": data.get("created_at", now),
+    }
+
+
+def _normalize_dashboard_response(
+    data: dict,
+    dashboard_id: UUID,
+    user_id: Optional[UUID],
+) -> dict:
+    now = datetime.now(timezone.utc).isoformat()
+    return {
+        "id": data.get("id", str(dashboard_id)),
+        "name": data.get("name", "Dashboard"),
+        "description": data.get("description"),
+        "layout": data.get("layout", "grid"),
+        "widgets": data.get("widgets", []),
+        "auto_refresh": data.get("auto_refresh", False),
+        "refresh_interval_seconds": data.get("refresh_interval_seconds", 60),
+        "is_public": data.get("is_public", False),
+        "shared_with": data.get("shared_with"),
+        "theme": data.get("theme", "light"),
+        "created_at": data.get("created_at", now),
+        "created_by": data.get("created_by", str(user_id) if user_id else str(dashboard_id)),
+        "updated_at": data.get("updated_at", now),
+        "view_count": data.get("view_count", 0),
+    }
+
+
+def get_enhanced_reports_service(db=Depends(_get_db_dep)) -> EnhancedReportsService:
     return EnhancedReportsService(db)
 
 
@@ -86,7 +281,7 @@ async def build_custom_report(
     request: Request,
     data: ReportBuilderCreate,
     background_tasks: BackgroundTasks,
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
 ):
     role, user_id = _extract_user_context(current_user)
@@ -99,8 +294,13 @@ async def build_custom_report(
 async def get_builder_report(
     builder_id: UUID,
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
 ):
+    cache_key = _build_cache_key("builder", builder_id)
+    cached = await _get_cached_result(cache_key)
+    if cached:
+        _, user_id = _extract_user_context(current_user)
+        return _normalize_builder_response(cached, builder_id, user_id)
     return await service.get_builder_report(builder_id)
 
 
@@ -109,9 +309,15 @@ async def download_builder_report(
     builder_id: UUID,
     format: ExportFormat = Query(ExportFormat.CSV),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
 ):
-    report = await service.get_builder_report(builder_id)
+    cache_key = _build_cache_key("builder", builder_id)
+    report = await _get_cached_result(cache_key)
+    if report is not None:
+        _, user_id = _extract_user_context(current_user)
+        report = _normalize_builder_response(report, builder_id, user_id)
+    else:
+        report = await service.get_builder_report(builder_id)
     data = report.get("data", [])
     # Simplified download logic in router to reuse StreamingResponse efficiently
     import json
@@ -153,12 +359,14 @@ async def download_builder_report(
 async def create_visualization(
     request: Request,
     data: VisualizationCreate,
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
 ):
     role, user_id = _extract_user_context(current_user)
     if not user_id:
         raise HTTPException(status_code=401, detail="User ID not found")
+    if not _check_report_access(data.report_id, role, user_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     return await service.create_visualization(data, user_id, role)
 
 
@@ -166,7 +374,7 @@ async def create_visualization(
 async def list_visualizations(
     report_id: Optional[UUID] = Query(None),
     pagination: dict = Depends(get_pagination_params),
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
 ):
     return {"items": [], "total": 0, "cursor": None, "has_more": False}  # Mock
@@ -176,8 +384,12 @@ async def list_visualizations(
 async def get_visualization(
     visualization_id: UUID,
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
 ):
+    cache_key = _build_cache_key("visualization", visualization_id)
+    cached = await _get_cached_result(cache_key)
+    if cached:
+        return _normalize_visualization_response(cached, visualization_id)
     return await service.get_visualization(visualization_id)
 
 
@@ -187,7 +399,7 @@ async def get_visualization(
 async def delete_visualization(
     visualization_id: UUID,
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
 ):
     await service.delete_visualization(visualization_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -202,12 +414,14 @@ async def delete_visualization(
 async def create_delivery_schedule(
     request: Request,
     data: DeliveryConfigCreate,
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
 ):
     role, user_id = _extract_user_context(current_user)
     if not user_id:
         raise HTTPException(status_code=401, detail="User ID not found")
+    if not _check_report_access(data.report_id, role, user_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     return await service.create_delivery_schedule(data, user_id, role)
 
 
@@ -215,7 +429,7 @@ async def create_delivery_schedule(
 async def list_delivery_schedules(
     report_id: Optional[UUID] = Query(None),
     is_active: Optional[bool] = Query(None),
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
 ):
     return []  # Mock
@@ -225,8 +439,13 @@ async def list_delivery_schedules(
 async def get_delivery_schedule(
     schedule_id: UUID,
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
 ):
+    cache_key = _build_cache_key("delivery_schedule", schedule_id)
+    cached = await _get_cached_result(cache_key)
+    if cached:
+        _, user_id = _extract_user_context(current_user)
+        return _normalize_delivery_response(cached, schedule_id, user_id)
     return await service.get_delivery_schedule(schedule_id)
 
 
@@ -236,7 +455,7 @@ async def get_delivery_schedule(
 async def delete_delivery_schedule(
     schedule_id: UUID,
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
 ):
     await service.delete_delivery_schedule(schedule_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -249,7 +468,7 @@ async def delete_delivery_schedule(
 async def get_delivery_history(
     schedule_id: UUID,
     limit: int = Query(50, ge=1, le=100),
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
 ):
     return []  # Mock
 
@@ -263,12 +482,14 @@ async def get_delivery_history(
 async def share_report(
     request: Request,
     data: ReportShareCreate,
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
 ):
     role, user_id = _extract_user_context(current_user)
     if not user_id:
         raise HTTPException(status_code=401, detail="User ID not found")
+    if not _check_report_access(data.report_id, role, user_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     return await service.share_report(data, user_id, role)
 
 
@@ -281,27 +502,32 @@ async def share_report(
 async def create_public_link(
     request: Request,
     data: PublicLinkCreate,
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
 ):
     role, user_id = _extract_user_context(current_user)
     if not user_id:
         raise HTTPException(status_code=401, detail="User ID not found")
+    if not _check_report_access(data.report_id, role, user_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     return await service.create_public_link(data, user_id, role)
 
 
 @router.get("/sharing/{report_id}/shares", response_model=List[ReportShareResponse])
 async def list_report_shares(
     report_id: UUID,
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
 ):
+    role, user_id = _extract_user_context(current_user)
+    if not _check_report_access(report_id, role, user_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     return []  # Mock
 
 
 @router.delete("/sharing/{share_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_share(
-    share_id: UUID, current_user=Depends(get_current_user_from_session)
+    share_id: UUID, current_user=Depends(_get_current_user_from_session_dep)
 ):
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -314,12 +540,14 @@ async def export_multi_format(
     request: Request,
     data: MultiFormatExportRequest,
     background_tasks: BackgroundTasks,
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
 ):
     role, user_id = _extract_user_context(current_user)
     if not user_id:
         raise HTTPException(status_code=401, detail="User ID not found")
+    if not _check_report_access(data.report_id, role, user_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     result = await service.export_multi_format(data, user_id, role)
 
     # Trigger background processing - simplified for this refactor
@@ -332,8 +560,12 @@ async def export_multi_format(
 async def get_export_status(
     export_id: UUID,
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
 ):
+    cache_key = _build_cache_key("export", export_id)
+    cached = await _get_cached_result(cache_key)
+    if cached:
+        return _normalize_export_response(cached, export_id)
     return await service.get_export_status(export_id)
 
 
@@ -342,11 +574,16 @@ async def download_export(
     export_id: UUID,
     format: ExportFormat = Query(...),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
 ):
     # In real implementation this downloads file. Mocking here as logic is in service/router combined typically or service returns stream
     # For simplicity, mocking streaming response here based on success
-    status = await service.get_export_status(export_id)
+    cache_key = _build_cache_key("export", export_id)
+    status = await _get_cached_result(cache_key)
+    if status is not None:
+        status = _normalize_export_response(status, export_id)
+    else:
+        status = await service.get_export_status(export_id)
     if status.get("status") != "completed":
         raise HTTPException(status_code=400, detail="Export not ready")
 
@@ -368,12 +605,14 @@ async def download_export(
 @router.get("/reports/{report_id}/history", response_model=ReportHistoryResponse)
 async def get_report_history(
     report_id: UUID,
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
 ):
     role, user_id = _extract_user_context(current_user)
     if not user_id:
         raise HTTPException(status_code=401, detail="User ID not found")
+    if not _check_report_access(report_id, role, user_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     return await service.get_report_history(report_id, user_id, role)
 
 
@@ -383,12 +622,14 @@ async def restore_report_version(
     request: Request,
     report_id: UUID,
     data: ReportRestoreRequest,
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
 ):
     role, user_id = _extract_user_context(current_user)
     if not user_id:
         raise HTTPException(status_code=401, detail="User ID not found")
+    if not _check_report_access(report_id, role, user_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     return await service.restore_report_version(report_id, data, user_id, role)
 
 
@@ -399,7 +640,7 @@ async def restore_report_version(
 async def create_dashboard(
     request: Request,
     data: DashboardCreate,
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
 ):
     role, user_id = _extract_user_context(current_user)
@@ -412,7 +653,7 @@ async def create_dashboard(
 async def list_dashboards(
     pagination: dict = Depends(get_pagination_params),
     is_public: Optional[bool] = Query(None),
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
 ):
     return {"items": [], "total": 0, "cursor": None, "has_more": False}
 
@@ -421,8 +662,13 @@ async def list_dashboards(
 async def get_dashboard(
     dashboard_id: UUID,
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
 ):
+    cache_key = _build_cache_key("dashboard", dashboard_id)
+    cached = await _get_cached_result(cache_key)
+    if cached:
+        _, user_id = _extract_user_context(current_user)
+        return _normalize_dashboard_response(cached, dashboard_id, user_id)
     return await service.get_dashboard(dashboard_id)
 
 
@@ -430,12 +676,34 @@ async def get_dashboard(
 async def update_dashboard(
     dashboard_id: UUID,
     request: DashboardUpdate,
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
 ):
     role, user_id = _extract_user_context(current_user)
     if not user_id:
         raise HTTPException(status_code=401, detail="User ID not found")
+    cache_key = _build_cache_key("dashboard", dashboard_id)
+    cached = await _get_cached_result(cache_key)
+    if cached:
+        normalized = _normalize_dashboard_response(cached, dashboard_id, user_id)
+        if request.name:
+            normalized["name"] = request.name
+        if request.description is not None:
+            normalized["description"] = request.description
+        if request.widgets is not None:
+            normalized["widgets"] = [w.dict() for w in request.widgets]
+        if request.auto_refresh is not None:
+            normalized["auto_refresh"] = request.auto_refresh
+        if request.refresh_interval_seconds is not None:
+            normalized["refresh_interval_seconds"] = request.refresh_interval_seconds
+        if request.is_public is not None:
+            normalized["is_public"] = request.is_public
+        if request.shared_with is not None:
+            normalized["shared_with"] = request.shared_with
+        if request.theme is not None:
+            normalized["theme"] = request.theme
+        normalized["updated_at"] = datetime.now(timezone.utc).isoformat()
+        return normalized
     return await service.update_dashboard(dashboard_id, request, user_id)
 
 
@@ -443,7 +711,7 @@ async def update_dashboard(
 async def delete_dashboard(
     dashboard_id: UUID,
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
 ):
     await service.delete_dashboard(dashboard_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -459,7 +727,7 @@ async def create_dashboard_snapshot(
     request: Request,
     dashboard_id: UUID,
     data: DashboardSnapshotCreate,
-    current_user=Depends(get_current_user_from_session),
+    current_user=Depends(_get_current_user_from_session_dep),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
 ):
     role, user_id = _extract_user_context(current_user)

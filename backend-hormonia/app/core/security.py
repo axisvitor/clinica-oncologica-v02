@@ -9,7 +9,7 @@ API contracts can generate realistic JWT tokens during integration tests.
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from jose import jwt, JWTError
+import jwt  # PyJWT - replaces python-jose to fix CVE-2024-23342
 
 from app.config import settings
 from app.utils.security import verify_password as _verify_password_util
@@ -65,7 +65,7 @@ def verify_password_reset_token(
         if not email:
             raise ValueError("Missing subject")
         return email
-    except JWTError as exc:
+    except jwt.exceptions.PyJWTError as exc:
         from fastapi import HTTPException, status
 
         raise HTTPException(

@@ -4,6 +4,7 @@ import { AdminProtectedRoute } from '@/features/admin/AdminProtectedRoute'
 import AdminDashboard from '@/features/admin/AdminDashboard'
 import AdminLoginForm from '@/features/admin/AdminLoginForm'
 import { AdminUserActivityMonitor } from '@/features/admin/AdminUserActivityMonitor'
+import CompensationFailures from '@/features/admin/CompensationFailures'
 import TemplateManagementPage from '@/features/templates/TemplateManagementPage'
 import { useAuth } from '@/app/providers/AuthContext'
 import { useToast } from '@/components/ui/use-toast'
@@ -240,6 +241,14 @@ export const AdminRoutes: React.FC = () => {
           element={
             <AdminProtectedRoute requiredPermissions={['system.backup.read']}>
               <AdminSystemPage />
+            </AdminProtectedRoute>
+          }
+        />
+        <Route
+          path="system/compensation"
+          element={
+            <AdminProtectedRoute requiredPermissions={['system.compensation.read']}>
+              <CompensationFailures />
             </AdminProtectedRoute>
           }
         />

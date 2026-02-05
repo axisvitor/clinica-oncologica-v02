@@ -10,18 +10,19 @@ from datetime import datetime
 from uuid import uuid4
 
 
+@pytest.fixture
+def mock_redis():
+    """Mock Redis for idempotency checks."""
+    redis = AsyncMock()
+    redis.exists = AsyncMock(return_value=False)
+    redis.setex = AsyncMock()
+    redis.get = AsyncMock(return_value=None)
+    return redis
+
+
 
 class TestWebhookIdempotency:
     """Test webhook idempotency handling"""
-
-    @pytest.fixture
-    def mock_redis(self):
-        """Mock Redis for idempotency checks"""
-        redis = AsyncMock()
-        redis.exists = AsyncMock(return_value=False)
-        redis.setex = AsyncMock()
-        redis.get = AsyncMock(return_value=None)
-        return redis
 
     @pytest.fixture
     def sample_webhook_payload(self):
@@ -339,7 +340,11 @@ class TestIdempotencyCleanup:
             f"webhook:evolution:msg_{i}" for i in range(100)
         ]
 
-        mock_redis.scan_iter = AsyncMock(return_value=expired_keys)
+        async def _scan_iter(*_args, **_kwargs):
+            for key in expired_keys:
+                yield key
+
+        mock_redis.scan_iter = _scan_iter
         mock_redis.delete = AsyncMock()
 
         # Simulate cleanup

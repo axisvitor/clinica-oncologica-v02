@@ -15,6 +15,7 @@ from app.services.response_processor import StructuredResponse
 from app.services.analytics.data_extraction import ConcernLevel
 from app.services.ai.ai_service import PatientContext
 from app.models.patient import Patient
+from app.templates.whatsapp.empathy import get_empathy_template
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ class EmpathyGenerator(BaseGenerator):
         try:
             # Generate empathetic response using AI
             empathetic_message = await self._generate_empathetic_message(
-                structured_response, patient_context
+                structured_response, patient_context, patient.name
             )
 
             if not empathetic_message:
@@ -91,7 +92,10 @@ class EmpathyGenerator(BaseGenerator):
             return None
 
     async def _generate_empathetic_message(
-        self, structured_response: StructuredResponse, patient_context: PatientContext
+        self,
+        structured_response: StructuredResponse,
+        patient_context: PatientContext,
+        patient_name: Optional[str] = None,
     ) -> Optional[str]:
         """
         Generate empathetic message using AI.
@@ -104,16 +108,11 @@ class EmpathyGenerator(BaseGenerator):
             Generated message or None if failed
         """
         try:
-            # Build context for AI humanizer
-            {
-                "patient_message": structured_response.original_message,
-                "sentiment": structured_response.sentiment_analysis.get("sentiment"),
-                "concern_level": structured_response.concern_level.value,
-                "medical_concerns": structured_response.medical_concerns,
-                "emotional_indicators": structured_response.sentiment_analysis.get(
-                    "emotional_indicators", []
-                ),
-            }
+            template_category = self._select_template_category(structured_response)
+            fallback_message = get_empathy_template(template_category, patient_name)
+
+            if not self.ai_service or not hasattr(self.ai_service, "humanize_message"):
+                return fallback_message or None
 
             # Generate empathetic response
             empathetic_response = await self.ai_service.humanize_message(
@@ -122,8 +121,48 @@ class EmpathyGenerator(BaseGenerator):
                 message_type="empathetic_response",
             )
 
-            return empathetic_response.humanized_message
+            response_text = empathetic_response.humanized_message
+            if not self._is_ai_response_safe(response_text):
+                return fallback_message or None
+
+            return response_text
 
         except Exception as e:
             logger.error(f"Failed to generate empathetic message: {e}")
-            return None
+            template_category = self._select_template_category(structured_response)
+            return get_empathy_template(template_category, patient_name) or None
+
+    def _select_template_category(self, structured_response: StructuredResponse) -> str:
+        """Select empathy template category based on response signals."""
+        sentiment = structured_response.sentiment_analysis.get("sentiment", "neutral")
+        if structured_response.concern_level in [
+            ConcernLevel.HIGH,
+            ConcernLevel.CRITICAL,
+        ] or structured_response.medical_concerns:
+            return "concern"
+        if sentiment == "positive":
+            return "positive"
+        if sentiment in ["negative", "concerning"]:
+            return "negative"
+        return "neutral"
+
+    def _is_ai_response_safe(self, text: Optional[str]) -> bool:
+        """Basic safety checks to avoid medical advice or empty output."""
+        if not text or not text.strip():
+            return False
+        unsafe_keywords = [
+            "dose",
+            "mg",
+            "ml",
+            "tomar",
+            "tome",
+            "suspender",
+            "aumente",
+            "reduza",
+            "medicacao",
+            "medicamento",
+            "remedio",
+            "prescricao",
+        ]
+        text_lower = text.casefold()
+        return not any(keyword in text_lower for keyword in unsafe_keywords)

@@ -6,6 +6,7 @@ Handles scheduling of message-based follow-ups.
 import logging
 
 from ..models import FollowUpAction
+from ..message_deduplication_service import MessageDeduplicationService
 from app.models.message import Message, MessageDirection, MessageType, MessageStatus
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,7 @@ class MessageScheduler:
         """
         self.db = db
         self.message_scheduler = message_scheduler
+        self.dedup_service = MessageDeduplicationService()
 
     async def schedule_message_action(self, action: FollowUpAction) -> None:
         """
@@ -36,6 +38,18 @@ class MessageScheduler:
             message_content = action.parameters.get("message_content")
             if not message_content:
                 logger.warning(f"No message content for action {action.action_id}")
+                return
+
+            # Check for duplicates
+            is_duplicate = await self.dedup_service.check_duplicate(
+                patient_id=action.patient_id,
+                message_content=message_content,
+                follow_up_type=action.follow_up_type.value,
+            )
+            if is_duplicate:
+                logger.info(
+                    f"Skipping duplicate follow-up message for action {action.action_id}"
+                )
                 return
 
             # Create message
@@ -64,6 +78,13 @@ class MessageScheduler:
                 message_id=message.id,
                 send_time=action.scheduled_for,
                 priority=action.priority,
+            )
+
+            # Mark message as sent in deduplication cache
+            await self.dedup_service.mark_as_sent(
+                patient_id=action.patient_id,
+                message_content=message_content,
+                follow_up_type=action.follow_up_type.value,
             )
 
             logger.info(f"Scheduled message for action {action.action_id}")

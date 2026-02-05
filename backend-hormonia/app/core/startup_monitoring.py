@@ -123,6 +123,7 @@ def setup_error_handlers(app: FastAPI):
         return JSONResponse(
             status_code=exc.status_code,
             content={
+                "detail": exc.detail,
                 "error": exc.detail,
                 "status_code": exc.status_code,
             },
@@ -146,6 +147,7 @@ def setup_error_handlers(app: FastAPI):
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             content={
+                "detail": exc.errors(),
                 "error": "Validation error",
                 "details": exc.errors(),
             },

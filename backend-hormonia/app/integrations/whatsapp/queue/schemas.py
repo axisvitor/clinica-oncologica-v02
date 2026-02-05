@@ -20,6 +20,12 @@ class MessageRequest(BaseModel):
     instance_name: str = Field(
         ..., description="Name of the Evolution instance to route to"
     )
+    message_id: Optional[str] = Field(
+        None, description="Message ID for idempotency and tracking"
+    )
+    patient_id: Optional[str] = Field(
+        None, description="Patient identifier for DLQ routing"
+    )
     to: str = Field(..., description="Recipient phone number")
     text: Optional[str] = Field(None, description="Text content for text messages")
     media_url: Optional[str] = Field(None, description="URL for media messages")

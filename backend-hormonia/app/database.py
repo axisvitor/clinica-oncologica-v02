@@ -6,6 +6,7 @@ FIX #5: Enhanced database optimization with comprehensive indexing strategy."""
 from sqlalchemy import text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import QueuePool
 from typing import Generator
 import logging
@@ -110,13 +111,23 @@ def drop_tables():
 # rely on Firebase Admin SDK rather than Supabase Auth.
 
 
-def get_pool_status():
+def get_pool_status(use_service_role: bool | None = None):
     """Get database connection pool status."""
+    if use_service_role is not None:
+        logger.debug(
+            "get_pool_status called with use_service_role=%s; single pool in use",
+            use_service_role,
+        )
     return pool_monitor.get_pool_status()
 
 
-def is_pool_healthy():
+def is_pool_healthy(use_service_role: bool | None = None):
     """Check if database connection pool is healthy."""
+    if use_service_role is not None:
+        logger.debug(
+            "is_pool_healthy called with use_service_role=%s; single pool in use",
+            use_service_role,
+        )
     return pool_monitor.is_pool_healthy()
 
 
@@ -152,7 +163,7 @@ def get_scoped_session():
         session.close()
 
 
-def test_connection():
+def test_connection(use_service_role: bool | None = None):
     """
     Test database connection and return status information.
 
@@ -162,6 +173,11 @@ def test_connection():
     Raises:
         Exception: If connection test fails
     """
+    if use_service_role is not None:
+        logger.debug(
+            "test_connection called with use_service_role=%s; single pool in use",
+            use_service_role,
+        )
     try:
         with get_scoped_session() as session:
             # Test basic query
@@ -283,3 +299,118 @@ def get_engine_info():
             "total_in_use": engine.pool.checkedout() + engine.pool.overflow(),
         },
     }
+
+
+# ==============================================================================
+# ASYNC DATABASE SUPPORT
+# ==============================================================================
+
+_async_engine = None
+_async_session_factory = None
+
+
+class _AsyncSessionFactoryProxy:
+    """Lazy proxy that defers async session factory initialization."""
+
+    def __call__(self, *args, **kwargs):
+        return get_async_session_factory()(*args, **kwargs)
+
+
+def get_async_engine():
+    """
+    Get or create an AsyncEngine for async database operations.
+
+    Lazily initializes the async engine on first call.
+    Uses the same DATABASE_URL but with asyncpg driver.
+
+    Returns:
+        AsyncEngine instance
+    """
+    global _async_engine
+
+    if _async_engine is None:
+        # Convert sync URL to async URL (asyncpg driver)
+        sync_url = settings.DATABASE_URL
+        async_url = sync_url.replace(
+            "postgresql+psycopg://", "postgresql+asyncpg://"
+        ).replace(
+            "postgresql+psycopg2://", "postgresql+asyncpg://"
+        ).replace(
+            "postgresql://", "postgresql+asyncpg://"
+        )
+
+        # asyncpg doesn't accept sslmode in URL; configure via connect_args
+        import ssl as ssl_module
+
+        connect_args: dict = {}
+        if "sslmode=require" in async_url or "sslmode=verify" in async_url:
+            async_url = (
+                async_url.replace("?sslmode=require", "")
+                .replace("&sslmode=require", "")
+                .replace("?sslmode=verify-ca", "")
+                .replace("?sslmode=verify-full", "")
+            )
+            ssl_context = ssl_module.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl_module.CERT_NONE
+            connect_args["ssl"] = ssl_context
+
+        logger.info(
+            "Initializing AsyncEngine (SSL=%s)",
+            "enabled" if connect_args.get("ssl") else "disabled",
+        )
+
+        _async_engine = create_async_engine(
+            async_url,
+            pool_size=10,
+            max_overflow=5,
+            pool_pre_ping=True,
+            pool_recycle=1800,
+            echo=settings.APP_ENABLE_DEBUG,
+            connect_args=connect_args,
+        )
+
+    return _async_engine
+
+
+def get_async_session_factory():
+    """
+    Get or create an async session factory.
+
+    Returns:
+        async_sessionmaker bound to the async engine
+    """
+    global _async_session_factory
+
+    if _async_session_factory is None:
+        engine = get_async_engine()
+        _async_session_factory = async_sessionmaker(
+            engine,
+            class_=AsyncSession,
+            expire_on_commit=False,
+            autoflush=False,
+        )
+
+    return _async_session_factory
+
+
+AsyncSessionLocal = _AsyncSessionFactoryProxy()
+
+
+async def get_async_db() -> AsyncSession:
+    """
+    Dependency to get async database session.
+
+    Yields:
+        AsyncSession for async database operations
+    """
+    async_session_factory = get_async_session_factory()
+    async with async_session_factory() as session:
+        try:
+            yield session
+        except Exception as e:
+            logger.error(f"Async database session error: {e}")
+            await session.rollback()
+            raise
+        finally:
+            await session.close()

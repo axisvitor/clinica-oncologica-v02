@@ -27,16 +27,18 @@ class TestPatientList:
         assert "has_more" in data
         assert isinstance(data["data"], list)
 
-    def test_list_patients_with_data(self, authenticated_client: TestClient, db_session):
+    def test_list_patients_with_data(self, authenticated_client: TestClient, db_session, test_user: dict, mock_saga_patient):
         """Test listing patients with multiple entries."""
         # Create 3 patients
         for i in range(3):
             patient_data = {
                 "name": f"List Patient {i}",
-                "email": f"list_patient{i}_{pytest.timestamp}@example.com",
-                "phone": f"+551199999{i:04d}"
+                "email": f"list_patient{i}_{pytest.timestamp}@gmail.com",
+                "phone": f"+551199999{i:04d}",
+                "doctor_id": test_user["id"],
             }
-            authenticated_client.post("/api/v2/patients/", json=patient_data)
+            response = authenticated_client.post("/api/v2/patients/", json=patient_data)
+            assert response.status_code == 201
 
         # List patients
         response = authenticated_client.get("/api/v2/patients/")
@@ -46,16 +48,18 @@ class TestPatientList:
         assert "data" in data
         assert len(data["data"]) >= 3  # At least the 3 we created
 
-    def test_list_patients_pagination(self, authenticated_client: TestClient, db_session):
+    def test_list_patients_pagination(self, authenticated_client: TestClient, db_session, test_user: dict, mock_saga_patient):
         """Test patient list pagination with cursor-based pagination."""
         # Create 15 patients
         for i in range(15):
             patient_data = {
                 "name": f"Page Patient {i:02d}",
-                "email": f"page_patient{i}_{pytest.timestamp}@example.com",
-                "phone": f"+551198888{i:04d}"
+                "email": f"page_patient{i}_{pytest.timestamp}@gmail.com",
+                "phone": f"+551198888{i:04d}",
+                "doctor_id": test_user["id"],
             }
-            authenticated_client.post("/api/v2/patients/", json=patient_data)
+            response = authenticated_client.post("/api/v2/patients/", json=patient_data)
+            assert response.status_code == 201
 
         # Get first page with limit
         response = authenticated_client.get("/api/v2/patients/?limit=5")
@@ -71,18 +75,19 @@ class TestPatientList:
             page2_data = response.json()
             assert "data" in page2_data
 
-    def test_list_patients_search_by_name(self, authenticated_client: TestClient, db_session):
+    def test_list_patients_search_by_name(self, authenticated_client: TestClient, db_session, test_user: dict, mock_saga_patient):
         """Test searching patients by name."""
         # Create patients with unique names
         search_term = f"SearchJoão{pytest.timestamp}"
         patients = [
-            {"name": f"{search_term} Silva", "email": f"joao1_{pytest.timestamp}@example.com", "phone": "+5511977771111"},
-            {"name": "Maria Santos", "email": f"maria_{pytest.timestamp}@example.com", "phone": "+5511977772222"},
-            {"name": f"{search_term} Pedro", "email": f"pedro_{pytest.timestamp}@example.com", "phone": "+5511977773333"},
+            {"name": f"{search_term} Silva", "email": f"joao1_{pytest.timestamp}@gmail.com", "phone": "+5511977771111", "doctor_id": test_user["id"]},
+            {"name": "Maria Santos", "email": f"maria_{pytest.timestamp}@gmail.com", "phone": "+5511977772222", "doctor_id": test_user["id"]},
+            {"name": f"{search_term} Pedro", "email": f"pedro_{pytest.timestamp}@gmail.com", "phone": "+5511977773333", "doctor_id": test_user["id"]},
         ]
 
         for patient_data in patients:
-            authenticated_client.post("/api/v2/patients/", json=patient_data)
+            response = authenticated_client.post("/api/v2/patients/", json=patient_data)
+            assert response.status_code == 201
 
         # Search for the unique term
         response = authenticated_client.get(f"/api/v2/patients/?search={search_term}")
@@ -94,30 +99,30 @@ class TestPatientList:
         matching = [p for p in data["data"] if search_term in p.get("name", "")]
         assert len(matching) >= 2
 
-    def test_list_patients_filter_by_treatment(self, authenticated_client: TestClient, db_session):
-        """Test filtering patients by cancer type."""
-        # Create patients with different cancer types
-        cancer_types = ["breast", "lung", "prostate"]
+    def test_list_patients_filter_by_treatment(self, authenticated_client: TestClient, db_session, test_user: dict, mock_saga_patient):
+        """Test filtering patients by treatment type."""
+        # Create patients with different treatment types
+        treatment_types = ["breast", "lung", "prostate"]
 
-        for i, cancer_type in enumerate(cancer_types):
+        for i, treatment_type in enumerate(treatment_types):
             patient_data = {
-                "name": f"Cancer Patient {cancer_type}",
-                "email": f"cancer_{cancer_type}_{i}_{pytest.timestamp}@example.com",
+                "name": f"Treatment Patient {treatment_type}",
+                "email": f"treatment_{treatment_type}_{i}_{pytest.timestamp}@gmail.com",
                 "phone": f"+551196666{i:04d}",
-                "cancer_type": cancer_type
+                "doctor_id": test_user["id"],
+                "treatment_type": treatment_type,
             }
-            authenticated_client.post("/api/v2/patients/", json=patient_data)
+            response = authenticated_client.post("/api/v2/patients/", json=patient_data)
+            assert response.status_code == 201
 
-        # Filter by breast cancer (if API supports filtering by cancer_type)
-        response = authenticated_client.get("/api/v2/patients/?cancer_type=breast")
+        # Filter by treatment type
+        response = authenticated_client.get("/api/v2/patients/?treatment_type=breast")
 
-        # API may or may not support this filter, so just verify it doesn't error
-        assert response.status_code in [200, 400, 422]
-        if response.status_code == 200:
-            data = response.json()
-            assert "data" in data
+        assert response.status_code == 200
+        data = response.json()
+        assert "data" in data
 
-    def test_list_patients_sort_by_name(self, authenticated_client: TestClient, db_session):
+    def test_list_patients_sort_by_name(self, authenticated_client: TestClient, db_session, test_user: dict, mock_saga_patient):
         """Test sorting patients by name (if supported by API)."""
         # Create patients with sortable names
         unique_prefix = f"Sort{pytest.timestamp}"
@@ -125,19 +130,20 @@ class TestPatientList:
         for i, name in enumerate(names):
             patient_data = {
                 "name": name,
-                "email": f"sort_{i}_{pytest.timestamp}@example.com",
-                "phone": f"+551195555{i:04d}"
+                "email": f"sort_{i}_{pytest.timestamp}@gmail.com",
+                "phone": f"+551195555{i:04d}",
+                "doctor_id": test_user["id"],
             }
-            authenticated_client.post("/api/v2/patients/", json=patient_data)
+            response = authenticated_client.post("/api/v2/patients/", json=patient_data)
+            assert response.status_code == 201
 
         # Try to sort by name (API may or may not support this)
-        response = authenticated_client.get("/api/v2/patients/?sort=name&order=asc")
+        response = authenticated_client.get("/api/v2/patients/?sort_by=name&sort_order=asc")
 
         # Verify request doesn't error, even if sort isn't supported
-        assert response.status_code in [200, 400, 422]
-        if response.status_code == 200:
-            data = response.json()
-            assert "data" in data
+        assert response.status_code == 200
+        data = response.json()
+        assert "data" in data
 
     def test_list_patients_invalid_pagination_params(self, authenticated_client: TestClient):
         """Test that invalid pagination parameters are rejected."""

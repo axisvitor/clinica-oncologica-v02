@@ -8,7 +8,7 @@ Handles bulk message operations including:
 """
 
 from datetime import datetime, timedelta, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 import json
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request
@@ -57,10 +57,18 @@ async def send_bulk_messages(
     """
     try:
         # Validate patients
-        patients = db.query(Patient).filter(Patient.id.in_(bulk_data.patient_ids)).all()
+        requested_ids = [str(pid) for pid in bulk_data.patient_ids]
+        parsed_ids = []
+        for patient_id in bulk_data.patient_ids:
+            try:
+                parsed_ids.append(UUID(str(patient_id)))
+            except (TypeError, ValueError):
+                continue
+
+        patients = db.query(Patient).filter(Patient.id.in_(parsed_ids)).all()
 
         valid_patient_ids = [str(p.id) for p in patients]
-        failed_patients = list(set(bulk_data.patient_ids) - set(valid_patient_ids))
+        failed_patients = list(set(requested_ids) - set(valid_patient_ids))
 
         if not valid_patient_ids:
             raise HTTPException(

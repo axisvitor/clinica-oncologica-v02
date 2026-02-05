@@ -12,12 +12,14 @@
  */
 
 import * as Sentry from '@sentry/react';
+import type { Event, Transaction } from '@sentry/types';
 import { createLogger } from '@/lib/logger';
 
 // Note: In Sentry v10+, BrowserTracing and Replay are included in @sentry/react
 // CaptureConsole is available via Sentry.captureConsoleIntegration()
 
 const logger = createLogger('Sentry');
+type MeasurementUnit = Parameters<typeof Sentry.setMeasurement>[2];
 
 interface UserContext {
   id: string;
@@ -115,7 +117,7 @@ export class SentryMonitoring {
   /**
    * Filter events before sending to Sentry
    */
-  private static beforeSendFilter(event: any): any | null {
+  private static beforeSendFilter(event: Event): Event | null {
     // Filter out development errors if in production
     if (event.environment === 'production' && event.level === 'debug') {
       return null;
@@ -133,7 +135,7 @@ export class SentryMonitoring {
   /**
    * Filter transactions before sending to Sentry
    */
-  private static beforeSendTransactionFilter(event: any): any | null {
+  private static beforeSendTransactionFilter(event: Transaction): Transaction | null {
     // Filter out very short transactions (noise)
     if (event.start_timestamp && event.timestamp) {
       const duration = event.timestamp - event.start_timestamp;
@@ -303,11 +305,11 @@ export class SentryMonitoring {
   /**
    * Track performance metrics manually
    */
-  static trackPerformance(metricName: string, value: number, unit: string = 'ms'): void {
+  static trackPerformance(metricName: string, value: number, unit: MeasurementUnit = 'ms'): void {
     if (!this.isInitialized) return;
 
     try {
-      Sentry.setMeasurement(metricName, value, unit as any);
+      Sentry.setMeasurement(metricName, value, unit);
     } catch (error) {
       logger.error('Failed to track performance metric:', error);
     }
@@ -386,7 +388,7 @@ export class SentryMonitoring {
 
     // Set session context in Sentry
     if (this.isInitialized) {
-      Sentry.setContext('session', this.sessionContext as any);
+      Sentry.setContext('session', this.sessionContext as Record<string, unknown>);
     }
   }
 }

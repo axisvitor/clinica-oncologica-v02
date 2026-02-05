@@ -227,7 +227,7 @@ export function createTreatmentsApi(client: ApiClientCore) {
         ...rest
       }
 
-      const res: any = await client.get<any>('/api/v2/treatments', query)
+      const res = await client.get<{ data?: Treatment[]; items?: Treatment[]; total?: number; total_count?: number; pages?: number; has_more?: boolean; next_cursor?: string }>('/api/v2/treatments', query)
 
       // Normalize to keep backward compatibility
       const rawItems = Array.isArray(res?.data) ? res.data : (res?.items ?? [])
@@ -236,7 +236,7 @@ export function createTreatmentsApi(client: ApiClientCore) {
       const has_more = res?.has_more ?? (typeof res?.pages === 'number' && page < res.pages)
       const next_cursor = res?.next_cursor ?? null
 
-      const normalized: any = {
+      const normalized: PaginatedResponse<Treatment> & { data: Treatment[]; has_more: boolean; next_cursor: string | null } = {
         items,
         total,
         page,
@@ -336,7 +336,7 @@ export function createTreatmentsApi(client: ApiClientCore) {
         }
       }
 
-      const res: any = await client.get<any>('/api/v2/treatments', query)
+      const res = await client.get<{ data?: Treatment[]; items?: Treatment[] }>('/api/v2/treatments', query)
       const items = Array.isArray(res?.data) ? res.data : (res?.items ?? [])
       return items as Treatment[]
     },

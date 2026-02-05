@@ -23,13 +23,18 @@ from app.schemas.v2.tasks import (
 )
 from app.dependencies.auth_dependencies import get_redis_cache
 from app.utils.rate_limiter import limiter
-from app.celery_app import celery_app
+from app.task_queue import delete_task as delete_stored_task
+from app.task_queue import get_task as get_stored_task
+from app.task_queue import list_tasks as list_stored_tasks
+from app.task_queue import task_queue as celery_app
+from app.task_queue import update_task as update_stored_task
+from app.config import settings
+from app.api.v2 import tasks as tasks_module
 
 from ..dependencies import (
     _get_current_user_simple,
     _extract_user_role,
     _check_admin_role,
-    task_registry,
 )
 
 router = APIRouter()
@@ -74,14 +79,17 @@ async def bulk_cancel_tasks(
         for task_id in operation.task_ids:
             try:
                 # Find task
-                celery_task_id = None
-                task_data = None
-
-                for cid, data in task_registry.items():
-                    if data.get("id") == task_id:
-                        celery_task_id = cid
-                        task_data = data
-                        break
+                if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
+                    task_data = get_stored_task(task_id)
+                    celery_task_id = task_id
+                else:
+                    celery_task_id = None
+                    task_data = None
+                    for cid, data in tasks_module.task_registry.items():
+                        if data.get("id") == task_id:
+                            celery_task_id = cid
+                            task_data = data
+                            break
 
                 if not task_data:
                     failed_count += 1
@@ -98,16 +106,38 @@ async def bulk_cancel_tasks(
                         errors[task_id] = "Access denied"
                         continue
 
-                # Cancel in Celery
-                celery_app.control.revoke(celery_task_id, terminate=True)
+                if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
+                    from google.cloud import tasks_v2
 
-                # Update registry
-                task_registry[celery_task_id].update(
-                    {
-                        "status": TaskStatus.CANCELLED,
-                        "completed_at": datetime.now(timezone.utc),
-                    }
-                )
+                    client = tasks_v2.CloudTasksClient()
+                    task_path = client.task_path(
+                        settings.CLOUD_TASKS_PROJECT_ID,
+                        settings.CLOUD_TASKS_LOCATION,
+                        settings.CLOUD_TASKS_QUEUE,
+                        task_id,
+                    )
+                    try:
+                        client.delete_task(task_path)
+                    except Exception as exc:
+                        logger.warning(
+                            "Cloud Tasks delete failed for %s: %s", task_id, exc
+                        )
+
+                    update_stored_task(
+                        task_id,
+                        {
+                            "status": TaskStatus.CANCELLED.value,
+                            "completed_at": datetime.now(timezone.utc),
+                        },
+                    )
+                else:
+                    celery_app.control.revoke(celery_task_id, terminate=True)
+                    tasks_module.task_registry[celery_task_id].update(
+                        {
+                            "status": TaskStatus.CANCELLED,
+                            "completed_at": datetime.now(timezone.utc),
+                        }
+                    )
 
                 success_count += 1
 
@@ -174,8 +204,24 @@ async def cleanup_old_tasks(
         # Find tasks to delete
         to_delete = []
 
-        for celery_task_id, task_data in list(task_registry.items()):
+        if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
+            source_tasks = list_stored_tasks()
+        else:
+            source_tasks = list(tasks_module.task_registry.items())
+
+        for item in source_tasks:
+            if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
+                task_data = item
+                celery_task_id = task_data.get("id")
+            else:
+                celery_task_id, task_data = item
+
             created_at = task_data.get("created_at")
+            if isinstance(created_at, str):
+                try:
+                    created_at = datetime.fromisoformat(created_at)
+                except ValueError:
+                    created_at = None
 
             if not isinstance(created_at, datetime):
                 continue
@@ -185,13 +231,14 @@ async def cleanup_old_tasks(
 
             tasks_analyzed += 1
 
-            # Apply status filter
             if cleanup_config.status_filter:
                 task_status = task_data.get("status")
-                if task_status not in cleanup_config.status_filter:
+                if hasattr(task_status, "value"):
+                    task_status = task_status.value
+                allowed_statuses = [status.value for status in cleanup_config.status_filter]
+                if str(task_status) not in allowed_statuses:
                     continue
 
-            # Apply type filter
             if cleanup_config.task_types:
                 task_type = task_data.get("task_type")
                 if task_type not in [tt.value for tt in cleanup_config.task_types]:
@@ -202,10 +249,12 @@ async def cleanup_old_tasks(
         # Delete tasks
         if not cleanup_config.dry_run:
             for celery_task_id in to_delete:
-                del task_registry[celery_task_id]
+                if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
+                    delete_stored_task(celery_task_id)
+                else:
+                    del tasks_module.task_registry[celery_task_id]
                 tasks_deleted += 1
 
-            # Invalidate caches
             await redis_cache.delete_pattern("tasks:*")
         else:
             tasks_deleted = len(to_delete)

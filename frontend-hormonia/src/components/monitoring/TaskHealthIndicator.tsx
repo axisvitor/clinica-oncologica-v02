@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Activity, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { Activity } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { createLogger } from '@/utils/logger';
 
@@ -46,17 +46,13 @@ export function TaskHealthIndicator() {
     const totalActive = queues.reduce((acc, q) => acc + q.active_count, 0);
 
     let statusColor = 'bg-green-500';
-    let statusIcon = <CheckCircle className="h-4 w-4 text-green-500" />;
 
     if (error) {
         statusColor = 'bg-red-500';
-        statusIcon = <AlertCircle className="h-4 w-4 text-red-500" />;
     } else if (totalPending > 50) {
         statusColor = 'bg-red-500';
-        statusIcon = <AlertCircle className="h-4 w-4 text-red-500" />;
     } else if (totalPending > 10) {
         statusColor = 'bg-yellow-500';
-        statusIcon = <Clock className="h-4 w-4 text-yellow-500" />;
     }
 
     return (

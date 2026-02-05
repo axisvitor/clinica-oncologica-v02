@@ -7,7 +7,7 @@ caching and database abstraction.
 
 import logging
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timezone
+from datetime import datetime
 from uuid import UUID
 
 from .types import Alert

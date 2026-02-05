@@ -70,21 +70,22 @@ export function Pagination({
   const pages = generatePageNumbers()
 
   return (
-    <div className={cn('flex items-center justify-center space-x-1', className)}>
+    <nav aria-label="Paginacao" className={cn('flex items-center justify-center space-x-1', className)}>
       <Button
         variant="outline"
         size="sm"
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
+        aria-label="Pagina anterior"
       >
-        <ChevronLeft className="h-4 w-4" />
+        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
         Anterior
       </Button>
 
       {pages.map((page, index) => {
         if (page === 'ellipsis') {
           return (
-            <div key={`ellipsis-${index}`} className="px-2">
+            <div key={`ellipsis-${index}`} className="px-2" aria-hidden="true">
               <MoreHorizontal className="h-4 w-4 text-gray-400" />
             </div>
           )
@@ -99,9 +100,11 @@ export function Pagination({
             variant={isCurrentPage ? 'default' : 'outline'}
             size="sm"
             onClick={() => onPageChange(pageNumber)}
+            aria-label={`Pagina ${pageNumber}`}
+            aria-current={isCurrentPage ? 'page' : undefined}
             className={cn(
               'min-w-[40px]',
-              isCurrentPage && 'bg-blue-600 text-white hover:bg-blue-700'
+              isCurrentPage && 'bg-primary text-primary-foreground hover:bg-primary/90'
             )}
           >
             {pageNumber}
@@ -114,10 +117,11 @@ export function Pagination({
         size="sm"
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
+        aria-label="Proxima pagina"
       >
-        Próxima
-        <ChevronRight className="h-4 w-4" />
+        Proxima
+        <ChevronRight className="h-4 w-4" aria-hidden="true" />
       </Button>
-    </div>
+    </nav>
   )
 }

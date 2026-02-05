@@ -193,7 +193,7 @@ class FollowUpSystemService:
                     )
                     rehydrated["errors"] += 1
 
-            # Note: conversation_contexts have 7-day TTL and are loaded on-demand
+            # Note: conversation_contexts have 1-hour TTL and are loaded on-demand
             # via context_manager.get_context(), so no bulk rehydration needed
 
             logger.info(

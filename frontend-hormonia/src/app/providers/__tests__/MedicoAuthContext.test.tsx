@@ -338,7 +338,7 @@ describe('MedicoAuthContext', () => {
       await act(async () => {
         try {
           await result.current.signOut()
-        } catch (e) {
+        } catch {
           // Expected to throw
         }
       })

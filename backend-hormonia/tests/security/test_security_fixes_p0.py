@@ -14,7 +14,6 @@ import pytest
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch, MagicMock
 from sqlalchemy import text
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app.middleware.csrf import (

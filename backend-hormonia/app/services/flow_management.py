@@ -12,7 +12,7 @@ from app.exceptions import (
     FlowOperationError,
     FlowStateConflictError,
 )
-from app.models.flow import FlowKind, FlowTemplateVersion
+from app.models.flow import FlowKind, FlowTemplateVersion, PatientFlowState
 from app.repositories.flow import FlowStateRepository
 from app.schemas.flow import (
     FlowStateResponse,
@@ -22,7 +22,8 @@ from app.schemas.flow import (
     FlowHistoryResponse,
     FlowHistoryItem,
 )
-from app.domain.flows.core import FlowService
+from app.services.enhanced_flow_engine import EnhancedFlowEngine
+from app.services.flow_core import FlowType
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +34,11 @@ class FlowManagementService:
     def __init__(
         self,
         flow_repo: FlowStateRepository,
-        db,  # Assuming 'db' is passed in or accessible here, as it's used in FlowService(db)
+        db,
     ):
         self.flow_repo = flow_repo
-        self.flow_service = FlowService(db)
+        self.db = db
+        self.enhanced_flow_engine = EnhancedFlowEngine(db)
 
     async def get_patient_flow_state(self, patient_id: UUID) -> FlowStateResponse:
         """
@@ -55,24 +57,22 @@ class FlowManagementService:
             flow_state = self.flow_repo.get_active_flow(patient_id)
 
             if not flow_state:
-                logger.info(f"No active flow found for patient {patient_id}")
+                logger.debug(f"No active flow found for patient {patient_id}")
                 return FlowStateResponse(
                     patient_id=patient_id,
                     has_active_flow=False,
                     message="No active flow found for patient",
                 )
 
-            # Calculate current day using flow engine
-            current_day = (
-                await self.flow_engine.enhanced_flow_engine.calculate_patient_day(
-                    patient_id
-                )
+            # Calculate current day using enhanced flow engine
+            current_day = await self.enhanced_flow_engine.calculate_patient_day(
+                patient_id
             )
 
             # Get template version info
             template_version = (
                 self.flow_repo.db.query(FlowTemplateVersion)
-                .filter(FlowTemplateVersion.id == flow_state.template_version_id)
+                .filter(FlowTemplateVersion.id == flow_state.flow_template_version_id)
                 .first()
             )
 
@@ -137,22 +137,64 @@ class FlowManagementService:
                     f"No active flow found for patient {patient_id}"
                 )
 
-            # Advance flow using enhanced flow engine
-            advancement_result = (
-                await self.flow_engine.enhanced_flow_engine.advance_patient_flow(
-                    patient_id=patient_id, force_day=force_day
-                )
+            if flow_state.status == "paused":
+                raise FlowStateConflictError("Cannot advance a paused flow")
+
+            template_version = (
+                self.flow_repo.db.query(FlowTemplateVersion)
+                .filter(FlowTemplateVersion.id == flow_state.flow_template_version_id)
+                .first()
+            )
+            total_steps = self._get_total_steps(template_version)
+            next_step = force_day if force_day is not None else flow_state.current_step + 1
+
+            if next_step <= flow_state.current_step:
+                raise FlowStateConflictError("Cannot move to a previous or current step")
+            if next_step > flow_state.current_step + 1:
+                raise FlowStateConflictError("Step progression must be sequential")
+
+            previous_step = flow_state.current_step
+            expected_version = flow_state.version
+
+            flow_state.current_step = next_step
+            flow_state.last_interaction_at = datetime.now(timezone.utc)
+            flow_state.step_data = flow_state.step_data or {}
+            flow_state.step_data.setdefault("step_timestamps", {})
+            flow_state.step_data["step_timestamps"][
+                f"step_{next_step}"
+            ] = datetime.now(timezone.utc).isoformat()
+
+            if total_steps and next_step >= total_steps:
+                flow_state.status = "completed"
+                flow_state.completed_at = datetime.now(timezone.utc)
+
+            self.enhanced_flow_engine._commit_flow_state_with_lock(
+                flow_state, expected_version
             )
 
+            advancement_result = {
+                "previous_step": previous_step,
+                "current_step": flow_state.current_step,
+                "next_actions": [],
+                "message": "Flow advanced successfully",
+                "completed": flow_state.completed_at is not None,
+            }
+
             logger.info(
-                f"Successfully advanced flow for patient {patient_id} to day {advancement_result['current_day']}"
+                "Flow advanced",
+                extra={
+                    "patient_id": str(patient_id),
+                    "previous_step": advancement_result["previous_step"],
+                    "current_step": advancement_result["current_step"],
+                    "completed": advancement_result["completed"],
+                },
             )
 
             return FlowAdvancementResponse(
                 success=True,
                 patient_id=patient_id,
                 advancement_result=advancement_result,
-                message=f"Patient flow advanced successfully to day {advancement_result['current_day']}",
+                message="Patient flow advanced successfully",
             )
 
         except FlowStateNotFoundError:
@@ -213,10 +255,17 @@ class FlowManagementService:
                 flow_state.state_data["auto_resume_at"] = resume_at.isoformat()
                 auto_resume_at = resume_at.isoformat()
 
-            # Save changes
-            self.flow_repo.db.commit()
+            flow_state.status = "paused"
+            flow_state.last_interaction_at = datetime.now(timezone.utc)
+            expected_version = flow_state.version
+            self.enhanced_flow_engine._commit_flow_state_with_lock(
+                flow_state, expected_version
+            )
 
-            logger.info(f"Successfully paused flow for patient {patient_id}")
+            logger.info(
+                "Flow paused",
+                extra={"patient_id": str(patient_id), "flow_id": str(flow_state.id)},
+            )
 
             return FlowPauseResponse(
                 success=True,
@@ -274,10 +323,17 @@ class FlowManagementService:
             # Remove auto-resume data if it exists
             flow_state.state_data.pop("auto_resume_at", None)
 
-            # Save changes
-            self.flow_repo.db.commit()
+            flow_state.status = "active"
+            flow_state.last_interaction_at = datetime.now(timezone.utc)
+            expected_version = flow_state.version
+            self.enhanced_flow_engine._commit_flow_state_with_lock(
+                flow_state, expected_version
+            )
 
-            logger.info(f"Successfully resumed flow for patient {patient_id}")
+            logger.info(
+                "Flow resumed",
+                extra={"patient_id": str(patient_id), "flow_id": str(flow_state.id)},
+            )
 
             return FlowResumeResponse(
                 success=True,
@@ -423,7 +479,7 @@ class FlowManagementService:
                             "flow_type": flow_kind.flow_type,
                             "name": flow_kind.name,
                             "description": flow_kind.description,
-                            "category": flow_kind.category,
+                            "category": getattr(flow_kind, "category", None),
                             "version": template_data.version,
                             "is_active": flow_kind.is_active,
                         }
@@ -451,13 +507,32 @@ class FlowManagementService:
             FlowStateResponse with new flow state
         """
         try:
-            # Start flow using FlowEngine (synchronous method)
-            flow_state = self.flow_engine.start_flow(
+            # Map flow_type string to Enum
+            try:
+                flow_type_enum = FlowType(flow_type)
+            except ValueError:
+                # Fallback or error if flow_type isn't in Enum (e.g. legacy types)
+                # But FlowCore.enroll_patient uses FlowType enum.
+                # If flow_type doesn't match, we might need to handle it.
+                # Assuming flow_type strings match Enum values
+                flow_type_enum = FlowType(flow_type)
+
+            # Start flow using EnhancedFlowEngine (which inherits from FlowCore)
+            flow_state = await self.enhanced_flow_engine.enroll_patient(
                 patient_id=patient_id,
-                flow_type=flow_type,
-                initial_data=None,
-                fallback_to_default=True,
+                flow_type=flow_type_enum,
+                auto_commit=True,
             )
+
+            # If user_id provided, maybe log it or store in metadata?
+            # Existing code didn't seem to persist user_id in start_flow unless in state_data,
+            # but enroll_patient sets a fresh step_data.
+            # Let's add user_id if needed.
+            if user_id:
+                if not flow_state.step_data:
+                    flow_state.step_data = {}
+                flow_state.step_data["started_by"] = str(user_id)
+                self.db.commit()
 
             logger.info(f"Started flow {flow_type} for patient {patient_id}")
 
@@ -479,3 +554,108 @@ class FlowManagementService:
         except Exception as e:
             logger.error(f"Failed to start flow for patient {patient_id}: {e}")
             raise FlowOperationError(f"Failed to start flow: {str(e)}")
+
+    async def process_patient_response(
+        self,
+        patient_id: UUID,
+        response_text: str,
+        response_metadata: Optional[dict] = None,
+    ) -> dict:
+        """
+        Process a patient response through the flow engine.
+
+        Args:
+            patient_id: Patient UUID
+            response_text: Patient response content
+            response_metadata: Optional metadata from channel
+
+        Returns:
+            Dict with response processing results
+        """
+        try:
+            # EnhancedFlowEngine handles response processing and flow updates
+            return await self.enhanced_flow_engine.process_patient_response(
+                patient_id=patient_id,
+                response_text=response_text,
+            )
+        except FlowStateNotFoundError:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to process response for patient {patient_id}: {e}")
+            raise FlowOperationError(f"Failed to process patient response: {str(e)}")
+
+    def _get_total_steps(self, template_version: Optional[FlowTemplateVersion]) -> int:
+        if not template_version or template_version.steps is None:
+            return 0
+        steps = template_version.steps
+        if isinstance(steps, list):
+            return len(steps)
+        if isinstance(steps, dict):
+            return len(steps.keys())
+        return 0
+
+    async def migrate_patient_flow_version(
+        self,
+        patient_id: UUID,
+        target_version_id: Optional[UUID] = None,
+        target_kind_key: Optional[str] = None,
+    ) -> PatientFlowState:
+        """Optionally migrate a patient to a new template version."""
+        flow_state = self.flow_repo.get_active_flow(patient_id)
+        if not flow_state:
+            raise FlowStateNotFoundError(f"No active flow found for patient {patient_id}")
+
+        target_version = None
+        if target_version_id:
+            target_version = (
+                self.db.query(FlowTemplateVersion)
+                .filter(FlowTemplateVersion.id == target_version_id)
+                .first()
+            )
+        elif target_kind_key:
+            flow_kind = (
+                self.db.query(FlowKind)
+                .filter(FlowKind.kind_key == target_kind_key)
+                .first()
+            )
+            if flow_kind:
+                target_version = (
+                    self.db.query(FlowTemplateVersion)
+                    .filter(
+                        FlowTemplateVersion.flow_kind_id == flow_kind.id,
+                        FlowTemplateVersion.is_active.is_(True),
+                    )
+                    .order_by(FlowTemplateVersion.version_number.desc())
+                    .first()
+                )
+
+        if not target_version:
+            raise FlowOperationError("Target template version not found")
+
+        if flow_state.flow_template_version_id == target_version.id:
+            return flow_state
+
+        expected_version = flow_state.version
+        previous_version_id = flow_state.flow_template_version_id
+        flow_state.flow_template_version_id = target_version.id
+        flow_state.flow_metadata = flow_state.flow_metadata or {}
+        flow_state.flow_metadata.update(
+            {
+                "migrated_from": str(previous_version_id),
+                "migrated_to": str(target_version.id),
+                "migrated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+
+        self.enhanced_flow_engine._commit_flow_state_with_lock(flow_state, expected_version)
+
+        logger.info(
+            "Flow template version migrated",
+            extra={
+                "patient_id": str(patient_id),
+                "from_version": str(previous_version_id),
+                "to_version": str(target_version.id),
+            },
+        )
+
+        return flow_state

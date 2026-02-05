@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react"
 import type { QuizSession, SingleAnswer, MultipleAnswer } from "@/types/quiz"
 import { saveQuizProgress, loadQuizProgress, clearQuizProgress, type QuizProgress } from "@/lib/quiz-progress-storage"
+import { api } from "@/lib/api-client"
 
 interface UseQuizStateProps {
   session: QuizSession
@@ -10,17 +11,28 @@ interface UseQuizStateProps {
 }
 
 export function useQuizState({ session, initialToken, onComplete, resumeFromSaved = false }: UseQuizStateProps) {
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(session.current_question_index)
+  // Initialize with 0 fallback to prevent undefined -> 0 transitions that trigger useEffect
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(session.current_question_index ?? 0)
   const [selectedAnswer, setSelectedAnswer] = useState<SingleAnswer | MultipleAnswer | null>(null)
   const [answers, setAnswers] = useState<Map<string, SingleAnswer | MultipleAnswer>>(new Map())
   const [otherTexts, setOtherTexts] = useState<Map<string, string>>(new Map())
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isCompleted, setIsCompleted] = useState(false)
+  const [navigationDirection, setNavigationDirection] = useState<"forward" | "backward">("forward")
 
-  const currentQuestion = session.questions[currentQuestionIndex || 0]
-  const totalQuestions = session.questions.length
-  const progress = (((currentQuestionIndex || 0) + 1) / totalQuestions) * 100
-  const isLastQuestion = (currentQuestionIndex || 0) === totalQuestions - 1
+  // Guard: Check for empty or invalid questions array
+  const hasValidQuestions = Array.isArray(session.questions) && session.questions.length > 0
+  const safeIndex = hasValidQuestions
+    ? Math.min(Math.max(0, currentQuestionIndex), session.questions.length - 1)
+    : 0
+
+  // Use safe access with fallback
+  const currentQuestion = hasValidQuestions
+    ? session.questions[safeIndex]
+    : { id: '', text: 'Quiz não disponível', type: 'text' as const, options: [] }
+  const totalQuestions = hasValidQuestions ? session.questions.length : 0
+  const progress = totalQuestions > 0 ? ((safeIndex + 1) / totalQuestions) * 100 : 0
+  const isLastQuestion = hasValidQuestions && safeIndex === totalQuestions - 1
 
   // Load saved progress on mount if resuming
   useEffect(() => {
@@ -69,11 +81,12 @@ export function useQuizState({ session, initialToken, onComplete, resumeFromSave
     }
   }, [answers, currentQuestionIndex, saveProgress, isCompleted])
 
-  // Reset selected answer when question changes
+  // Reset selected answer when question changes (NOT when answers changes)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const savedAnswer = answers.get(currentQuestion.id)
     setSelectedAnswer(savedAnswer || null)
-  }, [currentQuestionIndex, currentQuestion.id, answers])
+  }, [currentQuestionIndex, currentQuestion.id]) // Removed 'answers' - it was causing re-renders on every keystroke
 
   const handleSubmitAnswer = async (
     questionId: string,
@@ -82,32 +95,9 @@ export function useQuizState({ session, initialToken, onComplete, resumeFromSave
   ) => {
     setIsSubmitting(true)
     try {
-      // SECURITY FIX: Use API route with httpOnly cookie authentication
-      // Get CSRF token
-      const csrfResponse = await fetch('/api/csrf-token')
-      const { csrfToken } = await csrfResponse.json()
-
-      // Submit answer via API route (cookie sent automatically)
-      const response = await fetch('/api/quiz/submit-answer', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': csrfToken
-        },
-        body: JSON.stringify({
-          question_id: questionId,
-          response_value: responseValue,
-          response_metadata: metadata
-        }),
-        credentials: 'include' // Important: include cookies
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to submit answer')
-      }
-
-      const result = await response.json()
+      // Use Unified API Client for submission
+      // It handles CSRF, session cookies, and error retry automatically
+      const result = await api.submitAnswer(questionId, responseValue, metadata)
 
       // Handle completion
       if (result.is_last_question) {
@@ -129,6 +119,18 @@ export function useQuizState({ session, initialToken, onComplete, resumeFromSave
     }
   }
 
+  // Navigation helpers with direction tracking
+  const goToNextQuestion = useCallback(() => {
+    setNavigationDirection("forward")
+    setCurrentQuestionIndex(prev => Math.min(prev + 1, totalQuestions - 1))
+    setSelectedAnswer(null)
+  }, [totalQuestions])
+
+  const goToPreviousQuestion = useCallback(() => {
+    setNavigationDirection("backward")
+    setCurrentQuestionIndex(prev => Math.max(prev - 1, 0))
+  }, [])
+
   return {
     currentQuestionIndex,
     selectedAnswer,
@@ -140,6 +142,8 @@ export function useQuizState({ session, initialToken, onComplete, resumeFromSave
     totalQuestions,
     progress,
     isLastQuestion,
+    hasValidQuestions,
+    navigationDirection,
     setCurrentQuestionIndex,
     setSelectedAnswer,
     setAnswers,
@@ -148,5 +152,7 @@ export function useQuizState({ session, initialToken, onComplete, resumeFromSave
     setIsCompleted,
     handleSubmitAnswer,
     saveProgress,
+    goToNextQuestion,
+    goToPreviousQuestion,
   }
 }

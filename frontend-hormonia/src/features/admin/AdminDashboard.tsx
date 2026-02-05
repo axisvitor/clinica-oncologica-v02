@@ -1,8 +1,6 @@
 import React, { useState, useEffect, Suspense, memo, useCallback, useMemo } from 'react'
 import { Outlet, Navigate, useLocation } from 'react-router-dom'
 import {
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -12,11 +10,9 @@ import {
   Pie,
   Cell,
   LineChart,
-  Line,
-  Area,
-  AreaChart
+  Line
 } from '@/components/ui/charts/LazyRechartsComponents'
-import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent'
+import type { ValueType } from 'recharts/types/component/DefaultTooltipContent'
 import { ChartSkeleton } from '@/components/ui/chart-skeleton'
 import {
   Shield,
@@ -27,11 +23,9 @@ import {
   Database,
   Cpu,
   HardDrive,
-  Wifi,
   Eye,
   Lock,
-  UserX,
-  Calendar
+  UserX
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -40,11 +34,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import {
-  AdminDashboardStats,
   AdminUserActivity,
-  SecurityMetrics,
-  AuditLogEntry,
-  AdminUser
+  SecurityMetrics
 } from '@/types/admin'
 import { useAuth } from '@/app/providers/AuthContext'
 import AdminNavigationMenu from './AdminNavigationMenu'
@@ -53,7 +44,7 @@ import { AdminUserActivityMonitor } from './AdminUserActivityMonitor'
 import { createLogger } from '@/lib/logger'
 import { useSystemStats } from '@/hooks/useSystemStats'
 
-const logger = createLogger('AdminDashboard')
+const _logger = createLogger('AdminDashboard')
 
 interface AdminDashboardProps {
   children?: React.ReactNode
@@ -111,9 +102,9 @@ const securityTrendData = [
   { date: '2024-01-15', failed_logins: 47, blocked_ips: 8 }
 ]
 
-const COLORS = ['#10B981', '#F59E0B', '#EF4444', '#3B82F6']
+const _COLORS = ['#10B981', '#F59E0B', '#EF4444', '#3B82F6']
 
-const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ children }) => {
+const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ children: _children }) => {
   const { user, isAuthenticated, isInitializing: authLoading } = useAuth()
   const location = useLocation()
 
@@ -124,13 +115,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ children }) => {
   })
 
   const [securityMetrics, setSecurityMetrics] = useState<SecurityMetrics>(mockSecurityMetrics)
-  const [recentActivity, setRecentActivity] = useState<AdminUserActivity[]>(mockRecentActivity)
-  const isLoading = statsLoading || authLoading
-
-  // Redirect to login if not authenticated
-  if (!isAuthenticated) {
-    return <Navigate to="/admin/login" state={{ from: location }} replace />
-  }
+  const [recentActivity, _setRecentActivity] = useState<AdminUserActivity[]>(mockRecentActivity)
+  const _isLoading = statsLoading || authLoading
 
   // Update security metrics when stats are loaded
   useEffect(() => {
@@ -170,6 +156,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ children }) => {
     location.pathname === '/admin' || location.pathname === '/admin/',
     [location.pathname]
   )
+
+  // Redirect to login if not authenticated (AFTER all hooks)
+  if (!isAuthenticated) {
+    return <Navigate to="/admin/login" state={{ from: location }} replace />
+  }
 
   if (!showDashboardOverview) {
     return (

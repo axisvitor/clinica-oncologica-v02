@@ -19,7 +19,7 @@ export interface ValidationResult {
   component: string;
   valid: boolean;
   message: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
   error?: Error;
 }
 

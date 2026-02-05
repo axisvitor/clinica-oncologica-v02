@@ -1,0 +1,163 @@
+# Test Coverage Analysis Report
+
+**Generated:** 2025-12-26
+**Swarm ID:** swarm-1766769880635-dc7gkglhb
+**Analysis Method:** Hive-Mind Tactical Coordination
+
+---
+
+## Executive Summary
+
+| Metric | Value |
+|--------|-------|
+| **Total Test Files** | 257 |
+| **Total Source Files** | 1,169 |
+| **Overall Coverage Ratio** | ~22% |
+| **Critical Gaps** | 6 modules with 0% coverage |
+
+---
+
+## Coverage by Module
+
+| Module | App Files | Test Files | Coverage | Priority |
+|--------|-----------|------------|----------|----------|
+| api/v2/routers | 131 | 69 | 53% | ✅ Good |
+| services | 293 | 65 | 22% | ⚠️ Medium |
+| utils | 60 | 7 | 12% | ⚠️ Medium |
+| core | 60 | 6 | 10% | ⚠️ Medium |
+| middleware | 35 | 3 | 9% | ⚠️ Medium |
+| domain | 107 | 5 | 5% | 🔴 Critical |
+| schemas | 66 | 3 | 5% | ⚠️ Medium |
+| integrations | 20 | 1 | 5% | ⚠️ Medium |
+| repositories | 26 | 1 | 4% | 🔴 Critical |
+| models | 35 | 1 | 3% | ⚠️ Medium |
+| tasks | 29 | 1 | 3% | ⚠️ Medium |
+| **agents** | 16 | 0 | **0%** | 🔴 Critical |
+| **resilience** | 18 | 0 | **0%** | 🔴 Critical |
+
+---
+
+## Critical Gap Analysis
+
+### Zero Coverage Modules (CRITICAL)
+
+1. **`app/agents/`** - 16 files, 0 tests
+2. **`app/resilience/`** - 18 files, 0 tests
+3. **`app/domain/quizzes/`** - 25+ files, 0 tests
+4. **`app/domain/flows/`** - 30+ files, 0 tests
+5. **`app/services/ai/`** - Multiple files, 0 tests
+6. **`app/services/quiz/`** - Multiple files, 0 tests
+
+---
+
+## Module-Specific Analysis
+
+### 1. Patient Module
+
+| Area | Coverage | Missing Tests |
+|------|----------|---------------|
+| API (CRUD) | 60% | Flow endpoints (11 tests) |
+| Services | 30% | CRUD service (5 tests), Flow service (8 tests) |
+| Domain | 70% | Saga integration (4 tests) |
+| Repository | 5% | Full CRUD (13 tests) |
+
+**Priority P0 Missing Tests:** 28 tests
+
+### 2. Quiz System
+
+| Area | Coverage | Missing Tests |
+|------|----------|---------------|
+| API | 80% | Enhanced analytics |
+| Domain/Quizzes | 0% | Manager, Validator, Calculator (15+ tests) |
+| Domain/Agents | 0% | Conductor, Handler, Coordinator (12+ tests) |
+| Services | 25% | Engine, Service, Templates (10+ tests) |
+
+**Priority P0 Missing Tests:** 25+ tests
+
+### 3. WhatsApp Integration
+
+| Area | Coverage | Missing Tests |
+|------|----------|---------------|
+| Webhooks | 70% | Quiz debounce, deadlock prevention |
+| Evolution Client | 20% | Rate limiter, retry logic, all message types |
+| Messaging Domain | 60% | Core service, factory, scheduler |
+
+**Priority P0 Missing Tests:** 12 tests
+
+### 4. Auth Module
+
+| Area | Coverage | Missing Tests |
+|------|----------|---------------|
+| Auth Router | 60% | Redis rollback, account lock |
+| Security Utils | 10% | Password reset, JWT validation |
+| CSRF Middleware | 20% | Token validation, expiration |
+| Firebase Service | 30% | SDK handling, revocation |
+| Dependencies | 50% | TEST_TOKEN guard, UID validation |
+
+**Priority P0 Missing Tests:** 12 tests
+
+---
+
+## Prioritized Action Plan
+
+### Phase 1: CRITICAL (This Sprint)
+
+| # | Test Suite | Module | Tests |
+|---|------------|--------|-------|
+| 1 | `tests/domain/quizzes/test_answer_validator.py` | Quiz | 10 |
+| 2 | `tests/domain/quizzes/test_score_calculator.py` | Quiz | 8 |
+| 3 | `tests/services/patient/test_crud_service.py` | Patient | 5 |
+| 4 | `tests/auth/test_csrf_middleware.py` | Auth | 6 |
+| 5 | `tests/integrations/evolution/test_client.py` | WhatsApp | 4 |
+
+### Phase 2: HIGH (Next Sprint)
+
+| # | Test Suite | Module | Tests |
+|---|------------|--------|-------|
+| 6 | `tests/domain/quizzes/test_manager.py` | Quiz | 9 |
+| 7 | `tests/api/v2/test_patients_flow.py` | Patient | 11 |
+| 8 | `tests/auth/test_security_utils.py` | Auth | 6 |
+| 9 | `tests/services/webhook/test_message_handler_quiz.py` | WhatsApp | 3 |
+| 10 | `tests/repositories/test_patient_base.py` | Patient | 13 |
+
+### Phase 3: MEDIUM (Backlog)
+
+- Quiz templates service
+- Report generator
+- Scheduling timezone
+- Rate limiting verification
+- Audit logging
+
+---
+
+## Test File Templates Location
+
+Templates have been generated at:
+- `tests/templates/test_domain_template.py`
+- `tests/templates/test_service_template.py`
+- `tests/templates/test_api_template.py`
+
+---
+
+## Recommendations
+
+1. **Immediate Focus:** Domain layer (quizzes, flows) has zero coverage for business-critical logic
+2. **Security Priority:** CSRF and auth dependencies need P0 tests before next release
+3. **Repository Layer:** Only 1 test file exists for 26 repository files - critical gap
+4. **Enable Skipped Tests:** Several saga integration tests are skipped - investigate and fix
+
+---
+
+## Swarm Metrics
+
+| Agent | Task | Status |
+|-------|------|--------|
+| Analyst | Overall coverage inventory | ✅ Complete |
+| Tester-1 | Patient module analysis | ✅ Complete |
+| Tester-2 | Quiz system analysis | ✅ Complete |
+| Tester-3 | WhatsApp analysis | ✅ Complete |
+| Tester-4 | Auth module analysis | ✅ Complete |
+
+---
+
+*Report generated by Hive-Mind Test Coverage Swarm*

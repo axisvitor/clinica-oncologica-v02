@@ -18,7 +18,6 @@
  * ```
  */
 
-import React from 'react';
 import DOMPurify from 'dompurify'
 import { logger } from '@/lib/logger';
 import type { Config } from 'dompurify';
@@ -86,6 +85,7 @@ const RICH_TEXT_CONFIG: Config = {
  * <div dangerouslySetInnerHTML={{ __html: clean }} />
  * ```
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function sanitizeHtml(
   dirty: string | null | undefined,
   config: Config = DEFAULT_CONFIG
@@ -93,7 +93,7 @@ export function sanitizeHtml(
   if (!dirty) return '';
 
   try {
-    const clean = DOMPurify.sanitize(dirty, config as any) as unknown as string;
+    const clean = DOMPurify.sanitize(dirty, config) as string;
 
     // Add security attributes to links
     if (config !== STRICT_CONFIG) {
@@ -122,11 +122,12 @@ export function sanitizeHtml(
  * <p>{clean}</p>
  * ```
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function sanitizeText(dirty: string | null | undefined): string {
   if (!dirty) return '';
 
   try {
-    return DOMPurify.sanitize(dirty, STRICT_CONFIG as any) as unknown as string;
+    return DOMPurify.sanitize(dirty, STRICT_CONFIG) as string;
   } catch (error) {
     logger.error('Error sanitizing text', error);
     return '';
@@ -147,6 +148,7 @@ export function sanitizeText(dirty: string | null | undefined): string {
  * <div dangerouslySetInnerHTML={{ __html: clean }} />
  * ```
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function sanitizeRichText(dirty: string | null | undefined): string {
   return sanitizeHtml(dirty, RICH_TEXT_CONFIG);
 }
@@ -167,6 +169,7 @@ export function sanitizeRichText(dirty: string | null | undefined): string {
  * // Result: 'https://example.com'
  * ```
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function sanitizeUrl(url: string | null | undefined): string {
   if (!url) return '';
 
@@ -239,6 +242,7 @@ function addLinkSecurity(html: string): string {
  * // Result: 'This is a very lo...'
  * ```
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function truncateText(
   text: string | null | undefined,
   maxLength: number
@@ -262,6 +266,7 @@ export function truncateText(
  * // Result: '&lt;script&gt;alert("XSS")&lt;/script&gt;'
  * ```
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function escapeHtml(text: string | null | undefined): string {
   if (!text) return '';
 
@@ -276,6 +281,7 @@ export function escapeHtml(text: string | null | undefined): string {
  * @param text - Text to check
  * @returns True if HTML tags are detected
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function containsHtml(text: string | null | undefined): boolean {
   if (!text) return false;
   return /<\/?[a-z][\s\S]*>/i.test(text);
@@ -287,6 +293,7 @@ export function containsHtml(text: string | null | undefined): boolean {
  * @param email - Email to sanitize
  * @returns Sanitized email or empty string if invalid
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function sanitizeEmail(email: string | null | undefined): string {
   if (!email) return '';
 
@@ -302,6 +309,7 @@ export function sanitizeEmail(email: string | null | undefined): string {
  * @param phone - Phone number to sanitize
  * @returns Sanitized phone number with only digits, +, -, (, )
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function sanitizePhone(phone: string | null | undefined): string {
   if (!phone) return '';
   return phone.replace(/[^\d+\-()]/g, '');
@@ -347,6 +355,7 @@ export function SafeHtml({ html, className, config }: SafeHtmlProps) {
  * />
  * ```
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSanitizedInput(
   initialValue: string = '',
   sanitizer: (value: string) => string = sanitizeText
@@ -366,6 +375,7 @@ export { DOMPurify };
 /**
  * Sanitization configuration presets
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const SanitizeConfig = {
   DEFAULT: DEFAULT_CONFIG,
   STRICT: STRICT_CONFIG,

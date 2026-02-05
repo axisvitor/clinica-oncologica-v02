@@ -14,11 +14,9 @@ Usage:
 """
 
 import sys
-import os
 import asyncio
 import logging
 from pathlib import Path
-from typing import Optional
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -75,7 +73,7 @@ class DatabaseInitializer:
         """Validate database connection"""
         logger.info("\n[1/5] Validating database connection...")
 
-        from app.core.database import AsyncSessionLocal
+        from app.database import AsyncSessionLocal
         from sqlalchemy import text
 
         try:
@@ -106,8 +104,7 @@ class DatabaseInitializer:
             logger.info("Aborted by user")
             sys.exit(0)
 
-        from app.core.database import Base, engine
-        from sqlalchemy import text
+        from app.database import Base, engine
 
         try:
             # Drop all tables
@@ -166,7 +163,7 @@ class DatabaseInitializer:
         """Seed initial data"""
         logger.info("\n[4/5] Seeding initial data...")
 
-        from app.core.database import AsyncSessionLocal
+        from app.database import AsyncSessionLocal
         from sqlalchemy import text
 
         try:
@@ -197,8 +194,8 @@ class DatabaseInitializer:
         """Validate database schema integrity"""
         logger.info("\n[5/5] Validating schema integrity...")
 
-        from app.core.database import AsyncSessionLocal
-        from sqlalchemy import text, inspect
+        from app.database import AsyncSessionLocal
+        from sqlalchemy import text
 
         try:
             async with AsyncSessionLocal() as session:

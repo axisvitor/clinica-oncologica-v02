@@ -7,7 +7,7 @@ across multiple channels (email, websocket, webhook, SMS, etc.).
 
 import logging
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timezone
+from datetime import datetime
 
 from ..types import (
     Alert,

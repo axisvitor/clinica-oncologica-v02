@@ -13,9 +13,7 @@ import { PatientActions } from './PatientActions'
 
 import type { Patient } from '@/types/api'
 
-interface PatientRowProps {
-  style: React.CSSProperties
-  index: number
+interface PatientRowData {
   patients: Patient[]
   onNavigate: (id: string) => void
   onEdit?: (patient: Patient) => void
@@ -27,25 +25,43 @@ interface PatientRowProps {
   isResending: boolean
 }
 
+interface PatientRowProps {
+  style: React.CSSProperties
+  index: number
+  data: PatientRowData
+}
+
 const GRID_COLS = "grid-cols-[2.5fr_1.5fr_1fr_1fr_1fr_0.8fr_1.2fr_70px]"
 
 export const PatientRow = memo<PatientRowProps>(({
   style,
   index,
-  patients,
-  onNavigate,
-  onEdit,
-  onDelete,
-  onActivate,
-  onDeactivate,
-  onSendQuiz,
-  isResending
+  data
 }) => {
+  const {
+    patients,
+    onNavigate,
+    onEdit,
+    onDelete,
+    onActivate,
+    onDeactivate,
+    onSendQuiz,
+    isResending
+  } = data ?? {}
+
+  if (!patients || !patients.length) return null
+
   const patient = patients[index]
 
   if (!patient) return null
 
   const statusConfig = getStatusBadgeConfig(patient.status)
+  const handleRowKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      onNavigate(patient.id)
+    }
+  }
 
   return (
     <div
@@ -55,6 +71,10 @@ export const PatientRow = memo<PatientRowProps>(({
         GRID_COLS
       )}
       onClick={() => onNavigate(patient.id)}
+      onKeyDown={handleRowKeyDown}
+      role="button"
+      tabIndex={0}
+      aria-label={`Ver detalhes do paciente ${patient.name}`}
     >
       {/* Patient Info */}
       <div className="flex items-center space-x-3 min-w-0">

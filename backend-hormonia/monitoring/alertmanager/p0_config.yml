@@ -1,13 +1,10 @@
 # Alertmanager Configuration for P0 Critical Alerts
-# Integrated with Slack, Email, and PagerDuty
+# Integrated with Email and PagerDuty
 # Last Updated: 2025-11-15
 
 global:
   # Default configuration
   resolve_timeout: 5m
-
-  # Slack configuration
-  slack_api_url: '${SLACK_WEBHOOK_URL}'
 
   # Email configuration (SMTP)
   smtp_from: 'alerts@hormonia.io'
@@ -165,15 +162,10 @@ receivers:
   # DEFAULT RECEIVER
   # ========================================================================
   - name: 'default-receiver'
-    slack_configs:
-      - channel: '#alerts-general'
-        title: 'Alert: {{ .GroupLabels.alertname }}'
-        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
-        send_resolved: true
-
-  # ========================================================================
-  # P0 CRITICAL RECEIVERS
-  # ========================================================================
+    email_configs:
+      - to: '${P0_TEAM_EMAIL}'
+        headers:
+          Subject: 'Alert: {{ .GroupLabels.alertname }}'
   - name: 'p0-critical'
     pagerduty_configs:
       - service_key: '${PAGERDUTY_P0_CRITICAL_KEY}'
@@ -186,31 +178,6 @@ receivers:
           summary: '{{ range .Alerts.Firing }}{{ .Annotations.summary }}{{ end }}'
         client: 'Hormonia Monitoring'
         client_url: 'https://grafana.hormonia.io/d/p0-monitoring'
-    slack_configs:
-      - channel: '#p0-critical-alerts'
-        username: 'P0 Alert Bot'
-        icon_emoji: ':rotating_light:'
-        title: ':rotating_light: P0 CRITICAL ALERT :rotating_light:'
-        title_link: 'https://grafana.hormonia.io/d/p0-monitoring'
-        text: |
-          *Alert:* {{ .GroupLabels.alertname }}
-          *Severity:* {{ .GroupLabels.severity }}
-          *Component:* {{ .GroupLabels.component }}
-          *Incident Type:* {{ .GroupLabels.incident_type }}
-
-          {{ range .Alerts.Firing }}
-          *Description:* {{ .Annotations.description }}
-          *Action Required:* {{ .Annotations.action_required }}
-          *Runbook:* {{ .Annotations.runbook_url }}
-          {{ end }}
-        send_resolved: true
-        actions:
-          - type: button
-            text: 'View Dashboard'
-            url: 'https://grafana.hormonia.io/d/p0-monitoring'
-          - type: button
-            text: 'View Runbook'
-            url: '{{ (index .Alerts 0).Annotations.runbook_url }}'
     email_configs:
       - to: '${P0_ONCALL_EMAIL}'
         headers:
@@ -235,139 +202,56 @@ receivers:
       - service_key: '${PAGERDUTY_P0_CRITICAL_KEY}'
         severity: 'critical'
         description: 'P0 CRITICAL: Saga Timeout Breach'
-    slack_configs:
-      - channel: '#p0-saga-alerts'
-        username: 'Saga Monitor'
-        icon_emoji: ':warning:'
-        title: ':warning: SAGA TIMEOUT BREACH'
-        text: |
-          {{ range .Alerts.Firing }}
-          {{ .Annotations.description }}
-
-          **IMMEDIATE ACTION:**
-          {{ .Annotations.action_required }}
-          {{ end }}
-        send_resolved: true
-
   - name: 'p0-race-condition'
     pagerduty_configs:
       - service_key: '${PAGERDUTY_P0_CRITICAL_KEY}'
         severity: 'critical'
         description: 'P0 CRITICAL: Race Condition Detected'
-    slack_configs:
-      - channel: '#p0-engineering-critical'
-        username: 'Engineering Alert'
-        icon_emoji: ':rotating_light:'
-        title: ':rotating_light: RACE CONDITION REGRESSION'
-        text: |
-          {{ range .Alerts.Firing }}
-          {{ .Annotations.description }}
-
-          **CRITICAL REGRESSION - IMMEDIATE ESCALATION:**
-          {{ .Annotations.action_required }}
-          {{ end }}
-        send_resolved: true
-
   - name: 'p0-data-integrity'
     pagerduty_configs:
       - service_key: '${PAGERDUTY_P0_CRITICAL_KEY}'
         severity: 'critical'
         description: 'P0 CRITICAL: Data Integrity Risk'
-    slack_configs:
-      - channel: '#p0-data-integrity'
-        username: 'Data Integrity Monitor'
-        icon_emoji: ':warning:'
-        title: ':warning: DATA INTEGRITY RISK'
-        text: |
-          {{ range .Alerts.Firing }}
-          {{ .Annotations.description }}
-
-          **MANUAL INTERVENTION REQUIRED:**
-          {{ .Annotations.action_required }}
-          {{ end }}
-        send_resolved: true
-
   - name: 'p0-error-spike'
     pagerduty_configs:
       - service_key: '${PAGERDUTY_P0_HIGH_KEY}'
         severity: 'error'
         description: 'P0 CRITICAL: Error Rate Spike'
-    slack_configs:
-      - channel: '#p0-error-alerts'
-        username: 'Error Monitor'
-        icon_emoji: ':fire:'
-        title: ':fire: ERROR RATE SPIKE'
-        text: |
-          {{ range .Alerts.Firing }}
-          {{ .Annotations.description }}
-          {{ .Annotations.action_required }}
-          {{ end }}
-        send_resolved: true
-
-  # ========================================================================
-  # P0 HIGH PRIORITY RECEIVERS
-  # ========================================================================
   - name: 'p0-high'
-    slack_configs:
-      - channel: '#p0-high-alerts'
-        username: 'P0 Alert Bot'
-        icon_emoji: ':warning:'
-        title: 'P0 HIGH PRIORITY ALERT'
-        text: |
-          *Alert:* {{ .GroupLabels.alertname }}
-          *Component:* {{ .GroupLabels.component }}
-          {{ range .Alerts.Firing }}
-          *Description:* {{ .Annotations.description }}
-          *Action:* {{ .Annotations.action_required }}
-          {{ end }}
-        send_resolved: true
     email_configs:
       - to: '${P0_TEAM_EMAIL}'
         headers:
           Subject: 'P0 HIGH: {{ .GroupLabels.alertname }}'
 
   - name: 'p0-performance'
-    slack_configs:
-      - channel: '#p0-performance'
-        title: 'Performance Degradation'
-        send_resolved: true
-
+    email_configs:
+      - to: '${P0_TEAM_EMAIL}'
+        headers:
+          Subject: 'Alert: {{ .GroupLabels.alertname }}'
   - name: 'p0-resource'
-    slack_configs:
-      - channel: '#p0-resources'
-        title: 'Resource Constraint'
-        send_resolved: true
-
-  # ========================================================================
-  # P0 MEDIUM/WARNING RECEIVERS
-  # ========================================================================
+    email_configs:
+      - to: '${P0_TEAM_EMAIL}'
+        headers:
+          Subject: 'Alert: {{ .GroupLabels.alertname }}'
   - name: 'p0-medium'
-    slack_configs:
-      - channel: '#p0-medium-alerts'
-        send_resolved: true
-
+    email_configs:
+      - to: '${P0_TEAM_EMAIL}'
+        headers:
+          Subject: 'Alert: {{ .GroupLabels.alertname }}'
   - name: 'p0-warning'
-    slack_configs:
-      - channel: '#p0-warnings'
-        send_resolved: true
-
-  # ========================================================================
-  # TIME-BASED RECEIVERS
-  # ========================================================================
+    email_configs:
+      - to: '${P0_TEAM_EMAIL}'
+        headers:
+          Subject: 'Alert: {{ .GroupLabels.alertname }}'
   - name: 'p0-business-hours'
-    slack_configs:
-      - channel: '#p0-business-hours'
-        send_resolved: true
-
+    email_configs:
+      - to: '${P0_TEAM_EMAIL}'
+        headers:
+          Subject: 'Alert: {{ .GroupLabels.alertname }}'
   - name: 'p0-off-hours'
     pagerduty_configs:
       - service_key: '${PAGERDUTY_P0_ONCALL_KEY}'
         severity: 'critical'
-    slack_configs:
-      - channel: '#p0-oncall'
-        send_resolved: true
-
-# Inhibition rules - prevent notification spam
 inhibit_rules:
   # Inhibit warning/medium alerts when critical is firing
   - source_match:

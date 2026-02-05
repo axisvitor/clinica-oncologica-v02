@@ -29,6 +29,10 @@ class MessageType(str, enum.Enum):
     """Message type enumeration."""
 
     TEXT = "text"
+    IMAGE = "image"
+    AUDIO = "audio"
+    VIDEO = "video"
+    DOCUMENT = "document"
     BUTTON = "button"
     LIST = "list"
     MEDIA = "media"

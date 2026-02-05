@@ -1,6 +1,5 @@
 
 import { useState, useCallback } from 'react';
-import { useAuth } from '@/app/providers/AuthContext';
 import { createLogger } from '@/lib/logger';
 import { getErrorMessage } from '@/lib/utils/type-guards';
 

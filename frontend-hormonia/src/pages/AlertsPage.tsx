@@ -2,17 +2,17 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, Clock, ListFilter as Filter, Search, X, Download, RefreshCw, CheckCheck } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
+import type { AlertSeverity } from '@/lib/api-client/types'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { AlertsSkeleton } from '@/features/alerts/AlertsSkeleton'
 import { AlertCard } from '@/features/alerts/AlertCard'
 import { useToast } from '@/components/ui/use-toast'
 import { Checkbox } from '@/components/ui/checkbox'
 import { createLogger } from '@/lib/logger'
 
-const logger = createLogger('AlertsPage')
 import {
   Select,
   SelectContent,
@@ -20,12 +20,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+
+const logger = createLogger('AlertsPage')
+type AlertFilters = {
+  severity: AlertSeverity | 'all'
+  acknowledged: 'all' | 'true' | 'false'
+  type: 'all' | string
+}
 
 // Custom hook for debounced value
 function useDebounce<T>(value: T, delay: number = 300): T {
@@ -45,8 +46,8 @@ function useDebounce<T>(value: T, delay: number = 300): T {
 }
 
 export function AlertsPage() {
-  const [currentPage, setCurrentPage] = useState(1)
-  const [filters, setFilters] = useState({
+  const [currentPage] = useState(1)
+  const [filters, setFilters] = useState<AlertFilters>({
     severity: 'all',
     acknowledged: 'all',
     type: 'all'
@@ -54,7 +55,6 @@ export function AlertsPage() {
   const [showFilters, setShowFilters] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedAlerts, setSelectedAlerts] = useState<Set<string>>(new Set())
-  const [viewMode, setViewMode] = useState<'list' | 'compact'>('list')
 
   const { toast } = useToast()
   const queryClient = useQueryClient()
@@ -67,8 +67,9 @@ export function AlertsPage() {
     queryFn: () => apiClient.alerts.list({
       page: currentPage,
       size: 20,
-      ...(filters.severity !== 'all' && { severity: filters.severity as any }), // Cast to any to avoid strict type mismatch with string state
-      ...(filters.acknowledged !== 'all' && { acknowledged: filters.acknowledged === 'true' })
+      ...(filters.severity !== 'all' && { severity: filters.severity }),
+      ...(filters.acknowledged !== 'all' && { acknowledged: filters.acknowledged === 'true' }),
+      ...(filters.type !== 'all' && { alert_type: filters.type })
     })
   })
 
@@ -159,10 +160,10 @@ export function AlertsPage() {
   const filteredAlerts = useMemo(() => {
     let alerts = alertsData?.items || []
 
-    // Apply type filter (client-side since backend doesn't support it)
-    if (filters.type !== 'all') {
-      alerts = alerts.filter((alert) => alert.type === filters.type)
-    }
+    // Apply type filter (handled by backend now)
+    // if (filters.type !== 'all') {
+    //   alerts = alerts.filter((alert) => alert.type === filters.type)
+    // }
 
     // Apply search filter (client-side)
     if (debouncedSearchQuery) {
@@ -175,7 +176,7 @@ export function AlertsPage() {
     }
 
     return alerts
-  }, [alertsData?.items, filters.type, debouncedSearchQuery])
+  }, [alertsData?.items, debouncedSearchQuery])
 
   const stats = useMemo(() => {
     const alerts = alertsData?.items || []
@@ -366,6 +367,7 @@ export function AlertsPage() {
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
+                  name="alertSearch"
                   placeholder="Buscar por título, mensagem ou paciente..."
                   className="pl-10 text-sm"
                   value={searchQuery}
@@ -407,8 +409,9 @@ export function AlertsPage() {
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Severidade</label>
                   <Select
+                    name="severityFilter"
                     value={filters.severity}
-                    onValueChange={(value) => setFilters({ ...filters, severity: value })}
+                    onValueChange={(value: string) => setFilters({ ...filters, severity: value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Todas" />
@@ -426,8 +429,9 @@ export function AlertsPage() {
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Status</label>
                   <Select
+                    name="acknowledgedFilter"
                     value={filters.acknowledged}
-                    onValueChange={(value) => setFilters({ ...filters, acknowledged: value })}
+                    onValueChange={(value: string) => setFilters({ ...filters, acknowledged: value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Todos" />
@@ -443,8 +447,9 @@ export function AlertsPage() {
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Tipo</label>
                   <Select
+                    name="typeFilter"
                     value={filters.type}
-                    onValueChange={(value) => setFilters({ ...filters, type: value })}
+                    onValueChange={(value: string) => setFilters({ ...filters, type: value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Todos" />
@@ -501,9 +506,7 @@ export function AlertsPage() {
       {/* Alerts List */}
       <div>
         {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <LoadingSpinner size="lg" />
-          </div>
+          <AlertsSkeleton />
         ) : filteredAlerts.length === 0 ? (
           <Card>
             <CardContent className="pt-6">

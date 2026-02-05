@@ -74,6 +74,7 @@ export function convertDesignToTemplate(
     versionNumber: number;
     isDraft: boolean;
     isActive: boolean;
+    description?: string;
   }
 ): FlowTemplateCreate {
   // Convert FlowDesign nodes to FlowTemplateStep array
@@ -102,7 +103,8 @@ export function convertDesignToTemplate(
   return {
     kind_key: flowCategory,
     display_name: design.name || 'Novo Flow',
-    description: design.description || '',
+    template_name: design.name || 'Novo Flow',
+    description: options.description ?? design.description ?? '',
     version_number: options.versionNumber,
     steps,
     metadata: {

@@ -27,10 +27,10 @@ export default function PacientesList() {
       setLoading(true)
       const params: { size?: number; search?: string } = { size: 50 }
       if (searchTerm) params.search = searchTerm
-      const resp = await apiClient.patients.list(params as any)
-      const mapped: Paciente[] = (resp.items || []).map((p: any) => ({
+      const resp = await apiClient.patients.list(params)
+      const mapped: Paciente[] = (resp.items || []).map((p: { id: string; name?: string; cpf?: string; birth_date?: string; phone?: string; email?: string }) => ({
         id: p.id,
-        nome: p.name,
+        nome: p.name || '',
         cpf: p.cpf || '',
         data_nascimento: p.birth_date || '',
         telefone: p.phone || '',
@@ -170,16 +170,27 @@ export default function PacientesList() {
             {filteredPacientes.map((paciente) => {
               const isExpanded = expandedCards.has(paciente.id)
               const age = calculateAge(paciente.data_nascimento)
+              const detailsId = `patient-details-${paciente.id}`
 
               return (
                 <div
                   key={paciente.id}
-                  className="bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-200 hover:border-blue-300"
+                  className="bg-white rounded-lg shadow-md hover:shadow-xl transition-[box-shadow,border-color] duration-300 overflow-hidden border border-gray-200 hover:border-blue-300"
                 >
                   {/* Card Header - Always Visible */}
                   <div
                     className="p-6 cursor-pointer select-none"
                     onClick={() => toggleCard(paciente.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        toggleCard(paciente.id)
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={isExpanded}
+                    aria-controls={detailsId}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex items-center space-x-4 flex-1">
@@ -202,9 +213,8 @@ export default function PacientesList() {
 
                       {/* Expand/Collapse Icon */}
                       <ChevronDown
-                        className={`w-5 h-5 text-gray-400 transition-transform duration-300 flex-shrink-0 ml-2 ${
-                          isExpanded ? 'transform rotate-180' : ''
-                        }`}
+                        className={`w-5 h-5 text-gray-400 transition-transform duration-300 flex-shrink-0 ml-2 ${isExpanded ? 'transform rotate-180' : ''
+                          }`}
                       />
                     </div>
 
@@ -225,9 +235,9 @@ export default function PacientesList() {
 
                   {/* Expanded Content */}
                   <div
-                    className={`transition-all duration-300 ease-in-out ${
-                      isExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-                    } overflow-hidden`}
+                    className={`transition-[max-height,opacity] duration-300 ease-in-out ${isExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                      } overflow-hidden`}
+                    id={detailsId}
                   >
                     <div className="px-6 pb-6 space-y-3 border-t border-gray-100 pt-4">
                       {/* Email */}

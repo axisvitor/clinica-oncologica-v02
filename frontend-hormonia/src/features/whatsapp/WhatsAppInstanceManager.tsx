@@ -248,10 +248,20 @@ export const WhatsAppInstanceManager: React.FC<WhatsAppInstanceManagerProps> = (
               {instances.map((instance) => (
                 <Card
                   key={instance.name}
-                  className={`cursor-pointer transition-all hover:shadow-md ${
+                  className={`cursor-pointer transition-shadow hover:shadow-md ${
                     selectedInstance === instance.name ? 'ring-2 ring-blue-500' : ''
                   }`}
                   onClick={() => handleInstanceSelect(instance)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      handleInstanceSelect(instance)
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={selectedInstance === instance.name}
+                  aria-label={`Selecionar instancia ${instance.name}`}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between mb-3">
@@ -272,6 +282,7 @@ export const WhatsAppInstanceManager: React.FC<WhatsAppInstanceManagerProps> = (
                             e.stopPropagation();
                             refreshInstanceStatus(instance.name);
                           }}
+                          aria-label="Atualizar status"
                         >
                           <Activity className="w-3 h-3" />
                         </Button>
@@ -296,6 +307,8 @@ export const WhatsAppInstanceManager: React.FC<WhatsAppInstanceManagerProps> = (
                           <img
                             src={`data:image/png;base64,${qrCodes[instance.name]}`}
                             alt="QR Code"
+                            width={128}
+                            height={128}
                             className="w-32 h-32"
                           />
                         </div>

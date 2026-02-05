@@ -711,7 +711,6 @@ async def get_whatsapp_service(
     Returns:
         WhatsAppService instance with initialized Evolution client
     """
-    from app.integrations.evolution import get_evolution_client
 
     # Initialize Evolution client asynchronously
     evolution_client = await get_evolution_client()

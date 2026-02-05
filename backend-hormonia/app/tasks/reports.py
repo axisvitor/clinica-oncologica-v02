@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from uuid import UUID
 
-from app.celery_app import celery_app
+from app.task_queue import task_queue as celery_app
 from app.config import settings
 from app.database import SessionLocal
 from app.schemas.report import ReportGenerationRequest

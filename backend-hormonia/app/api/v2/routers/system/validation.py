@@ -12,7 +12,6 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 
-from app.models.user import UserRole
 from app.schemas.v2.system import (
     ConfigValidationRequest,
     ConfigValidationResponse,
@@ -21,7 +20,7 @@ from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.utils.rate_limiter import limiter
 from app.utils.logging import get_logger
 from app.config import settings
-from app.api.v2.utils.auth_helpers import is_admin as _is_admin
+from app.utils.auth_helpers import is_admin as _is_admin
 
 router = APIRouter(tags=["system-validation"])
 logger = get_logger(__name__)

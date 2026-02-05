@@ -170,6 +170,15 @@ async def extract_user_context(current_user: Any) -> Tuple[Optional[UserRole], O
 
 async def is_admin(current_user: Any) -> bool:
     """Check if current user is an administrator."""
+    # Direct string check for dict (most common case in v2 API)
+    if isinstance(current_user, dict):
+        role = current_user.get("role", "")
+        if isinstance(role, str) and role.lower() == "admin":
+            return True
+        if hasattr(role, "value") and role.value == "admin":
+            return True
+    
+    # Fallback to enum-based check
     role_enum, _ = await extract_user_context(current_user)
     return role_enum == UserRole.ADMIN
 
@@ -239,21 +248,27 @@ async def normalize_cpf(cpf: Optional[str]) -> Optional[str]:
 
 async def normalize_phone(phone: Optional[str]) -> Optional[str]:
     """
-    Normalize phone by removing non-digit characters (except +).
+    Normalize phone number to E.164 format.
 
-    DEPRECATED: Use app.utils.phone_validator.normalize_phone() instead.
+    DEPRECATED: Use app.schemas.validators.phone.normalize_phone() instead.
     This function is kept for backward compatibility.
 
     Args:
         phone: Phone string with optional formatting
 
     Returns:
-        Phone with only digits and + or None
+        Phone in E.164 format or None
     """
     if not phone:
         return None
-    normalized = re.sub(r"[^0-9+]", "", phone)
-    return normalized if normalized else None
+    from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
+
+    try:
+        return normalize_phone(
+            phone, mode=PhoneValidationMode.BR_TO_E164, allow_none=True
+        )
+    except ValueError:
+        return None
 
 
 async def validate_and_format_phone(phone: str, strict: bool = True) -> Optional[str]:
@@ -285,7 +300,7 @@ async def validate_and_format_phone(phone: str, strict: bool = True) -> Optional
 
         return formatted
 
-    except PhoneValidationError as e:
+    except PhoneValidationError:
         if strict:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid phone number format")
         return None
@@ -438,7 +453,7 @@ __all__ = [
     "ensure_patient_access",
     # Normalization
     "normalize_cpf",
-    # NOTE: normalize_phone removed - use app.utils.phone_validator.normalize_phone()
+    # NOTE: normalize_phone deprecated - use app.schemas.validators.phone.normalize_phone()
     "validate_and_format_phone",
     # Serialization
     "serialize_patient",

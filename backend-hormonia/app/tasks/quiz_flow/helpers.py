@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from uuid import UUID
 
-from app.database import get_db
+from app.database import get_db, get_scoped_session
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ def _trigger_whatsapp_fallback(patient_id: UUID, quiz_session_id: UUID):
     from asgiref.sync import async_to_sync
 
     try:
-        with next(get_db()) as db:
+        with get_scoped_session() as db:
             # Get quiz session info
             from app.models.quiz import QuizSession
 
@@ -107,7 +107,7 @@ def _notify_providers_of_quiz_completion(
 
         Settings()
 
-        with next(get_db()) as db:
+        with get_scoped_session() as db:
             # Use consolidated alert system
             from app.services.alerts import AlertManagerAdapter
 

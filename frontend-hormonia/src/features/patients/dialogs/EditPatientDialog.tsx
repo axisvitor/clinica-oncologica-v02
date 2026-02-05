@@ -34,7 +34,12 @@ export function EditPatientDialog({ open, onOpenChange, patient }: EditPatientDi
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[600px]" onOpenAutoFocus={(e) => {
+        e.preventDefault()
+        setTimeout(() => {
+          document.getElementById('name')?.focus()
+        }, 50)
+      }}>
         <DialogHeader>
           <DialogTitle>Editar Paciente</DialogTitle>
           <DialogDescription>

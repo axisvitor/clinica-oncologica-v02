@@ -19,7 +19,7 @@ import pytest
 import time
 import statistics
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 
 @pytest.mark.security
@@ -221,7 +221,7 @@ class TestMiddlewareStackPerformance:
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
         from app.core.cors import configure_cors
-        from app.middleware.csrf import CSRFMiddleware, generate_csrf_token
+        from app.middleware.csrf import CSRFMiddleware
         from app.middleware.security_headers import SecurityHeadersMiddleware
 
         # App with no middleware

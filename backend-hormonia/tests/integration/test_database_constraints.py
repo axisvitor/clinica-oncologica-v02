@@ -9,6 +9,7 @@ Validates database schema integrity including:
 """
 
 import pytest
+from datetime import date, datetime
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from uuid import UUID
@@ -96,7 +97,12 @@ class TestDatabaseConstraints:
         saga = PatientOnboardingSaga(
             patient_id=patient.id,
             doctor_id=valid_doctor_id,
-            patient_data=sample_patient_data,
+            patient_data={
+                key: value.isoformat()
+                if isinstance(value, (date, datetime))
+                else value
+                for key, value in sample_patient_data.items()
+            },
         )
         real_db_session.add(saga)
         real_db_session.commit()

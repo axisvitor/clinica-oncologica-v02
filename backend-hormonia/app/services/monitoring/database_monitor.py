@@ -8,7 +8,7 @@ like Prometheus, Grafana, and custom dashboards.
 import logging
 from typing import Dict, Any
 from datetime import datetime, timezone
-from app.core.database import get_pool_status, test_connection
+from app.database import get_pool_status, test_connection
 import time
 
 logger = logging.getLogger(__name__)
@@ -44,17 +44,15 @@ class DatabasePerformanceMonitor:
             Dictionary with all database metrics
         """
         try:
-            # Get pool status for both engines
-            main_pool = get_pool_status(use_service_role=True)
-            rls_pool = get_pool_status(use_service_role=False)
+            # Get pool status for the primary engine
+            main_pool = get_pool_status()
 
             # Calculate pool metrics
             main_metrics = self._calculate_pool_metrics(main_pool, "main")
-            rls_metrics = self._calculate_pool_metrics(rls_pool, "rls")
 
             # Test connection health
-            main_health = test_connection(use_service_role=True)
-            rls_health = test_connection(use_service_role=False)
+            main_health = test_connection()
+            rls_health = {"status": "disabled", "rls_enabled": False}
 
             # Compile all metrics
             metrics = {
@@ -66,19 +64,15 @@ class DatabasePerformanceMonitor:
                         "healthy": main_health.get("status") == "healthy",
                     },
                     "rls": {
-                        **rls_pool,
-                        **rls_metrics,
-                        "health_status": rls_health.get("status"),
-                        "healthy": rls_health.get("status") == "healthy",
+                        "enabled": False,
+                        "health_status": "disabled",
+                        "healthy": False,
                     },
                 },
                 "health": {
                     "main": main_health,
                     "rls": rls_health,
-                    "overall_healthy": (
-                        main_health.get("status") == "healthy"
-                        and rls_health.get("status") == "healthy"
-                    ),
+                    "overall_healthy": main_health.get("status") == "healthy",
                 },
                 "query_stats": self.query_stats,
                 "uptime_seconds": time.time() - self.start_time,
@@ -103,7 +97,7 @@ class DatabasePerformanceMonitor:
 
         Args:
             pool_status: Raw pool status from SQLAlchemy
-            pool_name: Name of the pool (main/rls)
+            pool_name: Name of the pool (main)
 
         Returns:
             Calculated metrics dictionary

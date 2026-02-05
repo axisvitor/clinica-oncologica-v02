@@ -3,7 +3,7 @@ import { Plus, ListFilter as Filter, Grid2x2 as Grid, List } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { Skeleton } from '@/components/ui/skeleton'
 import { PatientsTable } from '@/features/patients/PatientsTable'
 import { PatientsFilters } from '@/features/patients/PatientsFilters'
 import { CreatePatientDialog, EditPatientDialog } from '@/features/patients/dialogs'
@@ -16,7 +16,7 @@ import type { Patient } from '@/types/api'
 
 export function PatientsPage() {
   const navigate = useNavigate()
-  const [viewMode] = useState<'table' | 'grid'>('table')
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table')
   const [activeTab, setActiveTab] = useState('all')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
@@ -53,7 +53,7 @@ export function PatientsPage() {
       case 'paused': return 'paused'
       case 'completed': return 'completed'
       case 'inactive': return 'inactive'
-      default: return '' as any
+      default: return undefined
     }
   }
 
@@ -142,6 +142,24 @@ export function PatientsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center bg-muted rounded-md p-1 mr-2">
+            <Button
+              variant={viewMode === 'table' ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={() => setViewMode('table')}
+            >
+              <List className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={() => setViewMode('grid')}
+            >
+              <Grid className="h-4 w-4" />
+            </Button>
+          </div>
           <Button
             variant="outline"
             size="sm"
@@ -189,7 +207,7 @@ export function PatientsPage() {
             <PatientsFilters
               filters={filters}
               onFiltersChange={handleFiltersChange}
-              treatmentTypes={treatmentTypes.map((t: any) => typeof t === 'string' ? t : (t?.name || String(t)))}
+              treatmentTypes={treatmentTypes.map((t: string | { name?: string }) => typeof t === 'string' ? t : (t?.name || String(t)))}
               isLoadingTreatmentTypes={isLoadingTreatmentTypes}
               disabled={isLoading}
             />
@@ -225,8 +243,17 @@ export function PatientsPage() {
             </CardHeader>
             <CardContent>
               {isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <LoadingSpinner size="lg" />
+                <div className="space-y-4 p-4">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <div className="flex-1">
+                        <Skeleton className="h-4 w-32 mb-2" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                      <Skeleton className="h-5 w-16" />
+                    </div>
+                  ))}
                 </div>
               ) : error ? (
                 <div className="text-center py-8">
@@ -280,8 +307,17 @@ export function PatientsPage() {
             </CardHeader>
             <CardContent>
               {isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <LoadingSpinner size="lg" />
+                <div className="space-y-4 p-4">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <div className="flex-1">
+                        <Skeleton className="h-4 w-32 mb-2" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                      <Skeleton className="h-5 w-16" />
+                    </div>
+                  ))}
                 </div>
               ) : error ? (
                 <div className="text-center py-8">
@@ -335,8 +371,17 @@ export function PatientsPage() {
             </CardHeader>
             <CardContent>
               {isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <LoadingSpinner size="lg" />
+                <div className="space-y-4 p-4">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <div className="flex-1">
+                        <Skeleton className="h-4 w-32 mb-2" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                      <Skeleton className="h-5 w-16" />
+                    </div>
+                  ))}
                 </div>
               ) : error ? (
                 <div className="text-center py-8">
@@ -390,8 +435,17 @@ export function PatientsPage() {
             </CardHeader>
             <CardContent>
               {isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <LoadingSpinner size="lg" />
+                <div className="space-y-4 p-4">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <div className="flex-1">
+                        <Skeleton className="h-4 w-32 mb-2" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                      <Skeleton className="h-5 w-16" />
+                    </div>
+                  ))}
                 </div>
               ) : error ? (
                 <div className="text-center py-8">
@@ -445,8 +499,17 @@ export function PatientsPage() {
             </CardHeader>
             <CardContent>
               {isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <LoadingSpinner size="lg" />
+                <div className="space-y-4 p-4">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <div className="flex-1">
+                        <Skeleton className="h-4 w-32 mb-2" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                      <Skeleton className="h-5 w-16" />
+                    </div>
+                  ))}
                 </div>
               ) : error ? (
                 <div className="text-center py-8">

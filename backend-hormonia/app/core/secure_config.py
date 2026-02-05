@@ -63,7 +63,6 @@ class SecureConfigManager:
         self._secrets = {
             "database": {
                 "password": os.getenv("DB_PASSWORD", ""),
-                "service_role_key": os.getenv("SUPABASE_SERVICE_ROLE_KEY", ""),
             },
             "redis": {
                 "password": os.getenv("REDIS_PASSWORD", ""),
@@ -237,10 +236,7 @@ class SecureConfigManager:
             validation_results[var] = bool(os.getenv(var))
 
         # Check security settings
-        auto_provision_flag = os.getenv(
-            "AUTO_PROVISION_IDENTITY_USERS",
-            os.getenv("AUTO_PROVISION_SUPABASE_USERS", "true"),
-        )
+        auto_provision_flag = os.getenv("AUTO_PROVISION_IDENTITY_USERS", "true")
 
         security_checks = {
             "REDIS_SSL": os.getenv("REDIS_SSL", "false").lower() == "true",

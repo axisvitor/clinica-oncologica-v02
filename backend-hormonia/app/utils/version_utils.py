@@ -5,7 +5,7 @@ Provides standardized version handling across template loaders and validators.
 Supports both legacy integer versions and semantic versioning (x.y.z).
 """
 
-from typing import Union, Tuple, Optional, Dict
+from typing import Union, Tuple, Dict
 import re
 import logging
 

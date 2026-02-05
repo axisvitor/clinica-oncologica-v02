@@ -146,7 +146,7 @@ class TestQuizV2:
             pytest.skip("No patient available for test")
         
         # Create first quiz
-        quiz = MonthlyQuiz(
+        quiz = QuizSession(
             patient_id=patient.id,
             month=2,
             year=2025,
@@ -173,7 +173,7 @@ class TestQuizV2:
     
     def test_update_quiz(self, client: TestClient, db: Session, auth_headers: dict):
         """Test updating a quiz"""
-        quiz = db.query(MonthlyQuiz).first()
+        quiz = db.query(QuizSession).first()
         if not quiz:
             pytest.skip("No quiz available for test")
         
@@ -199,7 +199,7 @@ class TestQuizV2:
             pytest.skip("No patient available for test")
         
         # Create quiz
-        quiz = MonthlyQuiz(
+        quiz = QuizSession(
             patient_id=patient.id,
             month=3,
             year=2025,
@@ -218,5 +218,5 @@ class TestQuizV2:
         assert response.status_code == 204
         
         # Verify deletion
-        deleted_quiz = db.query(MonthlyQuiz).filter(MonthlyQuiz.id == quiz.id).first()
+        deleted_quiz = db.query(QuizSession).filter(QuizSession.id == quiz.id).first()
         assert deleted_quiz is None

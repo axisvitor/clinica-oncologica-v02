@@ -6,6 +6,27 @@ Create Date: 2025-12-26
 
 This migration adds the step_data JSONB column to the patient_onboarding_saga table.
 The column is used for compensation tracking data and idempotency support (FIX P1-008).
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 from alembic import op
 import sqlalchemy as sa

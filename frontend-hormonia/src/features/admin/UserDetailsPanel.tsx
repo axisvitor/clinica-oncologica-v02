@@ -6,20 +6,13 @@ import {
   X,
   Edit,
   Shield,
-  Calendar,
-  Clock,
-  MapPin,
-  Smartphone,
-  Monitor,
   Activity,
   Lock,
   Unlock,
   AlertTriangle,
   CheckCircle,
   XCircle,
-  MoreHorizontal,
-  FileText,
-  Download
+  FileText
 } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
 import { AdminUser, AdminUserActivity } from '@/types/admin'

@@ -138,6 +138,7 @@ export function ConfigProvider({
 }
 
 // Hook to access configuration
+// eslint-disable-next-line react-refresh/only-export-components
 export function useConfig(): ConfigContextType {
   const context = useContext(ConfigContext);
   if (!context) {
@@ -147,6 +148,7 @@ export function useConfig(): ConfigContextType {
 }
 
 // Hook to get configuration values safely
+// eslint-disable-next-line react-refresh/only-export-components
 export function useConfigValue<K extends keyof RuntimeConfig>(
   key: K,
   fallback?: RuntimeConfig[K]
@@ -238,6 +240,7 @@ function DefaultErrorComponent({ error, reload }: DefaultErrorComponentProps) {
 }
 
 // Utility function to initialize config outside of React
+// eslint-disable-next-line react-refresh/only-export-components
 export async function initializeConfiguration(): Promise<RuntimeConfig> {
   try {
     logger.info('Initializing runtime configuration...');
@@ -251,6 +254,7 @@ export async function initializeConfiguration(): Promise<RuntimeConfig> {
 }
 
 // Configuration validation hook
+// eslint-disable-next-line react-refresh/only-export-components
 export function useConfigValidation() {
   const { config, error } = useConfig();
 

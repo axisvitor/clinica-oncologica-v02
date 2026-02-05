@@ -6,6 +6,7 @@ Target: 90%+ code coverage.
 """
 
 import pytest
+import asyncio
 from typing import Dict, Any, Optional
 from uuid import uuid4, UUID
 from unittest.mock import Mock

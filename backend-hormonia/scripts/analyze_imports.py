@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import ast
-import sys
 from pathlib import Path
 from collections import defaultdict
 
@@ -50,7 +49,7 @@ class ImportAnalyzer:
 
                 rel_path = str(py_file.relative_to(self.root_dir))
                 self.imports[rel_path] = file_imports
-            except Exception as e:
+            except Exception:
                 pass
 
         print(f"  Analyzed {len(self.imports)} files")

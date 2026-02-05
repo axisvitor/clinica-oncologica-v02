@@ -13,12 +13,40 @@
 import { firebaseAuthLazy } from '../lib/firebase-lazy'
 import { apiClient } from '../lib/api-client'
 import { createLogger } from '../lib/logger'
-import { isErrorWithMessage, getErrorMessage } from '@/lib/utils/type-guards'
+import { isErrorWithMessage } from '@/lib/utils/type-guards'
 import type { User, LoginResponse } from '@/types/api'
 
 const logger = createLogger('FirebaseAuthService')
 
 let tokenRefreshInterval: NodeJS.Timeout | null = null
+
+// Store the session_id from backend login response
+// This should NEVER be overwritten with Firebase JWT tokens
+let currentSessionId: string | null = null
+
+/**
+ * Get the current session ID (UUID from backend)
+ * NOT the Firebase JWT token
+ */
+export function getSessionId(): string | null {
+  return currentSessionId
+}
+
+/**
+ * Set the current session ID (UUID from backend)
+ */
+export function setSessionId(sessionId: string | null): void {
+  currentSessionId = sessionId
+  apiClient.setAuthToken(sessionId)
+}
+
+/**
+ * Clear the stored session ID
+ * Called on logout
+ */
+export function clearSessionId(): void {
+  setSessionId(null)
+}
 
 /**
  * Login user with email/password
@@ -103,13 +131,16 @@ export async function loginUser(
     // Session ID stored securely in httpOnly cookie (not accessible to JavaScript)
 
     // Step 5: NOW safe to call auth.me()
-    // CRITICAL FIX: Use session_id from backend response if available (Header-Based Auth)
+    // CRITICAL FIX: Store session_id and use it for all API calls
+    // NEVER use Firebase JWT token for API calls - it will fail session validation
     if (sessionData.session_id) {
+      currentSessionId = sessionData.session_id
       apiClient.setAuthToken(sessionData.session_id)
-      logger.log('Session ID set as Auth Token (Header-Based Auth)')
+      logger.log('Session ID stored and set as Auth Token:', sessionData.session_id.substring(0, 8) + '...')
     } else {
-      // Fallback: Use Firebase token (Legacy/Hybrid)
-      apiClient.setAuthToken(firebaseToken)
+      // Fallback: No session_id means backend didn't return one - this is an error
+      logger.error('Backend did not return session_id - login will fail')
+      throw new Error('Backend session creation failed - no session_id returned')
     }
 
     const userResponse = await apiClient.auth.me()
@@ -131,7 +162,7 @@ export async function loginUser(
       },
       session_id: sessionData.session_id || 'cookie'
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Login failed:', error)
     // Clear any partial session data (cookie cleared by backend on error)
     // Firebase Auth SDK automatically clears in-memory token
@@ -168,6 +199,9 @@ export async function logoutUser(): Promise<void> {
     // Sign out from Firebase (lazy loaded)
     await firebaseAuthLazy.signOut()
 
+    // Clear stored session_id
+    clearSessionId()
+
     logger.log('Logout successful')
   } catch (error) {
     logger.error('Logout failed:', error)
@@ -177,6 +211,8 @@ export async function logoutUser(): Promise<void> {
       clearInterval(tokenRefreshInterval)
       tokenRefreshInterval = null
     }
+    // Clear session_id on error too
+    clearSessionId()
     throw error
   }
 }
@@ -201,8 +237,12 @@ export async function logoutAllDevices(): Promise<{ sessions_deleted: number }> 
 
     try {
       // Call backend logout-all endpoint (invalidates all Redis sessions for user)
-      // SECURITY: Uses Bearer token to authenticate this action
-      apiClient.setAuthToken(firebaseToken)
+      // Use session_id if available, otherwise fallback to Firebase token
+      if (currentSessionId) {
+        apiClient.setAuthToken(currentSessionId)
+      } else {
+        apiClient.setAuthToken(firebaseToken)
+      }
       const logoutData = await apiClient.auth.invalidateAllSessions()
       logger.log(`All sessions invalidated: ${logoutData.sessions_deleted} sessions deleted`)
 
@@ -221,7 +261,8 @@ export async function logoutAllDevices(): Promise<{ sessions_deleted: number }> 
       await logoutUser()
       return { sessions_deleted: 1 }
     } finally {
-      apiClient.setAuthToken(null)
+      // Always clear session_id on logout
+      clearSessionId()
     }
   } catch (error) {
     logger.error('Logout all devices failed:', error)
@@ -239,34 +280,46 @@ export async function getCurrentUser(): Promise<User | null> {
     const firebaseUser = await firebaseAuthLazy.getCurrentUser()
     if (!firebaseUser) {
       logger.log('No Firebase user, session cleared')
+      clearSessionId()
       return null
     }
 
-    // Get current Firebase ID token (in-memory from SDK)
-    const firebaseToken = await firebaseUser.getIdToken()
+    // CRITICAL: Use stored session_id, NOT Firebase JWT token
+    // The session_id (UUID) is what the backend expects for authentication
+    if (!currentSessionId) {
+      logger.log('No session_id stored - user needs to login again')
+      // User has Firebase auth but no backend session - likely page refresh
+      // The session cookie should still be valid, so try auth.me() without setting token
+      // This relies on the cookie being sent automatically
+      const response = await apiClient.auth.me()
+      if (response?.data) {
+        logger.log('Session validated via cookie only')
+        return {
+          ...response.data,
+          session_id: 'cookie'
+        }
+      }
+      return null
+    }
 
-    // Validate with backend (httpOnly cookie sent automatically)
-    apiClient.setAuthToken(firebaseToken)
+    // Ensure session_id is set as auth token (not Firebase JWT)
+    apiClient.setAuthToken(currentSessionId)
     const response = await apiClient.auth.me()
 
     if (!response || !response.data) {
       logger.log('Backend session invalid, clearing')
-      // Firebase Auth SDK will handle token cleanup
+      clearSessionId()
       return null
     }
 
     return {
       ...response.data,
-      session_id: 'cookie' // Placeholder - actual session_id is in httpOnly cookie
+      session_id: currentSessionId
     }
   } catch (error) {
     logger.error('Get current user failed:', error)
-    // Firebase Auth SDK will handle token cleanup
+    // Don't clear session on error - might be network issue
     return null
-  } finally {
-    // HYBRID AUTH: Keep Firebase token for backward compatibility
-    // Both session cookie AND Bearer token available for all endpoints
-    logger.log('Keeping Firebase token for hybrid authentication after getCurrentUser')
   }
 }
 
@@ -316,16 +369,19 @@ export function setupTokenRefresh(): void {
       }
 
       // Force token refresh (Firebase SDK stores in-memory)
-      const newToken = await firebaseUser.getIdToken(true)
+      // This keeps the Firebase session alive, but we use session_id for API calls
+      await firebaseUser.getIdToken(true)
 
-      // Temporarily set token for validation
-      apiClient.setAuthToken(newToken)
+      logger.log('Firebase token refreshed successfully')
 
-      logger.log('Token refreshed successfully')
-
-      // SECURITY: Validate token with backend after refresh
-      // This prevents use of refreshed tokens after account deactivation
+      // SECURITY: Validate session with backend (uses session_id, not Firebase token)
+      // This prevents use after account deactivation
       try {
+        // Ensure session_id is set as auth token (NOT Firebase JWT)
+        if (currentSessionId) {
+          apiClient.setAuthToken(currentSessionId)
+        }
+        // auth.me() will use cookie if no session_id stored
         const validationResponse = await apiClient.auth.me()
 
         if (!validationResponse || !validationResponse.data) {
@@ -339,11 +395,7 @@ export function setupTokenRefresh(): void {
           throw new Error('Account has been deactivated')
         }
 
-        logger.log('Backend validation successful after token refresh')
-
-        // HYBRID AUTH: Keep Firebase token for backward compatibility
-        // Both session cookie AND Bearer token available after refresh
-        logger.log('Keeping Firebase token for hybrid authentication after refresh')
+        logger.log('Backend session validation successful')
       } catch (validationError) {
         logger.error('Token validation failed, forcing logout:', validationError)
 

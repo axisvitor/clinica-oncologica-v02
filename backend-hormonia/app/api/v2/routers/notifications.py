@@ -140,6 +140,7 @@ async def list_notifications(
 
     return {
         "data": notification_responses,
+        "items": notification_responses,
         "next_cursor": next_cursor,
         "has_more": has_more,
         "total": total,

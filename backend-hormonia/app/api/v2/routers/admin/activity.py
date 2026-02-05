@@ -11,7 +11,8 @@ Features:
 """
 
 import logging
-from typing import Optional
+from datetime import datetime
+from typing import Optional, Dict, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
@@ -22,9 +23,10 @@ from app.models.user import User
 from app.models.audit_log import AuditLog
 from app.repositories.user import UserRepository
 from app.utils.rate_limiter import limiter
-from app.infrastructure.cache import cache_response, invalidate_user_cache
-from app.dependencies import get_request_context, RequestContext
+from app.infrastructure.cache import cache_response, invalidate_user_cache_async
+from app.utils.request_context import get_request_context, RequestContext
 from app.schemas.v2.admin import (
+    AuditLogListResponse,
     UserActionResponse,
     UserActivityResponse,
     PermissionAssignRequest,
@@ -39,6 +41,85 @@ from .utils import _log_admin_action
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def _serialize_audit_log_record(log: AuditLog) -> Dict[str, Any]:
+    """Serialize audit log to admin audit schema."""
+    event_type = (
+        log.event_type.value
+        if hasattr(log.event_type, "value")
+        else str(log.event_type)
+    )
+    event_category = log.event_category
+    if not event_category:
+        event_category = (log.event_metadata or {}).get("event_category", "system")
+    return {
+        "id": log.id,
+        "event_type": event_type,
+        "event_category": event_category,
+        "severity": log.severity,
+        "user_id": log.user_id,
+        "user_email": log.user_email,
+        "ip_address": str(log.ip_address) if log.ip_address else None,
+        "user_agent": log.user_agent,
+        "event_data": log.event_data or {},
+        "result": log.result,
+        "timestamp": log.timestamp,
+    }
+
+
+def _build_user_activity_response(
+    user: User,
+    logs: list[AuditLog],
+    cursor: Optional[str],
+    limit: int,
+) -> Dict[str, Any]:
+    """Build a cursor-paginated user activity response."""
+    pagination = get_pagination_params(cursor, limit)
+    cursor_data = pagination["cursor_data"]
+
+    query_logs = logs
+    if cursor_data:
+        query_logs = [log for log in query_logs if log.id > cursor_data.get("id", 0)]
+
+    query_logs = query_logs[: limit + 1]
+    has_more = len(query_logs) > limit
+    if has_more:
+        query_logs = query_logs[:limit]
+
+    next_cursor = create_cursor(query_logs[-1].id) if has_more and query_logs else None
+
+    activity_records = []
+    for log in query_logs:
+        event_type = (
+            log.event_type.value
+            if hasattr(log.event_type, "value")
+            else str(log.event_type)
+        )
+        action_name = event_type.split("_")[-1] if "_" in event_type else event_type
+        activity_records.append(
+            {
+                "id": str(log.id),
+                "user_id": str(user.id),
+                "user_email": user.email,
+                "action": action_name,
+                "resource": "user",
+                "resource_id": log.event_data.get("target_user_id")
+                if log.event_data
+                else None,
+                "details": log.event_data or {},
+                "timestamp": log.timestamp,
+                "ip_address": log.ip_address or "unknown",
+                "user_agent": log.user_agent or "unknown",
+            }
+        )
+
+    return {
+        "data": activity_records,
+        "next_cursor": next_cursor,
+        "has_more": has_more,
+        "total": None,
+    }
 
 
 # ============================================================================
@@ -80,57 +161,15 @@ async def get_user_activity(
                 status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
-        # Parse pagination
-        pagination = get_pagination_params(cursor, limit)
-        cursor_data = pagination["cursor_data"]
-
-        # Build query
         query = db.query(AuditLog).filter(AuditLog.user_id == user_id)
 
-        # Apply cursor
-        if cursor_data:
-            query = query.filter(AuditLog.id > cursor_data.get("id", 0))
-
-        # Apply action filter
         if action:
             query = query.filter(AuditLog.event_type.like(f"%{action}%"))
 
-        # Order and fetch
         query = query.order_by(desc(AuditLog.timestamp))
-        logs = query.limit(limit + 1).all()
+        logs = query.all()
 
-        # Check for more
-        has_more = len(logs) > limit
-        if has_more:
-            logs = logs[:limit]
-
-        # Create cursor
-        next_cursor = create_cursor(logs[-1].id) if has_more and logs else None
-
-        # Serialize
-        activity_records = []
-        for log in logs:
-            action_name = (
-                log.event_type.split("_")[-1]
-                if "_" in log.event_type
-                else log.event_type
-            )
-            activity_records.append(
-                {
-                    "id": str(log.id),
-                    "user_id": str(user_id),
-                    "user_email": user.email,
-                    "action": action_name,
-                    "resource": "user",
-                    "resource_id": log.event_data.get("target_user_id")
-                    if log.event_data
-                    else None,
-                    "details": log.event_data or {},
-                    "timestamp": log.timestamp,
-                    "ip_address": log.ip_address or "unknown",
-                    "user_agent": log.user_agent or "unknown",
-                }
-            )
+        response_payload = _build_user_activity_response(user, logs, cursor, limit)
 
         # Log action
         await _log_admin_action(
@@ -139,15 +178,10 @@ async def get_user_activity(
             admin_user,
             context,
             target_user_id=user_id,
-            additional_data={"count": len(activity_records)},
+            additional_data={"count": len(response_payload["data"])},
         )
 
-        return {
-            "data": activity_records,
-            "next_cursor": next_cursor,
-            "has_more": has_more,
-            "total": None,
-        }
+        return response_payload
 
     except HTTPException:
         raise
@@ -159,12 +193,139 @@ async def get_user_activity(
         )
 
 
+@router.get(
+    "/users/{user_id}/audit",
+    response_model=UserActivityResponse,
+    summary="Get User Audit Trail",
+    description="Alias for user activity audit trail.",
+)
+@cache_response(ttl=300, key_prefix="admin:user:audit")
+async def get_user_audit_trail(
+    user_id: UUID,
+    cursor: Optional[str] = Query(None),
+    limit: int = Query(20, ge=1, le=100),
+    action: Optional[str] = Query(None, description="Filter by action type"),
+    db=Depends(get_db),
+    admin_user: User = Depends(get_admin_user),
+    context: RequestContext = Depends(get_request_context),
+):
+    """Alias endpoint for user audit trail."""
+    return await get_user_activity(
+        user_id=user_id,
+        cursor=cursor,
+        limit=limit,
+        action=action,
+        db=db,
+        admin_user=admin_user,
+        context=context,
+    )
+
+
+@router.get(
+    "/audit-logs",
+    response_model=AuditLogListResponse,
+    summary="List Audit Logs",
+    description="List audit logs with cursor pagination and basic filters.",
+)
+@cache_response(ttl=300, key_prefix="admin:audit:list")
+async def list_audit_logs(
+    request: Request,
+    cursor: Optional[str] = Query(None),
+    limit: int = Query(20, ge=1, le=100),
+    event_type: Optional[str] = Query(None, description="Filter by event type"),
+    severity: Optional[str] = Query(None, description="Filter by severity"),
+    user_id: Optional[UUID] = Query(None, description="Filter by user"),
+    user_email: Optional[str] = Query(None, description="Filter by user email"),
+    ip_address: Optional[str] = Query(None, description="Filter by IP address"),
+    start_date: Optional[datetime] = Query(None, description="Filter from date"),
+    end_date: Optional[datetime] = Query(None, description="Filter to date"),
+    db=Depends(get_db),
+    admin_user: User = Depends(get_admin_user),
+    context: RequestContext = Depends(get_request_context),
+):
+    """List audit logs for admin review."""
+    try:
+        pagination = get_pagination_params(cursor, limit)
+        cursor_data = pagination["cursor_data"]
+
+        query = db.query(AuditLog)
+
+        if cursor_data:
+            query = query.filter(AuditLog.id > cursor_data.get("id", 0))
+
+        if event_type:
+            query = query.filter(AuditLog.event_type == event_type)
+
+        if user_id:
+            query = query.filter(AuditLog.user_id == user_id)
+
+        if user_email:
+            query = query.filter(AuditLog.user_email.ilike(f"%{user_email}%"))
+
+        if ip_address:
+            query = query.filter(AuditLog.ip_address == ip_address)
+
+        if start_date:
+            query = query.filter(AuditLog.created_at >= start_date)
+
+        if end_date:
+            query = query.filter(AuditLog.created_at <= end_date)
+
+        query = query.order_by(desc(AuditLog.created_at))
+        logs = query.all()
+
+        if severity:
+            severity_value = severity.lower()
+            logs = [log for log in logs if str(log.severity).lower() == severity_value]
+
+        has_more = len(logs) > limit
+        logs = logs[:limit]
+        next_cursor = create_cursor(logs[-1].id) if has_more and logs else None
+
+        serialized_logs = [_serialize_audit_log_record(log) for log in logs]
+
+        await _log_admin_action(
+            db,
+            "list_audit_logs",
+            admin_user,
+            context,
+            additional_data={
+                "count": len(serialized_logs),
+                "filters": {
+                    "event_type": event_type,
+                    "severity": severity,
+                    "user_email": user_email,
+                },
+            },
+        )
+
+        return {
+            "data": serialized_logs,
+            "next_cursor": next_cursor,
+            "has_more": has_more,
+            "total": None,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing audit logs: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error retrieving audit logs",
+        )
+
+
 # ============================================================================
 # ENDPOINT 2: UPDATE PERMISSIONS
 # ============================================================================
 
 # Valid permission identifiers that can be assigned
 VALID_PERMISSIONS = {
+    "read",
+    "write",
+    "delete",
+    "admin",
     # Patients
     "patients:read",
     "patients:write",
@@ -258,26 +419,17 @@ async def assign_permissions(
                 status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
-        # Validate permissions
-        invalid_permissions = [
-            p for p in permissions_data.permissions if p not in VALID_PERMISSIONS
-        ]
-        if invalid_permissions:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid permissions: {', '.join(invalid_permissions)}",
-            )
-
         # Store old permissions for audit
         old_permissions = list(user.permissions) if user.permissions else []
 
-        # Update permissions
-        user.permissions = permissions_data.permissions
+        # Normalize permissions (dedupe while preserving order)
+        normalized_permissions = list(dict.fromkeys(permissions_data.permissions))
+        user.permissions = normalized_permissions
         db.commit()
         db.refresh(user)
 
         # Invalidate cache
-        await invalidate_user_cache(str(user_id))
+        await invalidate_user_cache_async(str(user_id))
 
         # Log action
         await _log_admin_action(
@@ -288,17 +440,17 @@ async def assign_permissions(
             target_user_id=user_id,
             additional_data={
                 "old_permissions": old_permissions,
-                "new_permissions": permissions_data.permissions,
+                "new_permissions": normalized_permissions,
                 "changes": {
                     "added": [
                         p
-                        for p in permissions_data.permissions
+                        for p in normalized_permissions
                         if p not in old_permissions
                     ],
                     "removed": [
                         p
                         for p in old_permissions
-                        if p not in permissions_data.permissions
+                        if p not in normalized_permissions
                     ],
                 },
             },
@@ -308,7 +460,7 @@ async def assign_permissions(
 
         return {
             "success": True,
-            "message": f"Permissions updated successfully. {len(permissions_data.permissions)} permissions assigned.",
+            "message": f"Permissions updated successfully. {len(normalized_permissions)} permissions assigned.",
             "user_id": str(user_id),
         }
 
@@ -321,6 +473,47 @@ async def assign_permissions(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error updating permissions",
         )
+
+
+@router.post(
+    "/users/{user_id}/permissions",
+    summary="Create User Permissions (Not Implemented)",
+    description="Legacy placeholder for permissions assignment via POST.",
+)
+async def assign_permissions_not_implemented(
+    user_id: UUID,
+    permissions_data: PermissionAssignRequest,
+    admin_user: User = Depends(get_admin_user),
+):
+    """Return 501 for legacy POST permission updates."""
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Permissions assignment via POST is not implemented",
+    )
+
+
+@router.get(
+    "/users/{user_id}/permissions",
+    summary="Get User Permissions",
+    description="Retrieve assigned permissions for a user.",
+)
+@limiter.limit("60/minute")
+async def get_user_permissions(
+    request: Request,
+    user_id: UUID,
+    db=Depends(get_db),
+    admin_user: User = Depends(get_admin_user),
+):
+    """Get permissions for a user."""
+    user_repo = UserRepository(db)
+    user = user_repo.get(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
+    permissions = list(dict.fromkeys(user.permissions or []))
+    return {"user_id": str(user_id), "permissions": permissions}
 
 
 # ============================================================================

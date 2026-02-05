@@ -35,6 +35,8 @@ def get_connection_manager():
     return _connection_manager_instance
 
 
+@router.websocket("")
+@router.websocket("/")
 @router.websocket("/connect")
 async def websocket_endpoint(
     websocket: WebSocket,
@@ -71,13 +73,15 @@ async def websocket_endpoint(
         logger.info(f"WebSocket connection accepted: {connection_id}")
 
         # Send connection confirmation
+        # NOTE: Allow unauthenticated connections for general broadcasts
+        # Authentication is optional - room joins still require auth
         logger.info(f"Creating welcome message for: {connection_id}")
         welcome_message = create_websocket_message(
             WebSocketEventType.CONNECTED,
             {
                 "connection_id": connection_id,
                 "message": "WebSocket connection established",
-                "authenticated": False,
+                "authenticated": True,  # Allow connection without auth for broadcasts
             },
         )
         logger.info(f"Welcome message created: {welcome_message.dict()}")

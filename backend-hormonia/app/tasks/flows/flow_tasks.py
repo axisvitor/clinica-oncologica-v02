@@ -12,8 +12,8 @@ from datetime import datetime, timezone
 from uuid import UUID
 from celery.exceptions import MaxRetriesExceededError
 
-from app.celery_app import celery_app
-from app.database import get_db
+from app.task_queue import task_queue as celery_app
+from app.database import get_db, get_scoped_session
 from app.services.enhanced_flow_engine import get_enhanced_flow_engine
 from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
@@ -22,7 +22,7 @@ from app.models.message import Message, MessageType, MessageDirection, MessageSt
 from app.exceptions import NotFoundError
 
 from .base import FlowTaskBase, send_critical_alert_sync
-from .batch_tasks import _process_single_patient_flow_safe
+from .batch_tasks import _process_single_patient_flow_safe, _process_single_patient_flow_by_id
 
 logger = logging.getLogger(__name__)
 
@@ -55,10 +55,8 @@ async def process_daily_flows_async(limit: int = 100) -> dict[str, Any]:
 
     logger.info(f"Starting async daily flow processing for up to {limit} patients")
 
-    # Use async context manager for database
-    db = next(get_db())
-
-    try:
+    # Use context manager for database
+    with get_scoped_session() as db:
         # Initialize services
         flow_engine = get_enhanced_flow_engine(db)
         flow_repo = FlowStateRepository(db)
@@ -79,7 +77,7 @@ async def process_daily_flows_async(limit: int = 100) -> dict[str, Any]:
         active_flows = [
             flow
             for flow in active_flows
-            if not (flow.state_data and flow.state_data.get("paused"))
+            if not (flow.step_data and flow.step_data.get("paused"))
         ]
 
         logger.info(
@@ -97,12 +95,25 @@ async def process_daily_flows_async(limit: int = 100) -> dict[str, Any]:
             )
 
             # Create tasks for the batch with timeout
+            # CRITICAL FIX: Pass only patient_id (UUID) so each coroutine creates
+            # its own isolated session, engine, and re-fetches flow_state
+            # This prevents "detached" object errors and concurrent commit issues
+            patient_ids = [flow.patient_id for flow in batch]
+            
+            # Limit concurrent DB connections to prevent pool exhaustion
+            MAX_CONCURRENT_DB = 10
+            semaphore = asyncio.Semaphore(MAX_CONCURRENT_DB)
+            
+            async def limited_process(patient_id):
+                async with semaphore:
+                    return await _process_single_patient_flow_by_id(patient_id)
+            
             tasks = [
                 asyncio.wait_for(
-                    _process_single_patient_flow_safe(flow_engine, flow, db),
+                    limited_process(patient_id),
                     timeout=FLOW_PROCESSING_TIMEOUT,
                 )
-                for flow in batch
+                for patient_id in patient_ids
             ]
 
             # Execute in parallel with exception handling
@@ -178,9 +189,6 @@ async def process_daily_flows_async(limit: int = 100) -> dict[str, Any]:
         )
 
         return results
-
-    finally:
-        db.close()
 
 
 @celery_app.task(
@@ -319,154 +327,114 @@ def send_flow_message(
             f"Sending flow message to patient {patient_id}, message_id: {message_id}"
         )
 
-        # Get database session
-        db = next(get_db())
+        from app.database import get_async_session_factory
+        from app.services.unified_whatsapp_service import (
+            create_unified_whatsapp_service,
+        )
+        from app.utils.async_helpers import run_async
+        from app.models.patient import Patient
 
-        try:
-            # Initialize services with QUEUE mode for retry/backoff policies
-            from app.services.unified_whatsapp_service import (
-                UnifiedWhatsAppService,
-                MessagingMode,
-            )
+        async def _send_flow_message_async() -> dict[str, Any]:
+            async_session_factory = get_async_session_factory()
 
-            message_sender = UnifiedWhatsAppService(
-                db, messaging_mode=MessagingMode.QUEUE
-            )
-            patient_repo = PatientRepository(db)
-            message_repo = MessageRepository(db)
+            async with async_session_factory() as db:
+                patient = await db.get(Patient, UUID(patient_id))
+                if not patient:
+                    raise NotFoundError(f"Patient {patient_id} not found")
 
-            # Get patient
-            patient = patient_repo.get(UUID(patient_id))
-            if not patient:
-                raise NotFoundError(f"Patient {patient_id} not found")
+                if message_id:
+                    message = await db.get(Message, UUID(message_id))
+                    if not message:
+                        raise NotFoundError(f"Scheduled message {message_id} not found")
 
-            # Get or create message object
-            if message_id:
-                # UPDATE existing scheduled message
-                message = message_repo.get(UUID(message_id))
-                if not message:
-                    raise NotFoundError(f"Scheduled message {message_id} not found")
-
-                # Validate message state
-                if message.status not in [
-                    MessageStatus.SCHEDULED,
-                    MessageStatus.PENDING,
-                ]:
-                    logger.warning(
-                        f"Message {message_id} has unexpected status {message.status}, proceeding anyway"
-                    )
-
-                # Update message status to SENDING
-                message.status = MessageStatus.SENDING
-                message.message_metadata["celery_execution_started"] = (
-                    datetime.now(timezone.utc).isoformat()
-                )
-                message.message_metadata["task_id"] = self.request.id
-
-            else:
-                # CREATE new message (backward compatibility for legacy calls)
-                logger.warning(
-                    f"Creating new message for patient {patient_id} - this may indicate message_id was not passed"
-                )
-                message = Message(
-                    patient_id=UUID(patient_id),
-                    direction=MessageDirection.OUTBOUND,
-                    type=MessageType(message_data.get("type", "text")),
-                    content=message_data.get("content", ""),
-                    message_metadata=message_data.get("metadata", {}),
-                    status=MessageStatus.SENDING,
-                    scheduled_for=datetime.now(timezone.utc),
-                )
-
-                # Add to database
-                db.add(message)
-
-            # Add/update flow context in metadata
-            if "flow_context" not in message.message_metadata:
-                message.message_metadata["flow_context"] = {}
-
-            message.message_metadata["flow_context"].update(
-                {
-                    "flow_day": message_data.get("flow_day"),
-                    "flow_type": message_data.get("flow_type"),
-                    "template_id": message_data.get("template_id"),
-                    "personalized": message_data.get("personalized", False),
-                    "sent_via_celery": True,
-                    "task_id": self.request.id,
-                }
-            )
-
-            # Commit transaction before sending
-            db.commit()
-            db.refresh(message)
-
-            # Send message using proper async handling
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    success = loop.run_until_complete(
-                        message_sender.send_message(message)
-                    )
-                finally:
-                    loop.close()
-            except RuntimeError as e:
-                if "cannot be called from a running event loop" in str(e):
-                    import concurrent.futures
-
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        from app.config.settings.tasks import MESSAGE_SEND_TIMEOUT
-
-                        future = executor.submit(
-                            lambda: asyncio.run(message_sender.send_message(message))
+                    if message.status not in [
+                        MessageStatus.SCHEDULED,
+                        MessageStatus.PENDING,
+                    ]:
+                        logger.warning(
+                            f"Message {message_id} has unexpected status {message.status}, proceeding anyway"
                         )
-                        success = future.result(timeout=MESSAGE_SEND_TIMEOUT)
+
+                    message.status = MessageStatus.SENDING
+                    message.message_metadata = message.message_metadata or {}
+                    message.message_metadata["celery_execution_started"] = (
+                        datetime.now(timezone.utc).isoformat()
+                    )
+                    message.message_metadata["task_id"] = self.request.id
                 else:
-                    raise
+                    logger.warning(
+                        f"Creating new message for patient {patient_id} - this may indicate message_id was not passed"
+                    )
+                    metadata = message_data.get("metadata") or {}
+                    message = Message(
+                        patient_id=UUID(patient_id),
+                        direction=MessageDirection.OUTBOUND,
+                        type=MessageType(message_data.get("type", "text")),
+                        content=message_data.get("content", ""),
+                        message_metadata=metadata,
+                        status=MessageStatus.SENDING,
+                        scheduled_for=datetime.now(timezone.utc),
+                    )
+                    db.add(message)
 
-            # Update message status based on send result
-            if success:
-                # MessageSender.send_message() already updates status to SENT
-                # Just update metadata with final status
+                message.message_metadata = message.message_metadata or {}
+                message.message_metadata.setdefault("flow_context", {})
+                message.message_metadata["flow_context"].update(
+                    {
+                        "flow_day": message_data.get("flow_day"),
+                        "flow_type": message_data.get("flow_type"),
+                        "template_id": message_data.get("template_id"),
+                        "personalized": message_data.get("personalized", False),
+                        "sent_via_celery": True,
+                        "task_id": self.request.id,
+                    }
+                )
+
+                await db.commit()
+                await db.refresh(message)
+
+                message_sender = create_unified_whatsapp_service(db)
+                success = await message_sender.send_message(message)
+
                 message.message_metadata["celery_execution_completed"] = (
                     datetime.now(timezone.utc).isoformat()
                 )
-                message.message_metadata["execution_status"] = "success"
-                db.commit()
-
-                logger.info(
-                    f"Flow message sent successfully to patient {patient_id}, message_id: {message.id}"
-                )
-            else:
-                # Update status to FAILED
-                message.status = MessageStatus.FAILED
-                message.message_metadata["celery_execution_completed"] = (
-                    datetime.now(timezone.utc).isoformat()
-                )
-                message.message_metadata["execution_status"] = "failed"
-                message.message_metadata["failure_reason"] = "Message sending failed"
-                db.commit()
-
-                logger.error(
-                    f"Failed to send flow message to patient {patient_id}, message_id: {message.id}"
+                message.message_metadata["execution_status"] = (
+                    "success" if success else "failed"
                 )
 
-            result = {
-                "status": "success" if success else "failed",
-                "patient_id": patient_id,
-                "message_id": str(message.id),
-                "sent_at": datetime.now(timezone.utc).isoformat(),
-                "whatsapp_id": message.whatsapp_id,
-                "updated_existing": bool(message_id),
-            }
+                if success:
+                    message.status = MessageStatus.SENT
+                    message.sent_at = datetime.now(timezone.utc)
+                    logger.info(
+                        f"Flow message sent successfully to patient {patient_id}, message_id: {message.id}"
+                    )
+                else:
+                    message.status = MessageStatus.FAILED
+                    message.message_metadata["failure_reason"] = (
+                        "Message sending failed"
+                    )
+                    logger.error(
+                        f"Failed to send flow message to patient {patient_id}, message_id: {message.id}"
+                    )
 
-            if not success:
-                result["error"] = "Message sending failed"
+                await db.commit()
 
-            return result
+                result = {
+                    "status": "success" if success else "failed",
+                    "patient_id": patient_id,
+                    "message_id": str(message.id),
+                    "sent_at": datetime.now(timezone.utc).isoformat(),
+                    "whatsapp_id": message.whatsapp_id,
+                    "updated_existing": bool(message_id),
+                }
 
-        finally:
-            db.close()
+                if not success:
+                    result["error"] = "Message sending failed"
+
+                return result
+
+        return run_async(_send_flow_message_async())
 
     except Exception as e:
         logger.error(f"Error sending flow message to patient {patient_id}: {e}")
@@ -474,8 +442,7 @@ def send_flow_message(
         # Try to mark message as failed if message_id was provided
         if message_id:
             try:
-                db = next(get_db())
-                try:
+                with get_scoped_session() as db:
                     message_repo = MessageRepository(db)
                     message = message_repo.get(UUID(message_id))
                     if message:
@@ -489,8 +456,6 @@ def send_flow_message(
                         logger.info(
                             f"Marked message {message_id} as FAILED after exception"
                         )
-                finally:
-                    db.close()
             except Exception as update_error:
                 logger.error(
                     f"Failed to update message status after exception: {update_error}"

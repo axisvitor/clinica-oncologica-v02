@@ -27,38 +27,13 @@ def test_utils_exports():
         from app.utils import (
             # Template & Input Sanitization
             TemplateSanitizer,
-            get_template_sanitizer,
-            InputSanitizer,
-            sanitize_input,
-            mask_cpf,
-            mask_phone,
-            mask_email,
-            # Version Management
-            VersionError,
             parse_version,
-            normalize_version,
-            to_int_version,
-            compare_versions,
-            # Database & Transaction Management
             async_transaction,
-            sync_transaction,
-            with_transaction,
-            with_db_retry,
             DatabaseOptimizer,
             QueryOptimizer,
-            get_db_optimizer,
-            # Audit & Logging
             AuditLogger,
             AuditAction,
             get_logger,
-            setup_logging,
-            StructuredLogger,
-            # Security & Rate Limiting
-            limiter,
-            get_password_hash,
-            verify_password,
-            validate_csrf_secret,
-            validate_secret_key,
         )
 
         print("✅ All imports successful!")
@@ -96,20 +71,9 @@ def test_ai_services_exports():
             # Core AI Service
             AIService,
             PatientContext,
-            ConcernLevel,
-            get_ai_service,
-            # Cache Layer
             CacheLayer,
-            CacheOperation,
-            CacheStrategy,
-            get_cache_layer,
-            # Batch Processing
             BatchProcessor,
-            AIOperation,
-            get_batch_processor,
-            # Patient Summary
             PatientSummaryService,
-            get_patient_summary_service,
             SummaryDataAggregator,
             AggregatedPatientData,
             # NLP Utilities

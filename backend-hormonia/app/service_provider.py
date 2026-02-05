@@ -243,12 +243,10 @@ class ServiceProvider:
     def patient_service(self) -> "PatientCRUDService":
         if self._patient_service is None:
             from app.services.patient import PatientCRUDService
-            # PatientService needs: db, PatientRepository, PatientIntegrityService, FlowEngine
+            # PatientService needs: db, repository
             self._patient_service = PatientCRUDService(
                 db=self.db,
-                patient_repository=self.patient_repository,
-                integrity_service=self.patient_integrity_service,
-                flow_engine=self.flow_engine,
+                repository=self.patient_repository,
             )
         return self._patient_service
 

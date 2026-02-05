@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { toast as sonnerToast } from 'sonner'
 
 export interface ToastOptions {
   title?: string
   description?: string
-  variant?: 'default' | 'destructive' | 'success'
+  variant?: 'default' | 'destructive' | 'success' | 'warning'
   duration?: number
   action?: {
     label: string
@@ -34,6 +34,12 @@ export function useToast() {
       })
     } else if (variant === 'success') {
       sonnerToast.success(options.title || options.description, {
+        description: options.title ? options.description : undefined,
+        duration,
+        action: options.action
+      })
+    } else if (variant === 'warning') {
+      sonnerToast.warning(options.title || options.description, {
         description: options.title ? options.description : undefined,
         duration,
         action: options.action
@@ -87,6 +93,12 @@ export const toast = (options: ToastOptions) => {
     })
   } else if (variant === 'success') {
     sonnerToast.success(options.title || options.description, {
+      description: options.title ? options.description : undefined,
+      duration,
+      action: options.action
+    })
+  } else if (variant === 'warning') {
+    sonnerToast.warning(options.title || options.description, {
       description: options.title ? options.description : undefined,
       duration,
       action: options.action

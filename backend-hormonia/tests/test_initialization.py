@@ -5,7 +5,6 @@ Comprehensive tests for all initialization scripts and utilities.
 """
 
 import pytest
-import asyncio
 from unittest.mock import Mock, patch, AsyncMock
 from pathlib import Path
 
@@ -73,7 +72,7 @@ class TestDatabaseInitializer:
     @pytest.mark.asyncio
     async def test_validate_connection(self):
         """Test database connection validation"""
-        with patch('app.core.database.AsyncSessionLocal') as mock_session:
+        with patch('app.database.AsyncSessionLocal') as mock_session:
             mock_session.return_value.__aenter__.return_value.execute = AsyncMock()
 
             from scripts.init_database import DatabaseInitializer
@@ -87,7 +86,7 @@ class TestDatabaseInitializer:
     @pytest.mark.asyncio
     async def test_validate_schema(self):
         """Test schema validation"""
-        with patch('app.core.database.AsyncSessionLocal') as mock_session:
+        with patch('app.database.AsyncSessionLocal') as mock_session:
             # Mock database queries
             mock_result = Mock()
             mock_result.fetchall.return_value = [
@@ -179,7 +178,7 @@ class TestHealthChecker:
     @pytest.mark.asyncio
     async def test_database_health_check(self):
         """Test database health check"""
-        with patch('app.core.database.AsyncSessionLocal') as mock_session:
+        with patch('app.database.AsyncSessionLocal') as mock_session:
             mock_result = Mock()
             mock_result.scalar.side_effect = [5, 1048576]  # active connections, db size
             mock_session.return_value.__aenter__.return_value.execute = AsyncMock(
@@ -262,7 +261,7 @@ class TestEnvironmentValidator:
         with patch.dict('os.environ', {
             'DATABASE_URL': 'mysql://user:pass@localhost/db'  # Wrong protocol
         }):
-            from scripts.validate_env import EnvironmentValidator, Severity
+            from scripts.validate_env import EnvironmentValidator
 
             validator = EnvironmentValidator()
             validator._validate_database_url()
@@ -276,7 +275,7 @@ class TestEnvironmentValidator:
         with patch.dict('os.environ', {
             'SECRET_KEY': 'short'  # Too short
         }):
-            from scripts.validate_env import EnvironmentValidator, Severity
+            from scripts.validate_env import EnvironmentValidator
 
             validator = EnvironmentValidator()
             validator._validate_security_keys()

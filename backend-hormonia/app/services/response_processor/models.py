@@ -3,7 +3,7 @@ Data models and enums for response processing.
 """
 
 from typing import List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from uuid import UUID
 from dataclasses import dataclass, field
@@ -47,6 +47,10 @@ class ResponseValidationResult:
     validation_errors: List[str] = field(default_factory=list)
 
 
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
 @dataclass
 class StructuredResponse:
     """Structured data extracted from patient response."""
@@ -59,8 +63,11 @@ class StructuredResponse:
     medical_concerns: List[str]
     concern_level: ConcernLevel
     requires_attention: bool
+    response_category: Optional[Any] = None
+    patient_preferences: List[Any] = field(default_factory=list)
+    severity_score: int = 0
     confidence_score: float = 0.0
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=_utc_now)
 
 
 @dataclass

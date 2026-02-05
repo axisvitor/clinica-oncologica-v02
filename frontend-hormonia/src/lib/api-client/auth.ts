@@ -103,8 +103,41 @@ export function createAuthApi(client: ApiClientCore) {
     return normalizeUser(backendUser)
   }
 
-  const fetchSession = async (): Promise<SessionValidationResponse> => {
-    return client.get<SessionValidationResponse>('/api/v2/auth/verify-session')
+  const fetchSession = async (): Promise<SessionValidationResponse & { session_id?: string }> => {
+    // UPDATED: Include session_id in Authorization header if available
+    // while still supporting cookie-based fallback.
+    const baseURL = client.getBaseURL()
+    
+    // Prepare headers
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    
+    // Add auth token if available (session_id)
+    const token = client.getAuthToken()
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+      headers['X-Session-ID'] = token
+    }
+
+    const response = await fetch(`${baseURL}/api/v2/auth/verify-session`, {
+      method: 'GET',
+      credentials: 'include', // Include session cookie
+      headers,
+    })
+
+    if (!response.ok) {
+      return { valid: false }
+    }
+
+    const data = await response.json()
+    return {
+      valid: true,
+      user: data.user,
+      session_data: data.session,
+      // Extract session_id from root level (where backend returns it)
+      session_id: data.session_id,
+    }
   }
 
   const unsupported = (method: string): never => {
@@ -146,10 +179,16 @@ export function createAuthApi(client: ApiClientCore) {
     updateProfile: async (_data: Partial<User>): Promise<User> =>
       unsupported('updateProfile'),
 
-    checkAuth: async (): Promise<{ authenticated: boolean; user?: User }> => {
+    checkAuth: async (): Promise<{ authenticated: boolean; user?: User; sessionId?: string }> => {
       const session = await fetchSession()
       if (session.valid && session.user) {
-        return { authenticated: true, user: mapSessionUser(session.user) }
+        // Get session_id from root level (where backend returns it)
+        const sessionId = session.session_id;
+        return {
+          authenticated: true,
+          user: mapSessionUser(session.user),
+          sessionId
+        }
       }
       return { authenticated: false }
     },
@@ -166,7 +205,7 @@ export function createAuthApi(client: ApiClientCore) {
 
     createSession: async (
       firebaseToken: string,
-      deviceInfo?: { user_agent?: string; timestamp?: string }
+      _deviceInfo?: { user_agent?: string; timestamp?: string }
     ): Promise<{
       valid: boolean
       session_id?: string

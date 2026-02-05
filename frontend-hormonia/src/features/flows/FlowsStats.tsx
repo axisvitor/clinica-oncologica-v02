@@ -1,5 +1,5 @@
 import React from 'react'
-import { Activity, Clock, CheckCircle2, TrendingUp } from 'lucide-react'
+import { Activity, Clock, CheckCircle2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { FlowAnalytics } from '@/lib/api-client/types'

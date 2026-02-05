@@ -7,16 +7,27 @@ alerts, and other resources needed for thorough API testing.
 
 import pytest
 from uuid import uuid4
-from datetime import date, datetime, timezone
-from unittest.mock import Mock, MagicMock, AsyncMock, patch
+from datetime import date
+from unittest.mock import MagicMock, AsyncMock, patch
 
 from sqlalchemy.orm import Session
-from fastapi.testclient import TestClient
 
 from app.models.user import User, UserRole
 from app.models.patient import Patient, FlowState
+from app.models.flow import FlowKind, FlowTemplateVersion
 from app.models.alert import Alert, AlertSeverity
 from app.utils.security import get_password_hash
+from app.dependencies.auth_dependencies import (
+    get_current_user,
+    get_current_user_from_session,
+    get_current_user_object_from_session,
+    get_optional_user,
+    get_permissions_for_role,
+)
+from app.dependencies import get_request_context, RequestContext
+from fastapi import Request
+from fastapi.testclient import TestClient
+from app.middleware.csrf import get_csrf_token
 
 
 # ============================================================================
@@ -122,14 +133,18 @@ def test_patient_data() -> dict:
 def create_test_patient(db_session: Session, test_doctor_user: User):
     """Factory fixture to create test patients."""
     def _create_patient(**kwargs):
+        patient_data = dict(kwargs.get("patient_data") or {})
+        if kwargs.get("cancer_type"):
+            patient_data.setdefault("cancer_type", kwargs["cancer_type"])
+
         patient = Patient(
             id=kwargs.get('id', uuid4()),
             name=kwargs.get('name', 'Test Patient'),
             doctor_id=kwargs.get('doctor_id', test_doctor_user.id),
             birth_date=kwargs.get('birth_date', date(1990, 1, 1)),
-            cancer_type=kwargs.get('cancer_type'),
             treatment_start_date=kwargs.get('treatment_start_date'),
-            flow_state=kwargs.get('flow_state', FlowState.PENDING)
+            patient_data=patient_data or None,
+            flow_state=kwargs.get('flow_state', FlowState.ONBOARDING)
         )
 
         # Handle encrypted fields
@@ -152,6 +167,92 @@ def create_test_patient(db_session: Session, test_doctor_user: User):
 def test_patient_instance(create_test_patient):
     """Create a single test patient instance."""
     return create_test_patient()
+
+
+# ============================================================================
+# Flow Template Seed (Required for auto-enrollment)
+# ============================================================================
+
+@pytest.fixture(autouse=True)
+def seed_flow_templates(db_session: Session):
+    """Ensure default flow kind/template exists for saga enrollment."""
+    flow_kind = (
+        db_session.query(FlowKind)
+        .filter(FlowKind.kind_key == "initial_15_days")
+        .first()
+    )
+    if not flow_kind:
+        flow_kind = FlowKind(
+            kind_key="initial_15_days",
+            display_name="Initial 15 Days",
+            description="Default onboarding flow for tests",
+            is_active=True,
+        )
+        db_session.add(flow_kind)
+        db_session.flush()
+
+    active_version = (
+        db_session.query(FlowTemplateVersion)
+        .filter(
+            FlowTemplateVersion.flow_kind_id == flow_kind.id,
+            FlowTemplateVersion.is_active,
+        )
+        .first()
+    )
+    if not active_version:
+        db_session.add(
+            FlowTemplateVersion(
+                flow_kind_id=flow_kind.id,
+                version_number=1,
+                template_name="initial_15_days",
+                is_active=True,
+                steps=[],
+            )
+        )
+        db_session.flush()
+
+    yield
+
+
+# ============================================================================
+# CSRF Auto-Injection for API v2 Tests
+# ============================================================================
+
+@pytest.fixture(autouse=True)
+def auto_csrf_headers(monkeypatch: pytest.MonkeyPatch):
+    """Inject CSRF headers/cookies for state-changing requests in v2 tests."""
+    original_request = TestClient.request
+
+    def _request(self, method: str, url: str, **kwargs):
+        method_upper = method.upper()
+        if method_upper in {"POST", "PUT", "PATCH", "DELETE"}:
+            headers = kwargs.get("headers")
+            if headers is None:
+                headers = {}
+            else:
+                headers = dict(headers)
+
+            has_csrf_header = (
+                "X-CSRF-Token" in headers or "X-CSRFToken" in headers
+            )
+            if not has_csrf_header:
+                csrf_token = get_csrf_token()
+                headers["X-CSRF-Token"] = csrf_token
+                cookie_header = headers.get("Cookie")
+                if cookie_header:
+                    if "csrf_token=" not in cookie_header:
+                        headers["Cookie"] = (
+                            f"{cookie_header}; csrf_token={csrf_token}"
+                        )
+                else:
+                    headers["Cookie"] = f"csrf_token={csrf_token}"
+                self.cookies.set("csrf_token", csrf_token)
+
+            kwargs["headers"] = headers
+
+        return original_request(self, method, url, **kwargs)
+
+    monkeypatch.setattr(TestClient, "request", _request)
 
 
 # ============================================================================
@@ -187,28 +288,149 @@ def create_test_alert(db_session: Session):
 @pytest.fixture
 def auth_headers_admin(test_admin_user: User) -> dict:
     """Authentication headers for admin user."""
-    return {
-        "X-Session-ID": f"admin-session-{test_admin_user.id}",
-        "Authorization": f"Bearer admin-token-{test_admin_user.id}"
+    from app.main import app
+    from app.middleware.csrf import get_csrf_token
+
+    role = test_admin_user.role.value if hasattr(test_admin_user.role, "value") else str(test_admin_user.role)
+    session_user = {
+        "id": str(test_admin_user.id),
+        "email": test_admin_user.email,
+        "full_name": test_admin_user.full_name,
+        "role": role,
+        "is_active": test_admin_user.is_active,
+        "firebase_uid": test_admin_user.firebase_uid,
+        "created_at": test_admin_user.created_at.isoformat() if test_admin_user.created_at else None,
+        "updated_at": test_admin_user.updated_at.isoformat() if test_admin_user.updated_at else None,
+        "last_login": test_admin_user.firebase_last_sign_in.isoformat()
+        if test_admin_user.firebase_last_sign_in
+        else None,
+        "permissions": get_permissions_for_role(role),
     }
+
+    async def _override_session(request: Request):
+        request.state.user_id = session_user.get("id")
+        request.state.user_role = session_user.get("role")
+        return session_user
+
+    async def _override_current_user(request: Request):
+        request.state.user = test_admin_user
+        request.state.user_id = str(test_admin_user.id)
+        request.state.user_role = role
+        return test_admin_user
+    
+    async def _override_optional_user(credentials=None, services=None):
+        return test_admin_user
+    
+    async def _override_request_context(request: Request):
+        return RequestContext(
+            ip_address="127.0.0.1",
+            user_agent="pytest",
+            user_id=test_admin_user.id,
+            session_id=f"admin-session-{test_admin_user.id}",
+        )
+
+    app.dependency_overrides[get_current_user_from_session] = _override_session
+    app.dependency_overrides[get_current_user_object_from_session] = lambda: test_admin_user
+    app.dependency_overrides[get_current_user] = _override_current_user
+    app.dependency_overrides[get_optional_user] = _override_optional_user
+    app.dependency_overrides[get_request_context] = _override_request_context
+
+    csrf_token = get_csrf_token()
+    headers = {
+        "X-Session-ID": f"admin-session-{test_admin_user.id}",
+        "Authorization": f"Bearer admin-token-{test_admin_user.id}",
+        "X-CSRF-Token": csrf_token,
+        "Cookie": f"csrf_token={csrf_token}",
+    }
+    yield headers
+    app.dependency_overrides.pop(get_current_user_from_session, None)
+    app.dependency_overrides.pop(get_current_user_object_from_session, None)
+    app.dependency_overrides.pop(get_current_user, None)
+    app.dependency_overrides.pop(get_optional_user, None)
+    app.dependency_overrides.pop(get_request_context, None)
 
 
 @pytest.fixture
 def auth_headers_doctor(test_doctor_user: User) -> dict:
     """Authentication headers for doctor user."""
-    return {
-        "X-Session-ID": f"doctor-session-{test_doctor_user.id}",
-        "Authorization": f"Bearer doctor-token-{test_doctor_user.id}"
+    from app.main import app
+    from app.middleware.csrf import get_csrf_token
+
+    role = test_doctor_user.role.value if hasattr(test_doctor_user.role, "value") else str(test_doctor_user.role)
+    session_user = {
+        "id": str(test_doctor_user.id),
+        "email": test_doctor_user.email,
+        "full_name": test_doctor_user.full_name,
+        "role": role,
+        "is_active": test_doctor_user.is_active,
+        "firebase_uid": test_doctor_user.firebase_uid,
+        "created_at": test_doctor_user.created_at.isoformat() if test_doctor_user.created_at else None,
+        "updated_at": test_doctor_user.updated_at.isoformat() if test_doctor_user.updated_at else None,
+        "last_login": test_doctor_user.firebase_last_sign_in.isoformat()
+        if test_doctor_user.firebase_last_sign_in
+        else None,
+        "permissions": get_permissions_for_role(role),
     }
+
+    async def _override_session(request: Request):
+        request.state.user_id = session_user.get("id")
+        request.state.user_role = session_user.get("role")
+        return session_user
+
+    async def _override_current_user(request: Request):
+        request.state.user = test_doctor_user
+        request.state.user_id = str(test_doctor_user.id)
+        request.state.user_role = role
+        return test_doctor_user
+    
+    async def _override_optional_user(credentials=None, services=None):
+        return test_doctor_user
+    
+    async def _override_request_context(request: Request):
+        return RequestContext(
+            ip_address="127.0.0.1",
+            user_agent="pytest",
+            user_id=test_doctor_user.id,
+            session_id=f"doctor-session-{test_doctor_user.id}",
+        )
+
+    app.dependency_overrides[get_current_user_from_session] = _override_session
+    app.dependency_overrides[get_current_user_object_from_session] = lambda: test_doctor_user
+    app.dependency_overrides[get_current_user] = _override_current_user
+    app.dependency_overrides[get_optional_user] = _override_optional_user
+    app.dependency_overrides[get_request_context] = _override_request_context
+
+    csrf_token = get_csrf_token()
+    headers = {
+        "X-Session-ID": f"doctor-session-{test_doctor_user.id}",
+        "Authorization": f"Bearer doctor-token-{test_doctor_user.id}",
+        "X-CSRF-Token": csrf_token,
+        "Cookie": f"csrf_token={csrf_token}",
+    }
+    yield headers
+    app.dependency_overrides.pop(get_current_user_from_session, None)
+    app.dependency_overrides.pop(get_current_user_object_from_session, None)
+    app.dependency_overrides.pop(get_current_user, None)
+    app.dependency_overrides.pop(get_optional_user, None)
+    app.dependency_overrides.pop(get_request_context, None)
 
 
 @pytest.fixture
-def auth_headers():
-    """Generic authentication headers (alias for compatibility)."""
-    return {
-        "X-Session-ID": "test-session-id",
-        "Authorization": "Bearer test-token"
-    }
+def auth_headers(auth_headers_doctor):
+    """Generic authentication headers (defaults to doctor)."""
+    return auth_headers_doctor
+
+
+@pytest.fixture
+def admin_headers(auth_headers_admin):
+    """Alias for admin auth headers used by some test suites."""
+    return auth_headers_admin
+
+
+@pytest.fixture
+def doctor_headers(auth_headers_doctor):
+    """Alias for doctor auth headers used by some test suites."""
+    return auth_headers_doctor
 
 
 @pytest.fixture

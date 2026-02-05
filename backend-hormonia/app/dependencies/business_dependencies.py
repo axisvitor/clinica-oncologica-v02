@@ -1,18 +1,20 @@
 """Business Logic Dependencies - Domain Validation & Access Control"""
 
-from fastapi import Depends, HTTPException, status, Path, Query, Request
-from typing import Optional, Dict, Any
+from fastapi import Depends, HTTPException, status, Path, Query
+from typing import Dict, Any, TYPE_CHECKING
 from uuid import UUID
 
 from app.models.user import User, UserRole
 from app.models.patient import Patient
 from app.schemas.common import PaginationParams
-from app.dependencies.auth_dependencies import get_current_user, get_optional_user
+from app.dependencies.auth_dependencies import get_current_user_object_from_session
 from app.dependencies.service_dependencies import (
     get_patient_service,
     get_patient_repository,
 )
-from app.services import ServiceProvider
+if TYPE_CHECKING:
+    from app.services import ServiceProvider
+from app.utils.auth_helpers import extract_user_context, ensure_uuid
 from typing import Generator
 
 
@@ -48,7 +50,7 @@ def get_pagination_params(
 
 async def validate_patient_access(
     patient_id: UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: Any = Depends(get_current_user_object_from_session),
     patient_service=Depends(get_patient_service),
 ) -> Patient:
     """Validate user has access to patient and return patient object"""
@@ -71,21 +73,25 @@ async def validate_patient_access(
             detail="Error retrieving patient information",
         )
 
-    # Implement role-based authorization
-    if current_user.role == UserRole.ADMIN:
+    # Implement role-based authorization (supports dict or User)
+    role_enum, user_id = extract_user_context(current_user)
+
+    if role_enum == UserRole.ADMIN:
         return patient
-    elif current_user.role == UserRole.DOCTOR:
-        if patient.doctor_id != current_user.id:
+
+    if role_enum == UserRole.DOCTOR:
+        user_uuid = ensure_uuid(user_id)
+        if not user_uuid or patient.doctor_id != user_uuid:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied: Patient not assigned to current doctor",
             )
         return patient
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied: Insufficient permissions for patient access",
-        )
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Access denied: Insufficient permissions for patient access",
+    )
 
 
 async def get_validated_patient(
@@ -102,7 +108,7 @@ async def get_validated_patient(
 
 def verify_patient_access(
     patient_id: UUID = Path(...),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_object_from_session),
     patient_repo=Depends(get_patient_repository),
 ) -> Patient:
     """Verify user has access to manage this patient"""
@@ -135,7 +141,7 @@ def verify_patient_access(
 
 
 async def verify_monthly_quiz_token(
-    token: str, services: ServiceProvider = Depends(_get_provider_dep)
+    token: str, services: "ServiceProvider" = Depends(_get_provider_dep)
 ) -> Dict[str, Any]:
     """
     Verify monthly quiz token for public access.
@@ -147,61 +153,10 @@ async def verify_monthly_quiz_token(
     try:
         payload = services.monthly_quiz_service._verify_token(token)
         return payload
-    except ValidationError as e:
+    except ValidationError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid quiz token")
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired quiz token",
         )
-
-
-# =============================================================================
-# REQUEST CONTEXT DEPENDENCIES (For audit logging)
-# =============================================================================
-
-
-class RequestContext:
-    """Container for request context information used in audit logging"""
-
-    def __init__(
-        self,
-        ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None,
-        user_id: Optional[UUID] = None,
-        session_id: Optional[str] = None,
-    ):
-        self.ip_address = ip_address
-        self.user_agent = user_agent
-        self.user_id = user_id
-        self.session_id = session_id
-
-
-async def get_request_context(
-    request: Request, current_user: Optional[User] = Depends(get_optional_user)
-) -> RequestContext:
-    """Extract request context for audit logging"""
-    # Extract IP address with X-Forwarded-For support
-    ip_address = None
-    if "x-forwarded-for" in request.headers:
-        ip_address = request.headers["x-forwarded-for"].split(",")[0].strip()
-    elif "x-real-ip" in request.headers:
-        ip_address = request.headers["x-real-ip"]
-    else:
-        ip_address = request.client.host if request.client else "unknown"
-
-    # Extract user agent
-    user_agent = request.headers.get("user-agent", "unknown")
-
-    # Extract user ID if authenticated
-    user_id = current_user.id if current_user else None
-
-    # Extract session ID from request state or generate one
-    session_id = getattr(request.state, "session_id", None)
-
-    return RequestContext(
-        ip_address=ip_address,
-        user_agent=user_agent,
-        user_id=user_id,
-        session_id=session_id,
-    )

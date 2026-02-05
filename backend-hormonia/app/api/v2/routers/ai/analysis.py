@@ -20,8 +20,8 @@ from fastapi import (
 
 # Local application imports
 from app.core.config import settings
-from app.database import get_db
-from app.dependencies import get_patient_service, validate_patient_access
+from app.dependencies.business_dependencies import validate_patient_access
+from app.dependencies.service_dependencies import get_patient_service
 from app.models.user import User
 from app.schemas.v2.ai import (
     AIModelType,
@@ -37,8 +37,9 @@ from app.schemas.v2.ai import (
     TokenUsage,
 )
 from app.utils.rate_limiter import limiter
+from app.api.v2 import ai as ai_module
 
-from .dependencies import get_redis_cache, track_token_usage, verify_physician_or_admin
+from .dependencies import track_token_usage, verify_physician_or_admin
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,6 @@ async def analyze_sentiment(
     sentiment_request: SentimentAnalysisRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(verify_physician_or_admin),
-    db=Depends(get_db),
 ) -> SentimentAnalysisResponse:
     """Analyze sentiment of patient message."""
     try:
@@ -138,7 +138,7 @@ async def analyze_sentiment(
         # Track usage
         background_tasks.add_task(
             track_token_usage,
-            await get_redis_cache(),
+            await ai_module.get_redis_cache(),
             "sentiment",
             token_usage,
             current_user.id,
@@ -166,13 +166,13 @@ async def analyze_risk(
     risk_request: RiskAnalysisRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(verify_physician_or_admin),
-    db=Depends(get_db),
+    patient_service=Depends(get_patient_service),
 ) -> RiskAnalysisResponse:
     """Perform AI risk analysis for patient."""
     try:
         # Validate patient access
         await validate_patient_access(
-            risk_request.patient_id, current_user, get_patient_service(db)
+            risk_request.patient_id, current_user, patient_service
         )
 
         # ===== AI RISK ANALYSIS WOULD GO HERE =====
@@ -234,7 +234,7 @@ async def analyze_risk(
         # Track usage
         background_tasks.add_task(
             track_token_usage,
-            await get_redis_cache(),
+            await ai_module.get_redis_cache(),
             "risk_analysis",
             token_usage,
             current_user.id,
@@ -332,7 +332,7 @@ async def analyze_response_quality(
         # Track usage
         background_tasks.add_task(
             track_token_usage,
-            await get_redis_cache(),
+            await ai_module.get_redis_cache(),
             "response_quality",
             token_usage,
             current_user.id,

@@ -214,9 +214,17 @@ export interface ConversationResponse {
 // ============================================================================
 
 export enum FlowType {
+  ONBOARDING = 'onboarding',
+  DAILY_FOLLOW_UP = 'daily_follow_up',
+  QUIZ_MENSAL = 'quiz_mensal',
+  CUSTOM = 'custom',
+  // Legacy keys for backward compatibility
   INITIAL_15_DAYS = 'initial_15_days',
   DAYS_16_45 = 'days_16_45',
-  MONTHLY_RECURRING = 'monthly_recurring'
+  MONTHLY_RECURRING = 'monthly_recurring',
+  MONTHLY_QUIZ = 'monthly_quiz',
+  DAILY_CHECKIN = 'daily_checkin',
+  DAILY_ENGAGEMENT = 'daily_engagement'
 }
 
 export enum ResponseType {
@@ -360,11 +368,31 @@ export interface DailyMetric {
   responses_received: number;
   new_enrollments: number;
   completions: number;
+  active_flows?: number;
+}
+
+export interface TemplateCompletionRate {
+  template_id: string;
+  template_name: string;
+  kind_key: string;
+  version_number: number;
+  total: number;
+  completed: number;
+  completion_rate: number;
+}
+
+export interface TemplateDurationMetric {
+  template_id: string;
+  template_name: string;
+  kind_key: string;
+  version_number: number;
+  average_duration_days: number;
 }
 
 export interface FlowAnalytics {
   total_flows: number;
   active_flows: number;
+  paused_flows?: number;
   completed_flows: number;
   completion_rate: number;
   average_duration_days: number;
@@ -375,6 +403,12 @@ export interface FlowAnalytics {
   average_response_time?: number;
   flows_by_type?: Record<string, number>;
   daily_metrics?: DailyMetric[];
+  status_distribution?: Record<string, number>;
+  new_patients_7d?: number;
+  avg_response_time_minutes?: number;
+  weekly_trend?: Array<Record<string, unknown>>;
+  template_completion_rates?: TemplateCompletionRate[];
+  template_duration_days?: TemplateDurationMetric[];
 }
 
 // ============================================================================
@@ -704,20 +738,22 @@ export interface AIInsights {
   risk_level?: 'low' | 'medium' | 'high' | 'critical';
   risk_factors?: string[];
   sentiment_score?: number;
-  filter?: (predicate: (insight: any) => boolean) => any[]; // For array-like behavior
+  filter?: (predicate: (insight: AIInsight) => boolean) => AIInsight[]; // For array-like behavior
+}
+
+export interface AIRecommendation {
+  type: string;
+  priority: 'low' | 'medium' | 'high';
+  description: string;
+  rationale: string;
 }
 
 export interface AIRecommendations {
   patient_id: string;
-  recommendations: Array<{
-    type: string;
-    priority: 'low' | 'medium' | 'high';
-    description: string;
-    rationale: string;
-  }>;
+  recommendations: AIRecommendation[];
   // Array-like properties for direct array access
   length?: number;
-  slice?: (start?: number, end?: number) => any[];
+  slice?: (start?: number, end?: number) => AIRecommendation[];
 }
 
 // ============================================================================
@@ -904,7 +940,7 @@ export interface Task {
     message?: string;
     eta_seconds?: number;
   };
-  result?: any;
+  result?: unknown;
   error?: string;
   traceback?: string;
   retry_count: number;

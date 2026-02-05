@@ -9,11 +9,14 @@ export function useQuizAnswer() {
     text: string,
     otherOptionValue: string,
     selectedAnswer: SingleAnswer | MultipleAnswer | null
-  ): OtherAnswer | null => {
-    if (typeof selectedAnswer === 'object' && selectedAnswer && 'value' in selectedAnswer) {
-      return { value: otherOptionValue, customText: text } as OtherAnswer
-    }
-    return null
+  ): OtherAnswer => {
+    // Always return a valid OtherAnswer object to preserve selection
+    // Extract customText from existing answer if it's an OtherAnswer
+    const existingCustomText = typeof selectedAnswer === 'object' && selectedAnswer && 'customText' in selectedAnswer
+      ? selectedAnswer.customText
+      : ''
+
+    return { value: otherOptionValue, customText: text || existingCustomText } as OtherAnswer
   }
 
   const validateAnswer = (

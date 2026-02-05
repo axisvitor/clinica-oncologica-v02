@@ -6,10 +6,9 @@ all handle versions consistently using the centralized version utilities.
 """
 
 import pytest
-from unittest.mock import Mock, MagicMock, patch
-from datetime import datetime, timezone
+from unittest.mock import Mock, patch
 
-from app.services.template_loader import EnhancedTemplateLoader, FlowTemplateData
+from app.services.template_loader import EnhancedTemplateLoader
 from app.services.versioned_template_loader import VersionedTemplateLoader
 from app.services.flow.templates.validator import FlowTemplateValidator
 from app.utils.version_utils import normalize_version, to_int_version

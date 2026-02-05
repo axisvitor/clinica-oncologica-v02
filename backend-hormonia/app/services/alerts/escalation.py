@@ -9,7 +9,7 @@ import asyncio
 import logging
 from typing import Dict, List, Optional, TYPE_CHECKING
 from uuid import UUID
-from datetime import datetime, timezone
+from datetime import datetime
 
 if TYPE_CHECKING:
     from .notification_dispatcher import NotificationDispatcher

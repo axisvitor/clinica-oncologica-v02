@@ -114,9 +114,9 @@ class QuizV2Response(QuizV2Base):
     id: str
     patient_id: str
     quiz_template_id: str
-    created_at: datetime
-    updated_at: datetime
-    started_at: datetime
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     score: Optional[float] = None
     max_score: Optional[float] = None

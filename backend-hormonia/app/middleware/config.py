@@ -49,12 +49,15 @@ CSRF_EXEMPT_PATHS: Set[str] = {
     "/openapi.json",
     "/health",
     "/api/v2/auth/csrf-token",
+    "/api/v2/auth/logout",
     "/api/v2/auth/firebase/verify",
+    "/api/v2/enhanced-messages",
     "/webhooks/",
     "/api/public/",
     "/api/v2/quiz-extensions/monthly/public",
     "/api/v2/monthly-quiz-public/monthly/public",
     "/api/v2/monthly-quiz/monthly/public",
+    "/api/v2/internal/tasks/",
 }
 
 

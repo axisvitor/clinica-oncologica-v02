@@ -5,7 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { apiClient } from '@/lib/api-client'
 import { Database, Download, Upload, RefreshCw, TriangleAlert as AlertTriangle } from 'lucide-react'
 
-interface BackupResponse {
+interface _BackupResponse {
   success: boolean
   message?: string
 }
@@ -43,8 +43,9 @@ export default function AdminDatabaseTab({ isLoading, setIsLoading, setMessage }
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${(apiClient as any).authToken || ''}`
-        }
+          ...apiClient.getSessionHeaders(),
+        },
+        credentials: 'include'
       })
 
       if (!response.ok) {

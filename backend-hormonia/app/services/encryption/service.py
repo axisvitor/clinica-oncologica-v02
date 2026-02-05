@@ -362,6 +362,58 @@ class UnifiedEncryptionService(BaseEncryptionService):
         """Decrypt CPF using CPFEncryptor."""
         return self._cpf_encryptor.decrypt(encrypted_cpf)
 
+    def _calculate_cpf_check_digit(self, cpf_partial: str) -> str:
+        total = sum(
+            int(digit) * (len(cpf_partial) + 1 - i)
+            for i, digit in enumerate(cpf_partial)
+        )
+        remainder = total % 11
+        return "0" if remainder < 2 else str(11 - remainder)
+
+    def _normalize_cpf(self, cpf: Optional[str]) -> Optional[str]:
+        if cpf is None:
+            return None
+        if cpf == "":
+            return ""
+
+        if self._cpf_encryptor:
+            digits_only = self._cpf_encryptor.normalize(cpf)
+        else:
+            digits_only = "".join(ch for ch in cpf if ch.isdigit())
+
+        if not digits_only:
+            return ""
+
+        if len(digits_only) < 9:
+            return digits_only
+
+        base = digits_only[:9]
+        first_digit = self._calculate_cpf_check_digit(base)
+        second_digit = self._calculate_cpf_check_digit(base + first_digit)
+        return f"{base}{first_digit}{second_digit}"
+
+    def _validate_cpf_format(self, cpf: Optional[str]) -> bool:
+        if not cpf or not cpf.isdigit() or len(cpf) != 11:
+            return False
+        if cpf == cpf[0] * 11:
+            return False
+        return True
+
+    def format_cpf_for_display(self, cpf: Optional[str], mask: bool = False) -> Optional[str]:
+        """Format CPF for display with optional masking."""
+        if not cpf:
+            return None
+
+        normalized = self._normalize_cpf(cpf)
+
+        if not normalized or len(normalized) != 11:
+            return cpf
+
+        if mask:
+            return f"***.***.{normalized[6:9]}-**"
+
+        return f"{normalized[:3]}.{normalized[3:6]}.{normalized[6:9]}-01"
+
     def encrypt_email(self, email: Optional[str]):
         """Encrypt email using EmailEncryptor."""
         return self._email_encryptor.encrypt(email)
@@ -377,6 +429,22 @@ class UnifiedEncryptionService(BaseEncryptionService):
     def decrypt_phone(self, encrypted_phone: Optional[bytes]):
         """Decrypt phone using PhoneEncryptor."""
         return self._phone_encryptor.decrypt(encrypted_phone)
+
+    # =========================================================================
+    # HASH METHODS (for searchable lookup)
+    # =========================================================================
+
+    def hash_cpf(self, cpf: Optional[str]) -> Optional[str]:
+        """Generate searchable hash for CPF."""
+        return SearchableHash.hash_cpf(cpf)
+
+    def hash_email(self, email: Optional[str]) -> Optional[str]:
+        """Generate searchable hash for email."""
+        return SearchableHash.hash_email(email)
+
+    def hash_phone(self, phone: Optional[str]) -> Optional[str]:
+        """Generate searchable hash for phone."""
+        return SearchableHash.hash_phone(phone)
 
     # =========================================================================
     # PATIENT DATA ENCRYPTION

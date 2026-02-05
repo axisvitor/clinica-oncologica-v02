@@ -84,7 +84,7 @@ export const PageLoader = () => (
 /**
  * Helper to wrap a component with Layout and Suspense
  */
-const withLayoutAndSuspense = (Component: React.LazyExoticComponent<React.ComponentType<any>>) => (
+const withLayoutAndSuspense = (Component: React.LazyExoticComponent<React.ComponentType<Record<string, never>>>) => (
   <Layout>
     <Suspense fallback={<PageLoader />}>
       <Component />
@@ -95,7 +95,7 @@ const withLayoutAndSuspense = (Component: React.LazyExoticComponent<React.Compon
 /**
  * Helper to wrap a component with only Suspense
  */
-const withSuspense = (Component: React.LazyExoticComponent<React.ComponentType<any>>) => (
+const withSuspense = (Component: React.LazyExoticComponent<React.ComponentType<Record<string, never>>>) => (
   <Suspense fallback={<PageLoader />}>
     <Component />
   </Suspense>
@@ -104,6 +104,7 @@ const withSuspense = (Component: React.LazyExoticComponent<React.ComponentType<a
 /**
  * Public routes (no authentication required)
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const publicRoutes: RouteDefinition[] = [
   {
     path: ROUTES.ROOT,
@@ -122,6 +123,7 @@ export const publicRoutes: RouteDefinition[] = [
 /**
  * Protected routes (authentication required)
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const protectedRoutes: RouteDefinition[] = [
   {
     path: ROUTES.DASHBOARD,
@@ -256,6 +258,7 @@ export const protectedRoutes: RouteDefinition[] = [
 /**
  * Admin routes (admin permission required)
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const adminRoutes: RouteDefinition[] = [
   {
     path: ROUTES.ADMIN.ROOT,
@@ -270,6 +273,7 @@ export const adminRoutes: RouteDefinition[] = [
 /**
  * Physician routes (physician role required)
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const physicianRoutes: RouteDefinition[] = [
   {
     path: ROUTES.PHYSICIAN.DASHBOARD,
@@ -292,6 +296,7 @@ export const physicianRoutes: RouteDefinition[] = [
 /**
  * All routes combined for easy consumption
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const allRoutes: RouteDefinition[] = [
   ...publicRoutes,
   ...protectedRoutes,

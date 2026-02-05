@@ -28,7 +28,7 @@ from app.api.v2.dependencies import (
     get_eager_load_params,
     apply_field_selection,
 )
-from app.api.v2.utils.auth_helpers import (
+from app.utils.auth_helpers import (
     extract_user_context as _extract_user_context,
     is_admin,
     ensure_uuid as _ensure_uuid,
@@ -51,7 +51,7 @@ def _ensure_patient_owner(current_user, doctor_id):
         raise ForbiddenError("Not enough permissions")
 
 
-@router.get("", response_model=QuizV2List, summary="List quizzes")
+@router.get("/sessions", response_model=QuizV2List, summary="List quizzes")
 async def list_quizzes(
     db=Depends(get_db),
     current_user=Depends(get_current_user_from_session),
@@ -61,110 +61,126 @@ async def list_quizzes(
     patient_id: Optional[str] = Query(None),
     status_filter: Optional[str] = Query(None, alias="status"),
 ):
-    cursor_data = pagination["cursor_data"]
-    limit = pagination["limit"]
-    query = db.query(QuizSession)
+    import logging
+    import traceback
+    logger = logging.getLogger(__name__)
+    
+    try:
+        cursor_data = pagination["cursor_data"]
+        limit = pagination["limit"]
+        query = db.query(QuizSession)
 
-    role_enum, user_id = _extract_user_context(current_user)
-    current_user_uuid = _ensure_uuid(user_id)
+        role_enum, user_id = _extract_user_context(current_user)
+        current_user_uuid = _ensure_uuid(user_id)
 
-    if role_enum != UserRole.ADMIN:
-        if not current_user_uuid:
-            raise ForbiddenError("Insufficient permissions")
-        query = query.join(Patient)
-
-    if include and "patient" in include:
-        query = query.options(joinedload(QuizSession.patient))
-
-    filters = []
-    if role_enum != UserRole.ADMIN:
-        filters.append(Patient.doctor_id == current_user_uuid)
-
-    if cursor_data and "id" in cursor_data:
-        from datetime import datetime as dt, timezone
-
-        cid = UUID(cursor_data["id"])
-        cdate = dt.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
-        filters.append(
-            (QuizSession.created_at < cdate)
-            | ((QuizSession.created_at == cdate) & (QuizSession.id > cid))
-        )
-
-    if patient_id:
-        try:
-            filters.append(QuizSession.patient_id == UUID(patient_id))
-        except (ValueError, TypeError):
-            raise ValidationError("Invalid patient_id UUID", field="patient_id")
-
-    if status_filter:
-        filters.append(QuizSession.status == status_filter)
-
-    if filters:
-        query = query.filter(and_(*filters))
-
-    total = None
-    if not cursor_data:
-        tq = db.query(func.count(QuizSession.id))
         if role_enum != UserRole.ADMIN:
-            tq = tq.join(Patient)
+            if not current_user_uuid:
+                raise ForbiddenError("Insufficient permissions")
+            query = query.join(Patient)
+
+        if include and "patient" in include:
+            query = query.options(joinedload(QuizSession.patient))
+
+        filters = []
+        if role_enum != UserRole.ADMIN:
+            filters.append(Patient.doctor_id == current_user_uuid)
+
+        if cursor_data and "id" in cursor_data:
+            from datetime import datetime as dt
+
+            cid = UUID(cursor_data["id"])
+            cdate = dt.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
+            filters.append(
+                (QuizSession.created_at < cdate)
+                | ((QuizSession.created_at == cdate) & (QuizSession.id > cid))
+            )
+
+        if patient_id:
+            try:
+                filters.append(QuizSession.patient_id == UUID(patient_id))
+            except (ValueError, TypeError):
+                raise ValidationError("Invalid patient_id UUID", field="patient_id")
+
+        if status_filter:
+            filters.append(QuizSession.status == status_filter)
+
         if filters:
-            tq = tq.filter(and_(*filters))
-        total = tq.scalar()
+            query = query.filter(and_(*filters))
 
-    query = query.order_by(QuizSession.created_at.desc(), QuizSession.id)
-    quizzes = query.limit(limit + 1).all()
+        total = None
+        if not cursor_data:
+            tq = db.query(func.count(QuizSession.id))
+            if role_enum != UserRole.ADMIN:
+                tq = tq.join(Patient)
+            if filters:
+                tq = tq.filter(and_(*filters))
+            total = tq.scalar()
 
-    has_more = len(quizzes) > limit
-    if has_more:
-        quizzes = quizzes[:limit]
+        query = query.order_by(QuizSession.created_at.desc(), QuizSession.id)
+        quizzes = query.limit(limit + 1).all()
 
-    next_cursor = None
-    if has_more and quizzes:
-        import json
-        import base64
+        has_more = len(quizzes) > limit
+        if has_more:
+            quizzes = quizzes[:limit]
 
-        cd = {
-            "id": str(quizzes[-1].id),
-            "created_at": quizzes[-1].created_at.isoformat(),
-        }
-        next_cursor = base64.b64encode(json.dumps(cd).encode()).decode()
+        next_cursor = None
+        if has_more and quizzes:
+            import json
+            import base64
 
-    resp = []
-    for q in quizzes:
-        qd = {
-            "id": str(q.id),
-            "patient_id": str(q.patient_id),
-            "quiz_template_id": str(q.quiz_template_id),
-            "status": q.status,
-            "created_at": q.created_at,
-            "updated_at": q.updated_at,
-            "started_at": q.started_at,
-            "completed_at": q.completed_at,
-            "score": float(q.score) if q.score else None,
-            "max_score": float(q.max_score) if q.max_score else None,
-            "passed": q.passed,
-            "current_question": q.current_question,
-            "total_questions": q.total_questions,
-            "answered_questions": q.answered_questions,
-            "time_spent_seconds": q.time_spent_seconds,
-            "session_metadata": q.session_metadata,
-        }
-        if include and "patient" in include and q.patient:
-            qd["patient"] = {
-                "id": str(q.patient.id),
-                "name": q.patient.name,
-                "email": q.patient.email,
+            cd = {
+                "id": str(quizzes[-1].id),
+                "created_at": quizzes[-1].created_at.isoformat(),
             }
-        if fields:
-            qd = apply_field_selection(qd, fields)
-        resp.append(qd)
+            next_cursor = base64.b64encode(json.dumps(cd).encode()).decode()
 
-    return {
-        "data": resp,
-        "next_cursor": next_cursor,
-        "has_more": has_more,
-        "total": total,
-    }
+        resp = []
+        for q in quizzes:
+            qd = {
+                "id": str(q.id),
+                "patient_id": str(q.patient_id),
+                "quiz_template_id": str(q.quiz_template_id),
+                "status": q.status,
+                "created_at": q.created_at.isoformat() if q.created_at else None,
+                "updated_at": q.updated_at.isoformat() if q.updated_at else None,
+                "started_at": q.started_at.isoformat() if q.started_at else None,
+                "completed_at": q.completed_at.isoformat() if q.completed_at else None,
+                "score": float(q.score) if q.score else None,
+                "max_score": float(q.max_score) if q.max_score else None,
+                "passed": q.passed,
+                "current_question": q.current_question,
+                "total_questions": q.total_questions,
+                "answered_questions": q.answered_questions,
+                "time_spent_seconds": q.time_spent_seconds,
+                "session_metadata": q.session_metadata,
+            }
+            if include and "patient" in include and q.patient:
+                qd["patient"] = {
+                    "id": str(q.patient.id),
+                    "name": q.patient.name,
+                    "email": q.patient.email,
+                }
+            if fields:
+                qd = apply_field_selection(qd, fields)
+            resp.append(qd)
+
+        result = {
+            "data": resp,
+            "next_cursor": next_cursor,
+            "has_more": has_more,
+            "total": total,
+        }
+        
+        # Validate the response matches expected schema
+        from app.schemas.v2.quiz import QuizV2List
+        validated = QuizV2List(**result)
+        return result
+        
+    except Exception as e:
+        print(f"\\n\\n=== ERROR in list_quizzes ===\\n{type(e).__name__}: {e}\\n{traceback.format_exc()}\\n===\\n")
+        logger.error(f"ERROR in list_quizzes: {type(e).__name__}: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise
 
 
 @router.get("/{quiz_id}", response_model=QuizV2Response)
@@ -211,10 +227,10 @@ async def get_quiz(
         "patient_id": str(quiz.patient_id),
         "quiz_template_id": str(quiz.quiz_template_id),
         "status": quiz.status,
-        "created_at": quiz.created_at,
-        "updated_at": quiz.updated_at,
-        "started_at": quiz.started_at,
-        "completed_at": quiz.completed_at,
+        "created_at": quiz.created_at.isoformat() if quiz.created_at else None,
+        "updated_at": quiz.updated_at.isoformat() if quiz.updated_at else None,
+        "started_at": quiz.started_at.isoformat() if quiz.started_at else None,
+        "completed_at": quiz.completed_at.isoformat() if quiz.completed_at else None,
         "score": float(quiz.score) if quiz.score else None,
         "max_score": float(quiz.max_score) if quiz.max_score else None,
         "passed": quiz.passed,
@@ -298,10 +314,10 @@ async def create_quiz(
         "patient_id": str(new_quiz.patient_id),
         "quiz_template_id": str(new_quiz.quiz_template_id),
         "status": new_quiz.status,
-        "created_at": new_quiz.created_at,
-        "updated_at": new_quiz.updated_at,
-        "started_at": new_quiz.started_at,
-        "completed_at": new_quiz.completed_at,
+        "created_at": new_quiz.created_at.isoformat() if new_quiz.created_at else None,
+        "updated_at": new_quiz.updated_at.isoformat() if new_quiz.updated_at else None,
+        "started_at": new_quiz.started_at.isoformat() if new_quiz.started_at else None,
+        "completed_at": new_quiz.completed_at.isoformat() if new_quiz.completed_at else None,
         "score": float(new_quiz.score) if new_quiz.score else None,
         "max_score": float(new_quiz.max_score) if new_quiz.max_score else None,
         "passed": new_quiz.passed,
@@ -339,10 +355,10 @@ async def update_quiz(
         "patient_id": str(quiz.patient_id),
         "quiz_template_id": str(quiz.quiz_template_id),
         "status": quiz.status,
-        "created_at": quiz.created_at,
-        "updated_at": quiz.updated_at,
-        "started_at": quiz.started_at,
-        "completed_at": quiz.completed_at,
+        "created_at": quiz.created_at.isoformat() if quiz.created_at else None,
+        "updated_at": quiz.updated_at.isoformat() if quiz.updated_at else None,
+        "started_at": quiz.started_at.isoformat() if quiz.started_at else None,
+        "completed_at": quiz.completed_at.isoformat() if quiz.completed_at else None,
         "score": float(quiz.score) if quiz.score else None,
         "max_score": float(quiz.max_score) if quiz.max_score else None,
         "passed": quiz.passed,

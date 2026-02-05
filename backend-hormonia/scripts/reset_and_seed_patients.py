@@ -5,7 +5,6 @@ import logging
 import random
 import traceback
 from datetime import date, timedelta
-from typing import List
 from uuid import uuid4
 
 from dotenv import load_dotenv

@@ -15,8 +15,6 @@ Date: 2025-12-22
 import pytest
 import io
 from fastapi import status
-from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
 from datetime import datetime
 
 

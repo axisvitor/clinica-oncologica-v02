@@ -171,6 +171,50 @@ groups:
           description: "More than 10% of webhooks are failing to process"
           action: "Review webhook handler logs and external service status"
 
+      - alert: HighSeverityConcernDetected
+        expr: increase(response_medical_concerns_total{concern_level=~"high|critical"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: high
+          category: business
+        annotations:
+          summary: "High severity medical concern detected"
+          description: "At least one high/critical medical concern detected in the last 5 minutes"
+          action: "Verify escalation workflows and clinical response SLA"
+
+      - alert: EscalationProcessingFailures
+        expr: rate(response_escalation_failures_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: high
+          category: business
+        annotations:
+          summary: "Escalation processing failures detected"
+          description: "Escalation failures observed in follow-up processing"
+          action: "Investigate escalation handler and notification channels"
+
+      - alert: SlowResponseProcessing
+        expr: histogram_quantile(0.95, rate(response_processing_duration_seconds_bucket[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Slow response processing detected"
+          description: "95th percentile response processing duration above 10 seconds"
+          action: "Review response processor performance and downstream dependencies"
+
+      - alert: HighResponseProcessingErrorRate
+        expr: rate(response_processing_duration_seconds_count{status="failed"}[5m]) / rate(response_processing_duration_seconds_count[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          category: performance
+        annotations:
+          summary: "High response processing error rate"
+          description: "More than 5% of response processing operations are failing"
+          action: "Review response processor logs and fix critical errors"
+
   # ============================================================================
   # RATE LIMITING ALERTS
   # ============================================================================

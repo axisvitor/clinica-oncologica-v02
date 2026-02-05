@@ -13,9 +13,7 @@ import { PatientActions } from './PatientActions'
 
 import type { Patient } from '@/types/api'
 
-interface MobilePatientCardProps {
-  style: React.CSSProperties
-  index: number
+interface MobilePatientCardData {
   patients: Patient[]
   onNavigate: (id: string) => void
   onEdit?: (patient: Patient) => void
@@ -27,29 +25,49 @@ interface MobilePatientCardProps {
   isResending: boolean
 }
 
+interface MobilePatientCardProps {
+  style: React.CSSProperties
+  index: number
+  data: MobilePatientCardData
+}
+
 export const MobilePatientCard = memo<MobilePatientCardProps>(({
   style,
   index,
-  patients,
-  onNavigate,
-  onEdit,
-  onDelete,
-  onActivate,
-  onDeactivate,
-  onSendQuiz,
-  isResending
+  data
 }) => {
+  const {
+    patients,
+    onNavigate,
+    onEdit,
+    onDelete,
+    onActivate,
+    onDeactivate,
+    onSendQuiz,
+    isResending
+  } = data
+
   const patient = patients[index]
 
   if (!patient) return null
 
   const statusConfig = getStatusBadgeConfig(patient.status)
+  const handleCardKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      onNavigate(patient.id)
+    }
+  }
 
   return (
     <div style={style} className="px-4 pb-3">
       <Card
         className="p-4 hover:shadow-md transition-shadow cursor-pointer h-full"
         onClick={() => onNavigate(patient.id)}
+        onKeyDown={handleCardKeyDown}
+        role="button"
+        tabIndex={0}
+        aria-label={`Ver detalhes do paciente ${patient.name}`}
       >
         {/* Header with Avatar and Status */}
         <div className="flex items-center justify-between mb-3">

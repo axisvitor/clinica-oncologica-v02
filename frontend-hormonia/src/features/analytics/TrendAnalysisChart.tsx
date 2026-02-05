@@ -9,7 +9,7 @@
  * - Expected improvement: 30-50% reduction in re-renders
  */
 
-import React, { useMemo, useCallback, memo, Suspense } from 'react';
+import React, { useMemo, useCallback, memo } from 'react';
 import {
   LineChart,
   Line,
@@ -22,10 +22,8 @@ import {
   Legend,
   ResponsiveContainer,
   ReferenceDot,
-  ReferenceArea,
-  ChartSkeleton,
 } from '@/components/ui/charts/LazyRechartsComponents';
-import { TrendData, Anomaly } from '../../types/enhanced-analytics';
+import { TrendData } from '../../types/enhanced-analytics';
 
 export interface TrendAnalysisChartProps {
   trendData: TrendData;
@@ -142,7 +140,8 @@ const TrendAnalysisChartComponent: React.FC<TrendAnalysisChartProps> = ({
   };
 
   const ChartComponent = chartType === 'area' ? AreaChart : LineChart;
-  const DataComponent = (chartType === 'area' ? Area : Line) as any;
+  // Select the appropriate data component based on chart type
+  const _DataComponent = chartType === 'area' ? Area : Line;
 
   return (
     <div className="w-full">
@@ -166,8 +165,8 @@ const TrendAnalysisChartComponent: React.FC<TrendAnalysisChartProps> = ({
           <Legend content={renderLegend} />
 
           {/* Confidence interval area */}
-          {showConfidenceInterval && (
-            <DataComponent
+          {showConfidenceInterval && chartType === 'area' && (
+            <Area
               type="monotone"
               dataKey="upperBound"
               stroke="transparent"
@@ -175,35 +174,65 @@ const TrendAnalysisChartComponent: React.FC<TrendAnalysisChartProps> = ({
               fillOpacity={0.3}
             />
           )}
+          {showConfidenceInterval && chartType !== 'area' && (
+            <Line
+              type="monotone"
+              dataKey="upperBound"
+              stroke="transparent"
+            />
+          )}
 
           {/* Actual values */}
-          <DataComponent
-            type="monotone"
-            dataKey="actual"
-            stroke="#2196f3"
-            strokeWidth={2}
-            dot={{ r: 3 }}
-            name="Actual"
-            fill="#2196f3"
-            fillOpacity={chartType === 'area' ? 0.3 : 1}
-          />
+          {chartType === 'area' ? (
+            <Area
+              type="monotone"
+              dataKey="actual"
+              stroke="#2196f3"
+              strokeWidth={2}
+              dot={{ r: 3 }}
+              name="Actual"
+              fill="#2196f3"
+              fillOpacity={0.3}
+            />
+          ) : (
+            <Line
+              type="monotone"
+              dataKey="actual"
+              stroke="#2196f3"
+              strokeWidth={2}
+              dot={{ r: 3 }}
+              name="Actual"
+            />
+          )}
 
           {/* Trend line */}
-          <DataComponent
-            type="monotone"
-            dataKey="trend"
-            stroke="#ff9800"
-            strokeWidth={2}
-            strokeDasharray="5 5"
-            dot={false}
-            name="Trend"
-            fill="#ff9800"
-            fillOpacity={0}
-          />
+          {chartType === 'area' ? (
+            <Area
+              type="monotone"
+              dataKey="trend"
+              stroke="#ff9800"
+              strokeWidth={2}
+              strokeDasharray="5 5"
+              dot={false}
+              name="Trend"
+              fill="#ff9800"
+              fillOpacity={0}
+            />
+          ) : (
+            <Line
+              type="monotone"
+              dataKey="trend"
+              stroke="#ff9800"
+              strokeWidth={2}
+              strokeDasharray="5 5"
+              dot={false}
+              name="Trend"
+            />
+          )}
 
           {/* Forecast */}
-          {showForecast && (
-            <DataComponent
+          {showForecast && chartType === 'area' && (
+            <Area
               type="monotone"
               dataKey="forecast"
               stroke="#4caf50"
@@ -212,17 +241,35 @@ const TrendAnalysisChartComponent: React.FC<TrendAnalysisChartProps> = ({
               dot={{ r: 3 }}
               name="Forecast"
               fill="#4caf50"
-              fillOpacity={chartType === 'area' ? 0.2 : 1}
+              fillOpacity={0.2}
+            />
+          )}
+          {showForecast && chartType !== 'area' && (
+            <Line
+              type="monotone"
+              dataKey="forecast"
+              stroke="#4caf50"
+              strokeWidth={2}
+              strokeDasharray="3 3"
+              dot={{ r: 3 }}
+              name="Forecast"
             />
           )}
 
           {/* Lower confidence bound */}
-          {showConfidenceInterval && (
-            <DataComponent
+          {showConfidenceInterval && chartType === 'area' && (
+            <Area
               type="monotone"
               dataKey="lowerBound"
               stroke="transparent"
               fill="transparent"
+            />
+          )}
+          {showConfidenceInterval && chartType !== 'area' && (
+            <Line
+              type="monotone"
+              dataKey="lowerBound"
+              stroke="transparent"
             />
           )}
 

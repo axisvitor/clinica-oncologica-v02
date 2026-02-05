@@ -1,0 +1,1 @@
+"""Quiz domain unit tests."""

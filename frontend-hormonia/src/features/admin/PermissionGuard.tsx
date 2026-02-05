@@ -178,6 +178,7 @@ export function PermissionGuard({
   return <>{fallback}</>
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function withPermissionGuard<T extends object>(
   Component: React.ComponentType<T>,
   guardProps: Omit<PermissionGuardProps, 'children'>
@@ -191,6 +192,7 @@ export function withPermissionGuard<T extends object>(
   }
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function usePermissionGuard() {
   const auth = useAuth()
   const helpers = React.useMemo(

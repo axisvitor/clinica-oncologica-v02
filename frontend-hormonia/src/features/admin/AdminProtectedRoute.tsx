@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/app/providers/AuthContext'
-import { AdminPermissionError } from '@/types/admin'
 
 interface AdminProtectedRouteProps {
   children: React.ReactNode
@@ -204,9 +203,16 @@ export const AdminProtectedRoute: React.FC<AdminProtectedRouteProps> = ({
     )
   }
 
+  // Extended user type for optional admin fields
+  interface ExtendedUser {
+    locked_until?: string | null;
+    two_factor_enabled?: boolean;
+  }
+  const extendedUser = user as typeof user & ExtendedUser;
+
   // Check if user account is locked (if this field exists)
-  if ((user as any).locked_until && new Date((user as any).locked_until) > new Date()) {
-    const lockoutEnd = new Date((user as any).locked_until)
+  if (extendedUser.locked_until && new Date(extendedUser.locked_until) > new Date()) {
+    const lockoutEnd = new Date(extendedUser.locked_until)
     return (
       <UnauthorizedScreen
         reason="Account Temporarily Locked"
@@ -216,7 +222,7 @@ export const AdminProtectedRoute: React.FC<AdminProtectedRouteProps> = ({
   }
 
   // Check two-factor authentication requirement (if this field exists)
-  if (requiresTwoFactor && !(user as any).two_factor_enabled) {
+  if (requiresTwoFactor && !extendedUser.two_factor_enabled) {
     return <TwoFactorRequiredScreen />
   }
 
@@ -246,6 +252,7 @@ export const AdminProtectedRoute: React.FC<AdminProtectedRouteProps> = ({
 }
 
 // Higher-order component for easier use
+// eslint-disable-next-line react-refresh/only-export-components
 export const withAdminProtection = <P extends object>(
   Component: React.ComponentType<P>,
   options: Omit<AdminProtectedRouteProps, 'children'> = {}

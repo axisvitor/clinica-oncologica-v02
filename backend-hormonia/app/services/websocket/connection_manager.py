@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import WebSocket
-from jose import jwt, JWTError
+import jwt  # PyJWT - replaces python-jose to fix CVE-2024-23342
 
 from app.config import settings
 from app.models.user import User
@@ -274,11 +274,22 @@ class UnifiedWebSocketConnectionManager:
         """Authenticate using Firebase (RS256)."""
         from fastapi import HTTPException, status as http_status
 
-        firebase_auth = get_firebase_auth_service()
+        firebase_project_id = getattr(settings, "FIREBASE_ADMIN_PROJECT_ID", None)
+        firebase_private_key = getattr(settings, "FIREBASE_ADMIN_PRIVATE_KEY", None)
+        firebase_client_email = getattr(settings, "FIREBASE_ADMIN_CLIENT_EMAIL", None)
+        if not (firebase_project_id and firebase_private_key and firebase_client_email):
+            logger.warning("Firebase auth not configured for WebSocket")
+            return None
+
+        firebase_auth = get_firebase_auth_service(
+            project_id=firebase_project_id,
+            private_key=firebase_private_key,
+            client_email=firebase_client_email,
+        )
 
         try:
-            decoded_token = firebase_auth.verify_id_token(token)
-            firebase_uid = decoded_token.get("uid")
+            decoded_token = await firebase_auth.verify_token(token)
+            firebase_uid = decoded_token.get("uid") or decoded_token.get("user_id")
 
             if not firebase_uid:
                 return None
@@ -308,6 +319,14 @@ class UnifiedWebSocketConnectionManager:
         from fastapi import HTTPException, status as http_status
 
         try:
+            header = jwt.get_unverified_header(token)
+            alg = header.get("alg")
+            if alg and alg != "HS256":
+                logger.debug(
+                    f"Skipping internal JWT auth for {connection_id}: alg={alg}"
+                )
+                return None
+
             payload = jwt.decode(
                 token, settings.SECURITY_SECRET_KEY, algorithms=["HS256"]
             )
@@ -329,7 +348,7 @@ class UnifiedWebSocketConnectionManager:
 
             return user
 
-        except JWTError as e:
+        except jwt.exceptions.PyJWTError as e:
             logger.error(f"JWT decode error: {str(e)}")
             raise HTTPException(
                 status_code=http_status.HTTP_401_UNAUTHORIZED,
@@ -347,7 +366,7 @@ class UnifiedWebSocketConnectionManager:
             user.role.value if hasattr(user.role, "value") else str(user.role)
         )
         connection_info.email = user.email
-        connection_info.display_name = user.name
+        connection_info.display_name = user.full_name
         connection_info.state = ConnectionState.AUTHENTICATED
         connection_info.authenticated_at = datetime.now(timezone.utc)
 

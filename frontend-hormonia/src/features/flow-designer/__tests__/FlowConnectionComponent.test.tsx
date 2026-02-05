@@ -1,9 +1,9 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import '@testing-library/jest-dom/vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { FlowConnectionComponent } from '../FlowConnectionComponent'
 import { FlowConnection, FlowNode, FlowNodeType } from '@/types/flow-designer'
 
@@ -336,7 +336,7 @@ describe('FlowConnectionComponent', () => {
       )
 
       const path = document.querySelector('path[stroke]')!
-      const event = fireEvent.click(path)
+      path.dispatchEvent(new MouseEvent('click', { bubbles: true }))
 
       expect(onSelect).toHaveBeenCalled()
     })

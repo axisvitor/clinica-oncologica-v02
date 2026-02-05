@@ -2,7 +2,9 @@
 Main response processor logic.
 """
 
+import asyncio
 import logging
+import time
 from typing import Optional, Any
 from datetime import datetime, timezone
 from uuid import UUID
@@ -12,12 +14,17 @@ from app.models.flow import PatientFlowState
 from app.repositories.message import MessageRepository
 from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
-from app.domain.flows.events import flow_event_broadcaster
+from app.services.flow.event_broadcaster import flow_event_broadcaster
 from app.services.platform_synchronization import get_platform_sync_service
 from app.domain.quizzes.integration.flow_integration import (
     get_conversational_quiz_service,
 )
 from app.exceptions import NotFoundError, ValidationError
+from app.monitoring.metrics import (
+    response_processing_duration_seconds,
+    response_medical_concerns_total,
+    response_escalations_total,
+)
 
 from .models import (
     ResponseProcessorConfig,
@@ -34,6 +41,8 @@ from .flow_helpers import FlowHelpers
 # (follow_up_system.context.manager imports StructuredResponse from this module)
 
 logger = logging.getLogger(__name__)
+_follow_up_rehydrated = False
+_follow_up_rehydrate_lock = asyncio.Lock()
 
 
 def get_ai_service():
@@ -79,9 +88,26 @@ class ResponseProcessor:
         # Follow-up system integration (ISSUE: FollowUpSystemService não integrado)
         # Lazy initialization to avoid circular import
         self._follow_up_service = None
-        self._follow_up_rehydrated = False
+        
+        # Sequential message handler for multi-message flows
+        self._sequential_handler = None
 
         logger.info(f"Response Processor initialized with config: {self.config}")
+
+    def update_db(self, db: Any) -> None:
+        """Refresh database-bound dependencies for a new session."""
+        if self.db is db:
+            return
+
+        self.db = db
+        self.message_repo = MessageRepository(db)
+        self.flow_state_repo = FlowStateRepository(db)
+        self.patient_repo = PatientRepository(db)
+        self.platform_sync = get_platform_sync_service(db)
+        self.quiz_service = get_conversational_quiz_service(db)
+        self.extractor = DataExtractor(db, self.config)
+        self._follow_up_service = None
+        self._sequential_handler = None
 
     async def process_inbound_message(
         self, inbound_message: InboundMessage
@@ -99,6 +125,12 @@ class ResponseProcessor:
             NotFoundError: If patient not found
             ValidationError: If message validation fails
         """
+        start_time = time.monotonic()
+        processing_status = "success"
+        structured_response = None
+        message = None
+        response_type = None
+
         try:
             # Find patient by phone number
             patient = self.patient_repo.get_by_phone(inbound_message.patient_phone)
@@ -107,11 +139,13 @@ class ResponseProcessor:
                     f"Patient not found for phone: {inbound_message.patient_phone}"
                 )
 
-            # Store inbound message in database
-            message = await self._store_inbound_message(patient.id, inbound_message)
-
-            # Get current flow context
+            # Get current flow context FIRST (for enriched metadata)
             flow_state = self.flow_state_repo.get_active_flow(patient.id)
+
+            # Store inbound message in database with flow context
+            message = await self._store_inbound_message(
+                patient.id, inbound_message, flow_state
+            )
 
             # Check if patient is in quiz mode
             is_quiz_response = await self._is_quiz_response(patient.id, flow_state)
@@ -158,6 +192,11 @@ class ResponseProcessor:
             escalation_required = self.flow_helpers.check_escalation_required(
                 structured_response
             )
+
+            if message and flow_state:
+                state_updates = self._augment_state_updates(
+                    state_updates, message, inbound_message
+                )
 
             # Create processing result
             result = ResponseProcessingResult(
@@ -212,12 +251,56 @@ class ResponseProcessor:
                 },
             )
 
-            logger.info(f"Processed inbound message for patient {patient.id}")
+            if structured_response and structured_response.medical_concerns:
+                response_medical_concerns_total.labels(
+                    concern_level=getattr(structured_response.concern_level, "value", "unknown")
+                ).inc(len(structured_response.medical_concerns))
+
+            if escalation_required:
+                response_escalations_total.labels(
+                    escalation_level=getattr(structured_response.concern_level, "value", "unknown")
+                    if structured_response
+                    else "unknown"
+                ).inc()
+
+            logger.info(
+                "Processed inbound message",
+                extra={
+                    "patient_id": str(patient.id),
+                    "message_id": str(message.id),
+                    "response_type": response_type.value if response_type else None,
+                    "concern_level": getattr(structured_response.concern_level, "value", None)
+                    if structured_response
+                    else None,
+                    "severity_score": getattr(structured_response, "severity_score", None)
+                    if structured_response
+                    else None,
+                    "escalation_required": escalation_required,
+                },
+            )
+            
+            # Trigger next sequential message if patient is in a multi-message flow
+            await self._trigger_sequential_continuation(patient.id, flow_state)
+            
             return result
 
         except Exception as e:
-            logger.error(f"Failed to process inbound message: {e}")
+            processing_status = "failed"
+            logger.error(
+                "Failed to process inbound message",
+                exc_info=True,
+                extra={
+                    "patient_phone": inbound_message.patient_phone,
+                    "response_type": response_type.value if response_type else None,
+                    "error_type": type(e).__name__,
+                },
+            )
             raise
+        finally:
+            duration = time.monotonic() - start_time
+            response_processing_duration_seconds.labels(
+                status=processing_status
+            ).observe(duration)
 
     async def handle_interactive_response(
         self, interactive_response: InteractiveResponse
@@ -231,6 +314,9 @@ class ResponseProcessor:
         Returns:
             Response processing result
         """
+        start_time = time.monotonic()
+        processing_status = "success"
+        structured_response = None
         try:
             patient_id = interactive_response.patient_id
 
@@ -305,26 +391,94 @@ class ResponseProcessor:
             ):
                 await self._process_follow_up_actions(result)
 
-            logger.info(f"Processed interactive response for patient {patient_id}")
+            if structured_response and structured_response.medical_concerns:
+                response_medical_concerns_total.labels(
+                    concern_level=getattr(structured_response.concern_level, "value", "unknown")
+                ).inc(len(structured_response.medical_concerns))
+
+            if result.escalation_required:
+                response_escalations_total.labels(
+                    escalation_level=getattr(structured_response.concern_level, "value", "unknown")
+                    if structured_response
+                    else "unknown"
+                ).inc()
+
+            logger.info(
+                "Processed interactive response",
+                extra={
+                    "patient_id": str(patient_id),
+                    "response_type": interactive_response.response_type.value,
+                    "concern_level": getattr(structured_response.concern_level, "value", None)
+                    if structured_response
+                    else None,
+                    "severity_score": getattr(structured_response, "severity_score", None)
+                    if structured_response
+                    else None,
+                    "escalation_required": result.escalation_required,
+                },
+            )
             return result
 
         except Exception as e:
+            processing_status = "failed"
             logger.error(f"Failed to process interactive response: {e}")
             raise
+        finally:
+            duration = time.monotonic() - start_time
+            response_processing_duration_seconds.labels(
+                status=processing_status
+            ).observe(duration)
 
     async def _store_inbound_message(
-        self, patient_id: UUID, inbound_message: InboundMessage
+        self, patient_id: UUID, inbound_message: InboundMessage,
+        flow_state: Optional[PatientFlowState] = None
     ) -> Message:
-        """Store inbound message in database."""
+        """
+        Store inbound message in database with enriched metadata.
+        
+        Includes flow context (day, question index) and idempotency key.
+        """
+        import hashlib
+        
         try:
+            # Build enriched metadata with flow context
+            metadata = dict(inbound_message.metadata) if inbound_message.metadata else {}
+            
+            # Add flow context if available
+            if flow_state and flow_state.step_data:
+                step_data = flow_state.step_data
+                metadata["flow_context"] = {
+                    "flow_kind": step_data.get("flow_kind"),
+                    "current_flow_day": step_data.get("current_flow_day"),
+                    "current_message_index": step_data.get("current_day_message_index", 0),
+                    "awaiting_response": step_data.get("awaiting_response", False),
+                    "flow_state_id": str(flow_state.id) if flow_state.id else None,
+                }
+            
+            # Generate idempotency key from content + media + whatsapp_id
+            message_type = inbound_message.message_type or MessageType.TEXT
+            media_url = metadata.get("media_url") or metadata.get("url") or ""
+            content = inbound_message.content or ""
+            idempotency_source = (
+                f"{patient_id}:{message_type}:{content}:{media_url}:{inbound_message.whatsapp_id or ''}"
+            )
+            idempotency_key = hashlib.sha256(idempotency_source.encode()).hexdigest()[:32]
+            
+            # Check for duplicate message
+            existing = self.message_repo.get_by_idempotency_key(patient_id, idempotency_key)
+            if existing:
+                logger.warning(f"Duplicate inbound message detected: {idempotency_key}")
+                return existing
+            
             message = Message(
                 patient_id=patient_id,
                 direction=MessageDirection.INBOUND,
-                type=inbound_message.message_type,
-                content=inbound_message.content,
+                type=message_type,
+                content=content,
                 whatsapp_id=inbound_message.whatsapp_id,
-                status=MessageStatus.READ,  # Inbound messages are considered read
-                message_metadata=inbound_message.metadata,
+                status=MessageStatus.READ,
+                message_metadata=metadata,
+                idempotency_key=idempotency_key,
                 sent_at=inbound_message.timestamp,
                 delivered_at=inbound_message.timestamp,
                 read_at=inbound_message.timestamp,
@@ -350,12 +504,42 @@ class ResponseProcessor:
             return ResponseType.QUICK_REPLY
         elif inbound_message.metadata.get("list_selection"):
             return ResponseType.LIST_SELECTION
-        elif inbound_message.message_type == MessageType.MEDIA:
+        elif inbound_message.message_type in [
+            MessageType.IMAGE,
+            MessageType.AUDIO,
+            MessageType.VIDEO,
+            MessageType.DOCUMENT,
+            MessageType.MEDIA,
+        ]:
             return ResponseType.MEDIA
         elif inbound_message.message_type == MessageType.LOCATION:
             return ResponseType.LOCATION
+        elif inbound_message.message_type == MessageType.BUTTON:
+            return ResponseType.BUTTON
+        elif inbound_message.message_type == MessageType.LIST:
+            return ResponseType.LIST_SELECTION
         else:
             return ResponseType.TEXT
+
+    def _augment_state_updates(
+        self,
+        state_updates: Optional[dict[str, Any]],
+        message: Message,
+        inbound_message: InboundMessage,
+    ) -> dict[str, Any]:
+        """Augment state updates with message identifiers and idempotency."""
+        updates = dict(state_updates or {})
+        last_response = dict(updates.get("last_response", {}))
+        last_response.update(
+            {
+                "message_id": str(message.id),
+                "whatsapp_id": inbound_message.whatsapp_id,
+                "idempotency_key": getattr(message, "idempotency_key", None),
+                "received_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        updates["last_response"] = last_response
+        return updates
 
     async def _apply_state_updates(
         self, patient_id: UUID, state_updates: dict[str, Any]
@@ -372,6 +556,7 @@ class ResponseProcessor:
                 flow_state.state_data = {}
 
             flow_state.state_data.update(state_updates)
+            flow_state.last_interaction_at = datetime.now(timezone.utc)
 
             # Commit changes
             self.db.commit()
@@ -418,6 +603,45 @@ class ResponseProcessor:
             self._follow_up_service = FollowUpSystemService(self.db)
         return self._follow_up_service
 
+    def _get_sequential_handler(self):
+        """Lazy initialization of SequentialMessageHandler to avoid circular imports."""
+        if self._sequential_handler is None:
+            from app.services.flow.sequential_message_handler import SequentialMessageHandler
+            self._sequential_handler = SequentialMessageHandler(self.db)
+        return self._sequential_handler
+
+    async def _trigger_sequential_continuation(
+        self, patient_id: UUID, flow_state: Optional[PatientFlowState]
+    ) -> None:
+        """
+        Trigger next sequential message if patient is in a multi-message flow.
+        
+        Called after processing an inbound message to check if we need to send
+        the next message in a sequential/wait_response/wait_each flow.
+        """
+        try:
+            if not flow_state:
+                return
+            
+            step_data = flow_state.step_data or {}
+            
+            # Check if we're awaiting response and should continue
+            if not step_data.get("awaiting_response"):
+                return
+            
+            # Get handler and trigger continuation
+            handler = self._get_sequential_handler()
+            result = await handler.handle_response_and_continue(patient_id)
+            
+            if result.get("status") == "waiting":
+                logger.info(f"Sent next sequential message to patient {patient_id}")
+            elif result.get("status") == "day_complete":
+                logger.info(f"Sequential flow day complete for patient {patient_id}")
+        
+        except Exception as e:
+            # Don't let sequential message failures break the main response flow
+            logger.error(f"Failed to trigger sequential continuation: {e}", exc_info=True)
+
     async def _process_follow_up_actions(
         self, result: ResponseProcessingResult
     ) -> None:
@@ -436,13 +660,19 @@ class ResponseProcessor:
             follow_up_service = self._get_follow_up_service()
 
             # Rehydrate Redis state once per processor instance
-            if not self._follow_up_rehydrated:
-                rehydration_result = await follow_up_service.rehydrate_from_redis()
-                self._follow_up_rehydrated = True
-                logger.info(
-                    f"Follow-up service rehydrated: {rehydration_result['pending_actions']} actions, "
-                    f"{rehydration_result['active_alerts']} alerts"
-                )
+            global _follow_up_rehydrated
+            if not _follow_up_rehydrated:
+                async with _follow_up_rehydrate_lock:
+                    if not _follow_up_rehydrated:
+                        rehydration_result = (
+                            await follow_up_service.rehydrate_from_redis()
+                        )
+                        _follow_up_rehydrated = True
+                        logger.info(
+                            "Follow-up service rehydrated: "
+                            f"{rehydration_result['pending_actions']} actions, "
+                            f"{rehydration_result['active_alerts']} alerts"
+                        )
 
             # Process follow-up actions for this response
             follow_up_actions = await follow_up_service.process_response_follow_up(
@@ -473,4 +703,11 @@ def get_response_processor(db: Any) -> ResponseProcessor:
     Returns:
         ResponseProcessor instance
     """
-    return ResponseProcessor(db)
+    global _response_processor
+
+    if _response_processor is None:
+        _response_processor = ResponseProcessor(db)
+    else:
+        _response_processor.update_db(db)
+
+    return _response_processor

@@ -7,12 +7,9 @@ test isolation by using flush() instead of commit() for intermediate steps.
 
 import pytest
 from uuid import uuid4
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.orchestration.saga_orchestrator import SagaOrchestrator
-from app.models.patient_onboarding_saga import PatientOnboardingSaga
-from app.models.enums import SagaStatus
 from app.schemas.patient import PatientCreate
 
 
@@ -58,6 +55,11 @@ def orchestrator(mock_db_session):
     orchestrator.flow_service = MagicMock()
     orchestrator.whatsapp_service = MagicMock()
     orchestrator.message_service = MagicMock()
+    orchestrator.step_executor.patient_repo = orchestrator.patient_repo
+    orchestrator.step_executor.flow_service = orchestrator.flow_service
+    orchestrator.step_executor.whatsapp_service = orchestrator.whatsapp_service
+    orchestrator.step_executor.message_service = orchestrator.message_service
+    orchestrator.compensator.patient_repo = orchestrator.patient_repo
 
     return orchestrator
 
@@ -97,7 +99,7 @@ async def test_saga_uses_single_commit_on_success(orchestrator, mock_db_session)
     mock_db_session.query.return_value.filter.return_value.first.return_value = None
 
     # Act
-    with patch('app.orchestration.saga_orchestrator.acquire_lock'):
+    with patch('app.orchestration.saga_orchestrator.orchestrator.acquire_lock'):
         patient = await orchestrator.execute_patient_onboarding_saga(
             patient_data=patient_data,
             doctor_id=doctor_id,
@@ -151,7 +153,7 @@ async def test_saga_rolls_back_on_failure(orchestrator, mock_db_session):
     mock_db_session.query.return_value.filter.return_value.first.return_value = None
 
     # Act
-    with patch('app.orchestration.saga_orchestrator.acquire_lock'):
+    with patch('app.orchestration.saga_orchestrator.orchestrator.acquire_lock'):
         patient = await orchestrator.execute_patient_onboarding_saga(
             patient_data=patient_data,
             doctor_id=doctor_id,
@@ -205,7 +207,7 @@ async def test_saga_enables_test_isolation(orchestrator, mock_db_session):
     test_transaction_started = True
 
     # Act - Execute saga within test transaction
-    with patch('app.orchestration.saga_orchestrator.acquire_lock'):
+    with patch('app.orchestration.saga_orchestrator.orchestrator.acquire_lock'):
         patient = await orchestrator.execute_patient_onboarding_saga(
             patient_data=patient_data,
             doctor_id=doctor_id,

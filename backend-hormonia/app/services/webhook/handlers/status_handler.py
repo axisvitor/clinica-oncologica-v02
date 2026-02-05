@@ -11,7 +11,7 @@ from app.config.settings.cache import cache_settings
 from app.models.message import MessageStatus
 from app.models.message_events import MessageStatusEvent
 from app.domain.messaging.core import MessageService
-from app.services.websocket_events import websocket_events
+import app.services.websocket_events as websocket_events_module
 from app.schemas.websocket import WebSocketEventType
 from app.core.redis_unified import get_async_redis
 from app.utils.db_retry import with_db_retry
@@ -39,7 +39,10 @@ class StatusWebhookHandler:
 
     @with_db_retry(max_retries=3)
     async def process_status(
-        self, event_data: dict[str, Any], webhook_store: Optional[Any] = None
+        self,
+        event_data: dict[str, Any],
+        webhook_store: Optional[Any] = None,
+        webhook_id: Optional[str] = None,
     ) -> bool:
         """
         Process message status update webhook.
@@ -47,19 +50,28 @@ class StatusWebhookHandler:
         Args:
             event_data: Webhook event data
             webhook_store: Optional webhook persistence store
+            webhook_id: Optional webhook event ID header (for persistence)
 
         Returns:
             True if processed successfully
         """
-        webhook_id = None
+        stored_event_id = None
         try:
             # Persist webhook event if store provided
             if webhook_store:
-                webhook_id = await webhook_store.persist_event(
-                    event_type="message.status",
-                    source="evolution_api",
-                    payload=event_data,
-                )
+                if webhook_id:
+                    _, stored_event_id = await webhook_store.persist_event_atomic(
+                        event_id=webhook_id,
+                        event_type="message.status",
+                        source="evolution_api",
+                        payload=event_data,
+                    )
+                else:
+                    stored_event_id = await webhook_store.persist_event(
+                        event_type="message.status",
+                        source="evolution_api",
+                        payload=event_data,
+                    )
 
             # Extract status data
             whatsapp_id = event_data.get("key", {}).get("id")
@@ -67,9 +79,9 @@ class StatusWebhookHandler:
 
             if not whatsapp_id or not status:
                 logger.warning("Missing required fields in status webhook")
-                if webhook_id and webhook_store:
+                if stored_event_id and webhook_store:
                     await webhook_store.mark_processed(
-                        webhook_id, False, "Missing required fields"
+                        stored_event_id, False, "Missing required fields"
                     )
                 return False
 
@@ -92,9 +104,9 @@ class StatusWebhookHandler:
                 logger.info(
                     f"Duplicate status webhook detected (atomic check): {whatsapp_id} -> {status}"
                 )
-                if webhook_id and webhook_store:
+                if stored_event_id and webhook_store:
                     await webhook_store.mark_processed(
-                        webhook_id, True, "Duplicate status event"
+                        stored_event_id, True, "Duplicate status event"
                     )
                 return True
 
@@ -125,15 +137,17 @@ class StatusWebhookHandler:
                 self.db.add(status_event)
                 self.db.commit()
                 # Publish WebSocket event for status update
-                await websocket_events.publish_message_event(
-                    event_type=WebSocketEventType.MESSAGE_STATUS_UPDATED,
-                    message_id=message.id,
-                    patient_id=message.patient_id,
-                    direction=message.direction.value,
-                    message_type=message.type.value,
-                    status=message.status.value,
-                    metadata={"whatsapp_id": whatsapp_id},
-                )
+                websocket_events = websocket_events_module.websocket_events
+                if websocket_events:
+                    await websocket_events.publish_message_event(
+                        event_type=WebSocketEventType.MESSAGE_STATUS_UPDATED,
+                        message_id=message.id,
+                        patient_id=message.patient_id,
+                        direction=message.direction.value,
+                        message_type=message.type.value,
+                        status=message.status.value,
+                        metadata={"whatsapp_id": whatsapp_id},
+                    )
 
                 logger.info(f"Updated message {message.id} status to {status}")
 
@@ -145,21 +159,21 @@ class StatusWebhookHandler:
                     ex=cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS
                 )
 
-                if webhook_id and webhook_store:
-                    await webhook_store.mark_processed(webhook_id, True)
+                if stored_event_id and webhook_store:
+                    await webhook_store.mark_processed(stored_event_id, True)
                 return True
 
             logger.warning(f"Message not found for WhatsApp ID: {whatsapp_id}")
-            if webhook_id and webhook_store:
+            if stored_event_id and webhook_store:
                 await webhook_store.mark_processed(
-                    webhook_id, False, "Message not found"
+                    stored_event_id, False, "Message not found"
                 )
             return False
 
         except Exception as e:
             logger.error(f"Error processing status webhook: {e}", exc_info=True)
-            if webhook_id and webhook_store:
-                await webhook_store.mark_processed(webhook_id, False, str(e))
+            if stored_event_id and webhook_store:
+                await webhook_store.mark_processed(stored_event_id, False, str(e))
             return False
 
     def _map_evolution_status(self, evolution_status: str) -> MessageStatus:

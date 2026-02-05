@@ -259,6 +259,22 @@ class TestLockKeys:
         key = LockKeys.webhook_processing("webhook-abc")
         assert key == "webhook:webhook-abc"
 
+
+class TestRedisFailureHandling:
+    """Test behavior when Redis is unavailable."""
+
+    @pytest.mark.asyncio
+    async def test_try_acquire_raises_on_redis_failure(self):
+        """Test fail-fast behavior when Redis is down."""
+        mock_redis = AsyncMock()
+        mock_redis.set = AsyncMock(side_effect=RuntimeError("Redis down"))
+
+        lock = DistributedLock()
+        lock._async_redis = mock_redis
+
+        with pytest.raises(RuntimeError):
+            await lock.try_acquire("test:key")
+
     def test_retry_key(self):
         """Test retry lock key generation."""
         key = LockKeys.retry("message-xyz")

@@ -80,6 +80,12 @@ module.exports = {
           foreground: "hsl(var(--warning-foreground))",
         },
       },
+      height: {
+        'screen-dynamic': '100dvh',
+      },
+      minHeight: {
+        'screen-dynamic': '100dvh',
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",

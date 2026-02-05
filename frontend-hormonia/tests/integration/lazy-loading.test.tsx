@@ -222,7 +222,7 @@ describe('Lazy Loading Integration Tests', () => {
       const ErrorBoundary = ({ children }: { children: React.ReactNode }) => {
         try {
           return <>{children}</>;
-        } catch (error) {
+        } catch (_error) {
           return <div>Error occurred</div>;
         }
       };
@@ -332,8 +332,8 @@ describe('Lazy Loading Integration Tests', () => {
         try {
           result = await mockImport();
           break;
-        } catch (error) {
-          if (i === 2) throw error;
+        } catch (err) {
+          if (i === 2) throw err;
         }
       }
 
@@ -345,7 +345,7 @@ describe('Lazy Loading Integration Tests', () => {
       const ErrorBoundary = ({ children, fallback }: any) => {
         try {
           return <>{children}</>;
-        } catch (error) {
+        } catch (_error) {
           return fallback;
         }
       };

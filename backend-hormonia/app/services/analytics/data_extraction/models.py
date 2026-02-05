@@ -3,7 +3,7 @@ Data models for data extraction service.
 Contains enums and data classes for structured extraction.
 """
 
-from typing import Any, List, Dict
+from typing import Any, List, Dict, Optional
 from datetime import datetime, timezone
 from enum import Enum
 from uuid import UUID
@@ -78,6 +78,7 @@ class MedicalConcern:
         keywords: List[str],
         confidence: float,
         requires_immediate_attention: bool = False,
+        severity_score: Optional[int] = None,
     ):
         self.concern_type = concern_type
         self.description = description
@@ -85,6 +86,7 @@ class MedicalConcern:
         self.keywords = keywords
         self.confidence = confidence
         self.requires_immediate_attention = requires_immediate_attention
+        self.severity_score = severity_score
         self.detected_at = datetime.now(timezone.utc)
 
 

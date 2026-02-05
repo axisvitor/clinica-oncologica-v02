@@ -1,0 +1,152 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: clinica-api
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+    spec:
+      serviceAccountName: 217549452180-compute@developer.gserviceaccount.com
+      containers:
+        - image: us-central1-docker.pkg.dev/woven-framework-484323-n7/clinica-repo/clinica-backend:20260121-162224
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              memory: 4Gi
+          env:
+            - name: APP_ENVIRONMENT
+              value: "production"
+            - name: APP_ENABLE_DEBUG
+              value: "false"
+            - name: ALLOW_AI_SIMULATION
+              value: "false"
+            - name: LOGGING_LEVEL
+              value: "INFO"
+            - name: TZ
+              value: "America/Sao_Paulo"
+            - name: CELERY_TIMEZONE
+              value: "America/Sao_Paulo"
+            - name: CELERY_ENABLE_TZ_NORMALIZATION
+              value: "false"
+            - name: DATABASE_URL
+              value: "REPLACE_WITH_DATABASE_URL"
+            - name: DATABASE_POOL_SIZE
+              value: "50"
+            - name: DATABASE_POOL_MAX_OVERFLOW
+              value: "20"
+            - name: ENCRYPTION_KEY_CURRENT
+              value: "REPLACE_WITH_ENCRYPTION_KEY_CURRENT"
+            - name: PHI_ENCRYPTION_KEY
+              value: "REPLACE_WITH_PHI_ENCRYPTION_KEY"
+            - name: HASH_SALT
+              value: "REPLACE_WITH_HASH_SALT"
+            - name: SECURITY_SECRET_KEY
+              value: "REPLACE_WITH_SECURITY_SECRET_KEY"
+            - name: SECURITY_CSRF_SECRET_KEY
+              value: "REPLACE_WITH_SECURITY_CSRF_SECRET_KEY"
+            - name: SECURITY_ALGORITHM
+              value: "HS256"
+            - name: SECURITY_ENABLE_FIELD_ENCRYPTION
+              value: "true"
+            - name: SECURITY_ENABLE_SSL_REDIRECT
+              value: "true"
+            - name: SECURITY_ALLOW_WEAK_KEYS
+              value: "true"
+            - name: REDIS_URL
+              value: "REPLACE_WITH_REDIS_URL"
+            - name: REDIS_HOST
+              value: "redis-14149.c322.us-east-1-2.ec2.redns.redis-cloud.com"
+            - name: REDIS_PORT
+              value: "14149"
+            - name: REDIS_PASSWORD
+              value: "REPLACE_WITH_REDIS_PASSWORD"
+            - name: REDIS_ENABLE_SERVICE
+              value: "true"
+            - name: REDIS_ENABLE_SSL
+              value: "false"
+            - name: REDIS_POOL_MAX_CONNECTIONS
+              value: "1000"
+            - name: TASK_QUEUE_PROVIDER
+              value: "cloud_tasks"
+            - name: CLOUD_TASKS_PROJECT_ID
+              value: "woven-framework-484323-n7"
+            - name: CLOUD_TASKS_LOCATION
+              value: "us-central1"
+            - name: CLOUD_TASKS_QUEUE
+              value: "hormonia-tasks"
+            - name: CLOUD_TASKS_SERVICE_URL
+              value: "https://clinica-tasks-217549452180.us-central1.run.app"
+            - name: CLOUD_TASKS_HANDLER_PATH
+              value: "/api/v2/internal/tasks/execute"
+            - name: CLOUD_TASKS_OIDC_SERVICE_ACCOUNT
+              value: "clinica-neoplasias@woven-framework-484323-n7.iam.gserviceaccount.com"
+            - name: CLOUD_TASKS_AUDIENCE
+              value: "https://clinica-tasks-217549452180.us-central1.run.app"
+            - name: AUTH_ACCESS_TOKEN_EXPIRE_MINUTES
+              value: "30"
+            - name: AUTH_REFRESH_TOKEN_EXPIRE_DAYS
+              value: "7"
+            - name: SESSION_COOKIE_NAME
+              value: "session_id"
+            - name: SESSION_COOKIE_SAMESITE
+              value: "lax"
+            - name: SESSION_COOKIE_MAX_AGE_SECONDS
+              value: "28800"
+            - name: SESSION_ENABLE_COOKIE_HTTPONLY
+              value: "true"
+            - name: SESSION_ENABLE_COOKIE_SECURE
+              value: "true"
+            - name: FIREBASE_ADMIN_PROJECT_ID
+              value: "clinica-oncologica-hosting"
+            - name: FIREBASE_ADMIN_CLIENT_EMAIL
+              value: "firebase-adminsdk-fbsvc@clinica-oncologica-hosting.iam.gserviceaccount.com"
+            - name: FIREBASE_ADMIN_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: FIREBASE_ADMIN_PRIVATE_KEY
+                  key: latest
+            - name: FIREBASE_ALLOWED_DOMAINS
+              value: "[\"neoplasiaslitoral.com\"]"
+            - name: APP_ADMIN_DASHBOARD_URL
+              value: "https://clinica-oncologica-hosting.web.app"
+            - name: CORS_FRONTEND_URL
+              value: "https://clinica-oncologica-hosting.web.app"
+            - name: CORS_QUIZ_URL
+              value: "https://clinica-quiz-217549452180.us-central1.run.app"
+            - name: QUIZ_ENABLE_VIA_LINK
+              value: "true"
+            - name: QUIZ_BASE_URL
+              value: "https://clinica-quiz-217549452180.us-central1.run.app/quiz/monthly"
+            - name: QUIZ_SHORT_BASE_URL
+              value: "https://clinica-api-217549452180.us-central1.run.app/q"
+            - name: QUIZ_TOKEN_SECRET
+              value: "REPLACE_WITH_QUIZ_TOKEN_SECRET"
+            - name: QUIZ_TOKEN_EXPIRY_HOURS
+              value: "72"
+            - name: AI_GEMINI_API_KEY
+              value: "REPLACE_WITH_AI_GEMINI_API_KEY"
+            - name: AI_GEMINI_MODEL
+              value: "gemini-3-flash-preview"
+            - name: WHATSAPP_ENABLE_SERVICE
+              value: "true"
+            - name: WHATSAPP_EVOLUTION_API_URL
+              value: "https://evolution-api-oq3ze3ir7a-ue.a.run.app"
+            - name: WHATSAPP_EVOLUTION_INSTANCE_NAME
+              value: "clinica_oncologica_prod"
+            - name: WHATSAPP_EVOLUTION_WEBHOOK_URL
+              value: "https://clinica-api-217549452180.us-central1.run.app/webhooks/whatsapp/evolution/clinica_oncologica_prod"
+            - name: WHATSAPP_WEBHOOK_HMAC_ENABLED
+              value: "false"
+            - name: WHATSAPP_EVOLUTION_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: WHATSAPP_EVOLUTION_WEBHOOK_SECRET
+                  key: latest
+            - name: WHATSAPP_EVOLUTION_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: EVOLUTION_API_KEY
+                  key: latest

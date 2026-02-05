@@ -1,20 +1,16 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Activity, TriangleAlert as AlertTriangle, TrendingUp, Users, Brain, MessageSquare, Search, Download, RefreshCw, FileText, Lightbulb, Clock, X } from 'lucide-react'
+import { TriangleAlert as AlertTriangle, Users, Brain, MessageSquare, Search, Download, RefreshCw, X } from 'lucide-react'
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { PhysicianDashboardSkeleton } from '@/features/dashboard/PhysicianDashboardSkeleton'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
-import { Progress } from '@/components/ui/progress'
 import { AIAnalyticsDashboard } from '@/features/ai/AIAnalyticsDashboard'
 import { apiClient } from '@/lib/api-client'
 import { useAuth } from '@/app/providers/AuthContext'
@@ -23,13 +19,12 @@ import { usePhysicianRiskAssessments } from '@/hooks/api/usePhysicianRiskAssessm
 import { FEATURES } from '@/config'
 import { ChatRole } from '@/types/api'
 import { createLogger } from '@/lib/logger'
-import { RiskBadge } from '@/features/patients/components/RiskBadge'
 import { PhysicianMetricsCards } from '@/features/dashboard/components/physician/PhysicianMetricsCards'
 import { PhysicianRiskTable } from '@/features/dashboard/components/physician/PhysicianRiskTable'
 import { PhysicianInsightsPanel } from '@/features/dashboard/components/physician/PhysicianInsightsPanel'
 import { PhysicianChatDialog } from '@/features/dashboard/components/physician/PhysicianChatDialog'
 import { PhysicianExportDialog } from '@/features/dashboard/components/physician/PhysicianExportDialog'
-import type { AIChatMessage as ChatMessage, AIInsight } from '@/types/api'
+import type { AIChatMessage as ChatMessage, AIInsight, AIRecommendation } from '@/types/api'
 
 const logger = createLogger('PhysicianDashboard')
 
@@ -44,6 +39,11 @@ interface DashboardMetrics {
   high_risk_patients: number
   avg_sentiment: number
   pending_reviews: number
+}
+
+interface SummaryInsights {
+  insights: AIInsight[]
+  recommendations?: AIRecommendation[]
 }
 
 export default function PhysicianDashboard() {
@@ -137,7 +137,7 @@ export default function PhysicianDashboard() {
   })
 
   // Fetch AI summary insights for all patients
-  const { data: summaryInsights, isLoading: insightsLoading } = useQuery({
+  const { data: summaryInsights, isLoading: insightsLoading } = useQuery<SummaryInsights>({
     queryKey: ['physician-insights-summary'],
     queryFn: async () => {
       try {
@@ -278,11 +278,7 @@ export default function PhysicianDashboard() {
   }
 
   if (metricsLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <LoadingSpinner size="lg" />
-      </div>
-    )
+    return <PhysicianDashboardSkeleton />
   }
 
   // Patients are now filtered server-side
@@ -372,6 +368,7 @@ export default function PhysicianDashboard() {
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
+                      name="patientSearch"
                       placeholder="Buscar paciente..."
                       value={filters.search}
                       onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })}
@@ -382,6 +379,7 @@ export default function PhysicianDashboard() {
 
                 {/* Risk Level Filter */}
                 <Select
+                  name="riskLevelFilter"
                   value={filters.risk_level}
                   onValueChange={(value: 'all' | 'low' | 'medium' | 'high' | 'critical') => setFilters({ ...filters, risk_level: value, page: 1 })}
                 >
@@ -459,7 +457,7 @@ export default function PhysicianDashboard() {
           <PhysicianInsightsPanel
             isLoading={insightsLoading}
             insights={summaryInsights?.insights}
-            recommendations={(summaryInsights as any)?.recommendations}
+            recommendations={summaryInsights?.recommendations}
           />
         </TabsContent>
 

@@ -16,8 +16,6 @@ from app.repositories.flow_kind import FlowKindRepository
 from app.repositories.flow_template_version import FlowTemplateVersionRepository
 from app.utils.version_utils import (
     normalize_version,
-    parse_version,
-    is_valid_version,
     to_int_version,
     VersionError,
 )
@@ -639,40 +637,68 @@ class EnhancedTemplateLoader:
     ) -> FlowTemplateData:
         """Parse database model to FlowTemplateData object."""
         # The database column 'steps' contains the template data
-        db_steps = version_model.steps or {}
+        db_steps = version_model.steps or []
         
-        # Normalize steps: handle both list (from UI) and dict (from RDS)
-        normalized_steps = {}
-        if isinstance(db_steps, list):
-            for idx, content in enumerate(db_steps):
-                day_num = content.get("day") or content.get("step_number") or (idx + 1)
-                normalized_steps[str(day_num)] = content
-        else:
-            normalized_steps = db_steps
-
         # Standardize to MessageTemplate dictionary
         message_templates = {}
-        for day_str, content in normalized_steps.items():
-            try:
-                day_num = int(day_str)
-                if isinstance(content, dict):
-                    # Ensure required fields are present
-                    content.setdefault("day", day_num)
-                    content.setdefault("intent", "general_message")
-                    # Map content key to base_content if needed
-                    if "content" in content and "base_content" not in content:
-                        content["base_content"] = content.pop("content")
+        
+        # Handle list of steps from database
+        if isinstance(db_steps, list):
+            for step in db_steps:
+                if not isinstance(step, dict):
+                    continue
                     
-                    message_templates[day_num] = MessageTemplate(**content)
-                else:
-                    # Handle simplified text-only templates
-                    message_templates[day_num] = MessageTemplate(
-                        day=day_num,
-                        intent="general_message",
-                        base_content=str(content)
+                day_num = step.get("day")
+                if day_num is None:
+                    continue
+                    
+                try:
+                    day_num = int(day_num)
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid day number in step: {step.get('day')}")
+                    continue
+                
+                # Extract content from the database structure
+                # Database uses: {"day": N, "messages": [{"order": 1, "content": "..."}], "send_mode": "..."}
+                messages_list = step.get("messages", [])
+                send_mode = step.get("send_mode", "single")
+                
+                # Get the first (or only) message content for base_content
+                base_content = ""
+                if messages_list and isinstance(messages_list, list):
+                    # Sort by order to get the first message
+                    sorted_messages = sorted(
+                        messages_list, 
+                        key=lambda m: m.get("order", 1) if isinstance(m, dict) else 1
                     )
-            except (ValueError, TypeError, Exception) as e:
-                logger.warning(f"Skipping invalid day '{day_str}' in template: {e}")
+                    first_msg = sorted_messages[0] if sorted_messages else {}
+                    base_content = first_msg.get("content", "") if isinstance(first_msg, dict) else str(first_msg)
+                elif step.get("content"):
+                    # Fallback: some templates may use direct content field
+                    base_content = step.get("content", "")
+                elif step.get("base_content"):
+                    base_content = step.get("base_content", "")
+                elif step.get("message"):
+                    base_content = step.get("message", "")
+                
+                # Build variations from additional messages if send_mode is sequential
+                variations = []
+                if send_mode in ("sequential_auto", "sequential_wait") and len(messages_list) > 1:
+                    for msg in sorted(messages_list, key=lambda m: m.get("order", 1) if isinstance(m, dict) else 1)[1:]:
+                        if isinstance(msg, dict) and msg.get("content"):
+                            variations.append(msg.get("content"))
+                
+                # Create MessageTemplate with properly mapped fields
+                message_templates[day_num] = MessageTemplate(
+                    day=day_num,
+                    intent=step.get("intent", f"day_{day_num}_message"),
+                    base_content=base_content,
+                    message_type=MessageType.TEXT,
+                    core_elements=step.get("core_elements", {}),
+                    personalization_hints=step.get("personalization_hints", ["patient_name"]),
+                    ai_instructions=step.get("ai_instructions"),
+                    variations=variations,
+                )
 
         # Normalize version to semantic versioning format
         normalized_version = normalize_version(version_model.version_number)
@@ -685,6 +711,7 @@ class EnhancedTemplateLoader:
             messages=message_templates,
             metadata=version_model.metadata_json or {}
         )
+
 
     def _cache_template(self, cache_key: str, template_data: FlowTemplateData) -> None:
         """Cache template with size and TTL management."""

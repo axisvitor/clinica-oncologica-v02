@@ -89,7 +89,7 @@ export function SettingsSidebar() {
               <button
                 key={tab.id}
                 onClick={() => handleTabClick(tab)}
-                className={`w-full flex items-start gap-3 px-3 py-3 text-sm font-medium text-left transition-all rounded-lg ${
+                className={`w-full flex items-start gap-3 px-3 py-3 text-sm font-medium text-left transition-[background-color,color,box-shadow] rounded-lg ${
                   isActive
                     ? 'bg-blue-50 text-blue-700 shadow-sm'
                     : 'text-gray-700 hover:bg-gray-50'
@@ -115,5 +115,6 @@ export function SettingsSidebar() {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export { settingsTabs }
 export type { SettingsTab }

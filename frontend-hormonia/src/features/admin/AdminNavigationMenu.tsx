@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -33,9 +34,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { AdminNavItem, AdminUser } from '@/types/admin'
+import { AdminNavItem } from '@/types/admin'
 import { useAuth } from '@/app/providers/AuthContext'
 import { createLogger } from '@/lib/logger'
+import { apiClient } from '@/lib/api-client'
 
 const logger = createLogger('AdminNavigationMenu')
 
@@ -135,6 +137,12 @@ const adminNavItems: AdminNavItem[] = [
         label: 'Backup & Recovery',
         path: '/admin/system/backup',
         requiredPermissions: ['system.backup.read']
+      },
+      {
+        id: 'system-compensation',
+        label: 'Compensation Failures',
+        path: '/admin/system/compensation',
+        requiredPermissions: ['system.compensation.read']
       }
     ]
   },
@@ -237,7 +245,17 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
   const [searchQuery, setSearchQuery] = useState('')
   const [filteredNavItems, setFilteredNavItems] = useState<AdminNavItem[]>(adminNavItems)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [criticalAlerts, setCriticalAlerts] = useState(2) // Mock data
+  const [criticalAlerts, _setCriticalAlerts] = useState(2) // Mock data
+  const canViewCompensation = hasPermission('system.compensation.read')
+
+  const { data: compensationFailures } = useQuery({
+    queryKey: ['admin-compensation-failures-count'],
+    queryFn: () => apiClient.adminV2.listCompensationFailures(1, 1),
+    refetchInterval: 60000,
+    enabled: !!user && canViewCompensation
+  })
+
+  const compensationFailureCount = compensationFailures?.total ?? 0
 
   // Auto-expand current section
   useEffect(() => {
@@ -254,6 +272,7 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
     })
 
     setExpandedItems(newExpanded)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- expandedItems is intentionally excluded to prevent infinite loop
   }, [location.pathname])
 
   // Filter navigation items based on search
@@ -319,6 +338,8 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
     const IconComponent = item.icon ? iconMap[item.icon as keyof typeof iconMap] : null
     const paddingLeft = depth === 0 ? 'pl-6' : `pl-${6 + depth * 4}`
 
+    const shouldShowCompensationBadge = item.id === 'system-compensation' && compensationFailureCount > 0
+
     return (
       <div key={item['id']}>
         {hasChildren ? (
@@ -345,15 +366,26 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
           <Link
             to={item.path}
             onClick={() => setIsMobileMenuOpen(false)}
-            className={`flex items-center ${paddingLeft} pr-6 py-3 hover:bg-gray-100 transition-colors ${isActive ? 'bg-blue-50 border-r-2 border-blue-500' : ''
+            className={`flex items-center justify-between ${paddingLeft} pr-6 py-3 hover:bg-gray-100 transition-colors ${isActive ? 'bg-blue-50 border-r-2 border-blue-500' : ''
               }`}
           >
-            {IconComponent && (
-              <IconComponent className={`h-5 w-5 mr-3 ${isActive ? 'text-blue-600' : 'text-gray-500'}`} />
+            <div className="flex items-center">
+              {IconComponent && (
+                <IconComponent className={`h-5 w-5 mr-3 ${isActive ? 'text-blue-600' : 'text-gray-500'}`} />
+              )}
+              <span className={`font-medium ${isActive ? 'text-blue-600' : 'text-gray-700'}`}>
+                {item.label}
+              </span>
+            </div>
+            {shouldShowCompensationBadge && (
+              <Badge
+                variant="destructive"
+                className="ml-2"
+                data-testid="compensation-failures-badge"
+              >
+                {compensationFailureCount}
+              </Badge>
             )}
-            <span className={`font-medium ${isActive ? 'text-blue-600' : 'text-gray-700'}`}>
-              {item.label}
-            </span>
           </Link>
         )}
 

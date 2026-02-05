@@ -5,12 +5,14 @@ Delegates logic to EnhancedAnalyticsService.
 """
 
 from typing import Optional, Tuple
+import json
 from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
 from app.database import get_db
+from app.core.redis_unified import get_async_redis
 from app.models.user import UserRole
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.schemas.v2.enhanced_analytics import (
@@ -29,10 +31,23 @@ from app.schemas.v2.enhanced_analytics import (
 )
 from app.utils.logging import get_logger
 from app.services.analytics import EnhancedAnalyticsService
-from app.api.v2.utils.auth_helpers import extract_user_context, ensure_uuid
+from app.utils.auth_helpers import extract_user_context, ensure_uuid
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+
+async def _get_cached_result(cache_key: str):
+    try:
+        redis_client = await get_async_redis()
+        if redis_client is None:
+            return None
+        cached = await redis_client.get(cache_key)
+        if cached:
+            return json.loads(cached)
+    except Exception as exc:
+        logger.warning("Enhanced analytics cache read failed: %s", exc)
+    return None
 
 
 def get_enhanced_analytics_service(db=Depends(get_db)) -> EnhancedAnalyticsService:
@@ -58,6 +73,10 @@ async def get_enhanced_dashboard(
     current_user=Depends(get_current_user_from_session),
 ):
     role, user_uuid = _extract_user_context(current_user)
+    cache_key = f"enhanced_analytics:dashboard:{time_range}:{include_predictions}:{user_uuid}"
+    cached = await _get_cached_result(cache_key)
+    if cached:
+        return cached
     return await service.get_enhanced_dashboard(
         time_range, include_predictions, fields, role, user_uuid
     )

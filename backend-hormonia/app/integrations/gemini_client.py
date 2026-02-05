@@ -25,6 +25,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from app.config import settings
 from app.core.redis_unified import get_async_redis
 from app.services.circuit_breaker import get_ai_circuit_breaker
+from app.utils.rate_limiter import check_ai_rate_limit, AIRateLimitExceeded
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,7 @@ class GeminiClient:
         # FIX: Use lazy async Redis initialization to prevent event loop blocking
         self._redis_client = None
         self._redis_initialized = False
+        self._model_loop_id: Optional[int] = None
         # Circuit breaker for AI service protection
         self._circuit_breaker = get_ai_circuit_breaker()
 
@@ -70,6 +72,22 @@ class GeminiClient:
             return
 
         # Initialize LangChain ChatGoogleGenerativeAI model
+        self._initialize_model()
+
+    @staticmethod
+    def _current_loop_id() -> Optional[int]:
+        try:
+            return id(asyncio.get_running_loop())
+        except RuntimeError:
+            return None
+
+    def _initialize_model(self, *, reason: str = "initial") -> None:
+        """Initialize or reinitialize the Gemini model for the current event loop."""
+        if not self.api_key:
+            self.model = None
+            self._model_loop_id = None
+            return
+
         try:
             self.model = ChatGoogleGenerativeAI(
                 model=self.model_name,
@@ -79,20 +97,38 @@ class GeminiClient:
                 top_p=settings.AI_GEMINI_TOP_P,
                 top_k=settings.AI_GEMINI_TOP_K,
             )
+            self._model_loop_id = self._current_loop_id()
             logger.info(
                 "Gemini client initialized with model: %s",
                 self.model_name,
-                extra={"model": self.model_name}
+                extra={"model": self.model_name, "reason": reason},
             )
         except Exception as e:
             logger.error(
                 "Failed to initialize ChatGoogleGenerativeAI: %s",
                 str(e),
                 exc_info=True,
-                extra={"model": self.model_name}
+                extra={"model": self.model_name, "reason": reason},
             )
             self.model = None
             raise GeminiAPIError(f"Failed to initialize Gemini client: {str(e)}")
+
+    def _ensure_model_for_loop(self) -> None:
+        """Ensure model is bound to the current event loop."""
+        current_loop_id = self._current_loop_id()
+        if self.model is None:
+            self._initialize_model(reason="missing_model")
+            return
+
+        if current_loop_id is not None and current_loop_id != self._model_loop_id:
+            logger.info(
+                "Reinitializing Gemini model for new event loop",
+                extra={
+                    "previous_loop_id": self._model_loop_id,
+                    "current_loop_id": current_loop_id,
+                },
+            )
+            self._initialize_model(reason="loop_changed")
 
     def _generate_cache_key(self, prompt: str) -> str:
         """Generate a deterministic cache key for the prompt."""
@@ -177,10 +213,26 @@ class GeminiClient:
         Raises:
             GeminiAPIError: If generation fails after retries
         """
+        self._ensure_model_for_loop()
+
         if not self.api_key or not self.model:
             raise GeminiAPIError(
                 "Gemini client not properly initialized - missing API key"
             )
+
+        # Rate limiting check (default: 60 RPM)
+        rate_limit_rpm = getattr(settings, "AI_GEMINI_RATE_LIMIT_RPM", 60)
+        allowed, retry_after = await check_ai_rate_limit(
+            service_name="gemini",
+            max_requests=rate_limit_rpm,
+            window_seconds=60,
+        )
+        if not allowed:
+            logger.warning(
+                "Gemini rate limit exceeded",
+                extra={"retry_after": retry_after, "rate_limit_rpm": rate_limit_rpm},
+            )
+            raise AIRateLimitExceeded(retry_after=retry_after, service="gemini")
 
         max_retries = kwargs.get("max_retries", settings.AI_GEMINI_MAX_RETRIES)
         retry_delay = kwargs.get("retry_delay", 1)
@@ -249,22 +301,23 @@ class GeminiClient:
             return cached_response
 
         # Fallback response for when circuit is open
-        fallback_response = kwargs.get(
+        fallback_response = kwargs.pop(
             "fallback_response",
             "Desculpe, estou temporariamente indisponível. Por favor, tente novamente em alguns instantes."
         )
 
         # Call through circuit breaker
         try:
-            response_text = await self._circuit_breaker.call_gemini(
+            response_text, used_fallback = await self._circuit_breaker.call_gemini(
                 self._generate_content_internal,
                 prompt,
                 fallback_response=fallback_response,
                 **kwargs
             )
 
-            # Cache successful response
-            await self._cache_response(cache_key, response_text)
+            # Cache only successful (non-fallback) responses
+            if not used_fallback:
+                await self._cache_response(cache_key, response_text)
 
             return response_text
 
@@ -273,7 +326,7 @@ class GeminiClient:
                 "Gemini content generation failed: %s",
                 str(e),
                 exc_info=True,
-                extra={"prompt_length": len(prompt), "circuit_breaker": "active"}
+                extra={"prompt_length": len(prompt), "circuit_breaker": "active"},
             )
             # If circuit breaker fallback fails, return fallback response
             return fallback_response
@@ -584,22 +637,38 @@ RESPOSTA EMPÁTICA:
 """
 
     def _parse_sentiment_analysis(self, analysis_text: str) -> Dict[str, Any]:
-        """Parse sentiment analysis response into structured data."""
-        try:
-            # Try to extract JSON from the response
-            import re
+        """Parse sentiment analysis response into structured data with Pydantic validation."""
+        import re
+        from json import JSONDecodeError
+        from app.schemas.ai_schemas import AIResponseValidation
 
-            json_match = re.search(r"\{.*\}", analysis_text, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group())
-        except Exception as e:
-            logger.warning(
-                "Failed to parse sentiment analysis JSON: %s",
-                str(e),
-                extra={"operation": "parse_sentiment"}
-            )
+        parsed_data: Dict[str, Any] = {}
 
-        # Fallback to basic analysis
+        # Try to extract JSON from the response
+        json_match = re.search(r"\{.*\}", analysis_text, re.DOTALL)
+        if json_match:
+            try:
+                parsed_data = json.loads(json_match.group())
+            except JSONDecodeError as e:
+                logger.warning(
+                    "JSON decode error in sentiment analysis: %s at position %d",
+                    str(e),
+                    e.pos,
+                    extra={"operation": "parse_sentiment", "raw_length": len(analysis_text)},
+                )
+            except ValueError as e:
+                logger.warning(
+                    "Value error parsing sentiment JSON: %s",
+                    str(e),
+                    extra={"operation": "parse_sentiment"},
+                )
+
+        # Validate with Pydantic (handles missing fields and type coercion)
+        if parsed_data:
+            validated = AIResponseValidation.validate_sentiment(parsed_data)
+            return validated.model_dump()
+
+        # Fallback to basic keyword analysis
         sentiment = "neutral"
         if any(
             word in analysis_text.lower()
@@ -614,7 +683,7 @@ RESPOSTA EMPÁTICA:
 
         return {
             "sentiment": sentiment,
-            "confidence": 0.7,
+            "confidence": 0.6,
             "emotional_indicators": [],
             "medical_concerns": "preocup" in analysis_text.lower()
             or "dor" in analysis_text.lower(),
@@ -638,13 +707,19 @@ RESPOSTA EMPÁTICA:
         try:
             test_prompt = "Responda apenas 'OK' se você está funcionando corretamente."
             response = await self.generate_content(test_prompt, max_retries=1)
-            return "OK" in response.upper()
+            if "OK" not in response.upper():
+                logger.warning(
+                    "Gemini health check returned unexpected response",
+                    extra={"operation": "health_check"},
+                )
+                return False
+            return True
         except Exception as e:
             logger.error(
                 "Gemini health check failed: %s",
                 str(e),
                 exc_info=True,
-                extra={"operation": "health_check"}
+                extra={"operation": "health_check"},
             )
             return False
 

@@ -62,7 +62,7 @@ export function FlowStatus({ patientId }: FlowStatusProps) {
               <Button 
                 className="w-full" 
                 size="sm"
-                onClick={() => operations.start(FlowType.INITIAL_15_DAYS)}
+                onClick={() => operations.start(FlowType.ONBOARDING)}
                 disabled={isOperationLoading}
               >
                 {isOperationLoading ? (
@@ -74,7 +74,7 @@ export function FlowStatus({ patientId }: FlowStatusProps) {
                 variant="outline" 
                 className="w-full" 
                 size="sm"
-                onClick={() => operations.start(FlowType.MONTHLY_RECURRING)}
+                onClick={() => operations.start(FlowType.QUIZ_MENSAL)}
                 disabled={isOperationLoading}
               >
                 Iniciar Fluxo Mensal
@@ -116,6 +116,9 @@ export function FlowStatus({ patientId }: FlowStatusProps) {
 
   const getFlowTypeLabel = (flowType: FlowType) => {
     switch (flowType) {
+      case FlowType.ONBOARDING: return 'Onboarding'
+      case FlowType.DAILY_FOLLOW_UP: return 'Acompanhamento Diario'
+      case FlowType.QUIZ_MENSAL: return 'Quiz Mensal'
       case FlowType.INITIAL_15_DAYS: return 'Primeiros 15 Dias'
       case FlowType.DAYS_16_45: return 'Dias 16-45'
       case FlowType.MONTHLY_RECURRING: return 'Mensal Recorrente'
@@ -126,6 +129,9 @@ export function FlowStatus({ patientId }: FlowStatusProps) {
   // Calculate progress based on flow type
   const getTotalDays = (flowType: FlowType) => {
     switch (flowType) {
+      case FlowType.ONBOARDING: return 15
+      case FlowType.DAILY_FOLLOW_UP: return 30
+      case FlowType.QUIZ_MENSAL: return 30
       case FlowType.INITIAL_15_DAYS: return 15
       case FlowType.DAYS_16_45: return 30
       case FlowType.MONTHLY_RECURRING: return 30

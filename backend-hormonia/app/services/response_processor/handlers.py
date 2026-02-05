@@ -53,14 +53,19 @@ class ResponseHandlers:
             )
 
             # Generate helpful error message
-            if "Empty message content" in validation_result.validation_errors:
+            errors_text = " ".join(validation_result.validation_errors).lower()
+            if "mensagem vazia" in errors_text or "empty message" in errors_text:
                 error_message = ERROR_MESSAGES.get("empty_content", "Mensagem vazia")
-            elif "Invalid button response" in str(validation_result.validation_errors):
+            elif (
+                "botao" in errors_text
+                or "button" in errors_text
+                or "opcoes esperadas" in errors_text
+            ):
                 error_message = ERROR_MESSAGES.get(
-                    "invalid_button", "Resposta inválida"
+                    "invalid_button", "Resposta invalida"
                 )
             else:
-                error_message = ERROR_MESSAGES.get("generic_error", "Erro genérico")
+                error_message = ERROR_MESSAGES.get("generic_error", "Erro generico")
 
             return ResponseProcessingResult(
                 patient_id=patient_id,
@@ -108,7 +113,7 @@ class ResponseHandlers:
             )
 
             error_message = ERROR_MESSAGES.get(
-                "invalid_interactive", "Resposta interativa inválida"
+                "invalid_interactive", "Resposta interativa invalida"
             )
 
             return ResponseProcessingResult(

@@ -17,8 +17,6 @@ Coordinated via: Hive Mind Swarm
 
 import pytest
 import time
-import hmac
-import hashlib
 from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient

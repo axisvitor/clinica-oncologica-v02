@@ -39,6 +39,7 @@ from datetime import datetime, timezone
 from app.models.user import User, UserRole
 from app.services import ServiceProvider
 from app.services.audit_log import AuditLogService
+from app.config import settings
 from app.dependencies.auth_dependencies import (
     _firebase_service,
     _get_service_provider,
@@ -46,11 +47,14 @@ from app.dependencies.auth_dependencies import (
 )
 from app.database import get_db
 from app.middleware.csrf import validate_csrf_token
+from app.middleware.csrf import validate_csrf_token
 from app.utils.rate_limiter import limiter
+from app.core.redis_manager import FirebaseRedisCache, get_redis_manager
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/session", tags=["Session Authentication"])
 security = HTTPBearer()
+SESSION_COOKIE_NAME = settings.SESSION_COOKIE_NAME
 
 
 # =============================================================================
@@ -307,8 +311,6 @@ async def create_session(
             )
 
         # Create Redis session (Layer 3)
-        from app.core.redis_manager import FirebaseRedisCache, get_redis_manager
-
         redis_manager = get_redis_manager()
         redis_client = redis_manager.get_compatible_client("sync")
         firebase_cache = FirebaseRedisCache(redis_client)
@@ -347,7 +349,6 @@ async def create_session(
 
         # Calculate expiration
         from datetime import timedelta
-        from app.config import settings
 
         ttl = getattr(settings, "FIREBASE_SESSION_TTL", 86400)
         expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl)
@@ -366,7 +367,7 @@ async def create_session(
         # SECURITY FIX: Set httpOnly cookie instead of returning session_id in JSON
         # This prevents XSS attacks from stealing session credentials
         response.set_cookie(
-            key="session_id",
+            key=SESSION_COOKIE_NAME,
             value=session_id,
             httponly=True,  # JavaScript cannot access (XSS protection)
             secure=settings.SESSION_ENABLE_COOKIE_SECURE,  # HTTPS only in production
@@ -395,7 +396,7 @@ async def create_session(
 @limiter.limit("200/minute")  # Rate limit: 200 session validations per minute per IP
 async def validate_session(
     request: Request,
-    session_id: Optional[str] = Cookie(None),
+    session_id: Optional[str] = Cookie(None, alias=SESSION_COOKIE_NAME),
     x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),
     services: ServiceProvider = Depends(_get_service_provider),
     db: Session = Depends(get_db),
@@ -425,8 +426,6 @@ async def validate_session(
         return SessionValidationResponse(valid=False)
 
     try:
-        from app.core.redis_manager import FirebaseRedisCache, get_redis_manager
-
         redis_manager = get_redis_manager()
         redis_client = redis_manager.get_compatible_client("sync")
         firebase_cache = FirebaseRedisCache(redis_client)
@@ -499,7 +498,7 @@ async def validate_session(
 async def logout_session(
     request: Request,
     response: Response,
-    session_id: Optional[str] = Cookie(None),
+    session_id: Optional[str] = Cookie(None, alias=SESSION_COOKIE_NAME),
     x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),
     db: Session = Depends(get_db),
 ):
@@ -527,8 +526,6 @@ async def logout_session(
         )
 
     try:
-        from app.core.redis_manager import FirebaseRedisCache, get_redis_manager
-
         redis_manager = get_redis_manager()
         redis_client = redis_manager.get_compatible_client("sync")
         firebase_cache = FirebaseRedisCache(redis_client)
@@ -559,7 +556,11 @@ async def logout_session(
 
         # SECURITY: Clear httpOnly cookie regardless of Redis result
         response.delete_cookie(
-            key="session_id", path="/", httponly=True, secure=True, samesite="strict"
+            key=SESSION_COOKIE_NAME,
+            path="/",
+            httponly=True,
+            secure=True,
+            samesite="strict",
         )
 
         if deleted:
@@ -622,7 +623,7 @@ async def logout_all_sessions(
         user_data = await _firebase_service.verify_token(credentials.credentials)
         firebase_uid = user_data["uid"]
 
-        from app.core.redis_manager import FirebaseRedisCache, get_redis_manager
+        firebase_uid = user_data["uid"]
 
         redis_manager = get_redis_manager()
         redis_client = redis_manager.get_compatible_client("sync")
@@ -682,7 +683,7 @@ async def list_active_sessions(
         user_data = await _firebase_service.verify_token(credentials.credentials)
         firebase_uid = user_data["uid"]
 
-        from app.core.redis_manager import FirebaseRedisCache, get_redis_manager
+        firebase_uid = user_data["uid"]
 
         redis_manager = get_redis_manager()
         redis_client = redis_manager.get_compatible_client("sync")
@@ -713,8 +714,6 @@ async def get_cache_stats(
         Cache metrics (TTLs, active sessions, Redis health)
     """
     try:
-        from app.core.redis_manager import FirebaseRedisCache, get_redis_manager
-
         redis_manager = get_redis_manager()
         redis_client = redis_manager.get_compatible_client("sync")
         firebase_cache = FirebaseRedisCache(redis_client)

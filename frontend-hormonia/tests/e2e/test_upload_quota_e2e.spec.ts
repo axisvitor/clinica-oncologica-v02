@@ -91,7 +91,7 @@ test.describe('E2E-009: Upload Quota Check', () => {
 
       // Should show quota error
       await expect(page.locator('text=Quota excedida')).toBeVisible({ timeout: 5000 });
-    } catch (error) {
+    } catch (_error) {
       test.skip(); // Skip if file doesn't exist
     }
   });
@@ -110,7 +110,7 @@ test.describe('E2E-009: Upload Quota Check', () => {
 
       // Should show file type error
       await expect(page.locator('text=tipo de arquivo')).toBeVisible();
-    } catch (error) {
+    } catch (_error) {
       test.skip();
     }
   });

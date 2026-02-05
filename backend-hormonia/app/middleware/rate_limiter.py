@@ -12,7 +12,7 @@ memory leaks and ensure proper distributed rate limiting across multiple servers
 
 import time
 import logging
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple
 from collections import defaultdict
 
 from fastapi import Request, HTTPException, status

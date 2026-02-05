@@ -509,9 +509,7 @@ def flow_state_lock(patient_id: UUID, timeout: int = 30) -> DistributedLock:
     )
 
 
-async def async_flow_state_lock(
-    patient_id: UUID, timeout: int = 30
-) -> AsyncDistributedLock:
+def async_flow_state_lock(patient_id: UUID, timeout: int = 30) -> AsyncDistributedLock:
     """
     Create an async distributed lock for flow state transitions.
 
@@ -556,7 +554,7 @@ def message_delivery_lock(patient_id: UUID, timeout: int = 10) -> DistributedLoc
     )
 
 
-async def async_message_delivery_lock(
+def async_message_delivery_lock(
     patient_id: UUID, timeout: int = 10
 ) -> AsyncDistributedLock:
     """

@@ -10,10 +10,10 @@ import logging
 from typing import Any
 from uuid import UUID
 from datetime import datetime, timezone
-from celery import current_app as celery_app
+from app.task_queue import task_queue as celery_app
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_db, get_scoped_session
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ def cleanup_expired_quiz_sessions_task(self, max_age_hours: int = 48) -> dict[st
         Exception: If cleanup fails after all retries
     """
     try:
-        with next(get_db()) as db:
+        with get_scoped_session() as db:
             from app.models.quiz import QuizSession
             from app.models.patient import Patient
 

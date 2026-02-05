@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.database import get_db
 from app.core.redis_manager import FirebaseRedisCache
 from app.dependencies.auth_dependencies import (
     get_current_user_from_session,

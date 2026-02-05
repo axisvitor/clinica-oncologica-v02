@@ -92,6 +92,12 @@ from app.tasks.follow_up import (
     cleanup_old_contexts,
 )
 
+# LGPD compliance tasks
+from app.tasks.lgpd_tasks import (
+    persist_lgpd_audit_log,
+    cleanup_expired_lgpd_audit_logs,
+)
+
 __all__ = [
     # Base classes
     "BaseTask",
@@ -163,4 +169,8 @@ __all__ = [
     "execute_pending_follow_ups",
     "process_escalation_alerts",
     "cleanup_old_contexts",
+    # LGPD compliance tasks
+    "persist_lgpd_audit_log",
+    "cleanup_expired_lgpd_audit_logs",
 ]
+

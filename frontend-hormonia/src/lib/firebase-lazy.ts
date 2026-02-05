@@ -20,7 +20,7 @@
  */
 
 // Type-only imports (zero runtime cost)
-import type { User as FirebaseUser, UserCredential } from 'firebase/auth'
+import type { Auth, User as FirebaseUser, UserCredential } from 'firebase/auth'
 import type { FirebaseApp, FirebaseOptions } from 'firebase/app'
 
 // Static imports for modules that are used everywhere anyway
@@ -30,7 +30,7 @@ import { createLogger } from './logger'
 
 // Singleton instance holders
 let firebaseAppInstance: FirebaseApp | null = null
-let firebaseAuthInstance: any = null
+let firebaseAuthInstance: Auth | null = null
 
 /**
  * Lazy load and initialize Firebase App
@@ -105,7 +105,7 @@ async function getFirebaseApp(): Promise<FirebaseApp> {
 /**
  * Get Firebase Auth instance (lazy)
  */
-async function getFirebaseAuth() {
+async function getFirebaseAuth(): Promise<Auth> {
   if (firebaseAuthInstance) {
     return firebaseAuthInstance
   }
@@ -164,7 +164,7 @@ export const firebaseAuthLazy = {
     try {
       const auth = await getFirebaseAuth()
       return auth.currentUser
-    } catch (_error) {
+    } catch {
       // Error already logged by getFirebaseAuth if initialization failed
       return null
     }
@@ -232,7 +232,7 @@ export const firebaseAuthLazy = {
         return { access_token: token }
       }
       return null
-    } catch (_error) {
+    } catch {
       // Error already logged by getFirebaseAuth if initialization failed
       return null
     }
@@ -250,7 +250,7 @@ export const firebaseAuthLazy = {
         return { access_token: token }
       }
       return null
-    } catch (_error) {
+    } catch {
       // Error already logged by getFirebaseAuth if initialization failed
       return null
     }

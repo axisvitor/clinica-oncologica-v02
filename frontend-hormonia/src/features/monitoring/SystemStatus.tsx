@@ -17,8 +17,8 @@ export function SystemStatus() {
   const { data: status, isLoading, error } = useQuery<HealthCheckResponse>({
     queryKey: ['system-status'],
     queryFn: async () => {
-      const response: any = await apiClient.get('/api/v2/health')
-      return response.data as HealthCheckResponse
+      const response = await apiClient.get<{ data?: HealthCheckResponse } | HealthCheckResponse>('/api/v2/health')
+      return (response as { data?: HealthCheckResponse }).data ?? (response as HealthCheckResponse)
     },
     refetchInterval: 30000,
     retry: 2,

@@ -3,10 +3,8 @@
 
 from __future__ import annotations
 
-import ast
 import re
 from pathlib import Path
-from typing import Any
 
 class Py313Checker:
     def __init__(self, root_dir: str):

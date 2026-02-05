@@ -13,7 +13,7 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 
 # Import all systems that need initialization
-from app.core.database_direct import initialize_direct_database, cleanup_direct_database
+from app.database_direct import initialize_direct_database, cleanup_direct_database
 from app.core.redis_unified import get_sync_redis, cleanup_redis
 from app.core.session_manager import initialize_session_manager
 
@@ -127,7 +127,7 @@ async def validate_authentication_system():
     try:
         # Test simplified service provider creation
         from app.services.simple_provider import SimplifiedServiceProvider
-        from app.core.database_direct import get_direct_session
+        from app.database_direct import get_direct_session
         from app.core.redis_unified import get_sync_redis
 
         with get_direct_session() as db:

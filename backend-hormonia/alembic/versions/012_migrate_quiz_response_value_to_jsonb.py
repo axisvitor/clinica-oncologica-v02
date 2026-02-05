@@ -21,6 +21,27 @@ Migration Strategy:
 
 Priority: P1 (High) - Issue HIGH-003
 Effort: 5 hours
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 from alembic import op
 import sqlalchemy as sa
@@ -102,7 +123,7 @@ def upgrade() -> None:
                         conversion_result := 'EMPTY_STRING';
 
                     -- Try to parse as JSON first (handles JSON strings and arrays)
-                    ELSIF rec.response_value ~ '^[\[\{]' THEN
+                    ELSIF rec.response_value ~ '^[\\[\\{]' THEN
                         BEGIN
                             parsed_json := rec.response_value::jsonb;
                             conversion_result := 'JSON_PARSED';
@@ -118,14 +139,14 @@ def upgrade() -> None:
                         -- Convert "A,B,C" to ["A", "B", "C"]
                         parsed_json := to_jsonb(
                             string_to_array(
-                                regexp_replace(rec.response_value, '\s*,\s*', ',', 'g'),
+                                regexp_replace(rec.response_value, '\\s*,\\s*', ',', 'g'),
                                 ','
                             )
                         );
                         conversion_result := 'MULTI_SELECT_CONVERTED';
 
                     -- Handle scale responses (1-10 format)
-                    ELSIF rec.response_type = 'scale' AND rec.response_value ~ '^\d+$' THEN
+                    ELSIF rec.response_type = 'scale' AND rec.response_value ~ '^\\d+$' THEN
                         parsed_json := jsonb_build_object(
                             'value', rec.response_value::integer,
                             'type', 'scale'
@@ -437,7 +458,7 @@ def upgrade() -> None:
             ELSIF jsonb_typeof(response_value) = 'object' AND response_value ? 'value' THEN
                 RETURN (response_value->>'value')::numeric;
             ELSIF jsonb_typeof(response_value) = 'string' AND
-                  response_value #>> '{}' ~ '^[0-9]+\.?[0-9]*$' THEN
+                  response_value #>> '{}' ~ '^[0-9]+\\.?[0-9]*$' THEN
                 RETURN (response_value #>> '{}')::numeric;
             ELSE
                 RETURN NULL;

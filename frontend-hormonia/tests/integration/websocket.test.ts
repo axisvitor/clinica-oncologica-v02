@@ -495,7 +495,7 @@ describe('WebSocket Manager Integration Tests', () => {
 
       try {
         await wsManager.connect(testToken)
-      } catch (error) {
+      } catch (_error) {
         // Expected to fail
       }
 
@@ -521,7 +521,7 @@ describe('WebSocket Manager Integration Tests', () => {
 
       try {
         await wsManager.connect(testToken)
-      } catch (error) {
+      } catch (_error) {
         // Expected to fail
       }
 

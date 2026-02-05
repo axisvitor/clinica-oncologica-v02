@@ -3,7 +3,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -18,7 +17,7 @@ import {
   EyeOff
 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { LoadingSpinner } from './LoadingSpinner'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { toast } from '@/hooks/use-toast'
 import { createLogger } from '@/lib/logger'
 import { loadConfig, getRuntimeConfigSync } from '@/config'
@@ -119,6 +118,7 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
   useEffect(() => {
     // Auto-start environment check
     handleCheckEnvironment()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- handleCheckEnvironment is intentionally only called on mount
   }, [])
 
   const updateCheckStatus = (
@@ -157,7 +157,7 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
             updateCheckStatus('api_base_url', 'warning', config.API_BASE_URL,
               `API retornou status ${response.status}`)
           }
-        } catch (error) {
+        } catch {
           updateCheckStatus('api_base_url', 'error', config.API_BASE_URL,
             'Falha ao conectar com a API')
         }

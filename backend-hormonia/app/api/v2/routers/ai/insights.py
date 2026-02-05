@@ -35,13 +35,13 @@ from app.schemas.v2.ai import (
     TokenUsage,
 )
 from app.utils.rate_limiter import limiter
+from app.api.v2 import ai as ai_module
 
 from .constants import CACHE_TTL_INSIGHTS
 from .dependencies import (
     calculate_token_cost,
     generate_cache_key,
     get_cached_response,
-    get_redis_cache,
     set_cached_response,
     track_token_usage,
     verify_physician_or_admin,
@@ -80,21 +80,40 @@ async def generate_patient_insights(
     """
     Generate comprehensive patient insights with AI.
     """
+    from app.models.patient import Patient
+    from app.models.user import UserRole
+    from app.api.v2.utils import ensure_uuid, extract_user_context
+    
     redis_client = None
 
     try:
-        # Validate patient access
-        patient = await validate_patient_access(
-            insights_request.patient_id, current_user, get_patient_service(db)
-        )
+        # Validate patient access - inline query instead of broken dependency call
+        patient = db.query(Patient).filter(Patient.id == insights_request.patient_id).first()
+        if not patient:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Patient not found"
+            )
+        
+
+        role_enum, user_id = extract_user_context(current_user)
+        user_uuid = ensure_uuid(user_id)
+        user_id_str = user_id or (str(user_uuid) if user_uuid else "unknown")
+
+        if role_enum == UserRole.DOCTOR:
+            if not user_uuid or patient.doctor_id != user_uuid:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access denied: Patient not assigned to current doctor"
+                )
 
         # Get Redis client
-        redis_client = await get_redis_cache()
+        redis_client = await ai_module.get_redis_cache()
 
         # Generate cache key with user_id to prevent cross-user cache sharing (HIPAA/Privacy)
         cache_key = generate_cache_key(
             "ai:insights:v2",
-            user_id=str(current_user.id),  # SECURITY FIX: Include user_id
+            user_id=user_id_str, 
             patient_id=str(insights_request.patient_id),
             analysis_type=insights_request.analysis_type,
             days=insights_request.days,
@@ -185,7 +204,7 @@ async def generate_patient_insights(
             redis_client,
             "insights",
             token_usage,
-            current_user.id,
+            user_uuid if user_uuid else user_id_str,
         )
 
         logger.info(
@@ -222,12 +241,12 @@ async def get_patient_insights(
     db=Depends(get_db),
 ) -> InsightsResponse:
     """Get cached or generate new insights for patient."""
-    request = GenerateInsightsRequest(
+    insights_request = GenerateInsightsRequest(
         patient_id=patient_id,
         days=days,
         force_refresh=force_refresh,
     )
-    return await generate_patient_insights(request_obj, request, background_tasks, current_user, db)
+    return await generate_patient_insights(request, insights_request, background_tasks, current_user, db)
 
 
 @router.post(

@@ -82,7 +82,7 @@ class OnboardingCoordinator:
         integrity_service: "PatientIntegrityService",
         validation_service: "ValidationService",
         saga_orchestrator: Optional["SagaOrchestrator"],
-        notification_service: "NotificationService",
+        notification_service: Optional["NotificationService"],
         completion_service: "CompletionService",
         creation_service: Optional["CreationService"] = None,
     ):
@@ -149,7 +149,8 @@ class OnboardingCoordinator:
             ValidationError: If validation fails or saga execution fails.
         """
         # Step 1: Validate data using SINGLE SOURCE OF TRUTH
-        await self.integrity_service.validate_patient_data(
+        # Note: validate_patient_data is synchronous, don't use await
+        self.integrity_service.validate_patient_data(
             patient_data=patient_data, doctor_id=doctor_id, is_update=False
         )
         self._logger.info(

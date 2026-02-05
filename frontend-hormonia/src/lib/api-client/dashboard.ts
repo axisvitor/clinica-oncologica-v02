@@ -42,6 +42,17 @@ export interface DashboardMainData {
   high_risk_patients: number
   avg_sentiment: number
   pending_reviews: number
+  alert_breakdown: {
+    critical: number
+    high: number
+    medium: number
+    low: number
+  }
+  flow_breakdown: {
+    active: number
+    paused: number
+    completed: number
+  }
 }
 
 export interface DashboardPatientData {
@@ -133,13 +144,124 @@ export function createDashboardApi(client: ApiClientCore) {
   return {
     /**
      * Get main dashboard data
+     * Transforms backend response to frontend-expected format
      */
     getMain: async (params?: {
       start_date?: string
       end_date?: string
       doctor_id?: string
+      time_range?: 'today' | 'week' | 'month' | 'quarter' | 'year'
     }): Promise<DashboardMainData> => {
-      return client.get<DashboardMainData>('/api/v2/dashboard/main', params)
+      // Build query params
+      const queryParams: Record<string, string | number | boolean> = {}
+      if (params?.time_range) queryParams['time_range'] = params.time_range
+      if (params?.start_date) queryParams['custom_start'] = params.start_date
+      if (params?.end_date) queryParams['custom_end'] = params.end_date
+
+      // Fetch from dedicated dashboard endpoint (single API call, cached on backend)
+      const response = await client.get<{
+        user_role: string
+        time_range: string
+        start_date: string
+        end_date: string
+        patient_metrics: {
+          total_patients: number
+          active_patients: number
+          inactive_patients: number
+          new_patients: number
+          high_risk_patients: number
+        }
+        message_metrics: {
+          total_messages: number
+          sent_count: number
+          delivered_count: number
+          failed_count: number
+          response_count: number
+          response_rate: number
+        }
+        alert_metrics: {
+          total_alerts: number
+          pending_alerts: number
+          acknowledged_alerts: number
+          critical_alerts: number
+          high_alerts: number
+          medium_alerts: number
+          low_alerts: number
+        }
+        flow_metrics: {
+          total_flows: number
+          active_flows: number
+          completed_flows: number
+          paused_flows: number
+          completion_rate: number
+          avg_completion_days: number
+        }
+        recent_activity: Array<{
+          id: string
+          type: string
+          description: string
+          entity_name?: string
+          timestamp: string
+          icon?: string
+          link?: string
+        }>
+        generated_at: string
+      }>('/api/v2/dashboard/main', queryParams)
+
+      // Transform to frontend-expected flat format
+      const pm = response.patient_metrics || {}
+      const mm = response.message_metrics || {}
+      const am = response.alert_metrics || {}
+      const fm = response.flow_metrics || {}
+
+      // Calculate percentage
+      const totalPatients = pm.total_patients || 0
+      const activePatients = pm.active_patients || 0
+      const activePercentage = totalPatients > 0 ? (activePatients / totalPatients) * 100 : 0
+
+      return {
+        total_patients: totalPatients,
+        active_patients: activePatients,
+        active_patients_percentage: Math.round(activePercentage * 10) / 10,
+        patients_change: pm.new_patients || 0,
+        response_rate: Math.round(mm.response_rate || 0),
+        response_rate_change: 0, // Not available in current response
+        messages_sent: mm.total_messages || 0,
+        messages_change: 0, // Not available in current response
+        alerts_pending: am.pending_alerts || 0,
+        alerts_change: am.critical_alerts || 0,
+        completed_quizzes: fm.completed_flows || 0,
+        quizzes_change: 0, // Not available in current response
+        avg_response_time: Math.round(fm.avg_completion_days || 0),
+        engagement_chart: [], // Will be populated from another endpoint if needed
+        recent_alerts: [], // Convert from recent_activity if type is alert
+        recent_activity: (response.recent_activity || []).map(activity => ({
+          id: activity.id,
+          type: activity.type as 'message' | 'quiz' | 'flow' | 'alert' | 'system',
+          description: activity.description,
+          entity_name: activity.entity_name,
+          timestamp: activity.timestamp,
+          icon: activity.icon,
+          link: activity.link,
+        })),
+        total_quizzes: fm.total_flows || 0,
+        active_conversations: mm.response_count || 0,
+        high_risk_patients: pm.high_risk_patients || 0,
+        avg_sentiment: 0, // Not available in current response
+        pending_reviews: am.pending_alerts || 0,
+        // Detailed breakdowns
+        alert_breakdown: {
+          critical: am.critical_alerts || 0,
+          high: am.high_alerts || 0,
+          medium: am.medium_alerts || 0,
+          low: am.low_alerts || 0
+        },
+        flow_breakdown: {
+          active: fm.active_flows || 0,
+          paused: fm.paused_flows || 0,
+          completed: fm.completed_flows || 0
+        }
+      }
     },
 
     /**

@@ -235,8 +235,8 @@ class TestPhoneDisplayFormatting:
 class TestSchemaIntegration:
     """Tests for schema integration scenarios."""
 
-    def test_v1_schema_e164_strict(self):
-        """Test v1 schema enforces strict E.164 format."""
+    def test_v1_schema_accepts_brazilian(self):
+        """Test v1 schema accepts Brazilian formats and normalizes to E.164."""
         from app.schemas.patient import PatientCreate
 
         # Valid E.164
@@ -248,17 +248,17 @@ class TestSchemaIntegration:
         )
         assert patient.phone == "+5511987654321"
 
-        # Invalid: Brazilian format should be rejected
-        with pytest.raises(ValueError):
-            PatientCreate(
-                name="João Silva",
-                phone="11987654321",
-                email="joao@example.com",
-                birth_date="1980-01-01",
-            )
+        # Valid Brazilian format (normalized)
+        patient_br = PatientCreate(
+            name="João Silva",
+            phone="11987654321",
+            email="joao@example.com",
+            birth_date="1980-01-01",
+        )
+        assert patient_br.phone == "+5511987654321"
 
     def test_v2_schema_hybrid_mode(self):
-        """Test v2 schema accepts both E.164 and Brazilian formats."""
+        """Test v2 schema accepts both E.164 and Brazilian formats and normalizes."""
         from app.schemas.v2.patient import PatientV2Create
 
         # Valid E.164
@@ -271,7 +271,7 @@ class TestSchemaIntegration:
         )
         assert patient_e164.phone == "+5511987654321"
 
-        # Valid Brazilian format
+        # Valid Brazilian format (normalized)
         patient_br = PatientV2Create(
             name="Maria Santos",
             phone="11987654321",
@@ -279,9 +279,9 @@ class TestSchemaIntegration:
             birth_date="1985-05-15",
             doctor_id="123e4567-e89b-12d3-a456-426614174000",
         )
-        assert patient_br.phone == "11987654321"
+        assert patient_br.phone == "+5511987654321"
 
-        # Valid Brazilian formatted
+        # Valid Brazilian formatted (normalized)
         patient_br_fmt = PatientV2Create(
             name="Carlos Oliveira",
             phone="(11) 98765-4321",
@@ -289,4 +289,34 @@ class TestSchemaIntegration:
             birth_date="1990-10-20",
             doctor_id="123e4567-e89b-12d3-a456-426614174000",
         )
-        assert patient_br_fmt.phone == "(11) 98765-4321"
+        assert patient_br_fmt.phone == "+5511987654321"
+
+
+@pytest.mark.parametrize(
+    ("input_phone", "expected"),
+    [
+        ("(11) 98765-4321", "+5511987654321"),
+        ("11987654321", "+5511987654321"),
+        ("+5511987654321", "+5511987654321"),
+    ],
+)
+def test_v1_v2_normalization_consistency(input_phone, expected):
+    from app.schemas.patient import PatientCreate
+    from app.schemas.v2.patient import PatientV2Create
+
+    patient_v1 = PatientCreate(
+        name="João Silva",
+        phone=input_phone,
+        email="joao@example.com",
+        birth_date="1980-01-01",
+    )
+    patient_v2 = PatientV2Create(
+        name="João Silva",
+        phone=input_phone,
+        email="joao@example.com",
+        birth_date="1980-01-01",
+        doctor_id="123e4567-e89b-12d3-a456-426614174000",
+    )
+
+    assert patient_v1.phone == expected
+    assert patient_v2.phone == expected

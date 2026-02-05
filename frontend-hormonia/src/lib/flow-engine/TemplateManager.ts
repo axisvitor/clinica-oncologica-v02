@@ -29,9 +29,9 @@ export class TemplateManager {
 
   // Initialize default templates for development
   private initializeDefaultTemplates(): void {
-    const initial15DaysTemplate: FlowTemplate = {
-      id: 'initial_15_days_template',
-      flow_type: FlowType.INITIAL_15_DAYS,
+    const onboardingTemplate: FlowTemplate = {
+      id: 'onboarding_template',
+      flow_type: FlowType.ONBOARDING,
       name: 'Initial 15 Days Onboarding',
       description: 'Patient introduction and engagement building',
       humanization_level: 'high',
@@ -116,7 +116,8 @@ export class TemplateManager {
       }
     }
 
-    this.templates.set(FlowType.INITIAL_15_DAYS, initial15DaysTemplate)
+    this.templates.set(FlowType.ONBOARDING, onboardingTemplate)
+    this.templates.set(FlowType.INITIAL_15_DAYS, onboardingTemplate)
   }
 
   // Load templates from API

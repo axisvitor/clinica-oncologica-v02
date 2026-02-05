@@ -14,7 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.services.circuit_breaker import CircuitBreaker, CircuitState, CircuitOpenError
 from app.core.graceful_error_handler import graceful_error_handler
-from app.core.database import get_scoped_session
+from app.database import get_scoped_session
 
 
 logger = logging.getLogger(__name__)

@@ -483,7 +483,10 @@ export class MedicationsApi {
     const response = await this.client.get<{
       data: Medication[];
       total: number;
-    }>("/api/v2/medications/active", filters as any);
+    }>(
+      "/api/v2/medications/active",
+      filters as Record<string, string | number | boolean> | undefined
+    );
 
     return response.data || [];
   }

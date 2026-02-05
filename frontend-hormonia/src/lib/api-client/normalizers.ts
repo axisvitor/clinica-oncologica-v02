@@ -150,7 +150,7 @@ export interface BackendPatient {
   status?: string | null
   created_at?: string
   updated_at?: string
-  doctor_id: string
+  doctor_id?: string | null
   current_day?: number | null
   timezone?: string
 }
@@ -174,7 +174,7 @@ export interface FrontendPatient {
   flow_state: string
   created_at?: string
   updated_at?: string
-  doctor_id: string
+  doctor_id?: string
   current_day?: number
   last_contact?: string
   unread_count?: number
@@ -237,7 +237,7 @@ export function normalizePatient(backendPatient: BackendPatient): FrontendPatien
     flow_state: flowStateValue, // Keep for backend compatibility
     created_at: backendPatient.created_at,
     updated_at: backendPatient.updated_at,
-    doctor_id: backendPatient.doctor_id,
+    doctor_id: backendPatient.doctor_id ?? undefined,
     current_day: backendPatient.current_day ?? undefined,
     timezone: backendPatient.timezone ?? 'America/Sao_Paulo',
   }
@@ -347,8 +347,7 @@ export function isBackendPatient(obj: unknown): obj is BackendPatient {
   const patient = obj as Record<string, unknown>
   return (
     typeof patient['id'] === 'string' &&
-    typeof patient['name'] === 'string' &&
-    typeof patient['doctor_id'] === 'string'
+    typeof patient['name'] === 'string'
   )
 }
 

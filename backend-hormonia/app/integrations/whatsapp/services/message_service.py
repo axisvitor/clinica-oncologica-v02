@@ -552,6 +552,21 @@ class WhatsAppMessageService:
         result = await self.db_session.execute(stmt)
         return result.scalars().all()
 
+    async def get_instance_messages(
+        self, instance_name: str, limit: int = 50, offset: int = 0
+    ) -> List[WhatsAppMessage]:
+        """Get recent messages for an instance across all chats."""
+        stmt = (
+            select(WhatsAppMessage)
+            .where(WhatsAppMessage.instance_name == instance_name)
+            .order_by(WhatsAppMessage.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+
+        result = await self.db_session.execute(stmt)
+        return result.scalars().all()
+
     async def get_message_statistics(
         self,
         instance_name: str,

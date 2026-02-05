@@ -30,6 +30,8 @@ const REPORTS = 'reports' as const;
 const ADMIN = 'admin' as const;
 const AUTH = 'auth' as const;
 
+import type { QueryClient, Query } from '@tanstack/react-query'
+
 /**
  * Query Key Factories
  * Each factory returns a hierarchical key structure for React Query
@@ -156,14 +158,14 @@ export const invalidateQueries = {
   /**
    * Invalidate all patient queries
    */
-  allPatients: (queryClient: any) => {
+  allPatients: (queryClient: QueryClient) => {
     queryClient.invalidateQueries({ queryKey: queryKeys.patients.all });
   },
 
   /**
    * Invalidate specific patient
    */
-  patient: (queryClient: any, id: string) => {
+  patient: (queryClient: QueryClient, id: string) => {
     queryClient.invalidateQueries({ queryKey: queryKeys.patients.detail(id) });
     queryClient.invalidateQueries({ queryKey: queryKeys.patients.timeline(id) });
     queryClient.invalidateQueries({ queryKey: queryKeys.patients.stats(id) });
@@ -172,17 +174,17 @@ export const invalidateQueries = {
   /**
    * Invalidate analytics
    */
-  analytics: (queryClient: any) => {
+  analytics: (queryClient: QueryClient) => {
     queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all });
   },
 
   /**
    * Invalidate messages for a patient
    */
-  patientMessages: (queryClient: any, patientId: string) => {
+  patientMessages: (queryClient: QueryClient, patientId: string) => {
     queryClient.invalidateQueries({
       queryKey: queryKeys.messages.lists(),
-      predicate: (query: any) => {
+      predicate: (query: Query) => {
         const filters = query.queryKey[2] as { patient_id?: string };
         return filters?.patient_id === patientId;
       }
@@ -197,7 +199,7 @@ export const prefetchQueries = {
   /**
    * Prefetch patient details when hovering over patient card
    */
-  patientDetail: async (queryClient: any, apiClient: any, id: string) => {
+  patientDetail: async (queryClient: QueryClient, apiClient: { patients: { get: (id: string) => Promise<unknown> } }, id: string) => {
     await queryClient.prefetchQuery({
       queryKey: queryKeys.patients.detail(id),
       queryFn: () => apiClient.patients.get(id),
@@ -208,7 +210,7 @@ export const prefetchQueries = {
   /**
    * Prefetch dashboard analytics on app load
    */
-  dashboardAnalytics: async (queryClient: any, apiClient: any) => {
+  dashboardAnalytics: async (queryClient: QueryClient, apiClient: { analytics: { dashboard: () => Promise<unknown> } }) => {
     await queryClient.prefetchQuery({
       queryKey: queryKeys.analytics.dashboard(),
       queryFn: () => apiClient.analytics.dashboard(),

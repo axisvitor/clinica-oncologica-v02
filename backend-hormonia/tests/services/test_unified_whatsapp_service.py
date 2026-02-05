@@ -10,6 +10,8 @@ from datetime import datetime, timedelta
 from uuid import uuid4
 
 from app.services.unified_whatsapp_service import UnifiedWhatsAppService
+from app.exceptions import ExternalServiceError
+from app.core.redis_circuit_breaker import CircuitOpenError, CircuitState
 from app.models.message import Message, MessageType, MessageStatus, MessageDirection, MessagePriority
 from app.models.patient import Patient
 from app.integrations.whatsapp.models.message import (
@@ -67,7 +69,7 @@ class TestUnifiedWhatsAppService:
         return message
 
     @pytest.fixture
-    def service(self, mock_redis, mock_db):
+    def service(self, mock_db):
         """Create service instance with mocks"""
         with patch('app.services.unified_whatsapp_service.settings') as mock_settings:
             mock_settings.REDIS_URL = "redis://localhost:6379/0"
@@ -75,7 +77,7 @@ class TestUnifiedWhatsAppService:
             mock_settings.WHATSAPP_EVOLUTION_API_KEY = "test-key"
             mock_settings.WHATSAPP_EVOLUTION_WEBHOOK_URL = "http://localhost:8000/webhooks"
 
-            service = UnifiedWhatsAppService(redis=mock_redis, db=mock_db)
+            service = UnifiedWhatsAppService(db=mock_db)
             return service
 
     @pytest.mark.asyncio
@@ -168,6 +170,22 @@ class TestUnifiedWhatsAppService:
         assert mock_message.message_metadata['retry_policy'] == 'quiz_link'
 
     @pytest.mark.asyncio
+    async def test_send_via_queue_circuit_breaker_open(self, service, mock_message):
+        """Test circuit breaker open state fails fast"""
+        with patch.object(service, "_convert_to_queue_request", new_callable=AsyncMock) as mock_convert, \
+             patch.object(service, "_get_queue_service", new_callable=AsyncMock) as mock_get_queue, \
+             patch.object(service._evolution_breaker, "call", new_callable=AsyncMock) as mock_call, \
+             patch.object(service._evolution_breaker, "get_state_async", new_callable=AsyncMock) as mock_state:
+
+            mock_convert.return_value = MagicMock()
+            mock_get_queue.return_value = MagicMock()
+            mock_call.side_effect = CircuitOpenError("Circuit open")
+            mock_state.return_value = CircuitState.OPEN
+
+            with pytest.raises(ExternalServiceError, match="Circuit breaker open"):
+                await service._send_via_queue(mock_message)
+
+    @pytest.mark.asyncio
     async def test_convert_to_queue_request(self, service, mock_message, mock_patient):
         """Test message conversion to queue request format"""
         # Ensure patient is loaded
@@ -207,6 +225,8 @@ class TestUnifiedWhatsAppService:
     @pytest.mark.asyncio
     async def test_retry_failed_messages(self, service):
         """Test retry logic with backoff calculation"""
+        if not hasattr(service, "retry_failed_messages"):
+            pytest.skip("retry_failed_messages moved to Celery task")
         # Create mock failed messages
         failed_msg = MagicMock()
         failed_msg.id = uuid4()
@@ -252,15 +272,18 @@ class TestUnifiedWhatsAppService:
     @pytest.mark.asyncio
     async def test_health_check_healthy(self, service):
         """Test health check when all components are healthy"""
-        with patch.object(service, '_get_queue_client', new_callable=AsyncMock):
+        with patch.object(service, '_get_queue_client', new_callable=AsyncMock) as mock_client:
+            mock_client.return_value.health_check = AsyncMock(
+                return_value={"is_connected": True}
+            )
             with patch.object(service.message_queue, 'connect', new_callable=AsyncMock):
                 # Act
                 health = await service.health_check()
 
                 # Assert
                 assert health['status'] == 'healthy'
-                assert health['components']['queue_client'] == 'healthy'
-                assert health['components']['message_queue'] == 'healthy'
+                assert health['components']['queue_client']['status'] == 'healthy'
+                assert health['components']['message_queue']['status'] == 'healthy'
 
     @pytest.mark.asyncio
     async def test_health_check_degraded(self, service):
@@ -272,8 +295,8 @@ class TestUnifiedWhatsAppService:
             health = await service.health_check()
 
             # Assert
-            assert health['status'] == 'degraded'
-            assert 'unhealthy' in health['components']['queue_client']
+            assert health['status'] == 'unhealthy'
+            assert health['components']['queue_client']['status'] == 'unhealthy'
 
     @pytest.mark.asyncio
     async def test_metrics_collection(self, service, mock_message):
@@ -348,14 +371,18 @@ class TestUnifiedWhatsAppService:
 
         service.register_flow_callback('message_failed', failure_callback)
 
+        from app.exceptions import ExternalServiceError
+
         with patch.object(service, '_send_via_queue', new_callable=AsyncMock) as mock_queue:
-            mock_queue.return_value = False
+            mock_queue.side_effect = ExternalServiceError("Queue send failed")
 
             # Act
-            await service.send_message(mock_message)
+            with pytest.raises(ExternalServiceError):
+                await service.send_message(mock_message)
 
             # Assert
             assert callback_executed is True
+            assert error_captured is None
 
     @pytest.mark.asyncio
     async def test_instance_name_override(self, service, mock_message, mock_patient):
@@ -436,7 +463,8 @@ class TestQueueIntegration:
         with patch('app.services.unified_whatsapp_service.settings') as mock_settings:
             mock_settings.REDIS_URL = "redis://localhost:6379/0"
             mock_settings.WHATSAPP_EVOLUTION_API_URL = "http://localhost:8080"
-            db = AsyncMock()
+            from sqlalchemy.ext.asyncio import AsyncSession
+            db = AsyncMock(spec=AsyncSession)
             return UnifiedWhatsAppService(db=db)
 
     @pytest.mark.asyncio

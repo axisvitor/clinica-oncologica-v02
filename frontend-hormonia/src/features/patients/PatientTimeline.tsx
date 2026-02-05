@@ -101,7 +101,7 @@ export function PatientTimeline({ timeline, isLoading }: PatientTimelineProps) {
                 const isLast = index === timeline.events.length - 1
 
                 return (
-                  <div key={event.id} className="relative">
+                  <div key={event.id ?? `timeline-event-${index}`} className="relative">
                     {/* Timeline line */}
                     {!isLast && (
                       <div className="absolute left-4 top-8 w-0.5 h-full bg-gray-200" />
@@ -122,10 +122,20 @@ export function PatientTimeline({ timeline, isLoading }: PatientTimelineProps) {
                               {getEventLabel(event.event_type)}
                             </Badge>
                             <span className="text-xs text-gray-500">
-                              {formatDistanceToNow(new Date(event.created_at), {
-                                addSuffix: true,
-                                locale: ptBR
-                              })}
+                              {(() => {
+                                try {
+                                  const date = new Date(event.created_at)
+                                  if (isNaN(date.getTime())) {
+                                    return 'Data inválida'
+                                  }
+                                  return formatDistanceToNow(date, {
+                                    addSuffix: true,
+                                    locale: ptBR
+                                  })
+                                } catch {
+                                  return 'Data inválida'
+                                }
+                              })()}
                             </span>
                           </div>
                         </div>

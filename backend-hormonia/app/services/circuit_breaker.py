@@ -305,7 +305,11 @@ class AIServiceCircuitBreaker:
         }
 
     async def call_gemini(
-        self, func: Callable, prompt: str, fallback_response: Optional[str] = None
+        self,
+        func: Callable,
+        prompt: str,
+        fallback_response: Optional[str] = None,
+        **kwargs,
     ) -> str:
         """
         Call Gemini with circuit breaker protection.
@@ -314,6 +318,7 @@ class AIServiceCircuitBreaker:
             func: Gemini call function
             prompt: Prompt for Gemini
             fallback_response: Fallback response if circuit is open
+            **kwargs: Additional arguments to pass to the function
 
         Returns:
             Gemini response or fallback
@@ -330,7 +335,9 @@ class AIServiceCircuitBreaker:
             else:
                 return "Desculpe, estou temporariamente indisponível. Por favor, tente novamente."
 
-        return await self.breakers["gemini"].call(func, prompt, fallback=fallback)
+        return await self.breakers["gemini"].call(
+            func, prompt, fallback=fallback, **kwargs
+        )
 
     async def call_sentiment_analysis(
         self, func: Callable, message: str, context: Any

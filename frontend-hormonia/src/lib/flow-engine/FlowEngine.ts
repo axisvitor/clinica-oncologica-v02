@@ -3,6 +3,7 @@ import {
   type FlowState,
   type MessageTemplate,
   type FlowTemplate,
+  type FlowStep,
   type InboundMessage,
   type ResponseResult,
   type FlowEvent,
@@ -33,7 +34,7 @@ export class FlowEngine extends EventEmitter {
 
   // Initialize state machines for different flow types
   private initializeStateMachines(): void {
-    // Initial 15 days flow state machine
+    // Onboarding flow state machine (legacy-compatible)
     const initial15DaysStateMachine: FlowStateMachine = {
       states: ['enrolled', 'day_1', 'day_2', 'day_3', 'day_7', 'day_10', 'day_15', 'completed', 'paused'],
       initial_state: 'enrolled',
@@ -51,11 +52,28 @@ export class FlowEngine extends EventEmitter {
       final_states: ['completed']
     }
 
+    const followUpStateMachine: FlowStateMachine = {
+      states: ['active', 'paused', 'completed'],
+      initial_state: 'active',
+      transitions: [
+        { from_state: 'active', to_state: 'completed', trigger: 'complete_flow' },
+        { from_state: 'active', to_state: 'paused', trigger: 'pause_flow' },
+        { from_state: 'paused', to_state: 'active', trigger: 'resume_flow' }
+      ],
+      final_states: ['completed']
+    }
+
+    this.stateMachines.set(FlowType.ONBOARDING, initial15DaysStateMachine)
     this.stateMachines.set(FlowType.INITIAL_15_DAYS, initial15DaysStateMachine)
+    this.stateMachines.set(FlowType.DAILY_FOLLOW_UP, followUpStateMachine)
+    this.stateMachines.set(FlowType.QUIZ_MENSAL, followUpStateMachine)
   }
 
   // Load flow templates
-  async loadTemplates(): Promise<void> {
+  async loadTemplates(force = false): Promise<void> {
+    if (!force && this.templates.size > 0) {
+      return
+    }
     try {
       const templates = await apiClient.flows.getTemplates()
       templates.forEach((template) => {
@@ -236,6 +254,80 @@ export class FlowEngine extends EventEmitter {
     const template = this.templates.get(flowType)
     if (!template || !template.messages) return null
     return template.messages[day] || null
+  }
+
+  // Resolve the next step based on template and optional response context
+  resolveNextStep(
+    flowType: FlowType,
+    currentStep: number,
+    contextData: Record<string, unknown> = {}
+  ): FlowStep | null {
+    const template = this.templates.get(flowType)
+    if (!template) return null
+
+    const steps = this.normalizeSteps(template)
+    const currentIndex = steps.findIndex((step) => this.getStepKey(step) === currentStep)
+    if (currentIndex === -1) return steps[0] || null
+
+    const current = steps[currentIndex]
+    const branchTarget = this.evaluateBranch(current, contextData)
+    if (branchTarget !== null) {
+      return steps.find((step) => this.getStepKey(step) === branchTarget) || null
+    }
+
+    return steps[currentIndex + 1] || null
+  }
+
+  private normalizeSteps(template: FlowTemplate): FlowStep[] {
+    if (Array.isArray(template.steps)) {
+      return template.steps
+    }
+    if (template.steps && typeof template.steps === 'object') {
+      return Object.values(template.steps) as FlowStep[]
+    }
+    return []
+  }
+
+  private getStepKey(step: FlowStep): number {
+    if (typeof step.day === 'number') return step.day
+    if (typeof step.id === 'string') {
+      const parsed = Number(step.id)
+      return Number.isFinite(parsed) ? parsed : 0
+    }
+    return 0
+  }
+
+  private evaluateBranch(
+    step: FlowStep,
+    contextData: Record<string, unknown>
+  ): number | null {
+    const conditions = step.conditions
+    if (!conditions) return null
+
+    const conditionList = Array.isArray(conditions) ? conditions : [conditions]
+    const allPassed = conditionList.every((condition) => {
+      const field = (condition as Record<string, unknown>)['field'] as string | undefined
+      const operator = (condition as Record<string, unknown>)['operator'] as string | undefined
+      const value = (condition as Record<string, unknown>)['value']
+      if (!field || !operator) return true
+      return this.evaluateCondition(field, operator, value, contextData).passed
+    })
+
+    const nextStep = (step as unknown as { next_step?: number }).next_step
+    if (allPassed && typeof nextStep === 'number') {
+      return nextStep
+    }
+
+    const branches = (step as unknown as { branches?: Record<string, unknown> }).branches
+    if (branches) {
+      const branchKey = allPassed ? 'true' : 'false'
+      const target = branches[branchKey]
+      if (typeof target === 'number') {
+        return target
+      }
+    }
+
+    return null
   }
 
   // Get all active flows

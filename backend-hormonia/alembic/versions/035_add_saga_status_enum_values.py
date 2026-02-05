@@ -10,6 +10,27 @@ to match the Python model definition in app/models/patient_onboarding_saga.py
 Bug Fix: The Python model had these enum values but the database was missing them,
 causing queries with these values to fail with:
     "invalid input value for enum saga_status: 'IN_PROGRESS'"
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 
 from alembic import op

@@ -38,7 +38,7 @@ from app.api.v2.dependencies import (
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.utils.rate_limiter import limiter
 from app.core.redis_unified import get_sync_redis
-from app.api.v2.utils.auth_helpers import (
+from app.utils.auth_helpers import (
     extract_user_context as _extract_user_context,
     is_admin as _is_admin,
 )

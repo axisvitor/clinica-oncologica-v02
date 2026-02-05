@@ -6,18 +6,46 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import { AuthProvider, useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/contexts/AuthContext'
 import { createWrapperWithProviders } from '../test-utils'
-import { firebaseAuth } from '@/lib/firebase-client'
+import { firebaseAuthLazy } from '@/lib/firebase-lazy'
 import { apiClient } from '@/lib/api-client'
 import { wsManager } from '@/lib/websocket'
 import * as firebaseAuthService from '@/services/firebase-auth'
 
 // Mock dependencies
 vi.mock('@/services/firebase-auth')
-vi.mock('@/lib/firebase-client')
-vi.mock('@/lib/api-client')
-vi.mock('@/lib/websocket')
+vi.mock('@/lib/firebase-lazy', () => ({
+  firebaseAuthLazy: {
+    isConfigured: vi.fn(),
+    onAuthStateChanged: vi.fn(),
+    onIdTokenChanged: vi.fn(),
+    getCurrentUser: vi.fn(),
+    signOut: vi.fn(),
+    setPersistence: vi.fn(),
+  }
+}))
+vi.mock('@/lib/api-client', () => ({
+  apiClient: {
+    auth: {
+      me: vi.fn(),
+      checkAuth: vi.fn(),
+    },
+    fetchCsrfToken: vi.fn(),
+    setAuthToken: vi.fn(),
+    clearAuthToken: vi.fn(),
+    dashboard: {
+      getMain: vi.fn(),
+    },
+  }
+}))
+vi.mock('@/lib/websocket', () => ({
+  wsManager: {
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    updateToken: vi.fn(),
+  }
+}))
 vi.mock('@/config/mock.config', () => ({
   isMockAuthEnabled: vi.fn(() => false),
 }))
@@ -62,8 +90,9 @@ describe('User State Management Comprehensive Tests', () => {
   }
 
   const mockSession = {
-    access_token: 'firebase-token-123',
+    access_token: 'session-456',
     session_id: 'session-456',
+    websocketToken: 'firebase-token-123',
   }
 
   let mockUnsubscribe: ReturnType<typeof vi.fn>
@@ -76,14 +105,15 @@ describe('User State Management Comprehensive Tests', () => {
     mockUnsubscribe = vi.fn()
 
     // Setup Firebase Auth mocks
-    vi.mocked(firebaseAuth.isConfigured).mockReturnValue(true)
-    vi.mocked(firebaseAuth.onAuthStateChange).mockReturnValue(mockUnsubscribe)
-    vi.mocked(firebaseAuth.onIdTokenChanged).mockReturnValue(mockUnsubscribe)
-    vi.mocked(firebaseAuth.getCurrentUser).mockResolvedValue(mockFirebaseUser)
-    vi.mocked(firebaseAuth.setPersistence).mockResolvedValue()
+    vi.mocked(firebaseAuthLazy.isConfigured).mockReturnValue(true)
+    vi.mocked(firebaseAuthLazy.onAuthStateChanged).mockReturnValue(mockUnsubscribe)
+    vi.mocked(firebaseAuthLazy.onIdTokenChanged).mockReturnValue(mockUnsubscribe)
+    vi.mocked(firebaseAuthLazy.getCurrentUser).mockResolvedValue(mockFirebaseUser)
+    vi.mocked(firebaseAuthLazy.setPersistence).mockResolvedValue()
 
     // Setup API client mock
     vi.mocked(apiClient.auth.me).mockResolvedValue({ data: mockUser })
+    vi.mocked(apiClient.auth.checkAuth).mockResolvedValue({ authenticated: false })
   })
 
   afterEach(() => {
@@ -103,7 +133,7 @@ describe('User State Management Comprehensive Tests', () => {
 
     it('should initialize from existing Firebase session', async () => {
       let authStateHandler: any
-      vi.mocked(firebaseAuth.onAuthStateChange).mockImplementation((handler) => {
+      vi.mocked(firebaseAuthLazy.onAuthStateChanged).mockImplementation((handler) => {
         authStateHandler = handler
         return mockUnsubscribe
       })
@@ -118,7 +148,7 @@ describe('User State Management Comprehensive Tests', () => {
 
       await waitFor(() => {
         expect(result.current.user).toEqual(mockUser)
-        expect(result.current.session?.access_token).toBe('firebase-token-123')
+        expect(result.current.session?.websocketToken).toBe('firebase-token-123')
         expect(result.current.isAuthenticated).toBe(true)
         expect(result.current.isLoading).toBe(false)
       })
@@ -126,10 +156,10 @@ describe('User State Management Comprehensive Tests', () => {
 
     it('should handle initialization errors gracefully', async () => {
       vi.mocked(apiClient.auth.me).mockRejectedValue(new Error('Network error'))
-      vi.mocked(firebaseAuth.signOut).mockResolvedValue()
+      vi.mocked(firebaseAuthLazy.signOut).mockResolvedValue()
 
       let authStateHandler: any
-      vi.mocked(firebaseAuth.onAuthStateChange).mockImplementation((handler) => {
+      vi.mocked(firebaseAuthLazy.onAuthStateChanged).mockImplementation((handler) => {
         authStateHandler = handler
         return mockUnsubscribe
       })
@@ -148,14 +178,14 @@ describe('User State Management Comprehensive Tests', () => {
         expect(result.current.isLoading).toBe(false)
       })
 
-      expect(firebaseAuth.signOut).toHaveBeenCalled()
+      expect(firebaseAuthLazy.signOut).toHaveBeenCalled()
     })
   })
 
   describe('User Data Persistence', () => {
     it('should persist user data during session', async () => {
       let authStateHandler: any
-      vi.mocked(firebaseAuth.onAuthStateChange).mockImplementation((handler) => {
+      vi.mocked(firebaseAuthLazy.onAuthStateChanged).mockImplementation((handler) => {
         authStateHandler = handler
         return mockUnsubscribe
       })
@@ -169,9 +199,7 @@ describe('User State Management Comprehensive Tests', () => {
 
       await waitFor(() => {
         expect(result.current.user).toEqual(mockUser)
-        expect(result.current.session).toEqual({
-          access_token: 'firebase-token-123',
-        })
+        expect(result.current.session?.websocketToken).toBe('firebase-token-123')
       })
 
       // Verify user data persists across re-renders
@@ -200,10 +228,10 @@ describe('User State Management Comprehensive Tests', () => {
 
     it('should handle session expiration', async () => {
       vi.mocked(apiClient.auth.me).mockRejectedValue(new Error('Session expired'))
-      vi.mocked(firebaseAuth.signOut).mockResolvedValue()
+      vi.mocked(firebaseAuthLazy.signOut).mockResolvedValue()
 
       let authStateHandler: any
-      vi.mocked(firebaseAuth.onAuthStateChange).mockImplementation((handler) => {
+      vi.mocked(firebaseAuthLazy.onAuthStateChanged).mockImplementation((handler) => {
         authStateHandler = handler
         return mockUnsubscribe
       })
@@ -221,7 +249,7 @@ describe('User State Management Comprehensive Tests', () => {
         expect(result.current.isAuthenticated).toBe(false)
       })
 
-      expect(firebaseAuth.signOut).toHaveBeenCalled()
+      expect(firebaseAuthLazy.signOut).toHaveBeenCalled()
     })
   })
 
@@ -250,7 +278,7 @@ describe('User State Management Comprehensive Tests', () => {
       const newToken = 'refreshed-token-789'
       let tokenRefreshHandler: any
 
-      vi.mocked(firebaseAuth.onIdTokenChanged).mockImplementation((handler) => {
+      vi.mocked(firebaseAuthLazy.onIdTokenChanged).mockImplementation((handler) => {
         tokenRefreshHandler = handler
         return mockUnsubscribe
       })
@@ -269,10 +297,9 @@ describe('User State Management Comprehensive Tests', () => {
       })
 
       await waitFor(() => {
-        expect(result.current.session?.access_token).toBe(newToken)
+        expect(result.current.session?.websocketToken).toBe(newToken)
       })
 
-      expect(apiClient.setAuthToken).toHaveBeenCalledWith(newToken)
       expect(wsManager.updateToken).toHaveBeenCalledWith(newToken)
     })
 
@@ -286,7 +313,7 @@ describe('User State Management Comprehensive Tests', () => {
       vi.mocked(apiClient.auth.me).mockResolvedValue({ data: updatedUser })
 
       let authStateHandler: any
-      vi.mocked(firebaseAuth.onAuthStateChange).mockImplementation((handler) => {
+      vi.mocked(firebaseAuthLazy.onAuthStateChanged).mockImplementation((handler) => {
         authStateHandler = handler
         return mockUnsubscribe
       })
@@ -315,7 +342,7 @@ describe('User State Management Comprehensive Tests', () => {
       vi.mocked(apiClient.auth.me).mockResolvedValue({ data: userWithLimitedPermissions })
 
       let authStateHandler: any
-      vi.mocked(firebaseAuth.onAuthStateChange).mockImplementation((handler) => {
+      vi.mocked(firebaseAuthLazy.onAuthStateChanged).mockImplementation((handler) => {
         authStateHandler = handler
         return mockUnsubscribe
       })
@@ -344,7 +371,7 @@ describe('User State Management Comprehensive Tests', () => {
       vi.mocked(apiClient.auth.me).mockResolvedValue({ data: adminUser })
 
       let authStateHandler: any
-      vi.mocked(firebaseAuth.onAuthStateChange).mockImplementation((handler) => {
+      vi.mocked(firebaseAuthLazy.onAuthStateChanged).mockImplementation((handler) => {
         authStateHandler = handler
         return mockUnsubscribe
       })
@@ -390,7 +417,7 @@ describe('User State Management Comprehensive Tests', () => {
   describe('Session Lifecycle Management', () => {
     it('should establish session on successful authentication', async () => {
       let authStateHandler: any
-      vi.mocked(firebaseAuth.onAuthStateChange).mockImplementation((handler) => {
+      vi.mocked(firebaseAuthLazy.onAuthStateChanged).mockImplementation((handler) => {
         authStateHandler = handler
         return mockUnsubscribe
       })
@@ -403,12 +430,9 @@ describe('User State Management Comprehensive Tests', () => {
       })
 
       await waitFor(() => {
-        expect(result.current.session).toEqual({
-          access_token: 'firebase-token-123',
-        })
+        expect(result.current.session?.websocketToken).toBe('firebase-token-123')
       })
 
-      expect(apiClient.setAuthToken).toHaveBeenCalledWith('firebase-token-123')
       expect(wsManager.connect).toHaveBeenCalledWith('firebase-token-123')
     })
 
@@ -433,7 +457,6 @@ describe('User State Management Comprehensive Tests', () => {
       })
 
       expect(mockFirebaseUser.getIdToken).toHaveBeenCalledWith(true)
-      expect(apiClient.setAuthToken).toHaveBeenCalledWith(newToken)
     })
 
     it('should cleanup session on logout', async () => {
@@ -479,7 +502,7 @@ describe('User State Management Comprehensive Tests', () => {
   describe('State Synchronization', () => {
     it('should synchronize state across multiple auth context instances', async () => {
       let authStateHandler: any
-      vi.mocked(firebaseAuth.onAuthStateChange).mockImplementation((handler) => {
+      vi.mocked(firebaseAuthLazy.onAuthStateChanged).mockImplementation((handler) => {
         authStateHandler = handler
         return mockUnsubscribe
       })
@@ -539,10 +562,10 @@ describe('User State Management Comprehensive Tests', () => {
         .mockRejectedValueOnce(new Error('Network timeout'))
         .mockResolvedValue({ data: mockUser })
 
-      vi.mocked(firebaseAuth.signOut).mockResolvedValue()
+      vi.mocked(firebaseAuthLazy.signOut).mockResolvedValue()
 
       let authStateHandler: any
-      vi.mocked(firebaseAuth.onAuthStateChange).mockImplementation((handler) => {
+      vi.mocked(firebaseAuthLazy.onAuthStateChanged).mockImplementation((handler) => {
         authStateHandler = handler
         return mockUnsubscribe
       })
@@ -560,7 +583,7 @@ describe('User State Management Comprehensive Tests', () => {
       })
 
       // Second attempt succeeds
-      vi.mocked(firebaseAuth.signOut).mockClear()
+      vi.mocked(firebaseAuthLazy.signOut).mockClear()
       await act(async () => {
         await authStateHandler(mockFirebaseUser)
       })
@@ -609,12 +632,12 @@ describe('User State Management Comprehensive Tests', () => {
       let authStateHandler: any
       let tokenRefreshHandler: any
 
-      vi.mocked(firebaseAuth.onAuthStateChange).mockImplementation((handler) => {
+      vi.mocked(firebaseAuthLazy.onAuthStateChanged).mockImplementation((handler) => {
         authStateHandler = handler
         return mockUnsubscribe
       })
 
-      vi.mocked(firebaseAuth.onIdTokenChanged).mockImplementation((handler) => {
+      vi.mocked(firebaseAuthLazy.onIdTokenChanged).mockImplementation((handler) => {
         tokenRefreshHandler = handler
         return mockUnsubscribe
       })

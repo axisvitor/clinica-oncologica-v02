@@ -53,7 +53,7 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
 
   const createMutation = useMutation({
     mutationFn: (data: CreateUserFormData) => {
-      const { confirm_password, ...userData } = data
+      const { confirm_password: _confirm_password, ...userData } = data
       return apiClient.adminUsers.create(userData)
     },
     onSuccess: () => {

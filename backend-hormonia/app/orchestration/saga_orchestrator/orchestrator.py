@@ -8,8 +8,10 @@ patient creation with data consistency guarantees.
 
 import hashlib
 import logging
+import re
+import time
 import uuid
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, List
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -26,15 +28,85 @@ from app.domain.messaging.core import MessageService
 from app.core.redis_client import get_redis_client
 from app.core.distributed_lock import acquire_lock, LockAcquisitionError
 from app.integrations.evolution import EvolutionClient
-from app.utils.phone_validator import normalize_phone
+from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
 
-from .exceptions import SagaCompensationError
 from .steps import SagaStepExecutor
 from .compensation import SagaCompensator
 from .persistence import SagaPersistence
 from .types import SagaStatusInfo, FailedSagaSummary, ResumeResult
 
 logger = logging.getLogger(__name__)
+
+# ============================================================================
+# PROMETHEUS METRICS (Comment 3)
+# ============================================================================
+try:
+    from prometheus_client import Counter, Histogram, Gauge
+
+    SAGA_STARTS_TOTAL = Counter(
+        "saga_onboarding_starts_total",
+        "Total number of saga starts",
+        ["doctor_id"],
+    )
+    SAGA_COMPLETIONS_TOTAL = Counter(
+        "saga_onboarding_completions_total",
+        "Total number of saga completions",
+        ["doctor_id"],
+    )
+    SAGA_FAILURES_TOTAL = Counter(
+        "saga_onboarding_failures_total",
+        "Total number of saga failures",
+        ["doctor_id", "step", "error_type"],
+    )
+    SAGA_DURATION_SECONDS = Histogram(
+        "saga_onboarding_duration_seconds",
+        "Duration of saga execution in seconds",
+        ["status"],
+        buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0],
+    )
+    SAGA_LOCK_ACQUISITION_SECONDS = Histogram(
+        "saga_lock_acquisition_seconds",
+        "Time to acquire distributed lock",
+        ["lock_type"],
+        buckets=[0.01, 0.05, 0.1, 0.5, 1.0, 2.0, 5.0],
+    )
+    SAGA_COMPENSATIONS_TOTAL = Counter(
+        "saga_compensations_total",
+        "Total number of compensation attempts",
+        ["step", "result"],
+    )
+    SAGA_TRANSACTION_DURATION_SECONDS = Histogram(
+        "saga_transaction_duration_seconds",
+        "Duration of saga transaction (excluding async tasks)",
+        ["step"],
+        buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0],
+    )
+    SAGA_PHONE_NORMALIZATION_TOTAL = Counter(
+        "saga_phone_normalization_total",
+        "Total phone normalizations in saga",
+        ["format_detected"],
+    )
+    SAGA_STEP_DURATION_SECONDS = Histogram(
+        "saga_step_duration_seconds",
+        "Duration of individual saga steps",
+        ["step_name"],
+        buckets=[0.1, 0.2, 0.5, 1.0, 2.0, 5.0],
+    )
+    METRICS_AVAILABLE = True
+except ImportError:
+    METRICS_AVAILABLE = False
+    logger.warning("prometheus_client not available, saga metrics disabled")
+
+
+def _detect_phone_format(phone: str) -> str:
+    if not phone:
+        return "other"
+    if phone.startswith("+"):
+        return "e164"
+    digits = re.sub(r"\D", "", phone)
+    if len(digits) in (10, 11, 12, 13):
+        return "brazilian"
+    return "other"
 
 
 class SagaOrchestrator:
@@ -82,10 +154,16 @@ class SagaOrchestrator:
         )
         self.persistence = SagaPersistence(db)
 
+    def _sync_compensator_dependencies(self) -> None:
+        """Keep compensator aligned with the latest orchestrator dependencies."""
+        self.compensator.db = self.db
+        self.compensator.patient_repo = self.patient_repo
+        self.compensator.redis = self.redis
+
     async def execute_patient_onboarding_saga(
         self,
         patient_data: PatientCreate,
-        doctor_id: UUID,
+        doctor_id: Optional[UUID] = None,
         current_user: Any = None,
         idempotency_key: Optional[str] = None,
     ) -> Optional[Patient]:
@@ -99,7 +177,7 @@ class SagaOrchestrator:
 
         Args:
             patient_data: Patient creation data
-            doctor_id: ID of the doctor creating the patient
+            doctor_id: ID of the doctor creating the patient (optional)
             current_user: Current user object
             idempotency_key: QW-004: Unique key to prevent duplicate requests
 
@@ -110,17 +188,45 @@ class SagaOrchestrator:
             LockAcquisitionError: If unable to acquire distributed lock
         """
         # Generate lock key based on phone number (unique identifier)
-        normalized_phone = normalize_phone(patient_data.phone) or patient_data.phone
+        original_phone = patient_data.phone
+        normalized_phone = normalize_phone(
+            original_phone,
+            mode=PhoneValidationMode.BR_TO_E164,
+            allow_none=False,
+        )
+        logger.info(
+            "Phone normalized for patient creation",
+            extra={
+                "phone_original": original_phone,
+                "phone_normalized": normalized_phone,
+                "validation_mode": "BR_TO_E164",
+                "context": "saga_orchestrator",
+            },
+        )
+        if METRICS_AVAILABLE:
+            SAGA_PHONE_NORMALIZATION_TOTAL.labels(
+                format_detected=_detect_phone_format(original_phone)
+            ).inc()
         phone_hash = hashlib.sha256(normalized_phone.encode()).hexdigest()[:32]
-        lock_key = f"saga:onboarding:{str(doctor_id)}:{phone_hash}"
+        doctor_part = str(doctor_id) if doctor_id else "no-doctor"
+        lock_key = f"saga:onboarding:{doctor_part}:{phone_hash}"
 
-        async with acquire_lock(lock_key, timeout=5.0, ttl=60):
+        # Comment 1: Increased TTL from 60s to 300s to cover worst-case saga execution
+        lock_start = time.time()
+        async with acquire_lock(lock_key, timeout=5.0, ttl=300):
+            if METRICS_AVAILABLE:
+                SAGA_LOCK_ACQUISITION_SECONDS.labels(lock_type="onboarding").observe(
+                    time.time() - lock_start
+                )
+            tx_start = time.time()
             saga_id = uuid.uuid4()
+            step_data = {"idempotency_key": idempotency_key} if idempotency_key else {}
 
             saga = PatientOnboardingSaga(
                 id=saga_id,
                 doctor_id=doctor_id,
                 patient_data=patient_data.model_dump(mode="json"),
+                step_data=step_data,
                 status=SagaStatus.STARTED,
                 current_step=0,
                 started_at=datetime.now(timezone.utc),
@@ -128,37 +234,99 @@ class SagaOrchestrator:
             self.db.add(saga)
             self.db.flush()
 
+            # Record saga start metric
+            if METRICS_AVAILABLE:
+                SAGA_STARTS_TOTAL.labels(
+                    doctor_id=str(doctor_id) if doctor_id else "none"
+                ).inc()
+
             logger.info(
                 f"Starting patient onboarding saga {saga_id} for doctor {doctor_id}"
             )
 
             try:
                 # --- STEP 1: Create Patient ---
+                step_start = time.time()
                 patient = await self.step_executor.step_create_patient(
                     saga, patient_data, doctor_id, idempotency_key
                 )
+                if METRICS_AVAILABLE:
+                    SAGA_STEP_DURATION_SECONDS.labels(
+                        step_name="create_patient"
+                    ).observe(time.time() - step_start)
                 if not patient:
                     raise Exception("Failed to create patient")
 
                 # --- STEP 2: Initialize Flow ---
+                step_start = time.time()
                 await self.step_executor.step_initialize_flow(
-                    saga, patient, current_user
+                    saga, patient, current_user, idempotency_key=idempotency_key
                 )
+                if METRICS_AVAILABLE:
+                    SAGA_STEP_DURATION_SECONDS.labels(
+                        step_name="initialize_flow"
+                    ).observe(time.time() - step_start)
 
                 # --- STEP 3: Send Welcome Message ---
-                await self.step_executor.step_send_welcome_message(saga, patient)
+                step_start = time.time()
+                await self.step_executor.step_send_welcome_message(
+                    saga, patient, idempotency_key=idempotency_key
+                )
+                if METRICS_AVAILABLE:
+                    SAGA_STEP_DURATION_SECONDS.labels(
+                        step_name="schedule_message"
+                    ).observe(time.time() - step_start)
+
+                warning_statuses = {
+                    "failed_nonfatal",
+                    "skipped_auto_enrollment_disabled",
+                    "skipped_no_flow",
+                }
+                has_warnings = any(
+                    isinstance(entry, dict)
+                    and entry.get("status") in warning_statuses
+                    for entry in (saga.execution_log or [])
+                )
 
                 # --- Complete Saga ---
-                saga.status = SagaStatus.COMPLETED
+                saga.status = (
+                    SagaStatus.COMPLETED_WITH_WARNINGS
+                    if has_warnings
+                    else SagaStatus.COMPLETED
+                )
                 saga.completed_at = datetime.now(timezone.utc)
+
+                tx_duration = time.time() - tx_start
+                logger.info(
+                    f"Transaction duration: {tx_duration:.2f}s",
+                    extra={"saga_id": saga_id},
+                )
 
                 # UNIT OF WORK: Single commit at the end
                 self.db.commit()
+
+                # Record metrics on success
+                if METRICS_AVAILABLE:
+                    status_label = (
+                        "completed_with_warnings"
+                        if has_warnings
+                        else "completed"
+                    )
+                    SAGA_COMPLETIONS_TOTAL.labels(
+                        doctor_id=str(doctor_id) if doctor_id else "none"
+                    ).inc()
+                    SAGA_DURATION_SECONDS.labels(status=status_label).observe(
+                        tx_duration
+                    )
+                    SAGA_TRANSACTION_DURATION_SECONDS.labels(step="complete").observe(
+                        tx_duration
+                    )
 
                 logger.info(f"Saga {saga_id} completed successfully")
                 return patient
 
             except Exception as e:
+                tx_duration = time.time() - tx_start
                 logger.error(
                     f"Saga {saga_id} failed with {type(e).__name__}",
                     exc_info=True,
@@ -166,30 +334,58 @@ class SagaOrchestrator:
 
                 self.db.rollback()
 
-                # Create failure record
+                # Record failure metrics
+                if METRICS_AVAILABLE:
+                    SAGA_FAILURES_TOTAL.labels(
+                        doctor_id=str(doctor_id) if doctor_id else "none",
+                        step=str(saga.current_step),
+                        error_type=type(e).__name__,
+                    ).inc()
+                    SAGA_DURATION_SECONDS.labels(status="failed").observe(tx_duration)
+
+                # Create failure record with full saga context (Comment 2)
                 try:
                     failure_saga = PatientOnboardingSaga(
                         id=saga_id,
                         doctor_id=doctor_id,
                         patient_data=patient_data.model_dump(mode="json"),
-                        status=SagaStatus.FAILED,
-                        current_step=0,
-                        started_at=datetime.now(timezone.utc),
+                        # Comment 2: Preserve saga progress context
+                        status=saga.status if saga.status != SagaStatus.STARTED else SagaStatus.FAILED,
+                        current_step=saga.current_step,  # Preserve actual step reached
+                        step_data=saga.step_data,  # Preserve idempotency_key
+                        execution_log=saga.execution_log,  # Preserve detailed log
+                        patient_id=saga.patient_id,  # Preserve patient if created
+                        started_at=saga.started_at,
                         failed_at=datetime.now(timezone.utc),
                         error_message=str(e),
                         error_type=type(e).__name__,
                     )
                     self.db.add(failure_saga)
                     self.db.commit()
-                    logger.info(f"Saga {saga_id} failure record created")
+                    logger.info(
+                        f"Saga {saga_id} failure record created",
+                        extra={
+                            "current_step": saga.current_step,
+                            "patient_id": str(saga.patient_id) if saga.patient_id else None,
+                            "has_idempotency_key": bool(saga.step_data.get("idempotency_key") if saga.step_data else False),
+                        },
+                    )
 
                     # Trigger compensation (best effort)
                     try:
                         await self.compensator.compensate_saga(failure_saga)
+                        if METRICS_AVAILABLE:
+                            SAGA_COMPENSATIONS_TOTAL.labels(
+                                step=str(saga.current_step), result="success"
+                            ).inc()
                     except Exception as comp_err:
                         logger.error(
                             f"Saga {saga_id} compensation failed: {comp_err}"
                         )
+                        if METRICS_AVAILABLE:
+                            SAGA_COMPENSATIONS_TOTAL.labels(
+                                step=str(saga.current_step), result="failed"
+                            ).inc()
 
                 except Exception as record_err:
                     logger.error(
@@ -198,6 +394,7 @@ class SagaOrchestrator:
                     )
 
                 return None
+
 
     async def resume_saga(self, saga_id: UUID) -> ResumeResult:
         """
@@ -215,7 +412,7 @@ class SagaOrchestrator:
         """
         lock_key = f"saga:resume:{saga_id}"
         try:
-            async with acquire_lock(lock_key, timeout=5.0, ttl=60):
+            async with acquire_lock(lock_key, timeout=5.0, ttl=300):  # Comment 1: Increased TTL
                 saga = self.persistence.get_saga_by_id(saga_id)
                 if not saga:
                     return ResumeResult(
@@ -252,6 +449,9 @@ class SagaOrchestrator:
                 patient = self.patient_repo.get_by_id(saga.patient_id)
 
             patient_data_dict = saga.patient_data
+            idempotency_key = None
+            if saga.step_data:
+                idempotency_key = saga.step_data.get("idempotency_key")
 
             # Step 0 -> 1: Create Patient
             if saga.current_step < 1:
@@ -269,12 +469,52 @@ class SagaOrchestrator:
                 raise Exception("Patient not found for resumption")
 
             # Step 1 -> 2: Initialize Flow
-            if saga.current_step <= 1:
-                await self.step_executor.step_initialize_flow(saga, patient, None)
+            # FIX: Changed from < 2 to <= 2 to include legacy sagas at step 2
+            # FIX: Check if flow already exists for idempotency (enroll_patient raises if exists)
+            if saga.current_step <= 2:
+                from app.models.flow import PatientFlowState
+                existing_flow = (
+                    self.db.query(PatientFlowState)
+                    .filter(PatientFlowState.patient_id == patient.id)
+                    .first()
+                )
+                if not existing_flow:
+                    await self.step_executor.step_initialize_flow(
+                        saga, patient, None, idempotency_key=idempotency_key
+                    )
+                else:
+                    # Flow exists, skip to next step and log
+                    saga.current_step = 3
+                    saga.add_log_entry(2, "flow_init", "skipped_existing_flow")
+                    self.db.flush()
 
             # Step 2 -> 3: Send Welcome Message
-            if saga.current_step <= 2:
-                await self.step_executor.step_send_welcome_message(saga, patient)
+            # FIX: Changed from <= 2 to < 4 to include step 3
+            # Steps: 1=patient created, 2=flow initialized, 3=welcome sent, 4=complete
+            # FIX: Idempotent check - skip if welcome message already exists for this saga
+            if saga.current_step < 4:
+                from app.models.message import Message
+                existing_message = (
+                    self.db.query(Message)
+                    .filter(
+                        Message.patient_id == patient.id,
+                        Message.message_metadata["saga_id"].astext == str(saga.id),
+                    )
+                    .first()
+                )
+                if existing_message:
+                    logger.info(
+                        f"Saga {saga.id}: Welcome message already exists "
+                        f"(message_id={existing_message.id}), skipping send"
+                    )
+                    saga.add_log_entry(3, "welcome_message", "skipped_existing_message")
+                    saga.current_step = 4
+                    self.db.flush()
+                else:
+                    await self.step_executor.step_send_welcome_message(
+                        saga, patient, idempotency_key=idempotency_key
+                    )
+
 
             # Complete
             saga.status = SagaStatus.COMPLETED
@@ -325,6 +565,47 @@ class SagaOrchestrator:
         """
         return self.persistence.list_failed_sagas(doctor_id, limit)
 
+    # Compatibility wrappers for compensation helpers
+    async def _compensate_saga_internal(self, saga: PatientOnboardingSaga) -> None:
+        """Delegate internal compensation logic to SagaCompensator."""
+        self._sync_compensator_dependencies()
+        await self.compensator._compensate_saga_internal(saga)
+
+    async def _compensate_step_with_retry(
+        self,
+        saga: PatientOnboardingSaga,
+        step_num: int,
+        step_name: str,
+        compensate_fn,
+        compensation_errors: List[Any],
+        max_retries: int = 3,
+    ) -> None:
+        """Delegate step compensation retry logic to SagaCompensator."""
+        self._sync_compensator_dependencies()
+        await self.compensator._compensate_step_with_retry(
+            saga=saga,
+            step_num=step_num,
+            step_name=step_name,
+            compensate_fn=compensate_fn,
+            compensation_errors=compensation_errors,
+            max_retries=max_retries,
+        )
+
+    async def _compensate_message(self, saga: PatientOnboardingSaga) -> None:
+        """Delegate message compensation to SagaCompensator."""
+        self._sync_compensator_dependencies()
+        await self.compensator._compensate_message(saga)
+
+    async def _compensate_flow(self, saga: PatientOnboardingSaga) -> None:
+        """Delegate flow compensation to SagaCompensator."""
+        self._sync_compensator_dependencies()
+        await self.compensator._compensate_flow(saga)
+
+    async def _compensate_patient(self, saga: PatientOnboardingSaga) -> None:
+        """Delegate patient compensation to SagaCompensator."""
+        self._sync_compensator_dependencies()
+        await self.compensator._compensate_patient(saga)
+
     # Keep backward compatibility for _compensate_saga
     async def _compensate_saga(self, saga: PatientOnboardingSaga) -> None:
         """
@@ -332,6 +613,7 @@ class SagaOrchestrator:
 
         Delegates to SagaCompensator for actual compensation logic.
         """
+        self._sync_compensator_dependencies()
         await self.compensator.compensate_saga(saga)
 
     # Keep backward compatibility for _track_compensation_failure
@@ -343,4 +625,5 @@ class SagaOrchestrator:
 
         Delegates to SagaCompensator for actual tracking.
         """
+        self._sync_compensator_dependencies()
         await self.compensator._track_compensation_failure(saga_id, step, error)

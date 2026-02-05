@@ -8,9 +8,9 @@
  */
 import React, { Suspense, useMemo } from 'react';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, RadialBarChart, RadialBar,
-  ComposedChart, ScatterChart, Scatter, Cell
+  ComposedChart, Cell
 } from '@/components/ui/charts/LazyRechartsComponents';
 import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import { ChartSkeleton } from '@/components/ui/chart-skeleton';

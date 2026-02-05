@@ -160,9 +160,16 @@ class WebhookDLQ:
             if event_type:
                 dlq_keys = [f"{self.DLQ_KEY_PREFIX}:{event_type}"]
             else:
-                # Get all DLQ keys
+                # Get all DLQ keys using SCAN instead of KEYS for production safety
                 pattern = f"{self.DLQ_KEY_PREFIX}:*"
-                dlq_keys = await redis_client.keys(pattern)
+                dlq_keys = []
+                try:
+                    async for key in redis_client.scan_iter(match=pattern):
+                        dlq_keys.append(key)
+                except Exception as e:
+                    self.logger.error(f"Error scanning Redis keys with pattern {pattern}: {e}", exc_info=True)
+                    # Fallback to empty list or handle gracefully
+                    dlq_keys = []
 
             current_time = datetime.now(timezone.utc)
 
@@ -408,7 +415,9 @@ class WebhookDLQ:
                 dlq_keys = [f"{self.DLQ_KEY_PREFIX}:{event_type}"]
             else:
                 pattern = f"{self.DLQ_KEY_PREFIX}:*"
-                dlq_keys = await redis_client.keys(pattern)
+                dlq_keys = []
+                async for key in redis_client.scan_iter(match=pattern):
+                    dlq_keys.append(key)
 
             total_pending = 0
             by_event_type = {}

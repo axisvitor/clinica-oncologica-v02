@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
-import { FileText, CheckCircle, Clock, ArrowRight } from 'lucide-react'
+import { FileText, CheckCircle, ArrowRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { apiClient } from '@/lib/api-client'
 import type { QuizSession as BaseQuizSession } from '@/lib/api-client/types'
@@ -134,7 +134,7 @@ export function RecentQuizCompletions() {
                 to={`/patients/${session.patient_id}?tab=quiz-responses`}
                 className="block"
               >
-                <div className="flex items-start gap-3 p-3 rounded-lg border hover:border-blue-300 hover:bg-blue-50 transition-all cursor-pointer">
+                <div className="flex items-start gap-3 p-3 rounded-lg border hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer">
                   <div className="flex-shrink-0 mt-1">
                     <CheckCircle className="h-5 w-5 text-green-600" />
                   </div>

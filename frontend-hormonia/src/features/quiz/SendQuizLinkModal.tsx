@@ -58,7 +58,7 @@ export function SendQuizLinkModal({
 
   const sendLinkMutation = useMutation({
     mutationFn: (data: QuizLinkCreate & { send_immediately?: boolean }) => {
-      const { send_immediately, ...payload } = data
+      const { send_immediately: _send_immediately, ...payload } = data
       return apiClient.monthlyQuiz.createLink(payload)
     },
     onSuccess: (response: unknown) => {
@@ -156,7 +156,7 @@ export function SendQuizLinkModal({
                     Nenhum template disponível
                   </SelectItem>
                 ) : (
-                  templates.map((template: any) => (
+                  templates.map((template) => (
                     <SelectItem key={template.id} value={template.id}>
                       {template.name} (v{template.version})
                     </SelectItem>
@@ -168,7 +168,7 @@ export function SendQuizLinkModal({
 
           <div className="space-y-2">
             <Label htmlFor="delivery">Método de Entrega *</Label>
-            <Select value={deliveryMethod} onValueChange={(value: any) => setDeliveryMethod(value)}>
+            <Select value={deliveryMethod} onValueChange={(value: 'whatsapp' | 'email' | 'sms') => setDeliveryMethod(value)}>
               <SelectTrigger id="delivery">
                 <SelectValue />
               </SelectTrigger>

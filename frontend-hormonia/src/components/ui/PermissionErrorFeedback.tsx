@@ -13,7 +13,7 @@
  */
 
 import React from 'react'
-import { AlertCircle, Lock, ShieldX, RefreshCw, ExternalLink, ArrowLeft } from 'lucide-react'
+import { AlertCircle, Lock, ShieldX } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from './alert'
 import { Button } from './button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './card'
@@ -156,7 +156,7 @@ export function PermissionError({
 
   // Default alert variant
   return (
-    <Alert variant={getVariant() as any} className={className}>
+    <Alert variant={getVariant() as 'default' | 'destructive' | null | undefined} className={className}>
       {getIcon()}
       <AlertTitle>{error.title}</AlertTitle>
       <AlertDescription>
@@ -370,6 +370,7 @@ export function PermissionGuard({
 /**
  * Hook for handling errors in components
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useErrorHandler() {
   const showError = (error: Error | unknown, context?: string) => {
     // This would integrate with your toast/notification system

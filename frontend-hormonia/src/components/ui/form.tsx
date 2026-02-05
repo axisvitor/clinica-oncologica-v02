@@ -100,10 +100,14 @@ const FormLabel = React.forwardRef<
 })
 FormLabel.displayName = "FormLabel"
 
+interface FormControlProps extends React.ComponentPropsWithoutRef<typeof Slot> {
+  required?: boolean
+}
+
 const FormControl = React.forwardRef<
   React.ElementRef<typeof Slot>,
-  React.ComponentPropsWithoutRef<typeof Slot>
->(({ ...props }, ref) => {
+  FormControlProps
+>(({ required, ...props }, ref) => {
   const { error, formItemId, formDescriptionId, formMessageId } = useFormField()
 
   return (
@@ -116,6 +120,7 @@ const FormControl = React.forwardRef<
           : `${formDescriptionId} ${formMessageId}`
       }
       aria-invalid={!!error}
+      aria-required={required}
       {...props}
     />
   )
@@ -164,7 +169,6 @@ const FormMessage = React.forwardRef<
 FormMessage.displayName = "FormMessage"
 
 export {
-  useFormField,
   Form,
   FormItem,
   FormLabel,
@@ -173,3 +177,6 @@ export {
   FormMessage,
   FormField,
 }
+
+// eslint-disable-next-line react-refresh/only-export-components
+export { useFormField }

@@ -18,6 +18,7 @@ import pytest
 from uuid import uuid4
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
+import smtplib
 
 from app.services.alerts import (
     EmailChannelHandler,
@@ -37,6 +38,7 @@ from app.services.alerts import (
     EmailChannelConfig,
     WebSocketChannelConfig,
     WebhookChannelConfig,
+    ChannelHandler,
 )
 
 

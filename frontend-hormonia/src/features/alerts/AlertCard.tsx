@@ -94,7 +94,7 @@ const AlertCardComponent = ({ alert, onAcknowledge, onResolve, isLoading }: Aler
   const severityColor = getSeverityColor(alert.severity)
 
   return (
-    <Card className={`transition-all hover:shadow-md ${
+    <Card className={`transition-shadow hover:shadow-md ${
       !isAcknowledged ? 'border-l-4 border-l-red-500' : ''
     }`}>
       <CardHeader>

@@ -9,7 +9,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import {
   MessageSquare,
-  Users,
   Activity,
   TrendingUp,
   AlertCircle,
@@ -58,7 +57,7 @@ export const WhatsAppDashboard: React.FC = () => {
   const [selectedInstance, setSelectedInstance] = useState<WhatsAppInstance | null>(null);
   const [queueStats, setQueueStats] = useState<QueueStats | null>(null);
   const [messageStats, setMessageStats] = useState<Record<string, number> | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [_loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isEvolutionEnabled, setIsEvolutionEnabled] = useState(false);
 
@@ -76,6 +75,7 @@ export const WhatsAppDashboard: React.FC = () => {
 
     // Return undefined if Evolution API is disabled
     return undefined;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loadDashboardData is stable, only config changes should trigger reload
   }, [config]);
 
   const loadDashboardData = async () => {
@@ -270,7 +270,7 @@ export const WhatsAppDashboard: React.FC = () => {
           {selectedInstance?.isConnected ? (
             <WhatsAppMessageSender
               instanceName={selectedInstance.name}
-              onMessageSent={(response) => {
+              onMessageSent={(_response) => {
                 // Refresh statistics after sending a message
                 loadMessageStatistics(selectedInstance.name);
               }}

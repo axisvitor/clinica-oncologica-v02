@@ -8,12 +8,13 @@ from app.models.patient import Patient, FlowState
 from app.models.patient_onboarding_saga import PatientOnboardingSaga
 from app.models.enums import SagaStatus
 from app.models.message import Message, MessageDirection, MessageType, MessageStatus
+from app.models.message_archive import MessageArchive
 from app.models.message_events import MessageStatusEvent, EvolutionWebhookEvent
 from app.models.flow import PatientFlowState, FlowKind, FlowTemplateVersion
 from app.models.quiz import QuizTemplate, QuizResponse
 from app.models.report import MedicalReport
 from app.models.alert import Alert, AlertSeverity, AlertStatus
-from app.models.flow_analytics import FlowAnalytics, FlowMessage, QuizQuestion
+from app.models.flow_analytics import FlowAnalytics, FlowMessage
 from app.models.ab_experiment import (
     ABExperiment,
     ABVariantAssignment,
@@ -69,6 +70,14 @@ from app.models.upload import Upload
 # AI-generated patient summaries
 from app.models.patient_summary import PatientSummary
 
+# LGPD Audit models
+from app.models.lgpd_audit import (
+    LGPDAuditLog,
+    DataAccessRequest,
+    LGPDActionType,
+    LGPDDataCategory,
+)
+
 __all__ = [
     # Base
     "BaseModel",
@@ -86,6 +95,7 @@ __all__ = [
     "MessageDirection",
     "MessageType",
     "MessageStatus",
+    "MessageArchive",
     "MessageStatusEvent",
     "EvolutionWebhookEvent",  # Evolution API webhook debugging
     "WebhookEvent",  # Idempotency tracking from webhook_event.py
@@ -105,7 +115,6 @@ __all__ = [
     # Analytics models
     "FlowAnalytics",
     "FlowMessage",
-    "QuizQuestion",
     # A/B Testing models
     "ABExperiment",
     "ABVariantAssignment",
@@ -159,4 +168,9 @@ __all__ = [
     "WebhookLog",
     # AI Patient Summaries
     "PatientSummary",
+    # LGPD Audit models
+    "LGPDAuditLog",
+    "DataAccessRequest",
+    "LGPDActionType",
+    "LGPDDataCategory",
 ]

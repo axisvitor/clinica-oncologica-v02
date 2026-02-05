@@ -19,6 +19,7 @@ from app.models.flow import FlowKind, FlowTemplateVersion
 from app.models.quiz import QuizTemplate
 from app.models.user import User, UserRole
 from app.dependencies.auth_dependencies import get_redis_cache
+from app.core.redis_unified import get_async_redis
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -42,6 +43,7 @@ RATE_LIMIT_SEARCH = "30/minute"
 async def _get_current_user_simple(
     session_cookie_id: Optional[str] = Cookie(None, alias="session_id"),
     x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),
+    authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db),
     redis_cache=Depends(get_redis_cache),
 ) -> Dict[str, Any]:
@@ -50,9 +52,15 @@ async def _get_current_user_simple(
     Validates user session from cookie or header and retrieves user data
     from cache or database. Used as dependency for template endpoints.
 
+    Supports multiple authentication sources (in priority order):
+    1. Authorization header (Bearer <session_id>)
+    2. X-Session-ID header
+    3. session_id cookie
+
     Args:
         session_cookie_id: Session ID from cookie. Defaults to None.
         x_session_id: Session ID from X-Session-ID header. Defaults to None.
+        authorization: Authorization header (Bearer token). Defaults to None.
         db: Database session from dependency injection.
         redis_cache: Redis cache instance from dependency injection.
 
@@ -72,7 +80,20 @@ async def _get_current_user_simple(
         >>> print(user["email"])
         "user@example.com"
     """
-    final_session_id = session_cookie_id or x_session_id
+    final_session_id = None
+    
+    # Priority 1: Authorization Header (Bearer <session_id>)
+    if authorization and authorization.startswith("Bearer "):
+        final_session_id = authorization.split(" ")[1]
+    
+    # Priority 2: X-Session-ID Header
+    if not final_session_id and x_session_id:
+        final_session_id = x_session_id
+        
+    # Priority 3: Cookie
+    if not final_session_id and session_cookie_id:
+        final_session_id = session_cookie_id
+
     if not final_session_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Session ID not provided"
@@ -243,8 +264,6 @@ async def _get_cached_result(cache_key: str) -> Optional[Dict[str, Any]]:
         ...     print(result["template_name"])
     """
     try:
-        from app.core.redis_unified import get_async_redis
-
         redis_client = await get_async_redis()
         if redis_client is None:
             return None
@@ -274,8 +293,6 @@ async def _set_cached_result(cache_key: str, data: Dict[str, Any], ttl: int) -> 
         ... )
     """
     try:
-        from app.core.redis_unified import get_async_redis
-
         redis_client = await get_async_redis()
         if redis_client is None:
             return
@@ -306,8 +323,6 @@ async def _invalidate_template_cache(
         >>> await _invalidate_template_cache("flow_template", template_uuid)
     """
     try:
-        from app.core.redis_unified import get_async_redis
-
         redis_client = await get_async_redis()
         if redis_client is None:
             return
@@ -354,10 +369,10 @@ def _serialize_flow_template(template: FlowTemplateVersion) -> Dict[str, Any]:
         "version_number": template.version_number,
         "template_name": template.template_name,
         "description": template.description,
-        "steps": template.messages,
-        "metadata": template.template_metadata or {},
+        "steps": template.messages or {},
+        "metadata": template.metadata_json or {},
         "is_active": template.is_active,
-        "is_draft": template.is_draft,
+        "is_draft": bool(template.is_draft),
         "published_at": template.published_at.isoformat()
         if template.published_at
         else None,

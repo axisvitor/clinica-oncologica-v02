@@ -6,7 +6,7 @@ Shared imports and utilities for monthly quiz operations.
 
 import logging
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 from uuid import UUID
 
@@ -32,7 +32,7 @@ from app.schemas.v2.quiz_extensions import (
     QuizTemplateV2,
 )
 from app.utils.rate_limiter import limiter
-from app.dependencies import get_current_user
+from app.dependencies.auth_dependencies import get_current_user_from_session, get_redis_cache as _get_redis_cache
 
 # Logger
 logger = logging.getLogger(__name__)
@@ -71,20 +71,27 @@ def create_cursor(item_id, created_at):
 async def get_redis_cache():
     """Get Redis cache instance."""
     try:
-        from app.core.redis_manager import get_redis_client
-        return get_redis_client()
+        return await _get_redis_cache()
     except Exception:
         return None
 
 
 async def _get_current_user_simple(
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_session),
 ) -> User:
-    """Simple current user dependency that returns None if not authenticated."""
-    try:
-        return await get_current_user(db=db)
-    except HTTPException:
-        return None
+    """Current user dependency using session-based authentication.
+    
+    Supports:
+    - Authorization: Bearer <session_id> header
+    - X-Session-ID header  
+    - session_id cookie
+    """
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required"
+        )
+    return current_user
 
 
 __all__ = [

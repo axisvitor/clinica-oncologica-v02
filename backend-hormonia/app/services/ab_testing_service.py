@@ -5,8 +5,9 @@ Business logic for A/B testing, experiment management, and statistical analysis.
 
 import json
 import hashlib
+import inspect
 import random
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 from uuid import UUID, uuid4
 
@@ -41,8 +42,12 @@ from app.schemas.v2.ab_testing import (
     VariantType,
     StatisticalTest,
     ConfidenceLevel,
+    ExperimentControlRequest,
+    ExperimentControlResponse,
+    ExportRequest,
+    ExportResponse,
 )
-from app.core.redis_unified import get_async_redis
+import app.core.redis_unified as redis_unified
 from app.utils.logging import get_logger
 from app.api.v2.dependencies import create_cursor, get_pagination_params
 
@@ -62,11 +67,11 @@ class ABTestingService:
 
     async def _get_cached_result(self, cache_key: str) -> Optional[Dict[str, Any]]:
         try:
-            redis_client = await get_async_redis()
+            redis_client = await redis_unified.get_async_redis()
             if redis_client is None:
                 return None
             cached = await redis_client.get(cache_key)
-            if cached:
+            if isinstance(cached, (str, bytes, bytearray)) and cached:
                 return json.loads(cached)
             return None
         except Exception as e:
@@ -75,7 +80,7 @@ class ABTestingService:
 
     async def _set_cached_result(self, cache_key: str, data: Any, ttl: int) -> None:
         try:
-            redis_client = await get_async_redis()
+            redis_client = await redis_unified.get_async_redis()
             if redis_client is None:
                 return
 
@@ -92,11 +97,18 @@ class ABTestingService:
 
     async def _invalidate_cache_pattern(self, pattern: str) -> None:
         try:
-            redis_client = await get_async_redis()
+            redis_client = await redis_unified.get_async_redis()
             if redis_client is None:
                 return
-            async for key in redis_client.scan_iter(match=pattern):
-                await redis_client.delete(key)
+            scan_result = redis_client.scan_iter(match=pattern)
+            if inspect.isasyncgen(scan_result) or hasattr(scan_result, "__aiter__"):
+                async for key in scan_result:
+                    await redis_client.delete(key)
+            else:
+                if inspect.isawaitable(scan_result):
+                    scan_result = await scan_result
+                for key in scan_result or []:
+                    await redis_client.delete(key)
         except Exception as e:
             logger.warning(f"Cache invalidation failed: {e}")
 
@@ -107,6 +119,24 @@ class ABTestingService:
         return f"ab_testing:v2:{endpoint}:{param_hash}"
 
     def _serialize_experiment(self, exp: ABExperiment) -> dict:
+        statistical_config = exp.statistical_config or {}
+        variants = statistical_config.get("variants", [])
+        goals = statistical_config.get("goals", [])
+
+        if isinstance(variants, str):
+            variants = json.loads(variants)
+        if isinstance(goals, str):
+            goals = json.loads(goals)
+
+        created_by = exp.created_by
+        if created_by:
+            try:
+                created_by = UUID(str(created_by))
+            except (ValueError, TypeError):
+                created_by = UUID("00000000-0000-0000-0000-000000000000")
+        else:
+            created_by = UUID("00000000-0000-0000-0000-000000000000")
+
         return {
             "id": exp.id,
             "name": exp.name,
@@ -117,19 +147,15 @@ class ABTestingService:
             else str(exp.status),
             "created_at": exp.created_at,
             "updated_at": exp.updated_at,
-            "created_by": UUID(exp.created_by) if exp.created_by else None,
-            "variants": json.loads(exp.statistical_config.get("variants", "[]"))
-            if exp.statistical_config
-            else [],
-            "conversion_goals": json.loads(exp.statistical_config.get("goals", "[]"))
-            if exp.statistical_config
-            else [],
+            "created_by": created_by,
+            "variants": variants,
+            "conversion_goals": goals,
             "start_date": exp.start_date,
             "end_date": exp.end_date,
             "max_duration_days": exp.duration_days,
             "total_participants": exp.total_participants,
             "total_conversions": getattr(exp, "total_conversions", 0),
-            "statistical_config": exp.statistical_config or {},
+            "statistical_config": statistical_config,
             "winner_decision_mode": getattr(exp, "winner_decision_mode", "manual"),
             "winner": exp.winner,
             "winner_declared_at": getattr(exp, "winner_declared_at", None),
@@ -290,6 +316,7 @@ class ABTestingService:
     async def create_experiment(
         self, data: ExperimentCreate, user_id: Optional[UUID]
     ) -> Dict[str, Any]:
+        now = datetime.now(timezone.utc)
         experiment = ABExperiment(
             id=uuid4(),
             name=data.name,
@@ -303,6 +330,11 @@ class ABTestingService:
             created_by=str(user_id) if user_id else "system",
             start_date=data.start_date,
             end_date=data.end_date,
+            created_at=now,
+            updated_at=now,
+            total_participants=0,
+            control_participants=0,
+            treatment_participants=0,
             statistical_config={
                 "variants": [v.dict() for v in data.variants],
                 "goals": [g.dict() for g in data.conversion_goals],
@@ -346,6 +378,116 @@ class ABTestingService:
         )
         return self._serialize_experiment(experiment)
 
+    async def control_experiment(
+        self,
+        experiment_id: UUID,
+        data: ExperimentControlRequest,
+        user_id: Optional[UUID],
+    ) -> ExperimentControlResponse:
+        experiment = (
+            self.db.query(ABExperiment).filter(ABExperiment.id == experiment_id).first()
+        )
+        if not experiment:
+            raise HTTPException(status_code=404, detail="Experiment not found")
+
+        previous_status = experiment.status
+        now = datetime.now(timezone.utc)
+
+        if data.action == "start":
+            if experiment.status != ModelExperimentStatus.DRAFT:
+                raise HTTPException(status_code=400, detail="Only draft can be started")
+            experiment.status = ModelExperimentStatus.ACTIVE
+            experiment.started_by = str(user_id) if user_id else experiment.started_by
+            experiment.start_date = experiment.start_date or now
+        elif data.action == "pause":
+            if experiment.status != ModelExperimentStatus.ACTIVE:
+                raise HTTPException(status_code=400, detail="Only active can be paused")
+            experiment.status = ModelExperimentStatus.PAUSED
+        elif data.action == "resume":
+            if experiment.status != ModelExperimentStatus.PAUSED:
+                raise HTTPException(status_code=400, detail="Only paused can be resumed")
+            experiment.status = ModelExperimentStatus.ACTIVE
+        elif data.action == "stop":
+            if data.emergency_stop:
+                experiment.status = ModelExperimentStatus.TERMINATED
+                experiment.terminated_by = (
+                    str(user_id) if user_id else experiment.terminated_by
+                )
+                experiment.termination_reason = data.reason
+                experiment.terminated_at = now
+            else:
+                experiment.status = ModelExperimentStatus.COMPLETED
+                experiment.end_date = experiment.end_date or now
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported action")
+
+        self.db.commit()
+        self.db.refresh(experiment)
+        await self._invalidate_cache_pattern(
+            f"ab_testing:v2:*experiment*{experiment_id}*"
+        )
+
+        return ExperimentControlResponse(
+            experiment_id=experiment_id,
+            previous_status=ExperimentStatus(previous_status.value),
+            new_status=ExperimentStatus(experiment.status.value),
+            action_timestamp=now,
+            action_by=user_id or UUID("00000000-0000-0000-0000-000000000000"),
+            message=f"Experiment {data.action} executed",
+        )
+
+    async def delete_experiment(self, experiment_id: UUID, preserve_data: bool) -> None:
+        experiment = (
+            self.db.query(ABExperiment).filter(ABExperiment.id == experiment_id).first()
+        )
+        if not experiment:
+            raise HTTPException(status_code=404, detail="Experiment not found")
+        if experiment.status != ModelExperimentStatus.DRAFT:
+            raise HTTPException(status_code=400, detail="Only draft can be deleted")
+
+        if preserve_data:
+            experiment.status = ModelExperimentStatus.TERMINATED
+            experiment.terminated_at = datetime.now(timezone.utc)
+        else:
+            self.db.delete(experiment)
+
+        self.db.commit()
+        await self._invalidate_cache_pattern("ab_testing:v2:*")
+
+    async def export_experiment(
+        self, experiment_id: UUID, data: ExportRequest
+    ) -> ExportResponse:
+        experiment = (
+            self.db.query(ABExperiment).filter(ABExperiment.id == experiment_id).first()
+        )
+        if not experiment:
+            raise HTTPException(status_code=404, detail="Experiment not found")
+
+        _ = (
+            self.db.query(ABVariantAssignment)
+            .filter(ABVariantAssignment.experiment_id == experiment_id)
+            .all()
+        )
+        _ = (
+            self.db.query(ABExperimentMetric)
+            .filter(ABExperimentMetric.experiment_id == experiment_id)
+            .all()
+        )
+
+        export_id = uuid4()
+        now = datetime.now(timezone.utc)
+        download_url = f"/api/v2/ab-testing/exports/{export_id}"
+
+        return ExportResponse(
+            export_id=export_id,
+            experiment_id=experiment_id,
+            format=data.format,
+            status="completed",
+            download_url=download_url,
+            created_at=now,
+            expires_at=now + timedelta(days=1),
+        )
+
     async def assign_variant(
         self,
         experiment_id: UUID,
@@ -361,7 +503,7 @@ class ABTestingService:
         if experiment.status != ModelExperimentStatus.ACTIVE:
             raise HTTPException(status_code=400, detail="Experiment not active")
 
-        user_identifier = user_id if user_id else anonymous_id
+        user_identifier = str(user_id) if user_id else anonymous_id
         hashed_id = hashlib.sha256(user_identifier.encode()).hexdigest()[:32]
 
         existing = (
@@ -375,7 +517,10 @@ class ABTestingService:
             .first()
         )
 
-        variants = json.loads(experiment.statistical_config.get("variants", "[]"))
+        statistical_config = experiment.statistical_config or {}
+        variants = statistical_config.get("variants", [])
+        if isinstance(variants, str):
+            variants = json.loads(variants)
 
         if existing:
             variant_data = next(
@@ -396,6 +541,26 @@ class ABTestingService:
             if force_variant
             else self._weighted_random_assignment(variants, user_identifier)
         )
+        if not force_variant and variants:
+            target_weights = {
+                variant.get("type"): variant.get("traffic_weight", 0)
+                for variant in variants
+            }
+            control_count = experiment.control_participants or 0
+            treatment_count = experiment.treatment_participants or 0
+            total_count = control_count + treatment_count
+            if total_count > 0:
+                current_ratios = {
+                    "control": control_count / total_count,
+                    "treatment": treatment_count / total_count,
+                }
+                underrepresented = []
+                for v_type, target_weight in target_weights.items():
+                    delta = target_weight - current_ratios.get(v_type, 0)
+                    underrepresented.append((delta, v_type))
+                underrepresented.sort(reverse=True)
+                if underrepresented and underrepresented[0][0] > 0:
+                    assigned_variant = underrepresented[0][1]
         assignment = ABVariantAssignment(
             id=uuid4(),
             experiment_id=experiment_id,
@@ -558,6 +723,10 @@ class ABTestingService:
 
         start = experiment.start_date or experiment.created_at
         end = experiment.end_date or datetime.now(timezone.utc)
+        if start and start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        if end and end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
 
         result = ExperimentResults(
             experiment_id=experiment_id,

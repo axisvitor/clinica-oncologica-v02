@@ -1,5 +1,5 @@
 """
-Celery tasks for automatic retry of failed patient onboarding sagas.
+Background tasks for automatic retry of failed patient onboarding sagas.
 
 This module implements the retry mechanism for sagas that failed during
 patient onboarding, ensuring eventual consistency and high success rates.
@@ -17,11 +17,11 @@ from datetime import datetime, timedelta, timezone
 from typing import List
 from uuid import UUID
 
-from celery import shared_task
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_db, get_scoped_session
+from app.task_queue import task_queue as celery_app
 from app.utils.async_helpers import run_async
 from app.models.patient_onboarding_saga import PatientOnboardingSaga
 from app.models.enums import SagaStatus
@@ -33,7 +33,7 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
-@shared_task(
+@celery_app.task(
     name="retry_patient_onboarding_saga",
     bind=True,
     max_retries=3,
@@ -55,107 +55,104 @@ def retry_patient_onboarding_saga(self, saga_id: str) -> dict:
     Raises:
         Exception: If retry fails after max attempts
     """
-    db = next(get_db())
-    redis_client = get_redis_client()
+    with get_scoped_session() as db:
+        redis_client = get_redis_client()
 
-    try:
-        # Fetch saga from database
-        saga = (
-            db.query(PatientOnboardingSaga)
-            .filter(PatientOnboardingSaga.id == UUID(saga_id))
-            .first()
-        )
-
-        if not saga:
-            logger.error(f"Saga not found: {saga_id}")
-            return {"status": "error", "message": "Saga not found"}
-
-        # Check if saga is eligible for retry
-        if saga.status not in [SagaStatus.FAILED, SagaStatus.COMPENSATING]:
-            logger.info(f"Saga {saga_id} is not in a retryable state: {saga.status}")
-            return {
-                "status": "skipped",
-                "message": f"Saga status is {saga.status}, not retryable",
-            }
-
-        # Check retry count
-        if saga.retry_count >= settings.get("SAGA_MAX_RETRIES", 3):
-            logger.warning(
-                f"Saga {saga_id} has exceeded max retries ({saga.retry_count})"
+        try:
+            # Fetch saga from database
+            saga = (
+                db.query(PatientOnboardingSaga)
+                .filter(PatientOnboardingSaga.id == UUID(saga_id))
+                .first()
             )
-            run_async(_alert_admin_max_retries_exceeded(saga, db))
-            return {
-                "status": "max_retries_exceeded",
-                "message": f"Saga has been retried {saga.retry_count} times",
-                "saga_id": saga_id,
-            }
 
-        # Calculate backoff delay
-        backoff_seconds = _calculate_exponential_backoff(saga.retry_count)
-        if saga.last_retry_at:
-            next_retry_time = saga.last_retry_at + timedelta(seconds=backoff_seconds)
-            if datetime.now(timezone.utc) < next_retry_time:
-                logger.info(
-                    f"Saga {saga_id} not ready for retry yet (backoff: {backoff_seconds}s)"
-                )
+            if not saga:
+                logger.error(f"Saga not found: {saga_id}")
+                return {"status": "error", "message": "Saga not found"}
+
+            # Check if saga is eligible for retry
+            if saga.status not in [SagaStatus.FAILED, SagaStatus.COMPENSATING]:
+                logger.info(f"Saga {saga_id} is not in a retryable state: {saga.status}")
                 return {
-                    "status": "backoff",
-                    "message": f"Waiting for backoff period ({backoff_seconds}s)",
-                    "next_retry_at": next_retry_time.isoformat(),
+                    "status": "skipped",
+                    "message": f"Saga status is {saga.status}, not retryable",
                 }
 
-        # Increment retry count
-        saga.retry_count += 1
-        saga.last_retry_at = datetime.now(timezone.utc)
-        db.commit()
+            # Check retry count
+            if saga.retry_count >= getattr(settings, "SAGA_MAX_RETRIES", 3):
+                logger.warning(
+                    f"Saga {saga_id} has exceeded max retries ({saga.retry_count})"
+                )
+                run_async(_alert_admin_max_retries_exceeded(saga, db))
+                return {
+                    "status": "max_retries_exceeded",
+                    "message": f"Saga has been retried {saga.retry_count} times",
+                    "saga_id": saga_id,
+                }
 
-        logger.info(
-            f"Retrying saga {saga_id} (attempt {saga.retry_count}/{settings.get('SAGA_MAX_RETRIES', 3)})"
-        )
+            # Calculate backoff delay
+            backoff_seconds = _calculate_exponential_backoff(saga.retry_count)
+            if saga.last_retry_at:
+                next_retry_time = saga.last_retry_at + timedelta(seconds=backoff_seconds)
+                if datetime.now(timezone.utc) < next_retry_time:
+                    logger.info(
+                        f"Saga {saga_id} not ready for retry yet (backoff: {backoff_seconds}s)"
+                    )
+                    return {
+                        "status": "backoff",
+                        "message": f"Waiting for backoff period ({backoff_seconds}s)",
+                        "next_retry_at": next_retry_time.isoformat(),
+                    }
 
-        # Initialize saga orchestrator
-        orchestrator = SagaOrchestrator(db=db, redis_client=redis_client)
+            # Increment retry count
+            saga.retry_count += 1
+            saga.last_retry_at = datetime.now(timezone.utc)
+            db.commit()
 
-        # Attempt to resume saga from last successful step (using run_async for event loop reuse)
-        result = run_async(orchestrator.resume_saga(saga_id=UUID(saga_id)))
-
-        if result["status"] == "completed":
-            logger.info(f"Saga {saga_id} completed successfully on retry")
-            capture_message(
-                f"Saga retry successful: {saga_id}",
-                level="info",
-                extra={"saga_id": saga_id, "retry_count": saga.retry_count},
+            logger.info(
+                f"Retrying saga {saga_id} (attempt {saga.retry_count}/{getattr(settings, 'SAGA_MAX_RETRIES', 3)})"
             )
-            return {
-                "status": "success",
-                "message": "Saga completed successfully",
-                "saga_id": saga_id,
-                "retry_count": saga.retry_count,
-            }
-        else:
-            logger.warning(
-                f"Saga {saga_id} failed again on retry: {result.get('error')}"
-            )
-            # Will be retried by scheduler if under max retries
-            return {
-                "status": "failed",
-                "message": result.get("error", "Unknown error"),
-                "saga_id": saga_id,
-                "retry_count": saga.retry_count,
-            }
 
-    except Exception as e:
-        logger.error(f"Error retrying saga {saga_id}: {e}", exc_info=True)
-        capture_exception(e)
+            # Initialize saga orchestrator
+            orchestrator = SagaOrchestrator(db=db, redis_client=redis_client)
 
-        # Retry this task with exponential backoff
-        raise self.retry(exc=e, countdown=60 * (2**self.request.retries))
+            # Attempt to resume saga from last successful step (using run_async for event loop reuse)
+            result = run_async(orchestrator.resume_saga(saga_id=UUID(saga_id)))
 
-    finally:
-        db.close()
+            if result["status"] == "completed":
+                logger.info(f"Saga {saga_id} completed successfully on retry")
+                capture_message(
+                    f"Saga retry successful: {saga_id}",
+                    level="info",
+                    extra={"saga_id": saga_id, "retry_count": saga.retry_count},
+                )
+                return {
+                    "status": "success",
+                    "message": "Saga completed successfully",
+                    "saga_id": saga_id,
+                    "retry_count": saga.retry_count,
+                }
+            else:
+                logger.warning(
+                    f"Saga {saga_id} failed again on retry: {result.get('error')}"
+                )
+                # Will be retried by scheduler if under max retries
+                return {
+                    "status": "failed",
+                    "message": result.get("error", "Unknown error"),
+                    "saga_id": saga_id,
+                    "retry_count": saga.retry_count,
+                }
+
+        except Exception as e:
+            logger.error(f"Error retrying saga {saga_id}: {e}", exc_info=True)
+            capture_exception(e)
+
+            # Retry this task with exponential backoff
+            raise self.retry(exc=e, countdown=60 * (2**self.request.retries))
 
 
-@shared_task(
+@celery_app.task(
     name="scan_and_retry_failed_sagas",
     bind=True,
 )
@@ -169,74 +166,70 @@ def scan_and_retry_failed_sagas(self) -> dict:
     Returns:
         dict: Summary of sagas found and retry tasks scheduled
     """
-    db = next(get_db())
+    with get_scoped_session() as db:
+        try:
+            logger.info("Starting scan for failed sagas...")
 
-    try:
-        logger.info("Starting scan for failed sagas...")
+            # Find failed sagas eligible for retry
+            failed_sagas = _find_failed_sagas_for_retry(db)
 
-        # Find failed sagas eligible for retry
-        failed_sagas = _find_failed_sagas_for_retry(db)
+            if not failed_sagas:
+                logger.info("No failed sagas found for retry")
+                return {
+                    "status": "success",
+                    "message": "No failed sagas to retry",
+                    "count": 0,
+                }
 
-        if not failed_sagas:
-            logger.info("No failed sagas found for retry")
-            return {
-                "status": "success",
-                "message": "No failed sagas to retry",
-                "count": 0,
-            }
+            logger.info(f"Found {len(failed_sagas)} failed sagas eligible for retry")
 
-        logger.info(f"Found {len(failed_sagas)} failed sagas eligible for retry")
+            # Schedule retry tasks for each saga
+            scheduled_count = 0
+            max_retries_count = 0
 
-        # Schedule retry tasks for each saga
-        scheduled_count = 0
-        max_retries_count = 0
+            for saga in failed_sagas:
+                try:
+                    # Check if already at max retries
+                    if saga.retry_count >= getattr(settings, "SAGA_MAX_RETRIES", 3):
+                        logger.warning(f"Saga {saga.id} has exceeded max retries, skipping")
+                        max_retries_count += 1
+                        continue
 
-        for saga in failed_sagas:
-            try:
-                # Check if already at max retries
-                if saga.retry_count >= settings.get("SAGA_MAX_RETRIES", 3):
-                    logger.warning(f"Saga {saga.id} has exceeded max retries, skipping")
-                    max_retries_count += 1
+                    # Schedule retry task
+                    retry_patient_onboarding_saga.apply_async(
+                        args=[str(saga.id)],
+                        countdown=_calculate_exponential_backoff(saga.retry_count),
+                    )
+
+                    scheduled_count += 1
+                    logger.info(f"Scheduled retry for saga {saga.id}")
+
+                except Exception as e:
+                    logger.error(f"Failed to schedule retry for saga {saga.id}: {e}")
                     continue
 
-                # Schedule retry task
-                retry_patient_onboarding_saga.apply_async(
-                    args=[str(saga.id)],
-                    countdown=_calculate_exponential_backoff(saga.retry_count),
-                )
+            logger.info(
+                f"Scan complete: {scheduled_count} retries scheduled, {max_retries_count} max retries exceeded"
+            )
 
-                scheduled_count += 1
-                logger.info(f"Scheduled retry for saga {saga.id}")
+            return {
+                "status": "success",
+                "message": f"Scheduled {scheduled_count} retry tasks",
+                "total_found": len(failed_sagas),
+                "scheduled": scheduled_count,
+                "max_retries_exceeded": max_retries_count,
+            }
 
-            except Exception as e:
-                logger.error(f"Failed to schedule retry for saga {saga.id}: {e}")
-                continue
-
-        logger.info(
-            f"Scan complete: {scheduled_count} retries scheduled, {max_retries_count} max retries exceeded"
-        )
-
-        return {
-            "status": "success",
-            "message": f"Scheduled {scheduled_count} retry tasks",
-            "total_found": len(failed_sagas),
-            "scheduled": scheduled_count,
-            "max_retries_exceeded": max_retries_count,
-        }
-
-    except Exception as e:
-        logger.error(f"Error scanning for failed sagas: {e}", exc_info=True)
-        capture_exception(e)
-        return {
-            "status": "error",
-            "message": str(e),
-        }
-
-    finally:
-        db.close()
+        except Exception as e:
+            logger.error(f"Error scanning for failed sagas: {e}", exc_info=True)
+            capture_exception(e)
+            return {
+                "status": "error",
+                "message": str(e),
+            }
 
 
-@shared_task(name="cleanup_old_completed_sagas")
+@celery_app.task(name="cleanup_old_completed_sagas")
 def cleanup_old_completed_sagas() -> dict:
     """
     Clean up completed sagas older than retention period.
@@ -247,67 +240,63 @@ def cleanup_old_completed_sagas() -> dict:
     Returns:
         dict: Summary of cleanup operation
     """
-    db = next(get_db())
+    with get_scoped_session() as db:
+        try:
+            retention_days = getattr(settings, "SAGA_RETENTION_DAYS", 30)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
 
-    try:
-        retention_days = settings.get("SAGA_RETENTION_DAYS", 30)
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
-
-        logger.info(
-            f"Starting cleanup of completed sagas older than {retention_days} days"
-        )
-
-        # Find old completed sagas
-        old_sagas = (
-            db.query(PatientOnboardingSaga)
-            .filter(
-                and_(
-                    PatientOnboardingSaga.status == SagaStatus.COMPLETED,
-                    PatientOnboardingSaga.completed_at < cutoff_date,
-                )
+            logger.info(
+                f"Starting cleanup of completed sagas older than {retention_days} days"
             )
-            .all()
-        )
 
-        if not old_sagas:
-            logger.info("No old completed sagas to clean up")
+            # Find old completed sagas
+            old_sagas = (
+                db.query(PatientOnboardingSaga)
+                .filter(
+                    and_(
+                        PatientOnboardingSaga.status == SagaStatus.COMPLETED,
+                        PatientOnboardingSaga.completed_at < cutoff_date,
+                    )
+                )
+                .all()
+            )
+
+            if not old_sagas:
+                logger.info("No old completed sagas to clean up")
+                return {
+                    "status": "success",
+                    "message": "No old sagas to clean up",
+                    "deleted_count": 0,
+                }
+
+            # Delete old sagas
+            deleted_count = 0
+            for saga in old_sagas:
+                try:
+                    db.delete(saga)
+                    deleted_count += 1
+                except Exception as e:
+                    logger.error(f"Failed to delete saga {saga.id}: {e}")
+                    continue
+
+            db.commit()
+
+            logger.info(f"Cleanup complete: {deleted_count} old sagas deleted")
+
             return {
                 "status": "success",
-                "message": "No old sagas to clean up",
-                "deleted_count": 0,
+                "message": f"Deleted {deleted_count} old completed sagas",
+                "deleted_count": deleted_count,
             }
 
-        # Delete old sagas
-        deleted_count = 0
-        for saga in old_sagas:
-            try:
-                db.delete(saga)
-                deleted_count += 1
-            except Exception as e:
-                logger.error(f"Failed to delete saga {saga.id}: {e}")
-                continue
-
-        db.commit()
-
-        logger.info(f"Cleanup complete: {deleted_count} old sagas deleted")
-
-        return {
-            "status": "success",
-            "message": f"Deleted {deleted_count} old completed sagas",
-            "deleted_count": deleted_count,
-        }
-
-    except Exception as e:
-        logger.error(f"Error cleaning up old sagas: {e}", exc_info=True)
-        capture_exception(e)
-        db.rollback()
-        return {
-            "status": "error",
-            "message": str(e),
-        }
-
-    finally:
-        db.close()
+        except Exception as e:
+            logger.error(f"Error cleaning up old sagas: {e}", exc_info=True)
+            capture_exception(e)
+            db.rollback()
+            return {
+                "status": "error",
+                "message": str(e),
+            }
 
 
 # ============================================================================
@@ -330,7 +319,7 @@ def _find_failed_sagas_for_retry(db: Session) -> List[PatientOnboardingSaga]:
     Returns:
         List of PatientOnboardingSaga objects eligible for retry
     """
-    max_retries = settings.get("SAGA_MAX_RETRIES", 3)
+    max_retries = getattr(settings, "SAGA_MAX_RETRIES", 3)
 
     # Query for failed sagas
     query = db.query(PatientOnboardingSaga).filter(
@@ -382,8 +371,8 @@ def _calculate_exponential_backoff(retry_count: int) -> int:
     #   Retry 1 -> 60s (1 min)
     #   Retry 2 -> 120s (2 min)
     #   Retry 3 -> 240s (4 min)
-    base_delay = settings.get("SAGA_RETRY_BASE_DELAY_SECONDS", 60)
-    max_delay = settings.get("SAGA_RETRY_MAX_DELAY_SECONDS", 600)  # 10 min
+    base_delay = getattr(settings, "SAGA_RETRY_BASE_DELAY_SECONDS", 60)
+    max_delay = getattr(settings, "SAGA_RETRY_MAX_DELAY_SECONDS", 600)  # 10 min
 
     delay = base_delay * (2**retry_count)
 
@@ -451,7 +440,7 @@ async def _alert_admin_max_retries_exceeded(
         logger.info(f"Alert created for saga {saga.id} max retries exceeded")
 
         # Send email if configured
-        if settings.get("ENABLE_ADMIN_EMAIL_ALERTS", False):
+        if getattr(settings, "ENABLE_ADMIN_EMAIL_ALERTS", False):
             await _send_admin_email_alert(saga)
 
     except Exception as e:
@@ -497,7 +486,7 @@ async def _send_admin_email_alert(saga: PatientOnboardingSaga) -> None:
         <p><strong>View Saga:</strong> <a href="{settings.APP_ADMIN_DASHBOARD_URL}/sagas/{saga.id}">Click here</a></p>
         '''
 
-        admin_email = settings.get("ADMIN_EMAIL", "admin@example.com")
+        admin_email = getattr(settings, "ADMIN_EMAIL", "admin@example.com")
 
         await send_email(
             to_email=admin_email,

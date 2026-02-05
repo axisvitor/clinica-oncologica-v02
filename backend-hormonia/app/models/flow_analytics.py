@@ -6,21 +6,23 @@ from sqlalchemy import (
     Column,
     String,
     Integer,
-    Float,
-    DateTime,
     ForeignKey,
-    Boolean,
-    Text,
     Numeric,
+    DateTime,
+    Text,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 
 from app.models.base import BaseModel
 
 
 class FlowAnalytics(BaseModel):
-    """Analytics data for patient flow tracking."""
+    """
+    Analytics data for patient flow tracking.
+    Table: flow_analytics
+    """
 
     __tablename__ = "flow_analytics"
 
@@ -38,49 +40,39 @@ class FlowAnalytics(BaseModel):
         index=True,
     )
 
-    # Metrics
-    total_messages_sent = Column(Integer, default=0, nullable=False)
-    total_messages_received = Column(Integer, default=0, nullable=False)
-    total_interactions = Column(Integer, default=0, nullable=False)
+    # Metrics (Matching DB Schema)
+    total_steps = Column(Integer, nullable=True)
+    completed_steps = Column(Integer, nullable=True)
+    success_rate = Column(Numeric(5, 2), nullable=True)
+    avg_response_time_seconds = Column(Integer, nullable=True)
 
-    # Response metrics
-    avg_response_time_minutes = Column(Float, nullable=True)
-    completion_rate = Column(Float, nullable=True)  # 0.0 to 1.0
-    engagement_score = Column(Float, nullable=True)  # 0.0 to 100.0
-
-    # Quiz metrics
-    quiz_completion_rate = Column(Float, nullable=True)
-    avg_quiz_score = Column(Float, nullable=True)
-
-    # Timing
-    first_interaction_at = Column(DateTime(timezone=True), nullable=True)
-    last_interaction_at = Column(DateTime(timezone=True), nullable=True)
-
-    # Additional analytics data
-    analytics_data = Column("interaction_patterns", JSONB, nullable=True, default=dict)
+    # JSONB Data
+    step_analytics = Column(JSONB, nullable=True)
+    interaction_patterns = Column(JSONB, nullable=True)
 
     # Period tracking
     period_start = Column(DateTime(timezone=True), nullable=True)
     period_end = Column(DateTime(timezone=True), nullable=True)
-    success_rate = Column(Numeric, nullable=True)
-    completed_steps = Column(Integer, nullable=True)
-    total_steps = Column(Integer, nullable=True)
-    step_analytics = Column(JSONB, nullable=True)
-    avg_response_time_seconds = Column(Integer, nullable=True)
+    calculated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
     # Relationships
     patient = relationship("Patient", back_populates="analytics", lazy="select")
+    template_version = relationship("FlowTemplateVersion")
 
     def __repr__(self):
-        return f"<FlowAnalytics(patient_id='{self.patient_id}', engagement={self.engagement_score})>"
+        return f"<FlowAnalytics(patient_id='{self.patient_id}', calculated_at='{self.calculated_at}')>"
 
 
 class FlowMessage(BaseModel):
-    """Messages specific to flow templates - aligned with DB schema."""
+    """
+    Messages definitions for flow templates.
+    Table: flow_messages
+    NOTE: This table stores TEMPLATE definitions, not sent messages.
+    """
 
     __tablename__ = "flow_messages"
 
-    # References - aligned with actual DB schema
+    # References
     flow_template_version_id = Column(
         UUID(as_uuid=True),
         ForeignKey("flow_template_versions.id"),
@@ -88,13 +80,13 @@ class FlowMessage(BaseModel):
         index=True,
     )
 
-    # Message structure - matching DB schema exactly
+    # Message structure - matching DB schema
     step_number = Column(Integer, nullable=False)
     message_key = Column(String(100), nullable=False)
     message_text = Column(Text, nullable=False)
     message_type = Column(String(50), default="text", nullable=True)
 
-    # Interactive components - matching DB schema
+    # Interactive components
     buttons = Column(JSONB, nullable=True)
     list_items = Column(JSONB, nullable=True)
     conditions = Column(JSONB, nullable=True)
@@ -102,53 +94,9 @@ class FlowMessage(BaseModel):
     # Timing configuration
     delay_seconds = Column(Integer, default=0, nullable=True)
 
-    # Legacy fields for backward compatibility
-    patient_id = Column(
-        UUID(as_uuid=True), ForeignKey("patients.id"), nullable=True, index=True
-    )
-    message_id = Column(
-        UUID(as_uuid=True), ForeignKey("messages.id"), nullable=True, index=True
-    )
-    step_name = Column(String(100), nullable=True)  # Legacy alias for message_key
-    content = Column(Text, nullable=True)  # Legacy alias for message_text
-    scheduled_for = Column(DateTime(timezone=True), nullable=True)
-    sent_at = Column(DateTime(timezone=True), nullable=True)
-    status = Column(String(50), default="pending", nullable=True)
-
-    # Message metadata (renamed from metadata to avoid SQLAlchemy reserved word)
-    message_metadata = Column("metadata", JSONB, nullable=True, default=dict)
+    # Relationships
+    template_version = relationship("FlowTemplateVersion", backref="flow_messages")
 
     def __repr__(self):
-        return f"<FlowMessage(step='{self.step_name}', status='{self.status}')>"
+        return f"<FlowMessage(key='{self.message_key}', step={self.step_number})>"
 
-
-class QuizQuestion(BaseModel):
-    """Individual quiz question model."""
-
-    __tablename__ = "quiz_questions"
-
-    # References
-    quiz_template_id = Column(
-        UUID(as_uuid=True), ForeignKey("quiz_templates.id"), nullable=False, index=True
-    )
-
-    # Question details
-    question_text = Column(String, nullable=False)
-    question_type = Column(
-        String(50), nullable=False
-    )  # multiple_choice, text, scale, yes_no
-    question_order = Column(Integer, nullable=False)
-
-    # Options for multiple choice
-    options = Column(JSONB, nullable=True)  # Array of options
-    correct_answer = Column(String, nullable=True)
-
-    # Scoring
-    points = Column(Integer, default=1)
-    is_required = Column(Boolean, default=False)
-
-    # Question metadata (renamed from metadata to avoid SQLAlchemy reserved word)
-    question_metadata = Column("metadata", JSONB, nullable=True, default=dict)
-
-    def __repr__(self):
-        return f"<QuizQuestion(text='{self.question_text[:50]}...', type='{self.question_type}')>"

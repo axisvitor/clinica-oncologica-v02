@@ -1,6 +1,5 @@
 global:
   resolve_timeout: 5m
-  slack_api_url: '${SLACK_WEBHOOK_URL}'
   pagerduty_url: 'https://events.pagerduty.com/v2/enqueue'
 
 route:
@@ -16,10 +15,10 @@ route:
       receiver: pagerduty
       continue: true
 
-    # Warning alerts to Slack
+    # Warning alerts to email
     - match:
         severity: warning
-      receiver: slack
+      receiver: email
       continue: true
 
     # Info alerts to email
@@ -39,13 +38,6 @@ receivers:
         details:
           firing: '{{ .Alerts.Firing | len }}'
           resolved: '{{ .Alerts.Resolved | len }}'
-
-  - name: 'slack'
-    slack_configs:
-      - channel: '#hormonia-alerts'
-        title: ':warning: {{ .GroupLabels.alertname }}'
-        text: '{{ range .Alerts }}{{ .Annotations.summary }}\n{{ .Annotations.description }}\n{{ end }}'
-        send_resolved: true
 
   - name: 'email'
     email_configs:

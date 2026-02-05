@@ -344,6 +344,10 @@ describe("getRolePermissions()", () => {
       expect(adminPerms.canManageFlows).toBe(true);
       expect(adminPerms.canAccessAdmin).toBe(true);
       expect(adminPerms.canManageSettings).toBe(true);
+      expect(adminPerms.canImportPatients).toBe(true);
+      expect(adminPerms.canAccessHiveMind).toBe(true);
+      expect(adminPerms.canViewPhysicianDashboard).toBe(true);
+      expect(adminPerms.canViewPhysicianPatients).toBe(true);
     });
 
     it("should work with uppercase ADMIN", () => {
@@ -371,6 +375,10 @@ describe("getRolePermissions()", () => {
       expect(doctorPerms.canManageFlows).toBe(false);
       expect(doctorPerms.canAccessAdmin).toBe(false);
       expect(doctorPerms.canManageSettings).toBe(false);
+      expect(doctorPerms.canImportPatients).toBe(true);
+      expect(doctorPerms.canAccessHiveMind).toBe(false);
+      expect(doctorPerms.canViewPhysicianDashboard).toBe(true);
+      expect(doctorPerms.canViewPhysicianPatients).toBe(true);
     });
 
     it("should work with uppercase DOCTOR", () => {
@@ -394,6 +402,10 @@ describe("getRolePermissions()", () => {
       expect(perms.canManageFlows).toBe(false);
       expect(perms.canAccessAdmin).toBe(false);
       expect(perms.canManageSettings).toBe(false);
+      expect(perms.canImportPatients).toBe(false);
+      expect(perms.canAccessHiveMind).toBe(false);
+      expect(perms.canViewPhysicianDashboard).toBe(false);
+      expect(perms.canViewPhysicianPatients).toBe(false);
     });
 
     it("should return no permissions for empty string", () => {
@@ -437,16 +449,16 @@ describe("getRolePermissions()", () => {
       expect(adminCount).toBeGreaterThan(doctorCount);
     });
 
-    it("should give admin exactly 6 permissions", () => {
+    it("should give admin exactly 10 permissions", () => {
       const adminPerms = getRolePermissions("admin");
       const count = Object.values(adminPerms).filter(Boolean).length;
-      expect(count).toBe(6);
+      expect(count).toBe(10);
     });
 
-    it("should give doctor exactly 2 permissions", () => {
+    it("should give doctor exactly 5 permissions", () => {
       const doctorPerms = getRolePermissions("doctor");
       const count = Object.values(doctorPerms).filter(Boolean).length;
-      expect(count).toBe(2);
+      expect(count).toBe(5);
     });
 
     it("should only allow admin to manage users", () => {
@@ -490,11 +502,15 @@ describe("getRolePermissions()", () => {
       expect(perms).toHaveProperty("canManageFlows");
       expect(perms).toHaveProperty("canAccessAdmin");
       expect(perms).toHaveProperty("canManageSettings");
+      expect(perms).toHaveProperty("canImportPatients");
+      expect(perms).toHaveProperty("canAccessHiveMind");
+      expect(perms).toHaveProperty("canViewPhysicianDashboard");
+      expect(perms).toHaveProperty("canViewPhysicianPatients");
     });
 
-    it("should return exactly 6 permission keys", () => {
+    it("should return exactly 10 permission keys", () => {
       const perms = getRolePermissions("admin");
-      expect(Object.keys(perms)).toHaveLength(6);
+      expect(Object.keys(perms)).toHaveLength(10);
     });
 
     it("should return only boolean values", () => {

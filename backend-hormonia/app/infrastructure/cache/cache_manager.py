@@ -11,7 +11,6 @@ from typing import Any, Callable, Optional, Union, List, Dict
 from datetime import timedelta, datetime, timezone
 from dataclasses import dataclass, field
 from enum import Enum
-from concurrent.futures import ThreadPoolExecutor
 
 from redis import Redis
 from redis.asyncio import Redis as AsyncRedis
@@ -95,6 +94,11 @@ DEFAULT_CACHE_CONFIGS = {
     "ai_responses": CacheConfig(ttl=7200, key_prefix="ai:responses"),  # 2 hours
     "template_cache": CacheConfig(ttl=3600, key_prefix="templates:cache"),  # 1 hour
     "session_data": CacheConfig(ttl=1800, key_prefix="sessions:data"),  # 30 minutes
+    "http_cache": CacheConfig(
+        ttl=300,
+        key_prefix="responses",
+        namespace="http",
+    ),
 }
 
 

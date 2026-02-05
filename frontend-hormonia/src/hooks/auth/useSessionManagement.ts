@@ -86,7 +86,7 @@ export function useSessionManagement({
     // No localStorage restoration needed
     logger.debug('Session restore: delegated to backend cookies + Firebase SDK')
     return false // Always return false - let backend/Firebase handle it
-  }, [setupSession])
+  }, [])
 
   const sessionData: SessionData = {
     expiry: sessionExpiry,

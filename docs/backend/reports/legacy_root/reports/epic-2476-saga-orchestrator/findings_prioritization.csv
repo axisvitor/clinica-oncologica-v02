@@ -1,0 +1,8 @@
+id,title,priority,category,estimate_hours,status
+1,Transaction locks long (ticket a6b3c463),P1,Transaction,tbd,partial
+2,Compensation silent alerts missing (ticket 9fead0f9),P1,Observability,tbd,resolved
+3,Saga retry scheduling not implemented,P1,Retry,8,resolved
+4,Compensation backoff/TTL mismatch,P2,Compensation,3,resolved
+5,Missing saga observability metrics,P2,Observability,5,future
+6,Integration tests out of sync,P2,Tests,7,future
+7,Missing retry/error tests,P2,Tests,5,future

@@ -161,12 +161,13 @@ class FlowIntegrityService:
                         )
 
             # Check for duplicate active flows
+            # NOTE: Use step_data (actual column) not state_data (property alias)
             active_flows = (
                 self.db.query(PatientFlowState)
                 .filter(
                     PatientFlowState.patient_id == flow_state.patient_id,
                     PatientFlowState.id != flow_state.id,
-                    PatientFlowState.state_data["status"].astext != "completed",
+                    PatientFlowState.step_data["status"].astext != "completed",
                 )
                 .count()
             )

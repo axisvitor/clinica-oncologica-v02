@@ -126,6 +126,55 @@ class PlatformSynchronizationService:
             self.db.rollback()
             return False
 
+    async def sync_patient_record_update(
+        self, patient_id: UUID, flow_interaction_data: dict[str, Any]
+    ) -> bool:
+        """
+        Backwards-compatible wrapper for single interaction syncs.
+
+        Accepts legacy payload shapes and maps them to the interaction list
+        expected by sync_patient_record_updates.
+        """
+        if not flow_interaction_data:
+            logger.warning("sync_patient_record_update called with empty payload")
+            return False
+
+        interactions: List[dict[str, Any]] = []
+
+        def _add_interaction(interaction_type: str, data: dict[str, Any]) -> None:
+            interactions.append(
+                {
+                    "type": interaction_type,
+                    "data": data,
+                    "timestamp": data.get("timestamp")
+                    if isinstance(data, dict)
+                    else datetime.now(timezone.utc).isoformat(),
+                }
+            )
+
+        if "flow_advancement" in flow_interaction_data:
+            _add_interaction(
+                "flow_progression", flow_interaction_data["flow_advancement"]
+            )
+        if "patient_response" in flow_interaction_data:
+            _add_interaction(
+                "message_response", flow_interaction_data["patient_response"]
+            )
+        if "quiz_completion" in flow_interaction_data:
+            _add_interaction(
+                "quiz_completion", flow_interaction_data["quiz_completion"]
+            )
+        if "alert_triggered" in flow_interaction_data:
+            _add_interaction(
+                "alert_triggered", flow_interaction_data["alert_triggered"]
+            )
+
+        if not interactions:
+            # Fallback: treat entire payload as a generic message response
+            _add_interaction("message_response", flow_interaction_data)
+
+        return await self.sync_patient_record_updates(patient_id, interactions)
+
     async def create_audit_trail_entry(
         self,
         entity_type: str,

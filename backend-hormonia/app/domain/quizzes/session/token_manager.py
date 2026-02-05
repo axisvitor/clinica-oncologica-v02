@@ -28,6 +28,8 @@ class TokenManager:
         quiz_template_id: UUID,
         expires_at: datetime,
         rotation_count: int = 0,
+        session_id: Optional[UUID] = None,
+        token_type: str = "quiz_access",
     ) -> str:
         """Generate a JWT token for quiz session access.
 
@@ -36,6 +38,8 @@ class TokenManager:
             quiz_template_id: Quiz template identifier
             expires_at: Token expiration datetime
             rotation_count: Number of times token has been rotated
+            session_id: Optional quiz session identifier
+            token_type: Token usage type (default: quiz_access)
 
         Returns:
             JWT token string
@@ -47,7 +51,10 @@ class TokenManager:
             "iat": int(datetime.now(timezone.utc).timestamp()),
             "rotation": rotation_count,
             "jti": secrets.token_urlsafe(16),  # Unique token ID
+            "type": token_type,
         }
+        if session_id:
+            payload["session_id"] = str(session_id)
 
         token = jwt.encode(
             payload, self.config.MONTHLY_QUIZ_TOKEN_SECRET, algorithm="HS256"

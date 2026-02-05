@@ -5,9 +5,7 @@ Exports 20+ application-specific metrics for monitoring
 
 import os
 import time
-from typing import Dict, List
-from prometheus_client import start_http_server, Gauge, Counter, Histogram, Info
-from prometheus_client.core import GaugeMetricFamily, CounterMetricFamily
+from prometheus_client import start_http_server, Gauge, Counter, Histogram
 import psycopg2
 from redis import Redis
 import logging

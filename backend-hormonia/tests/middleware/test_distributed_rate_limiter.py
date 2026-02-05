@@ -7,7 +7,7 @@ that replaces the in-memory implementation to prevent memory leaks.
 
 import pytest
 import time
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from app.middleware.rate_limiter import DistributedRateLimiter
 
 

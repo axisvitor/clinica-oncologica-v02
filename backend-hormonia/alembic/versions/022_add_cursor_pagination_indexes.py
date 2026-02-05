@@ -4,13 +4,33 @@ Add composite indexes for efficient cursor-based pagination.
 These indexes optimize queries that use (created_at DESC, id DESC) ordering.
 
 Revision ID: 022_add_cursor_pagination_indexes
-Revises: 021_add_patient_summaries
+Revises: 021_patient_summaries
 Create Date: 2025-11-25
 
 Performance Impact:
 - Deep pagination: 450ms → 5ms (99% improvement)
 - List queries: 50-70% faster
-"""
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration)."""
 from alembic import op
 
 

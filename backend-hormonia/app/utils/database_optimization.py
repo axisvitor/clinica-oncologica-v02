@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import QueuePool
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-from app.config import settings
 from app.utils.logging import get_logger, log_performance_metric
 
 logger = get_logger(__name__)

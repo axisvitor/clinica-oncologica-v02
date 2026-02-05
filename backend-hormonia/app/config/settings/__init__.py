@@ -113,6 +113,8 @@ class Settings(
             # Security
             "SESSION_ENABLE_COOKIE_SECURE",
             "SESSION_ENABLE_COOKIE_HTTPONLY",
+            "ENABLE_STRICT_UID_VALIDATION",
+            "ENABLE_COOKIE_PRIORITY",
             "SECURITY_ENABLE_SSL_REDIRECT",
             "SECURITY_ENABLE_CONTENT_TYPE_NOSNIFF",
             "SECURITY_ENABLE_BROWSER_XSS_FILTER",
@@ -127,6 +129,8 @@ class Settings(
             "WHATSAPP_ENABLE_SERVICE",
             "WHATSAPP_ENABLE_ON_REGISTRATION",
             "WHATSAPP_ENABLE_WELCOME_MESSAGE",
+            "WHATSAPP_WEBHOOK_HMAC_ENABLED",
+            "WHATSAPP_WEBHOOK_TIMESTAMP_REQUIRED",
             # AI
             "AI_LANGCHAIN_ENABLE_TRACING_V2",
             "AI_ENABLE_HUMANIZATION",
@@ -244,7 +248,14 @@ class Settings(
         )
 
         if is_production:
-            security_fields = ["SECURITY_SECRET_KEY", "SECURITY_ENCRYPTION_KEY"]
+            security_fields = [
+                "SECURITY_SECRET_KEY",
+                "SECURITY_CSRF_SECRET_KEY",
+                "ENCRYPTION_KEY_CURRENT",
+                "PHI_ENCRYPTION_KEY",
+                "HASH_SALT",
+                "SECURITY_ENCRYPTION_KEY",
+            ]
             placeholder_patterns = [
                 "CHANGE_THIS",
                 "YOUR_",
@@ -273,6 +284,9 @@ class Settings(
 
     def validate_production_config(self):
         """Validate production environment has secure configurations."""
+        # Run SecuritySettings validation (entropy checks)
+        SecuritySettings.validate_production_config(self)
+
         if self.APP_ENVIRONMENT.lower() == "production":
             errors = []
 

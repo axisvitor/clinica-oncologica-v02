@@ -12,7 +12,7 @@ import logging
 
 from app.database import get_db
 from app.models.alert import Alert, AlertSeverity
-from app.models.user import User, UserRole
+from app.models.user import UserRole
 from app.models.patient import Patient
 from app.schemas.v2.alerts import (
     AlertV2Response,
@@ -28,6 +28,10 @@ from app.api.v2.dependencies import (
     create_cursor,
     apply_field_selection,
 )
+from app.dependencies.auth_dependencies import (
+    get_generic_cache,
+    get_current_user_from_session
+)
 from app.utils.rate_limiter import limiter
 
 router = APIRouter()
@@ -38,66 +42,7 @@ CACHE_TTL_LIST = 120  # 2 minutes for alert lists
 CACHE_TTL_SINGLE = 300  # 5 minutes for single alert
 
 
-async def get_redis_cache():
-    """Get Redis cache dependency."""
-    from app.core.redis_manager import RedisManager
-
-    redis_manager = RedisManager()
-    return redis_manager
-
-
-async def get_current_user_simple(
-    request: Request, db=Depends(get_db), redis_cache=Depends(get_redis_cache)
-) -> Dict[str, Any]:
-    """Simplified session validation for V2 endpoints."""
-    # Try session ID from header first
-    session_id = request.headers.get("X-Session-ID") or request.headers.get(
-        "x-session-id"
-    )
-
-    if not session_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session ID not provided in X-Session-ID header",
-        )
-
-    session_data = await redis_cache.get_session(session_id)
-    if not session_data:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session",
-        )
-
-    firebase_uid = session_data.get("firebase_uid")
-    if not firebase_uid:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session data"
-        )
-
-    # Get user from cache or DB
-    user_data = await redis_cache.get_user_by_uid(firebase_uid)
-    if not user_data:
-        user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
-            )
-        user_data = {
-            "id": str(user.id),
-            "firebase_uid": user.firebase_uid,
-            "email": user.email,
-            "full_name": user.full_name,
-            "role": user.role.value if hasattr(user.role, "value") else str(user.role),
-            "is_active": user.is_active,
-        }
-        await redis_cache.cache_user_data(firebase_uid, user_data, ttl=900)
-
-    if not user_data.get("is_active", False):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive"
-        )
-
-    return user_data
+# Standard dependencies imported from auth_dependencies
 
 
 def _extract_user_role(current_user: Dict[str, Any]) -> UserRole:
@@ -206,8 +151,8 @@ async def list_alerts(
     patient_id: Optional[UUID] = Query(None, description="Filter by patient ID"),
     alert_type: Optional[str] = Query(None, description="Filter by alert type"),
     db=Depends(get_db),
-    redis_cache=Depends(get_redis_cache),
-    current_user: Dict = Depends(get_current_user_simple),
+    redis_cache=Depends(get_generic_cache),
+    current_user: Dict = Depends(get_current_user_from_session),
 ) -> AlertV2List:
     """
     List alerts with cursor-based pagination.
@@ -332,8 +277,8 @@ async def create_alert(
     alert_data: AlertV2Create,
     request: Request,
     db=Depends(get_db),
-    redis_cache=Depends(get_redis_cache),
-    current_user: Dict = Depends(get_current_user_simple),
+    redis_cache=Depends(get_generic_cache),
+    current_user: Dict = Depends(get_current_user_from_session),
 ) -> Dict[str, Any]:
     """
     Create a new alert.
@@ -396,6 +341,74 @@ async def create_alert(
         )
 
 
+
+@router.get("/summary", summary="Get alerts summary by severity")
+async def get_alerts_summary(
+    request: Request,
+    db=Depends(get_db),
+    redis_cache=Depends(get_generic_cache),
+    current_user: Dict = Depends(get_current_user_from_session),
+):
+    """
+    Get summary of alerts grouped by severity.
+
+    Returns counts for each severity level:
+    - critical
+    - high
+    - medium
+    - low
+    """
+    from sqlalchemy import func
+
+    _check_physician_or_admin(current_user)
+    user_id = current_user.get("id")
+    role = _extract_user_role(current_user)
+
+    try:
+        # Query alert counts by severity for unread alerts
+        query = db.query(
+            Alert.severity,
+            func.count(Alert.id).label("count")
+        ).filter(Alert.acknowledged == False)
+
+        # Filter by doctor if not admin
+        if role != UserRole.ADMIN:
+            patient_ids = db.query(Patient.id).filter(
+                Patient.doctor_id == UUID(str(user_id))
+            ).subquery()
+            query = query.filter(Alert.patient_id.in_(patient_ids))
+
+        results = query.group_by(Alert.severity).all()
+
+        # Build severity counts
+        severity_counts = {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+        }
+
+        for severity, count in results:
+            if severity and severity.lower() in severity_counts:
+                severity_counts[severity.lower()] = count
+
+        total_unread = sum(severity_counts.values())
+
+        return {
+            "severity_counts": severity_counts,
+            "total_unread": total_unread,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting alerts summary: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get alerts summary",
+        )
+
+
 @router.get("/{alert_id}", response_model=AlertV2Response)
 @limiter.limit("50/minute")
 async def get_alert(
@@ -404,8 +417,8 @@ async def get_alert(
     fields: Optional[List[str]] = Depends(get_field_selection),
     include: Optional[List[str]] = Depends(get_eager_load_params),
     db=Depends(get_db),
-    redis_cache=Depends(get_redis_cache),
-    current_user: Dict = Depends(get_current_user_simple),
+    redis_cache=Depends(get_generic_cache),
+    current_user: Dict = Depends(get_current_user_from_session),
 ) -> Dict[str, Any]:
     """
     Get a specific alert by ID.
@@ -469,8 +482,8 @@ async def update_alert(
     alert_data: AlertV2Update,
     request: Request,
     db=Depends(get_db),
-    redis_cache=Depends(get_redis_cache),
-    current_user: Dict = Depends(get_current_user_simple),
+    redis_cache=Depends(get_generic_cache),
+    current_user: Dict = Depends(get_current_user_from_session),
 ) -> Dict[str, Any]:
     """
     Update an alert (partial update).
@@ -532,8 +545,8 @@ async def delete_alert(
     alert_id: UUID,
     request: Request,
     db=Depends(get_db),
-    redis_cache=Depends(get_redis_cache),
-    current_user: Dict = Depends(get_current_user_simple),
+    redis_cache=Depends(get_generic_cache),
+    current_user: Dict = Depends(get_current_user_from_session),
 ):
     """
     Delete an alert.
@@ -591,8 +604,8 @@ async def mark_alert_read(
     acknowledge_data: AlertV2Acknowledge,
     request: Request,
     db=Depends(get_db),
-    redis_cache=Depends(get_redis_cache),
-    current_user: Dict = Depends(get_current_user_simple),
+    redis_cache=Depends(get_generic_cache),
+    current_user: Dict = Depends(get_current_user_from_session),
 ) -> Dict[str, Any]:
     """
     Mark an alert as read (acknowledge).
@@ -669,8 +682,8 @@ async def mark_all_alerts_read(
         None, description="Optional: Mark all alerts for specific patient"
     ),
     db=Depends(get_db),
-    redis_cache=Depends(get_redis_cache),
-    current_user: Dict = Depends(get_current_user_simple),
+    redis_cache=Depends(get_generic_cache),
+    current_user: Dict = Depends(get_current_user_from_session),
 ) -> Dict[str, Any]:
     """
     Mark all unread alerts as read.
@@ -756,3 +769,7 @@ async def mark_all_alerts_read(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to mark all alerts as read",
         )
+
+
+
+

@@ -370,6 +370,8 @@ class ReportShareCreate(BaseModel):
     @classmethod
     def validate_expiration(cls, v):
         """Ensure expiration is in the future."""
+        if v and v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
         if v and v <= datetime.now(timezone.utc):
             raise ValueError("expires_at must be in the future")
         return v
@@ -524,7 +526,7 @@ class ReportRestoreRequest(BaseModel):
 class DashboardWidgetConfig(BaseModel):
     """Configuration for a dashboard widget."""
 
-    type: Literal["chart", "metric", "table", "text", "iframe"]
+    type: Literal["chart", "metric", "table", "text", "iframe", "card"]
     report_id: Optional[UUID] = None
     visualization_id: Optional[UUID] = None
 

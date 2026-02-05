@@ -1,4 +1,4 @@
-﻿/**
+/**
  * System Health Chart Component
  *
  * Visualizes system performance metrics including CPU, memory, disk usage,
@@ -6,9 +6,9 @@
  */
 import React, { Suspense } from 'react';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, RadialBarChart, RadialBar,
-  ComposedChart, ScatterChart, Scatter, Cell
+  ComposedChart, Cell
 } from '@/components/ui/charts/LazyRechartsComponents';
 import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import { ChartSkeleton } from '@/components/ui/chart-skeleton';
@@ -29,7 +29,7 @@ interface SystemHealthChartProps {
   detailed?: boolean;
 }
 
-const COLORS = ['#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6'];
+const _COLORS = ['#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6'];
 
 const getHealthColor = (value: number, thresholds: { good: number; warning: number }) => {
   if (value <= thresholds.good) return '#10B981';
@@ -63,7 +63,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
       threshold_critical: 95
     },
     {
-      resource: 'Memória',
+      resource: 'Memoria',
       usage: data.memory_usage,
       max: 100,
       color: getHealthColor(data.memory_usage, { good: 75, warning: 90 }),
@@ -106,7 +106,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
 
   const systemOverview = [
     { name: 'CPU', value: data.cpu_usage, fill: getHealthColor(data.cpu_usage, { good: 70, warning: 85 }) },
-    { name: 'Memória', value: data.memory_usage, fill: getHealthColor(data.memory_usage, { good: 75, warning: 90 }) },
+    { name: 'Memoria', value: data.memory_usage, fill: getHealthColor(data.memory_usage, { good: 75, warning: 90 }) },
     { name: 'Disco', value: data.disk_usage, fill: getHealthColor(data.disk_usage, { good: 80, warning: 90 }) }
   ];
 
@@ -163,7 +163,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
         <div className="grid grid-cols-3 gap-4 text-center">
           <div className="bg-green-50 p-3 rounded-lg">
             <div className="text-lg font-bold text-green-600">{healthScore.toFixed(0)}%</div>
-            <div className="text-sm text-green-800">Saúde</div>
+            <div className="text-sm text-green-800">Saude</div>
           </div>
           <div className="bg-blue-50 p-3 rounded-lg">
             <div className="text-lg font-bold text-blue-600">{data.response_time_ms.toFixed(0)}ms</div>
@@ -183,7 +183,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
     <div className="space-y-8">
       {/* Overall Health Score */}
       <div className="text-center space-y-2">
-        <h4 className="font-semibold text-lg">Score de Saúde do Sistema</h4>
+        <h4 className="font-semibold text-lg">Score de Saude do Sistema</h4>
         <div className="h-40">
           <Suspense fallback={<ChartSkeleton />}>
           <ResponsiveContainer width="100%" height="100%">
@@ -193,7 +193,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
               innerRadius="60%"
               outerRadius="90%"
               data={[{
-                name: 'Saúde',
+                name: 'Saude',
                 value: healthScore,
                 fill: getHealthColor(100 - healthScore, { good: 20, warning: 40 })
               }]}
@@ -267,7 +267,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
                 strokeWidth={2}
                 strokeDasharray="5 5"
                 dot={false}
-                name="Limite Crítico"
+                name="Limite Critico"
               />
               <Legend />
             </ComposedChart>
@@ -278,7 +278,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
 
       {/* Performance Metrics */}
       <div className="space-y-2">
-        <h4 className="font-semibold text-lg">Métricas de Performance</h4>
+        <h4 className="font-semibold text-lg">Metricas de Performance</h4>
         <div className="h-64">
           <Suspense fallback={<ChartSkeleton />}>
           <ResponsiveContainer width="100%" height="100%">
@@ -365,7 +365,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
                 <span className="font-medium text-orange-600">{resource.threshold_warning}%</span>
               </div>
               <div className="flex justify-between">
-                <span>Crítico:</span>
+                <span>Critico:</span>
                 <span className="font-medium text-red-600">{resource.threshold_critical}%</span>
               </div>
             </div>
@@ -377,7 +377,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
       <div className="grid md:grid-cols-4 gap-4">
         <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
           <div className="text-2xl font-bold text-green-700">{healthScore.toFixed(0)}%</div>
-          <div className="text-sm text-green-600">Score de Saúde</div>
+          <div className="text-sm text-green-600">Score de Saude</div>
         </div>
 
         <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
@@ -398,7 +398,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
 
       {/* System Analysis */}
       <div className="bg-gray-50 p-6 rounded-lg">
-        <h4 className="font-semibold text-lg mb-4">Análise do Sistema</h4>
+        <h4 className="font-semibold text-lg mb-4">Analise do Sistema</h4>
         <div className="grid md:grid-cols-2 gap-6 text-sm">
           <div className="space-y-3">
             <h5 className="font-medium text-gray-800">Estado dos Recursos</h5>
@@ -422,7 +422,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
             <h5 className="font-medium text-gray-800">Performance</h5>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span>Conexões ativas:</span>
+                <span>Conexoes ativas:</span>
                 <span className="font-medium">{data.active_connections}</span>
               </div>
               <div className="flex items-center justify-between">
@@ -439,31 +439,31 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
 
         {/* Health Recommendations */}
         <div className="mt-6 pt-4 border-t border-gray-200">
-          <h5 className="font-medium text-gray-800 mb-3">Recomendações</h5>
+          <h5 className="font-medium text-gray-800 mb-3">Recomendacoes</h5>
           <div className="space-y-2 text-sm">
             {data.cpu_usage > 85 && (
               <div className="bg-red-50 p-3 rounded border-l-4 border-red-400">
-                <span className="text-red-800">âš ï¸ CPU alta: considere otimização ou scaling</span>
+                <span className="text-red-800">[!] CPU alta: considere otimizacao ou scaling</span>
               </div>
             )}
             {data.memory_usage > 90 && (
               <div className="bg-red-50 p-3 rounded border-l-4 border-red-400">
-                <span className="text-red-800">âš ï¸ Memória alta: verificar vazamentos ou aumentar recursos</span>
+                <span className="text-red-800">[!] Memoria alta: verificar vazamentos ou aumentar recursos</span>
               </div>
             )}
             {data.response_time_ms > 1000 && (
               <div className="bg-orange-50 p-3 rounded border-l-4 border-orange-400">
-                <span className="text-orange-800">âš ï¸ Resposta lenta: otimizar queries ou cache</span>
+                <span className="text-orange-800">[!] Resposta lenta: otimizar queries ou cache</span>
               </div>
             )}
             {data.error_rate > 5 && (
               <div className="bg-red-50 p-3 rounded border-l-4 border-red-400">
-                <span className="text-red-800">âš ï¸ Taxa de erro alta: investigar logs</span>
+                <span className="text-red-800">[!] Taxa de erro alta: investigar logs</span>
               </div>
             )}
             {healthScore > 80 && (
               <div className="bg-green-50 p-3 rounded border-l-4 border-green-400">
-                <span className="text-green-800">âœ… Sistema operando normalmente</span>
+                <span className="text-green-800">[OK] Sistema operando normalmente</span>
               </div>
             )}
           </div>

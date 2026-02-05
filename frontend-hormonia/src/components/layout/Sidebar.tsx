@@ -174,6 +174,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           <img
             src="/images/logo_system.svg"
             alt="Neoplasias Litoral Logo"
+            width={2430}
+            height={1150}
             className="h-14 w-auto"
           />
           <div className="flex-1 flex justify-end">

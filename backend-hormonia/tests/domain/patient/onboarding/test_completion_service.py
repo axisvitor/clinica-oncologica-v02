@@ -84,7 +84,7 @@ def sample_patient():
         phone="+5511999999999",
         email="joao@example.com",
         cpf="12345678909",
-        birth_date=datetime(1990, 1, 1),
+        birth_date=datetime(1990, 1, 1).date(),
         treatment_type="Oncologia",
         doctor_id=uuid4(),
         flow_state=FlowState.ONBOARDING,
@@ -119,9 +119,12 @@ def patient_data():
         phone="+5511999999999",
         email="joao@example.com",
         cpf="12345678909",
-        birth_date=datetime(1990, 1, 1),
+        birth_date=datetime(1990, 1, 1).date(),
         treatment_type="Oncologia",
-        metadata={"source": "web", "campaign": "summer2025"},
+        metadata={
+            "system": {"source": "web"},
+            "custom_fields": {"campaign": "summer2025"},
+        },
     )
 
 
@@ -153,24 +156,26 @@ class TestCompletionServiceInitialization:
         assert service.notification_service == mock_notification_service
         assert service._executor == mock_executor
 
-    @patch("app.domain.patient.onboarding.completion_service.ThreadPoolExecutor")
+    @patch("app.domain.patient.onboarding.completion_service.get_io_executor")
     def test_init_creates_default_executor(
-        self, mock_executor_class, mock_db, mock_flow_service, mock_notification_service
+        self, mock_get_io_executor, mock_db, mock_flow_service, mock_notification_service
     ):
         """
         GIVEN: No executor provided
         WHEN: CompletionService is initialized
         THEN: A default ThreadPoolExecutor is created
         """
+        mock_executor = Mock()
+        mock_get_io_executor.return_value = mock_executor
+
         service = CompletionService(
             db=mock_db,
             flow_service=mock_flow_service,
             notification_service=mock_notification_service,
         )
 
-        mock_executor_class.assert_called_once_with(
-            max_workers=5, thread_name_prefix="completion_sync"
-        )
+        mock_get_io_executor.assert_called_once_with()
+        assert service._executor == mock_executor
 
 
 # =============================================================================
@@ -416,13 +421,16 @@ class TestUpdatePatientData:
         patient_data = PatientCreate(
             phone=partial_patient.phone,
             name="João Silva",
-            metadata={"source": "web", "campaign": "summer2025"},
+            metadata={
+                "system": {"source": "web"},
+                "custom_fields": {"campaign": "summer2025"},
+            },
         )
 
         await completion_service._update_patient_data(partial_patient, patient_data)
 
-        assert partial_patient.patient_data["source"] == "web"
-        assert partial_patient.patient_data["campaign"] == "summer2025"
+        assert partial_patient.patient_data["system"]["source"] == "web"
+        assert partial_patient.patient_data["custom_fields"]["campaign"] == "summer2025"
 
     @pytest.mark.asyncio
     async def test_creates_patient_data_if_none(
@@ -437,13 +445,13 @@ class TestUpdatePatientData:
         patient_data = PatientCreate(
             phone=partial_patient.phone,
             name="João Silva",
-            metadata={"key": "value"}
+            metadata={"custom_fields": {"key": "value"}}
         )
 
         await completion_service._update_patient_data(partial_patient, patient_data)
 
         assert partial_patient.patient_data is not None
-        assert partial_patient.patient_data["key"] == "value"
+        assert partial_patient.patient_data["custom_fields"]["key"] == "value"
 
 
 # =============================================================================
@@ -546,33 +554,72 @@ class TestInitializeFlowState:
 class TestCompletionServiceShutdown:
     """Test CompletionService shutdown."""
 
-    def test_shutdown_graceful(self, completion_service, mock_executor):
+    def test_shutdown_graceful(
+        self,
+        mock_db,
+        mock_flow_service,
+        mock_notification_service,
+        mock_executor,
+    ):
         """
         GIVEN: CompletionService with active executor
         WHEN: shutdown is called with wait=True
         THEN: Executor is shutdown gracefully
         """
-        completion_service.shutdown(wait=True)
+        service = CompletionService(
+            db=mock_db,
+            flow_service=mock_flow_service,
+            notification_service=mock_notification_service,
+            executor=mock_executor,
+        )
+
+        service.shutdown(wait=True)
 
         mock_executor.shutdown.assert_called_once_with(wait=True)
 
-    def test_shutdown_no_wait(self, completion_service, mock_executor):
+    def test_shutdown_no_wait(
+        self,
+        mock_db,
+        mock_flow_service,
+        mock_notification_service,
+        mock_executor,
+    ):
         """
         GIVEN: CompletionService with active executor
         WHEN: shutdown is called with wait=False
         THEN: Executor is shutdown immediately
         """
-        completion_service.shutdown(wait=False)
+        service = CompletionService(
+            db=mock_db,
+            flow_service=mock_flow_service,
+            notification_service=mock_notification_service,
+            executor=mock_executor,
+        )
+
+        service.shutdown(wait=False)
 
         mock_executor.shutdown.assert_called_once_with(wait=False)
 
-    def test_shutdown_default_wait(self, completion_service, mock_executor):
+    def test_shutdown_default_wait(
+        self,
+        mock_db,
+        mock_flow_service,
+        mock_notification_service,
+        mock_executor,
+    ):
         """
         GIVEN: CompletionService with active executor
         WHEN: shutdown is called without arguments
         THEN: Executor is shutdown with default wait=True
         """
-        completion_service.shutdown()
+        service = CompletionService(
+            db=mock_db,
+            flow_service=mock_flow_service,
+            notification_service=mock_notification_service,
+            executor=mock_executor,
+        )
+
+        service.shutdown()
 
         mock_executor.shutdown.assert_called_once_with(wait=True)
 

@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.user import User
-from app.dependencies import get_current_user
+from app.dependencies.auth_dependencies import get_current_user
 from app.dependencies.service_dependencies import get_flow_analytics_service
 from app.dependencies.auth_dependencies import get_redis_cache
 from app.services.flow_dashboard import DashboardTimeframe, get_flow_dashboard_service

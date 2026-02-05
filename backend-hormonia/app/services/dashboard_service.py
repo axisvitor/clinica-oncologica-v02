@@ -13,8 +13,9 @@ from sqlalchemy import and_, func, text, case, extract
 
 from app.models.patient import Patient
 from app.models.alert import Alert, AlertSeverity
-from app.models.message import Message
+from app.models.message import Message, MessageDirection
 from app.models.flow import PatientFlowState as PatientFlow
+from app.models.enums import FlowState
 from app.schemas.v2.dashboard import TimeRangeEnum
 from app.utils.query_cache import get_query_cache
 
@@ -167,7 +168,7 @@ class DashboardService:
         total_patients = query.count()
 
         # Active patients
-        active_patients = query.filter(Patient.is_active).count()
+        active_patients = query.filter(Patient.flow_state == FlowState.ACTIVE).count()
 
         # New patients in time range
         new_patients = 0
@@ -238,7 +239,7 @@ class DashboardService:
                 "delivered_count"
             ),
             func.count(case((Message.status == "failed", 1))).label("failed_count"),
-            func.count(case((Message.patient_response_received, 1))).label(
+            func.count(case((Message.direction == MessageDirection.INBOUND, 1))).label(
                 "response_count"
             ),
         )
@@ -467,8 +468,8 @@ class DashboardService:
         message_query_sql = f"""
             SELECT
                 'message_sent' as type,
-                CONCAT('Mensagem enviada para ', p.full_name) as description,
-                p.full_name as entity_name,
+                CONCAT('Mensagem enviada para ', p.name) as description,
+                p.name as entity_name,
                 m.created_at as timestamp,
                 m.id::text as reference_id
             FROM messages m
@@ -505,8 +506,8 @@ class DashboardService:
         alert_query_sql = f"""
             SELECT
                 'alert_created' as type,
-                CONCAT('Alerta: ', a.description) as description,
-                p.full_name as entity_name,
+                CONCAT('Alerta: ', a.message) as description,
+                p.name as entity_name,
                 a.created_at as timestamp,
                 a.id::text as reference_id
             FROM alerts a
@@ -564,8 +565,8 @@ class DashboardService:
             ),
             daily_messages AS (
                 SELECT DATE(created_at) as date,
-                   COUNT(*) as messages_sent,
-                   COUNT(CASE WHEN patient_response_received = true THEN 1 END) as responses_received
+                   COUNT(CASE WHEN direction = 'outbound' THEN 1 END) as messages_sent,
+                   COUNT(CASE WHEN direction = 'inbound' THEN 1 END) as responses_received
                 FROM messages
                 WHERE DATE(created_at) >= :start_date
                 {patient_filter}

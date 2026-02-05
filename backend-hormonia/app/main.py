@@ -12,11 +12,13 @@ Last deployment: 2025-12-20T16:50:00Z
 """
 
 import logging
+import os
 import sys
 from dotenv import load_dotenv
 
-# Load environment variables from .env file immediately
-load_dotenv(override=True)
+# Load environment variables from .env file immediately (skip for pytest)
+if "pytest" not in sys.modules and "PYTEST_CURRENT_TEST" not in os.environ:
+    load_dotenv(override=True)
 
 # Early diagnostic logging - helps identify startup issues
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)

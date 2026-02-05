@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Eye, EyeOff, Save, RotateCcw } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
-import { AdminUser } from '@/types/admin'
-import { UserRole } from '@/types/shared'
+import { AdminUser, UserRole } from '@/types/admin'
 import type { UpdateUserRequest } from '@/lib/api-client/types'
 import {
   Dialog,

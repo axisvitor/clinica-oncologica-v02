@@ -197,25 +197,25 @@ export function formatPermissionName(permission: string): string {
 
 export function sortUsers(users: AdminUser[], sortBy: string, sortOrder: 'asc' | 'desc'): AdminUser[] {
   return [...users].sort((a, b) => {
-    let aVal: any = a[sortBy as keyof AdminUser]
-    let bVal: any = b[sortBy as keyof AdminUser]
+    let aVal: string | number | boolean | null | undefined = a[sortBy as keyof AdminUser] as string | number | boolean | null | undefined
+    let bVal: string | number | boolean | null | undefined = b[sortBy as keyof AdminUser] as string | number | boolean | null | undefined
 
     // Handle date sorting
     if (sortBy === 'created_at' || sortBy === 'last_login') {
-      aVal = aVal ? new Date(aVal).getTime() : 0
-      bVal = bVal ? new Date(bVal).getTime() : 0
+      aVal = aVal ? new Date(aVal as string).getTime() : 0
+      bVal = bVal ? new Date(bVal as string).getTime() : 0
     }
 
     // Handle string sorting
     if (typeof aVal === 'string') {
       aVal = aVal.toLowerCase()
-      bVal = bVal.toLowerCase()
+      bVal = (bVal as string)?.toLowerCase()
     }
 
     if (sortOrder === 'asc') {
-      return aVal > bVal ? 1 : -1
+      return (aVal ?? '') > (bVal ?? '') ? 1 : -1
     } else {
-      return aVal < bVal ? 1 : -1
+      return (aVal ?? '') < (bVal ?? '') ? 1 : -1
     }
   })
 }

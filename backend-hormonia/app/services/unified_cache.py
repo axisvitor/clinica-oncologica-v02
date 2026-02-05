@@ -29,6 +29,26 @@ class UnifiedCacheService:
         self.cache_manager = cache_manager or get_unified_cache_manager()
         self.async_cache_manager = self.cache_manager
         self.template_loader = get_template_loader()
+        
+        # Register cache configs used by this service
+        from app.infrastructure.cache import CacheConfig
+        
+        self._register_configs(CacheConfig)
+
+    def _register_configs(self, cache_config_cls):
+        """Register cache configurations."""
+        configs = {
+            "patient_data": cache_config_cls(ttl=1800, key_prefix="patient", namespace="patients"),
+            "flow_data": cache_config_cls(ttl=1800, key_prefix="flow", namespace="flows"),
+            "patient_flow": cache_config_cls(ttl=1800, key_prefix="patient_flow", namespace="flows"),
+            "template_data": cache_config_cls(ttl=3600, key_prefix="template", namespace="templates"),
+            "quiz_data": cache_config_cls(ttl=3600, key_prefix="quiz", namespace="quiz"),
+            "quiz_session": cache_config_cls(ttl=3600, key_prefix="quiz_session", namespace="quiz"),
+            "user_data": cache_config_cls(ttl=3600, key_prefix="user", namespace="users"),
+        }
+        
+        for name, config in configs.items():
+            self.cache_manager.register_cache_config(name, config)
 
     # Patient Cache Operations
     def cache_patient_data(
@@ -48,8 +68,7 @@ class UnifiedCacheService:
         if ttl is None:
             ttl = self.template_loader.get_cache_ttl("patient_cache_ttl")
 
-        key = f"patient:{patient_id}"
-        return self.cache_manager.set(key, data, ttl=ttl, namespace="patients")
+        return self.cache_manager.set("patient_data", data, key_parts=[str(patient_id)], ttl_override=ttl)
 
     def get_cached_patient_data(self, patient_id: Union[str, UUID]) -> Optional[Any]:
         """
@@ -61,8 +80,7 @@ class UnifiedCacheService:
         Returns:
             Cached data or None if not found
         """
-        key = f"patient:{patient_id}"
-        return self.cache_manager.get(key, namespace="patients")
+        return self.cache_manager.get("patient_data", key_parts=[str(patient_id)])
 
     def invalidate_patient_cache(self, patient_id: Union[str, UUID]) -> bool:
         """
@@ -74,8 +92,7 @@ class UnifiedCacheService:
         Returns:
             True if invalidated successfully, False otherwise
         """
-        key = f"patient:{patient_id}"
-        return self.cache_manager.delete(key, namespace="patients")
+        return self.cache_manager.delete("patient_data", key_parts=[str(patient_id)])
 
     def invalidate_all_patient_cache(self) -> int:
         """
@@ -104,8 +121,7 @@ class UnifiedCacheService:
         if ttl is None:
             ttl = self.template_loader.get_cache_ttl("flow_state_cache_ttl")
 
-        key = f"flow:{flow_id}"
-        return self.cache_manager.set(key, data, ttl=ttl, namespace="flows")
+        return self.cache_manager.set("flow_data", data, key_parts=[str(flow_id)], ttl_override=ttl)
 
     def get_cached_flow_data(self, flow_id: Union[str, UUID]) -> Optional[Any]:
         """
@@ -117,8 +133,7 @@ class UnifiedCacheService:
         Returns:
             Cached data or None if not found
         """
-        key = f"flow:{flow_id}"
-        return self.cache_manager.get(key, namespace="flows")
+        return self.cache_manager.get("flow_data", key_parts=[str(flow_id)])
 
     def cache_patient_flow_state(
         self,
@@ -142,8 +157,7 @@ class UnifiedCacheService:
         if ttl is None:
             ttl = self.template_loader.get_cache_ttl("flow_state_cache_ttl")
 
-        key = f"patient_flow:{patient_id}:{flow_type}"
-        return self.cache_manager.set(key, state_data, ttl=ttl, namespace="flows")
+        return self.cache_manager.set("patient_flow", state_data, key_parts=[str(patient_id), flow_type], ttl_override=ttl)
 
     def get_cached_patient_flow_state(
         self, patient_id: Union[str, UUID], flow_type: str
@@ -158,8 +172,7 @@ class UnifiedCacheService:
         Returns:
             Cached flow state or None if not found
         """
-        key = f"patient_flow:{patient_id}:{flow_type}"
-        return self.cache_manager.get(key, namespace="flows")
+        return self.cache_manager.get("patient_flow", key_parts=[str(patient_id), flow_type])
 
     def invalidate_flow_cache(self, flow_id: Union[str, UUID]) -> bool:
         """
@@ -171,8 +184,7 @@ class UnifiedCacheService:
         Returns:
             True if invalidated successfully, False otherwise
         """
-        key = f"flow:{flow_id}"
-        return self.cache_manager.delete(key, namespace="flows")
+        return self.cache_manager.delete("flow_data", key_parts=[str(flow_id)])
 
     def invalidate_patient_flow_cache(
         self, patient_id: Union[str, UUID], flow_type: Optional[str] = None
@@ -184,12 +196,9 @@ class UnifiedCacheService:
             patient_id: Patient identifier
             flow_type: Specific flow type to invalidate (all if None)
 
-        Returns:
-            Number of entries invalidated
         """
         if flow_type:
-            key = f"patient_flow:{patient_id}:{flow_type}"
-            return 1 if self.cache_manager.delete(key, namespace="flows") else 0
+            return 1 if self.cache_manager.delete("patient_flow", key_parts=[str(patient_id), flow_type]) else 0
         else:
             pattern = f"patient_flow:{patient_id}:*"
             return self.cache_manager.invalidate_pattern(pattern, namespace="flows")
@@ -212,8 +221,7 @@ class UnifiedCacheService:
         if ttl is None:
             ttl = self.template_loader.get_cache_ttl("template_cache_ttl")
 
-        key = f"template:{template_id}"
-        return self.cache_manager.set(key, data, ttl=ttl, namespace="templates")
+        return self.cache_manager.set("template_data", data, key_parts=[str(template_id)], ttl_override=ttl)
 
     def get_cached_template_data(self, template_id: str) -> Optional[Any]:
         """
@@ -225,8 +233,7 @@ class UnifiedCacheService:
         Returns:
             Cached template data or None if not found
         """
-        key = f"template:{template_id}"
-        return self.cache_manager.get(key, namespace="templates")
+        return self.cache_manager.get("template_data", key_parts=[str(template_id)])
 
     def invalidate_template_cache(self, template_id: str) -> bool:
         """
@@ -238,8 +245,7 @@ class UnifiedCacheService:
         Returns:
             True if invalidated successfully, False otherwise
         """
-        key = f"template:{template_id}"
-        return self.cache_manager.delete(key, namespace="templates")
+        return self.cache_manager.delete("template_data", key_parts=[str(template_id)])
 
     def invalidate_all_template_cache(self) -> int:
         """
@@ -270,8 +276,7 @@ class UnifiedCacheService:
         if ttl is None:
             ttl = self.template_loader.get_cache_ttl("quiz_cache_ttl")
 
-        key = f"quiz:{quiz_id}"
-        return self.cache_manager.set(key, data, ttl=ttl, namespace="quiz")
+        return self.cache_manager.set("quiz_data", data, key_parts=[str(quiz_id)], ttl_override=ttl)
 
     def get_cached_quiz_data(self, quiz_id: Union[str, UUID]) -> Optional[Any]:
         """
@@ -283,8 +288,7 @@ class UnifiedCacheService:
         Returns:
             Cached quiz data or None if not found
         """
-        key = f"quiz:{quiz_id}"
-        return self.cache_manager.get(key, namespace="quiz")
+        return self.cache_manager.get("quiz_data", key_parts=[str(quiz_id)])
 
     def cache_quiz_session(
         self, session_id: Union[str, UUID], session_data: Any, ttl: Optional[int] = None
@@ -303,8 +307,7 @@ class UnifiedCacheService:
         if ttl is None:
             ttl = self.template_loader.get_cache_ttl("quiz_session_cache_ttl")
 
-        key = f"quiz_session:{session_id}"
-        return self.cache_manager.set(key, session_data, ttl=ttl, namespace="quiz")
+        return self.cache_manager.set("quiz_session", session_data, key_parts=[str(session_id)], ttl_override=ttl)
 
     def get_cached_quiz_session(self, session_id: Union[str, UUID]) -> Optional[Any]:
         """
@@ -316,8 +319,7 @@ class UnifiedCacheService:
         Returns:
             Cached session data or None if not found
         """
-        key = f"quiz_session:{session_id}"
-        return self.cache_manager.get(key, namespace="quiz")
+        return self.cache_manager.get("quiz_session", key_parts=[str(session_id)])
 
     def invalidate_quiz_cache(self, quiz_id: Union[str, UUID]) -> bool:
         """
@@ -329,8 +331,7 @@ class UnifiedCacheService:
         Returns:
             True if invalidated successfully, False otherwise
         """
-        key = f"quiz:{quiz_id}"
-        return self.cache_manager.delete(key, namespace="quiz")
+        return self.cache_manager.delete("quiz_data", key_parts=[str(quiz_id)])
 
     def invalidate_quiz_session_cache(self, session_id: Union[str, UUID]) -> bool:
         """
@@ -342,8 +343,7 @@ class UnifiedCacheService:
         Returns:
             True if invalidated successfully, False otherwise
         """
-        key = f"quiz_session:{session_id}"
-        return self.cache_manager.delete(key, namespace="quiz")
+        return self.cache_manager.delete("quiz_session", key_parts=[str(session_id)])
 
     # User/Doctor Cache Operations
     def cache_user_data(
@@ -363,8 +363,7 @@ class UnifiedCacheService:
         if ttl is None:
             ttl = self.template_loader.get_cache_ttl("user_cache_ttl")
 
-        key = f"user:{user_id}"
-        return self.cache_manager.set(key, data, ttl=ttl, namespace="users")
+        return self.cache_manager.set("user_data", data, key_parts=[str(user_id)], ttl_override=ttl)
 
     def get_cached_user_data(self, user_id: Union[str, UUID]) -> Optional[Any]:
         """
@@ -376,8 +375,7 @@ class UnifiedCacheService:
         Returns:
             Cached user data or None if not found
         """
-        key = f"user:{user_id}"
-        return self.cache_manager.get(key, namespace="users")
+        return self.cache_manager.get("user_data", key_parts=[str(user_id)])
 
     def invalidate_user_cache(self, user_id: Union[str, UUID]) -> bool:
         """
@@ -389,8 +387,7 @@ class UnifiedCacheService:
         Returns:
             True if invalidated successfully, False otherwise
         """
-        key = f"user:{user_id}"
-        return self.cache_manager.delete(key, namespace="users")
+        return self.cache_manager.delete("user_data", key_parts=[str(user_id)])
 
     # Bulk Operations
     def invalidate_patient_related_cache(

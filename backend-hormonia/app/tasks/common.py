@@ -14,13 +14,15 @@ from uuid import UUID
 from contextlib import contextmanager
 
 # Third-party imports
-from celery import Task, current_app as celery_app
+from celery import Task
 from celery.exceptions import Retry
 from sqlalchemy.orm import Session
 
+from app.task_queue import task_queue as celery_app
+
 # Application imports
 from app.config import settings
-from app.database import get_db, SessionLocal
+from app.database import get_db, get_scoped_session, SessionLocal
 from app.exceptions import ExternalServiceError
 
 # Models - commonly used across tasks

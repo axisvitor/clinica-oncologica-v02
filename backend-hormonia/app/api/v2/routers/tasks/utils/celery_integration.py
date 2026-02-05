@@ -17,7 +17,9 @@ from celery import states
 from fastapi import HTTPException, status
 
 from app.schemas.v2.tasks import TaskStatus, TaskType, TaskPriority
-from app.celery_app import celery_app
+from app.task_queue import get_task as get_stored_task
+from app.task_queue import store_task
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +62,33 @@ def _get_task_from_celery(
         HTTPException: If task retrieval fails
     """
     try:
+        if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
+            stored = get_stored_task(task_id)
+            if not stored:
+                return {
+                    "celery_task_id": task_id,
+                    "status": TaskStatus.PENDING,
+                    "result": None,
+                    "error": None,
+                    "traceback": None,
+                }
+
+            status_value = stored.get("status", TaskStatus.PENDING)
+            try:
+                status = TaskStatus(str(status_value))
+            except ValueError:
+                status = TaskStatus.PENDING
+
+            return {
+                "celery_task_id": task_id,
+                "status": status,
+                "result": stored.get("result"),
+                "error": stored.get("error"),
+                "traceback": stored.get("traceback"),
+            }
+
+        from app.celery_app import celery_app
+
         result = AsyncResult(task_id, app=celery_app)
 
         task_data = {
@@ -129,5 +158,8 @@ def _register_task(
         "retry_count": 0,
         "logs": [],
     }
+
+    if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
+        store_task(task_registry[celery_task_id])
 
     return task_id

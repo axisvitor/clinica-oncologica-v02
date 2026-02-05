@@ -31,7 +31,7 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
     onClose
   } = options
 
-  const { user, token } = useAuth()
+  const { user, token, websocketToken, refreshToken } = useAuth()
   const [isConnected, setIsConnected] = useState(false)
   const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('disconnected')
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null)
@@ -41,9 +41,20 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
   const reconnectCountRef = useRef(0)
   const shouldReconnectRef = useRef(true)
 
-  const connect = useCallback(() => {
-    // Use the token from user or direct token
-    const authToken = user?.token || token
+  const connect = useCallback(async () => {
+    // Force refresh Firebase token before connecting to prevent expired token errors
+    if (refreshToken) {
+      try {
+        await refreshToken()
+        logger.debug('Firebase token refreshed before WebSocket connection')
+      } catch (error) {
+        logger.warn('Failed to refresh token before WebSocket connection:', error)
+        // Continue anyway - token might still be valid
+      }
+    }
+
+    // Use the token from user or direct token (after refresh)
+    const authToken = websocketToken || user?.token || token
     if (!authToken) {
       logger.warn('Cannot connect WebSocket: no authentication token available')
       return
@@ -125,7 +136,8 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
       logger.error('Failed to create WebSocket connection:', error)
       setConnectionState('error')
     }
-  }, [url, user?.token, token, reconnectAttempts, reconnectInterval, onMessage, onError, onOpen, onClose])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- config is stable and adding it causes infinite reconnection loops
+  }, [url, user?.token, token, websocketToken, refreshToken, reconnectAttempts, reconnectInterval, onMessage, onError, onOpen, onClose])
 
   const disconnect = useCallback(() => {
     logger.info('Disconnecting WebSocket (intentional)')
@@ -162,7 +174,7 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
   // CRITICAL FIX: Removed connect/disconnect from dependencies to prevent unnecessary reconnections
   // Only reconnect when authentication token actually changes
   useEffect(() => {
-    const authToken = user?.token || token
+    const authToken = websocketToken || user?.token || token
     if (authToken) {
       logger.debug('Authentication token available, connecting WebSocket')
       shouldReconnectRef.current = true  // Enable reconnections
@@ -177,10 +189,8 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
       shouldReconnectRef.current = false
       disconnect()
     }
-  }, [user?.token, token])
-  // NOTE: connect/disconnect are intentionally NOT in dependencies
-  // They are stable via useCallback and adding them causes unnecessary reconnections
-  // ESLint warning is safe to ignore in this specific case
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- connect/disconnect are stable via useCallback; including them causes infinite reconnection loops
+  }, [user?.token, token, websocketToken])
 
   return {
     isConnected,

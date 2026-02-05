@@ -1,7 +1,18 @@
+/**
+ * Loading States Component Library
+ *
+ * Provides state components for loading, error, empty, and success states.
+ * Skeleton components are imported from the consolidated skeleton library.
+ */
+
 import React from 'react'
-import { Loader as Loader2, CircleAlert as AlertCircle, CircleCheck as CheckCircle, Info } from 'lucide-react'
+import { CircleAlert as AlertCircle, CircleCheck as CheckCircle, Info } from 'lucide-react'
 import { Card, CardContent } from '../ui/card'
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert'
+import { LoadingSpinner } from '../ui/loading-spinner'
+
+// Re-export skeletons from consolidated library for backwards compatibility
+export { CardSkeleton, TableSkeleton, DashboardSkeleton } from '../ui/skeleton'
 
 interface LoadingStateProps {
   message?: string
@@ -13,7 +24,7 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
   className = ''
 }) => (
   <div className={`flex flex-col items-center justify-center p-8 ${className}`}>
-    <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+    <LoadingSpinner size="lg" className="mb-4" />
     <p className="text-muted-foreground">{message}</p>
   </div>
 )
@@ -109,28 +120,6 @@ export const SuccessState: React.FC<SuccessStateProps> = ({
   </Alert>
 )
 
-// Skeleton loaders for specific components
-export const TableSkeleton: React.FC<{ rows?: number }> = ({ rows = 5 }) => (
-  <div className="space-y-2">
-    <div className="h-10 bg-gray-200 rounded animate-pulse" />
-    {Array.from({ length: rows }).map((_, i) => (
-      <div key={i} className="h-16 bg-gray-100 rounded animate-pulse" />
-    ))}
-  </div>
-)
-
-export const CardSkeleton: React.FC = () => (
-  <Card>
-    <CardContent className="p-6">
-      <div className="space-y-3">
-        <div className="h-4 bg-gray-200 rounded w-3/4 animate-pulse" />
-        <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse" />
-        <div className="h-4 bg-gray-200 rounded w-5/6 animate-pulse" />
-      </div>
-    </CardContent>
-  </Card>
-)
-
 // Additional specialized components
 export const ConnectionStatus: React.FC<{ isConnected: boolean }> = ({ isConnected }) => (
   <div className="flex items-center gap-2">
@@ -141,21 +130,15 @@ export const ConnectionStatus: React.FC<{ isConnected: boolean }> = ({ isConnect
   </div>
 )
 
-export const DashboardSkeleton: React.FC = () => (
-  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-    {Array.from({ length: 4 }).map((_, i) => (
-      <CardSkeleton key={i} />
-    ))}
-  </div>
-)
-
 export const LoadingButton: React.FC<{ loading: boolean; children: React.ReactNode }> = ({
   loading,
   children
 }) => (
   <button disabled={loading} className="relative">
     {loading && (
-      <Loader2 className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-4 w-4 animate-spin" />
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+        <LoadingSpinner size="sm" />
+      </div>
     )}
     <span className={loading ? 'invisible' : ''}>{children}</span>
   </button>
@@ -166,9 +149,6 @@ export default {
   ErrorState,
   EmptyState,
   SuccessState,
-  TableSkeleton,
-  CardSkeleton,
   ConnectionStatus,
-  DashboardSkeleton,
   LoadingButton
 }

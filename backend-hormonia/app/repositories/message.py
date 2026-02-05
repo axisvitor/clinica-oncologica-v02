@@ -128,6 +128,28 @@ class MessageRepository(BaseRepository[Message]):
         """Get message by WhatsApp ID"""
         return self.db.query(Message).filter(Message.whatsapp_id == whatsapp_id).first()
 
+    def get_by_idempotency_key(self, patient_id: UUID, idempotency_key: str) -> Optional[Message]:
+        """
+        Get message by idempotency key for duplicate detection.
+        
+        Used to prevent duplicate inbound messages from being stored.
+        
+        Args:
+            patient_id: UUID of the patient
+            idempotency_key: SHA256 hash of content + whatsapp_id
+            
+        Returns:
+            Existing message if duplicate, None otherwise
+        """
+        return (
+            self.db.query(Message)
+            .filter(
+                Message.patient_id == patient_id,
+                Message.idempotency_key == idempotency_key
+            )
+            .first()
+        )
+
     def get_pending_messages(
         self,
         skip: int = 0,
@@ -178,6 +200,42 @@ class MessageRepository(BaseRepository[Message]):
             .limit(limit)
             .all()
         )
+
+    def get_recent_follow_up_message_time(
+        self, patient_id: UUID, since: datetime, limit: int = 20
+    ) -> Optional[datetime]:
+        """
+        Get the most recent follow-up message time for a patient since a timestamp.
+
+        Args:
+            patient_id: Patient UUID
+            since: Lower bound for message creation time
+            limit: Max messages to scan (ordered by newest first)
+
+        Returns:
+            Datetime for the latest follow-up message or None
+        """
+        query = (
+            self.db.query(Message)
+            .filter(Message.patient_id == patient_id)
+            .filter(Message.direction == MessageDirection.OUTBOUND)
+            .filter(Message.created_at >= since)
+            .order_by(Message.created_at.desc())
+            .limit(limit)
+        )
+
+        def _normalize_datetime(value: Optional[datetime]) -> Optional[datetime]:
+            if value and value.tzinfo is None:
+                return value.replace(tzinfo=timezone.utc)
+            return value
+
+        for message in query.all():
+            metadata = message.message_metadata or {}
+            if metadata.get("follow_up_type"):
+                candidate = message.sent_at or message.scheduled_for or message.created_at
+                return _normalize_datetime(candidate)
+
+        return None
 
     def get_conversation_history(
         self, patient_id: UUID, skip: int = 0, limit: int = 50, eager_load: bool = True

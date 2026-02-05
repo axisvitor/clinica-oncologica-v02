@@ -49,7 +49,7 @@ vi.mock('../../../src/lib/firebase-client', async () => {
         try {
           await sendPasswordResetEmail({} as any, email)
           return { error: null }
-        } catch (error: any) {
+        } catch (_error: any) {
           return { error: { message: 'Erro ao enviar email de recuperação' } }
         }
       },
@@ -57,7 +57,7 @@ vi.mock('../../../src/lib/firebase-client', async () => {
         try {
           await signOut({} as any)
           return { error: null }
-        } catch (error: any) {
+        } catch (_error: any) {
           return { error: { message: 'Erro ao fazer logout' } }
         }
       }

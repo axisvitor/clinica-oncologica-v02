@@ -1,0 +1,221 @@
+jobs:
+  - name: process-scheduled-messages
+    schedule: "*/1 * * * *"
+    timeZone: "UTC"
+    description: "Cloud Scheduler minimum interval is 1 minute (Celery was 30s)."
+    task:
+      name: "process_scheduled_messages"
+      args: []
+      kwargs:
+        limit: 100
+  - name: retry-failed-messages
+    schedule: "*/5 * * * *"
+    timeZone: "UTC"
+    task:
+      name: "retry_failed_messages"
+      args: []
+      kwargs:
+        limit: 50
+        max_retries: 3
+  - name: retry-pending-welcome-messages
+    schedule: "*/10 * * * *"
+    timeZone: "UTC"
+    task:
+      name: "retry_pending_welcome_messages"
+      args: []
+      kwargs:
+        limit: 50
+        min_age_minutes: 5
+        max_age_hours: 24
+  - name: cleanup-old-messages
+    schedule: "0 2 * * *"
+    timeZone: "UTC"
+    task:
+      name: "cleanup_old_messages"
+      args: []
+      kwargs:
+        days_old: 90
+  - name: generate-message-analytics
+    schedule: "15 * * * *"
+    timeZone: "UTC"
+    task:
+      name: "generate_message_analytics"
+      args: []
+      kwargs:
+        days_back: 7
+  - name: process-daily-flows
+    schedule: "0 * * * *"
+    timeZone: "UTC"
+    task:
+      name: "app.tasks.flows.flow_tasks.process_daily_flows"
+      args: []
+      kwargs:
+        limit: 100
+  - name: cleanup-old-flow-data
+    schedule: "30 2 * * *"
+    timeZone: "UTC"
+    task:
+      name: "app.tasks.flows.cleanup_tasks.cleanup_old_flow_data"
+      args: []
+      kwargs:
+        days_old: 90
+  - name: monitor-flow-task-health
+    schedule: "*/5 * * * *"
+    timeZone: "UTC"
+    task:
+      name: "app.tasks.flows.monitoring.monitor_flow_task_health"
+      args: []
+      kwargs: {}
+  - name: evaluate-flow-alerts
+    schedule: "*/15 * * * *"
+    timeZone: "UTC"
+    task:
+      name: "app.tasks.flows.monitoring.evaluate_flow_alerts"
+      args: []
+      kwargs: {}
+  - name: generate-scheduled-reports
+    schedule: "20 * * * *"
+    timeZone: "UTC"
+    task:
+      name: "app.tasks.reports.generate_scheduled_reports"
+      args: []
+      kwargs: {}
+  - name: check-patient-alerts
+    schedule: "*/5 * * * *"
+    timeZone: "UTC"
+    task:
+      name: "app.tasks.alerts.check_patient_alerts"
+      args: []
+      kwargs: {}
+  - name: check-expired-quiz-links
+    schedule: "*/30 * * * *"
+    timeZone: "UTC"
+    task:
+      name: "app.tasks.quiz_link_tasks.check_expired_links"
+      args: []
+      kwargs:
+        limit: 100
+  - name: monitor-resilience-metrics
+    schedule: "10 * * * *"
+    timeZone: "UTC"
+    task:
+      name: "app.tasks.quiz_link_tasks.monitor_resilience_metrics"
+      args: []
+      kwargs: {}
+  - name: process-quiz-dead-letter-queue
+    schedule: "0 */2 * * *"
+    timeZone: "UTC"
+    task:
+      name: "app.tasks.quiz_link_tasks.process_dead_letter_queue"
+      args: []
+      kwargs:
+        limit: 50
+  - name: process-monthly-quizzes
+    schedule: "25 * * * *"
+    timeZone: "UTC"
+    task:
+      name: "app.tasks.flows.monthly_tasks.process_monthly_quizzes"
+      args: []
+      kwargs:
+        limit: 100
+  - name: scan-and-retry-failed-sagas
+    schedule: "*/5 * * * *"
+    timeZone: "UTC"
+    task:
+      name: "scan_and_retry_failed_sagas"
+      args: []
+      kwargs: {}
+  - name: cleanup-old-completed-sagas
+    schedule: "30 3 * * *"
+    timeZone: "UTC"
+    task:
+      name: "cleanup_old_completed_sagas"
+      args: []
+      kwargs: {}
+  - name: check-orphaned-sagas
+    schedule: "35 * * * *"
+    timeZone: "UTC"
+    task:
+      name: "app.tasks.saga_monitoring.check_orphaned_sagas"
+      args: []
+      kwargs: {}
+  - name: process-whatsapp-dlq
+    schedule: "*/10 * * * *"
+    timeZone: "UTC"
+    task:
+      name: "app.tasks.messaging.process_whatsapp_dlq"
+      args: []
+      kwargs:
+        limit: 50
+  - name: cleanup-expired-quiz-sessions
+    schedule: "30 */2 * * *"
+    timeZone: "UTC"
+    task:
+      name: "app.tasks.quiz_flow.cleanup_tasks.cleanup_expired_quiz_sessions_task"
+      args: []
+      kwargs:
+        max_age_hours: 48
+  - name: check-pending-flows
+    schedule: "*/15 * * * *"
+    timeZone: "UTC"
+    task:
+      name: "flow_automation.check_and_start_pending_flows"
+      args: []
+      kwargs: {}
+  - name: send-daily-reminders
+    schedule: "30 11 * * *"
+    timeZone: "UTC"
+    task:
+      name: "flow_automation.send_daily_reminders"
+      args: []
+      kwargs: {}
+  - name: send-daily-flow-questions
+    schedule: "0 11 * * *"
+    timeZone: "UTC"
+    description: "CRITICAL: Sends daily check-in questions to patients (8 AM BRT = 11 UTC)"
+    task:
+      name: "flow_automation.send_daily_flow_questions"
+      args: []
+      kwargs: {}
+  - name: resume-paused-flows
+    schedule: "0 */6 * * *"
+    timeZone: "UTC"
+    task:
+      name: "flow_automation.resume_paused_flows"
+      args: []
+      kwargs: {}
+  - name: cleanup-expired-quiz-links
+    schedule: "15 2 * * *"
+    timeZone: "UTC"
+    task:
+      name: "flow_automation.cleanup_expired_quiz_links"
+      args: []
+      kwargs: {}
+  - name: execute-pending-follow-ups
+    schedule: "*/5 * * * *"
+    timeZone: "UTC"
+    task:
+      name: "app.tasks.follow_up.execute_pending_follow_ups"
+      args: []
+      kwargs: {}
+  - name: process-escalation-alerts
+    schedule: "*/10 * * * *"
+    timeZone: "UTC"
+    task:
+      name: "app.tasks.follow_up.process_escalation_alerts"
+      args: []
+      kwargs: {}
+  - name: cleanup-old-contexts
+    schedule: "0 3 * * *"
+    timeZone: "UTC"
+    task:
+      name: "app.tasks.follow_up.cleanup_old_contexts"
+      args: []
+      kwargs: {}
+  - name: process-webhook-dlq
+    schedule: "*/1 * * * *"
+    timeZone: "UTC"
+    task:
+      name: "webhooks.process_dlq"
+      args: []
+      kwargs: {}

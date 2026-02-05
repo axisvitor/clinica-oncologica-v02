@@ -233,11 +233,11 @@ route:
       receiver: 'pagerduty-critical'
       continue: true
 
-    # Warning CORS alerts go to Slack
+    # Warning CORS alerts go to email
     - match:
         severity: warning
         component: cors
-      receiver: 'slack-warnings'
+      receiver: 'email-info'
       continue: true
 
     # Info CORS alerts go to email
@@ -255,13 +255,6 @@ receivers:
     pagerduty_configs:
       - service_key: '<PAGERDUTY_SERVICE_KEY>'
         description: '{{ .CommonAnnotations.summary }}'
-
-  - name: 'slack-warnings'
-    slack_configs:
-      - api_url: '<SLACK_WEBHOOK_URL>'
-        channel: '#alerts-cors'
-        title: '{{ .CommonAnnotations.summary }}'
-        text: '{{ .CommonAnnotations.description }}'
 
   - name: 'email-info'
     email_configs:

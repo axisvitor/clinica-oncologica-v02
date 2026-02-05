@@ -141,7 +141,7 @@ class TestAtomicWebhookIdempotency:
 
     @pytest.mark.asyncio
     async def test_try_acquire_redis_failure_no_db(self, mock_redis):
-        """Test fail-open when Redis fails and no DB available."""
+        """Test fail-closed when Redis fails and no DB available."""
         mock_redis.set.side_effect = Exception("Redis connection error")
 
         # No DB fallback
@@ -152,9 +152,9 @@ class TestAtomicWebhookIdempotency:
             event_id="msg_123"
         )
 
-        # Should fail-open and allow processing
-        assert acquired is True
-        assert reason == "fallback"
+        # Should fail-closed to prevent duplicates
+        assert acquired is False
+        assert reason == "infrastructure_failure"
 
     @pytest.mark.asyncio
     async def test_mark_completed(self, idempotency_service, mock_redis):
@@ -428,16 +428,17 @@ class TestProcessingStats:
         mock_redis = AsyncMock()
 
         # Mock scan_iter to return some keys
-        async def mock_scan():
-            keys = [
-                b"webhook:idem:message:1",
-                b"webhook:idem:message:2",
-                b"webhook:idem:status:1",
-            ]
+        keys = [
+            b"webhook:idem:message:1",
+            b"webhook:idem:message:2",
+            b"webhook:idem:status:1",
+        ]
+
+        async def mock_scan_iter(match=None):
             for key in keys:
                 yield key
 
-        mock_redis.scan_iter.return_value = mock_scan()
+        mock_redis.scan_iter = mock_scan_iter
 
         # Mock get to return different states
         states = {
@@ -445,7 +446,7 @@ class TestProcessingStats:
             b"webhook:idem:message:2": b"completed:2024-01-01",
             b"webhook:idem:status:1": b"failed:error:2024-01-01",
         }
-        mock_redis.get.side_effect = lambda k: states.get(k)
+        mock_redis.get = AsyncMock(side_effect=lambda k: states.get(k))
 
         service = AtomicWebhookIdempotency(mock_redis)
         stats = await service.get_processing_stats()

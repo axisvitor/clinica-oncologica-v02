@@ -15,9 +15,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import {
   Activity, BarChart3, TrendingUp, Users, Brain, Target,
-  Settings, Download, RefreshCw, AlertTriangle
+  Settings, Download, AlertTriangle
 } from 'lucide-react';
 import { createLogger } from '@/lib/logger'
+import { apiClient } from '@/lib/api-client'
 
 const logger = createLogger('MetricsDashboardPage')
 
@@ -62,9 +63,12 @@ const MetricsDashboardPage: React.FC = () => {
       if (endDateStr) params.append('end_date', endDateStr)
       params.append('format', 'json')
 
-      const response = await fetch(`/api/v2/enhanced-analytics/export?${params.toString()}`, {
+      const response = await fetch(`${apiClient.getBaseURL()}/api/v2/enhanced-analytics/export?${params.toString()}`, {
         method: 'GET',
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          ...apiClient.getSessionHeaders(),
+        }
       });
 
       if (response.ok) {
@@ -80,8 +84,11 @@ const MetricsDashboardPage: React.FC = () => {
         document.body.removeChild(a);
       } else {
         // Fallback: export from dashboard/main data
-        const dashboardResponse = await fetch('/api/v2/dashboard/main', {
-          credentials: 'include'
+        const dashboardResponse = await fetch(`${apiClient.getBaseURL()}/api/v2/dashboard/main`, {
+          credentials: 'include',
+          headers: {
+            ...apiClient.getSessionHeaders(),
+          }
         });
         if (dashboardResponse.ok) {
           const data = await dashboardResponse.json();

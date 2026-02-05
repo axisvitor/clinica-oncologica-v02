@@ -25,7 +25,7 @@ export default function RootLayout({
           <ErrorBoundary>
             {children}
             <Toaster />
-            <Analytics />
+            {process.env.NODE_ENV === 'production' && <Analytics />}
           </ErrorBoundary>
         </ThemeProvider>
       </body>

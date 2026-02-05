@@ -9,7 +9,7 @@ Date: 2025-01-22
 """
 
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import Mock, AsyncMock
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 

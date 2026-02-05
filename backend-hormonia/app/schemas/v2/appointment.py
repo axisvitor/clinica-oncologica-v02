@@ -3,7 +3,7 @@ Appointment schemas for API v2
 Enhanced appointment models with field selection and eager loading support.
 """
 
-from typing import Optional, List
+from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 

@@ -33,30 +33,14 @@ from app.core.exceptions import (
     # HTTP exceptions
     ValidationError,
     NotFoundError,
-    ConflictError,
-    UnauthorizedError,
-    ForbiddenError,
-    BadRequestError,
-    RateLimitError,
-    ServiceUnavailableError,
-    # Domain exceptions
     ExternalServiceError,
     DatabaseError,
-    ProcessingError,
     AIProcessingError,
     # Flow exceptions
     FlowException,
     FlowStateNotFoundError,
     FlowValidationError,
     FlowStateConflictError,
-    FlowOperationError,
-    # Patient exceptions
-    PatientNotFoundError,
-    PatientAccessDeniedError,
-    # Quiz exceptions
-    QuizNotFoundError,
-    QuizValidationError,
-    QuizSessionExpiredError,
 )
 
 logger = logging.getLogger(__name__)

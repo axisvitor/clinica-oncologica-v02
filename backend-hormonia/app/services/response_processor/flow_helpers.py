@@ -17,6 +17,17 @@ class FlowHelpers:
     """Helper functions for flow-related operations."""
 
     @staticmethod
+    def _resolve_severity_score(structured_response: StructuredResponse) -> int:
+        """Resolve severity score from combined sources."""
+        return max(
+            structured_response.severity_score,
+            structured_response.extracted_data.get(
+                "concern_detector_severity_score", 0
+            ),
+            structured_response.extracted_data.get("severity_score", 0),
+        )
+
+    @staticmethod
     async def determine_flow_actions(
         structured_response: StructuredResponse, flow_state: Optional[PatientFlowState]
     ) -> List[FlowAction]:
@@ -33,8 +44,23 @@ class FlowHelpers:
         actions = []
 
         try:
+            severity_score = FlowHelpers._resolve_severity_score(structured_response)
             # Action based on concern level
-            if structured_response.concern_level == ConcernLevel.CRITICAL:
+            if severity_score >= 9:
+                actions.append(
+                    FlowAction(
+                        action_type="escalate_immediately",
+                        parameters={
+                            "concern_level": "emergency",
+                            "severity_score": severity_score,
+                            "medical_concerns": structured_response.medical_concerns,
+                            "patient_message": structured_response.original_message,
+                        },
+                        priority="critical",
+                        delay_seconds=0,
+                    )
+                )
+            elif structured_response.concern_level == ConcernLevel.CRITICAL:
                 actions.append(
                     FlowAction(
                         action_type="escalate_immediately",
@@ -47,7 +73,6 @@ class FlowHelpers:
                         delay_seconds=0,
                     )
                 )
-
             elif structured_response.concern_level == ConcernLevel.HIGH:
                 actions.append(
                     FlowAction(
@@ -59,6 +84,20 @@ class FlowHelpers:
                         },
                         priority="high",
                         delay_seconds=300,  # 5 minutes
+                    )
+                )
+            elif severity_score >= 7:
+                actions.append(
+                    FlowAction(
+                        action_type="schedule_provider_review",
+                        parameters={
+                            "concern_level": "high",
+                            "severity_score": severity_score,
+                            "medical_concerns": structured_response.medical_concerns,
+                            "review_within_hours": 4,
+                        },
+                        priority="high",
+                        delay_seconds=300,
                     )
                 )
 
@@ -200,9 +239,11 @@ class FlowHelpers:
         Returns:
             True if escalation required
         """
+        severity_score = FlowHelpers._resolve_severity_score(structured_response)
         return (
             structured_response.concern_level
             in [ConcernLevel.HIGH, ConcernLevel.CRITICAL]
             or structured_response.requires_attention
             or bool(structured_response.medical_concerns)
+            or severity_score >= 7
         )

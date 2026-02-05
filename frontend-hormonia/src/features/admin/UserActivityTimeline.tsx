@@ -3,8 +3,6 @@ import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
   Activity,
-  CheckCircle,
-  XCircle,
   AlertTriangle,
   Lock,
   Shield,
@@ -339,7 +337,7 @@ export function UserActivityTimeline({
                   <div className="absolute left-4 top-0 bottom-0 w-px bg-gray-200"></div>
 
                   {dateActivities.map((activity, index) => (
-                    <div key={activity.id} className="relative flex items-start space-x-3">
+                    <div key={activity.id || index} className="relative flex items-start space-x-3">
                       {/* Timeline dot */}
                       <div className={`relative z-10 flex items-center justify-center w-8 h-8 rounded-full border-2 ${getActivityColor(activity.action)}`}>
                         {getActivityIcon(activity.action)}
