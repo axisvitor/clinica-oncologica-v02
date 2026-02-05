@@ -43,10 +43,19 @@ function validateSecurityEnvironment() {
 // NEXT_PHASE is 'phase-production-build' during `next build`
 const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build'
 
-if (!isBuildPhase && (process.env.NODE_ENV === 'production' || process.env.VALIDATE_ENV !== 'false')) {
+// Only validate in production OR when explicitly requested via VALIDATE_ENV=true
+// Skip validation in development/preview by default
+const shouldValidate = !isBuildPhase && (
+  process.env.NODE_ENV === 'production' || 
+  process.env.VALIDATE_ENV === 'true'
+)
+
+if (shouldValidate) {
   validateSecurityEnvironment()
 } else if (isBuildPhase) {
   console.log('⏭️  Skipping security validation during build phase (will validate at runtime)')
+} else {
+  console.log('⏭️  Skipping security validation in development mode (set VALIDATE_ENV=true to force)')
 }
 
 // Resolve backend URL for CSP from environment variables
