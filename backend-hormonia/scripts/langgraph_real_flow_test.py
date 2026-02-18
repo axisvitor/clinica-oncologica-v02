@@ -100,7 +100,7 @@ async def _run() -> None:
     from app.services.flow.sequential_message_handler import SequentialMessageHandler
     from app.services.response_processor.processor import ResponseProcessor
     from app.services.response_processor.models import InboundMessage
-    from app.ai.langgraph.graphs import build_humanization_graph
+    from app.ai.langgraph.graphs import get_humanization_graph
 
     if settings.ALLOW_AI_SIMULATION:
         raise SystemExit(
@@ -160,7 +160,7 @@ async def _run() -> None:
 
         continuation_result = await handler.handle_response_and_continue(patient.id)
 
-        graph = build_humanization_graph()
+        graph = get_humanization_graph()
         humanized = await graph.ainvoke(
             {
                 "template": inbound_text,
